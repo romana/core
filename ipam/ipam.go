@@ -1,7 +1,9 @@
 package ipam
 
-import "net"
-	
+import (
+  "net"
+)
+
 type PaniNetwork struct {
   cidr uint64
 }
