@@ -26,3 +26,6 @@ _testmain.go
 # Emacs artifacts
 *~
 #*#
+
+# Eclipse artifacts
+.project

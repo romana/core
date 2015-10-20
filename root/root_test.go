@@ -13,22 +13,36 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Command-line for running IPAM
+// Test
+package root
 
 import (
-    "fmt"
-    "github.com/romanaproject/pani_core/ipam"
-    "github.com/romanaproject/pani_core/common"
-    "database/sql"
-    "github.com/go-sql-driver/mysql"
+	"fmt"
+	"github.com/romanaproject/pani_core/common"
+	"os"
+	"testing"
 )
 
-func main() {
-  fmt.Println(common.ImportantUtility())
-  s, err :=  sql.Open("mysql", "user:password@/dbname")
-  s.Close()	
-  ns := new(mysql.NullTime)
-  fmt.Println(ns)
-  fmt.Println("Of course opening mysql will fail: ",err)
-  fmt.Println("Hello... My address is", ipam.GetAddress)
+// Test the service list.
+func TestServiceList(t *testing.T) {
+	fmt.Println("Entering TestServiceList")
+	dir, _ := os.Getwd()
+	fmt.Println("In", dir)
+
+	yamlFileName := "../common/testdata/pani.sample.yaml"
+	fmt.Println("Calling Run()")
+	channel, err := Run(yamlFileName)
+	if err != nil {
+		t.Error(err)
+	}
+	msg := <- channel
+	fmt.Println("Root service said:", msg)
+	addr := "http://localhost:8000"
+	client := common.RestClient{addr}
+	
+	data, err := client.HttpGet("/")
+	if err != nil {
+		t.Error(err)
+	}
+	fmt.Println(data)
 }

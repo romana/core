@@ -4,3 +4,27 @@
 [submodule "vendor/github.com/go-sql-driver/mysql"]
 	path = vendor/github.com/go-sql-driver/mysql
 	url = git@github.com:go-sql-driver/mysql.git
+[submodule "vendor/github.com/gorilla/mux"]
+	path = vendor/github.com/gorilla/mux
+	url = git://github.com/gorilla/mux.git
+[submodule "vendor/github.com/gorilla/context"]
+	path = vendor/github.com/gorilla/context
+	url = git@github.com:gorilla/context.git
+[submodule "vendor/github.com/codegangsta/negroni"]
+	path = vendor/github.com/codegangsta/negroni
+	url = git@github.com:codegangsta/negroni.git
+[submodule "vendor/github.com/unrolled/render"]
+	path = vendor/github.com/unrolled/render
+	url = git@github.com:unrolled/render.git
+[submodule "vendor/github.com/K-Phoen/http-negotiate"]
+	path = vendor/github.com/K-Phoen/http-negotiate
+	url = git@github.com:K-Phoen/http-negotiate.git
+[submodule "vendor/github.com/K-Phoen/negotiation"]
+	path = vendor/github.com/K-Phoen/negotiation
+	url = git@github.com:K-Phoen/negotiation.git
+[submodule "vendor/github.com/go-yaml/yaml"]
+	path = vendor/github.com/go-yaml/yaml
+	url = git@github.com:go-yaml/yaml.git
+[submodule "vendor/github.com/mitchellh/mapstructure"]
+	path = vendor/github.com/mitchellh/mapstructure
+	url = git@github.com:mitchellh/mapstructure.git

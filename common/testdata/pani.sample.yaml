@@ -1,0 +1,13 @@
+services:
+  - service: root
+    api:
+      host: localhost
+      port: 8000
+  - service: ipam
+    api:
+      host: localhost
+      port: 8001
+      root_host: localhost
+      root_port: 8000
+    config:
+      foo: bar

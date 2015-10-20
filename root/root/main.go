@@ -8,27 +8,30 @@
 //   http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
-//  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
 // WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Command-line for running IPAM
+// Command to launch root service
+package main
 
 import (
-    "fmt"
-    "github.com/romanaproject/pani_core/ipam"
-    "github.com/romanaproject/pani_core/common"
-    "database/sql"
-    "github.com/go-sql-driver/mysql"
+	"flag"
+	"fmt"
+	"github.com/romanaproject/pani_core/root"
 )
 
+// Main entry point for the root microservice
 func main() {
-  fmt.Println(common.ImportantUtility())
-  s, err :=  sql.Open("mysql", "user:password@/dbname")
-  s.Close()	
-  ns := new(mysql.NullTime)
-  fmt.Println(ns)
-  fmt.Println("Of course opening mysql will fail: ",err)
-  fmt.Println("Hello... My address is", ipam.GetAddress)
+	configFileName := flag.String("c", "", "Configuration file")
+	flag.Parse()
+	channel, err := root.Run(*configFileName)
+	if err != nil {
+		panic(err)
+	}
+	for {
+		msg := <-channel
+		fmt.Println(msg)
+	}
 }
