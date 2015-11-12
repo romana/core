@@ -12,10 +12,32 @@
 // WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 // License for the specific language governing permissions and limitations
 // under the License.
+package topology
 
-// Command-line for running IPAM
-package main
+import (
+//	"github.com/romana/core/common"
+)
 
-func main() {
-  
+type Datacenter struct {
+	Id                uint64 `sql:"AUTO_INCREMENT"`
+	Prefix            uint64
+	PrefixBits        uint
+	PortBits          uint
+	TenantBits        uint
+	SegmentBits       uint
+	EndpointSpaceBits uint
+	Name              string
+}
+
+type Host struct {
+	Id        uint64 `sql:"AUTO_INCREMENT"`
+	Ip        string
+	Name      string
+	AgentPort uint64
+	//	tor         *Tor
+}
+
+type Tor struct {
+	Id         uint64 `sql:"AUTO_INCREMENT"`
+	datacenter *Datacenter
 }

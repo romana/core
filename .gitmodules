@@ -1,12 +1,12 @@
-[submodule "src/github.com/romanaproject/pani_core/vendor/github.com/go-sql-driver/mysql"]
-	path = src/github.com/romanaproject/pani_core/vendor/github.com/go-sql-driver/mysql
+[submodule "src/github.com/romana/core/vendor/github.com/go-sql-driver/mysql"]
+	path = src/github.com/romana/core/vendor/github.com/go-sql-driver/mysql
 	url = git@github.com:go-sql-driver/mysql.git
 [submodule "vendor/github.com/go-sql-driver/mysql"]
 	path = vendor/github.com/go-sql-driver/mysql
 	url = git@github.com:go-sql-driver/mysql.git
 [submodule "vendor/github.com/gorilla/mux"]
 	path = vendor/github.com/gorilla/mux
-	url = git://github.com/gorilla/mux.git
+	url = git@github.com:gorilla/mux.git
 [submodule "vendor/github.com/gorilla/context"]
 	path = vendor/github.com/gorilla/context
 	url = git@github.com:gorilla/context.git
@@ -28,3 +28,18 @@
 [submodule "vendor/github.com/mitchellh/mapstructure"]
 	path = vendor/github.com/mitchellh/mapstructure
 	url = git@github.com:mitchellh/mapstructure.git
+[submodule "vendor/github.com/go-check/check"]
+	path = vendor/github.com/go-check/check
+	url = git@github.com:go-check/check.git
+[submodule "vendor/github.com/jmoiron/sqlx"]
+	path = vendor/github.com/jmoiron/sqlx
+	url = git@github.com:jmoiron/sqlx.git
+[submodule "vendor/github.com/jinzhu/gorm"]
+	path = vendor/github.com/jinzhu/gorm
+	url = git@github.com:jinzhu/gorm.git
+[submodule "vendor/github.com/lib/pq"]
+	path = vendor/github.com/lib/pq
+	url = git@github.com:lib/pq.git
+[submodule "vendor/github.com/qor/inflection"]
+	path = vendor/github.com/qor/inflection
+	url = git@github.com:qor/inflection.git

@@ -13,9 +13,18 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Command-line for running IPAM
-package main
+package common
 
-func main() {
-  
+import (
+	"net"
+)
+
+type IP struct {
+	ip net.IP
+	ipv6 bool
+}
+
+func MakeIPv4(a, b, c, d byte) IP {
+	ip := IP{net.IPv4(a,b,c,d), false}
+	return ip
 }

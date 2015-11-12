@@ -13,20 +13,33 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Command to launch root service
+// Command to launch topology service
 package main
 
 import (
 	"flag"
-	"github.com/romana/core/root"
 	"fmt"
+
+	"github.com/romana/core/topology"
 )
 
-// Main entry point for the root microservice
+// Main entry point for the topology microservice
 func main() {
-	configFileName := flag.String("c", "", "Configuration file")
+	createSchema := flag.Bool("createSchema", false, "Create schema")
+	overwriteSchema := flag.Bool("overwriteSchema", false, "Overwrite schema")
+	rootUrl := flag.String("rootUrl", "", "Root service URL")
 	flag.Parse()
-	channel, err := root.Run(*configFileName)
+
+	if *createSchema || *overwriteSchema {
+		err := topology.CreateSchema(*rootUrl, *overwriteSchema)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println("Schema created.")
+		return
+	}
+
+	channel, err := topology.Run(*rootUrl)
 	if err != nil {
 		panic(err)
 	}

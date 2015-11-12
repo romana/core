@@ -7,7 +7,32 @@ services:
     api:
       host: localhost
       port: 8001
-      root_host: localhost
-      root_port: 8000
     config:
-      foo: bar
+      store: 
+        type: mysql
+        host: localhost
+        username: root
+        password: password
+        database: ipam
+  - service: tenant
+    api:
+      host: localhost
+      port: 8002
+    config:
+      store: 
+        type: mysql
+        host: localhost
+        username: root
+        password: password
+        database: tenant
+  - service: topology
+    api:
+      host: localhost
+      port: 8003
+    config:
+      store: 
+        type: mysql
+        host: localhost
+        username: root
+        password: password
+        database: topology
