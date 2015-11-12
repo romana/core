@@ -13,9 +13,33 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Command-line for running IPAM
-package main
+package common
 
-func main() {
-  
+//import "fmt"
+
+// Adapts gorm's array of errors found in GetErrors()
+// to a single error interface.
+type MultiError struct {
+	errors []error
+}
+
+func MakeMultiError(errors []error) *MultiError {
+	if errors == nil {
+		return nil
+	}
+	if len(errors) == 0 {
+		return nil
+	}
+	return &MultiError{errors}
+}
+
+func (m *MultiError) Error() string {
+	s := ""
+	for i := range m.errors {
+		if len(s) > 0 {
+			s += "; "
+		}
+		s += m.errors[i].Error()
+	}
+	return s
 }

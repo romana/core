@@ -13,12 +13,11 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Test
 package root
 
 import (
 	"fmt"
-	"github.com/romanaproject/pani_core/common"
+	"github.com/romana/core/common"
 	"os"
 	"testing"
 )
@@ -35,14 +34,19 @@ func TestServiceList(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	msg := <- channel
+	msg := <-channel
 	fmt.Println("Root service said:", msg)
 	addr := "http://localhost:8000"
 	client := common.RestClient{addr}
-	
-	data, err := client.HttpGet("/")
+	r := IndexResponse{}
+	err = client.Get("/", &r)
 	if err != nil {
 		t.Error(err)
 	}
-	fmt.Println(data)
+	fmt.Println("Received: ", r)
+	svcName := r.ServiceName
+	fmt.Println("Service name: %s", svcName)
+	if svcName != "root" {
+		t.Errorf("Expected serviceName to be root, got %s", svcName)
+	}
 }

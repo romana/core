@@ -13,9 +13,12 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Command-line for running IPAM
-package main
+package ipam
 
-func main() {
-  
+import (
+
+)
+
+type MysqlStore struct {
+	
 }

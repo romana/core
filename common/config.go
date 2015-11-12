@@ -17,18 +17,23 @@ package common
 
 import (
 	"errors"
+	//	"reflect"
 	"fmt"
 	"github.com/go-yaml/yaml"
 	"io/ioutil"
-	//	"reflect"
+
+	"strconv"
+	"strings"
 )
 
 // Api part of service configuration (host/port).
 type Api struct {
-	Host     string `yaml:"host" json:"host"`
-	Port     uint64 `yaml:"port" json:"port"`
-	RootHost string `yaml:"root_host" json:"root_host"`
-	RootPort uint64 `yaml:"root_port" json:"root_port"`
+	Host string `yaml:"host" json:"host"`
+	Port uint64 `yaml:"port" json:"port"`
+}
+
+func (api Api) GetHostPort() string {
+	return strings.Join([]string{api.Host, ":", strconv.FormatUint(api.Port, 10)}, "")
 }
 
 // Configuration that is common to all services.
@@ -44,17 +49,17 @@ type CommonConfig struct {
 // an overkill but if we have a type system, we should
 // use it instead of just dictionaries.
 type ServiceConfig struct {
-	Common *CommonConfig `yaml:"common" json:"common"`
+	Common CommonConfig `json:"common" yaml:"common"`
 	// TODO I really dislike this name, but there
 	// should be some common part that's applicable
 	// to all services, and something service-specific
 	// that we in common do not need to know about.
-	ServiceSpecific interface{} `yaml:"service_specific" json:"service_specific"`
+	ServiceSpecific map[string]interface{} `json:"config" yaml:"config"`
 }
 
 // Main configuration object
 type Config struct {
-	Services map[string]*ServiceConfig
+	Services map[string]ServiceConfig
 }
 
 type yamlConfig struct {
@@ -63,8 +68,46 @@ type yamlConfig struct {
 
 type yamlServiceConfig struct {
 	Service string
-	Api     Api
+	Api     *Api
 	Config  map[string]interface{}
+}
+
+// cleanupMap makes sure that map[string]interface{}'s children
+// maps have as keys strings, not interfaces. YAML parses
+// file into a map[interface{}]interface{} structure which JSON
+// then cannot marshal.
+func cleanupMap(m map[string]interface{}) map[string]interface{} {
+	retval := make(map[string]interface{})
+	for k, v := range m {
+		switch vt := v.(type) {
+		case map[interface{}]interface{}:
+			newVal := cleanupMap2(vt)
+			//			fmt.Println("Cleaning", k, "from", reflect.TypeOf(vt), "to", reflect.TypeOf(newVal))
+			retval[k] = newVal
+		default:
+			//			fmt.Println("here", reflect.TypeOf(vt))
+			retval[k] = v
+		}
+	}
+	return retval
+}
+
+// cleanupMap2 is called from cleanupMap
+func cleanupMap2(ifcIfc map[interface{}]interface{}) map[string]interface{} {
+	retval := make(map[string]interface{})
+	for k, v := range ifcIfc {
+		kStr := k.(string)
+		switch vt := v.(type) {
+		case map[interface{}]interface{}:
+			newVal := cleanupMap2(vt)
+			//			fmt.Println("Cleaning", kStr, "from", reflect.TypeOf(vt), "to", reflect.TypeOf(newVal))
+			retval[kStr] = newVal
+		default:
+			//			fmt.Println(reflect.TypeOf(vt))
+			retval[kStr] = v
+		}
+	}
+	return retval
 }
 
 // ReadConfig parses the configuration file provided and returns
@@ -83,21 +126,27 @@ func ReadConfig(fname string) (Config, error) {
 			return *config, err
 		}
 		serviceConfigs := yamlConfig.Services
-		config.Services =make(map[string]*ServiceConfig)
+		config.Services = make(map[string]ServiceConfig)
 		// Now convert this to map for easier reading...
 		for i := range serviceConfigs {
 			c := serviceConfigs[i]
-			config.Services[c.Service] = &ServiceConfig{}
-			api := c.Api
-			config.Services[c.Service].Common = &CommonConfig{}
-			config.Services[c.Service].Common.Api.Host = api.Host
-			config.Services[c.Service].Common.Api.Port = api.Port
-			
-			config.Services[c.Service].ServiceSpecific = c.Config
+			api := Api{c.Api.Host, c.Api.Port}
+			cleanedConfig := cleanupMap(c.Config)
+			config.Services[c.Service] = ServiceConfig{CommonConfig{api}, cleanedConfig}
+
 		}
 		fmt.Println("Read configuration from", fname)
 		return *config, nil
 	} else {
 		return *config, errors.New("Empty filename.")
 	}
+}
+
+// Stores information needed for a MySQL connection.
+type MysqlStoreInfo struct {
+	Host     string
+	Port     uint64
+	Username string
+	Password string
+	Database string
 }
