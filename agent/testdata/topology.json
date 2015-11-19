@@ -1,0 +1,21 @@
+{
+    "serviceName" : "Topology",
+    "links" : [
+        {
+            "href" : "hosts.json",
+            "rel"  : "host-list"
+        },
+        {
+            "href" : "/tors",
+            "rel"  : "tor-list"
+        },
+        {
+            "href" : "/spines",
+            "rel"  : "spine-list"
+        },
+        {
+            "href" : "datacenter.json",
+            "rel"  : "datacenter-list"
+        }
+    ]
+}

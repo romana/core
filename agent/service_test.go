@@ -12,41 +12,29 @@
 // WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 // License for the specific language governing permissions and limitations
 // under the License.
+package agent
 
-package root
+// Some comments on use of mocking framework in helpers_test.go.
 
 import (
 	"fmt"
-	"github.com/romana/core/common"
 	"os"
 	"testing"
 )
 
-// Test the service list.
-func TestServiceList(t *testing.T) {
-	fmt.Println("Entering TestServiceList")
-	dir, _ := os.Getwd()
-	fmt.Println("In", dir)
-
-	yamlFileName := "../common/testdata/pani.sample.yaml"
-	fmt.Println("Calling Run()")
-	channel, err := Run(yamlFileName)
+// TestService will test agents talking to other services
+func TestService(t *testing.T) {
+	cwd, err := os.Getwd()
+	fmt.Println("In", cwd)
+	if err != nil {
+		panic(err)
+	}
+	rootUrl := fmt.Sprintf("file://%s/testdata/root.json", cwd)
+	channelRoot, err := Run(rootUrl)
 	if err != nil {
 		t.Error(err)
 	}
-	msg := <-channel
-	fmt.Println("Root service said:", msg)
-	addr := "http://localhost:8000"
-	client := common.RestClient{addr}
-	r := IndexResponse{}
-	err = client.Get("/", &r)
-	if err != nil {
-		t.Error(err)
-	}
-	fmt.Println("Received: ", r)
-	svcName := r.ServiceName
-	fmt.Println("Service name:", svcName)
-	if svcName != "root" {
-		t.Errorf("Expected serviceName to be root, got %s", svcName)
-	}
+	msg := <-channelRoot
+	t.Log("Service says", msg)
+	fmt.Println(msg)
 }

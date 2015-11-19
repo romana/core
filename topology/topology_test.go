@@ -102,7 +102,7 @@ func (s *MySuite) TestTopology(c *check.C) {
 	if err != nil {
 		c.Error(err)
 	}
-	
+
 	c.Assert(topIndex.ServiceName, check.Equals, "topology")
 	hostsRelUrl := topIndex.Links.FindByRel("host-list")
 	hostsUrl := addr + hostsRelUrl
@@ -113,25 +113,25 @@ func (s *MySuite) TestTopology(c *check.C) {
 	client.Get(hostsRelUrl, &hostList)
 	myLog(c, "Host list: ", hostList)
 	c.Assert(len(hostList), check.Equals, 0)
-	
-	newHostReq := common.HostMessage{Ip: "10.10.10.10", AgentPort: 9999, Name: "host10" }
+
+	newHostReq := common.HostMessage{Ip: "10.10.10.10", AgentPort: 9999, Name: "host10"}
 	newHostResp := common.HostMessage{}
 	client.Post(hostsRelUrl, newHostReq, &newHostResp)
 	myLog(c, "Response: ", newHostResp)
 	c.Assert(newHostResp.Ip, check.Equals, "10.10.10.10")
 	c.Assert(newHostResp.Id, check.Equals, "1")
-	
-	newHostReq = common.HostMessage{Ip: "10.10.10.11", AgentPort: 9999, Name: "host11" }
+
+	newHostReq = common.HostMessage{Ip: "10.10.10.11", AgentPort: 9999, Name: "host11"}
 	newHostResp = common.HostMessage{}
 	client.Post(hostsRelUrl, newHostReq, &newHostResp)
 	myLog(c, "Response: ", newHostResp)
-	
+
 	c.Assert(newHostResp.Ip, check.Equals, "10.10.10.11")
 	c.Assert(newHostResp.Id, check.Equals, "2")
-	
+
 	var hostList2 []Host
-	client.Get(hostsRelUrl,&hostList2)
+	client.Get(hostsRelUrl, &hostList2)
 	myLog(c, "Host list: ", hostList2)
 	c.Assert(len(hostList2), check.Equals, 2)
-	
+
 }

@@ -1,0 +1,30 @@
+{
+    "serviceName" : "Root",
+    "links" : [
+                {
+                   "href" : "file://testdata/config/agent.json",
+                   "rel"  : "config-agent"
+                 }
+              ],
+    "services" : [
+        {
+            "name" : "topology",
+            "links" : [
+                {
+                    "href" : "file://topology.json",
+                    "rel"  : "service"
+                }
+            ]
+        },
+         {
+            "name" : "agent",
+            "links" : [
+                {
+                    "href" : "file://agent.json",
+                    "rel"  : "agent"
+                }
+            ]
+        }
+     ]
+        
+}

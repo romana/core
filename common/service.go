@@ -15,13 +15,20 @@
 
 package common
 
+// This file in package common has functionality related to REST service
+// interfaces.
+
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/codegangsta/negroni"
 	"io/ioutil"
+	"log"
 	"net/http"
+	"net/url"
+	
 	"strconv"
 	"strings"
 )
@@ -49,6 +56,19 @@ type IndexResponse struct {
 	Links       Links
 }
 
+// Response from the / path for root only
+type RootIndexResponse struct {
+	ServiceName string `json:"serviceName"`
+	Links       Links
+	Services    []ServiceResponse
+}
+
+// Service information
+type ServiceResponse struct {
+	Name  string
+	Links []LinkResponse
+}
+
 // Structure representing the commonly occurring
 // {
 //          "href" : "https://<own-addr>",
@@ -63,11 +83,12 @@ type LinkResponse struct {
 // HostMessage is a structure representing information
 // about the host for the purposes of REST communications
 type HostMessage struct {
-	Ip        string                `json:"ip"`
-	Id        string                `json:"id"`
-	AgentPort int                   `json:"agentPort"`
-	Name      string                `json:"name"`
-	Links     []LinkResponse `json:"links"`
+	Ip        string `json:"ip"`
+	RomanaIp  string `json:"romana_ip"`
+	Id        string `json:"id"`
+	AgentPort int    `json:"agentPort"`
+	Name      string `json:"name"`
+	Links     Links  `json:"links"`
 	//    Tor string       `json:"tor"`
 }
 
@@ -84,31 +105,88 @@ type Service interface {
 	Routes() Routes
 }
 
+// Client for the Romana services.
 type RestClient struct {
-	URL string
+	url    *url.URL
+	client *http.Client
 }
 
-// Get executes POST method on the specified URL
-func (rc RestClient) Post(url string, data interface{}, result interface{}) error {
-	client := &http.Client{}
-	reqBody, err := json.Marshal(data)
+func NewRestClient(url string) (*RestClient, error) {
+	rc := &RestClient{client: &http.Client{}}
+	err := rc.newUrl(url)
+	if err != nil {
+		return nil, err
+	}
+	return rc, nil
+}
+
+// newUrl sets the client's new URL (yes, it mutates).
+// If newUrl is a relative URL then it will be based
+// on the previous value of the URL that the RestClient had.
+func (rc *RestClient) newUrl(dest string) error {
+	url, err := url.Parse(dest)
 	if err != nil {
 		return err
 	}
-	reqBodyReader := bytes.NewReader(reqBody)
-	req, err := http.NewRequest("POST", rc.URL+url, reqBodyReader)
-	if err != nil {
-		return err
+	if rc.url == nil {
+		if !url.IsAbs() {
+			return errors.New("Expected absolute URL.")
+		} else {
+			rc.url = url
+		}
+	} else {
+		newUrl := rc.url.ResolveReference(url)
+		log.Printf("newUrl(): Replacing %s with %s", rc.url, newUrl)
+		rc.url = newUrl
 	}
-	req.Header.Set("content-type", "application/json")
-	req.Header.Set("accept", "application/json")
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
+	return nil
+}
+
+func (rc *RestClient) execMethod(method string, url string, data interface{}, result interface{}) error {
+	rc.newUrl(url)
+
+	var reqBodyReader *bytes.Reader
+
+	if data != nil {
+		reqBody, err := json.Marshal(data)
+		if err != nil {
+			return err
+		}
+		reqBodyReader = bytes.NewReader(reqBody)
+	} else {
+		reqBodyReader = nil
 	}
 
-	defer resp.Body.Close()
-	respBody, err := ioutil.ReadAll(resp.Body)
+	log.Printf("Scheme: %s", rc.url.Scheme)
+	var body []byte
+	var err error
+	if rc.url.Scheme == "http" || rc.url.Scheme == "https" {
+		req, err := http.NewRequest(method, rc.url.String(), reqBodyReader)
+		if reqBodyReader != nil {
+			req.Header.Set("content-type", "application/json")
+		}
+		if err != nil {
+			return err
+		}
+
+		req.Header.Set("accept", "application/json")
+		resp, err := rc.client.Do(req)
+		if err != nil {
+			return err
+		}
+
+		defer resp.Body.Close()
+		body, err = ioutil.ReadAll(resp.Body)
+	} else if rc.url.Scheme == "file" {
+		log.Printf("file scheme URL %s trying to get path %s", rc.url.String(), rc.url.Path)
+		body, err := ioutil.ReadFile(rc.url.Path)
+		log.Printf("XXX %s %s", err, string(body))
+		
+
+	} else {
+		return errors.New(fmt.Sprintf("Unsupported scheme %s", rc.url.Scheme))
+	}
+
 	if err != nil {
 		return err
 	}
@@ -116,38 +194,21 @@ func (rc RestClient) Post(url string, data interface{}, result interface{}) erro
 	if result == nil {
 		return nil
 	}
-
-	err = json.Unmarshal(respBody, &result)
+	
+	err = json.Unmarshal(body, &result)
+	log.Printf("Unmarshaling %s to %s : %s", body, result, err)
 	return err
+}
+
+// Post executes POST method on the specified URL
+func (rc *RestClient) Post(url string, data interface{}, result interface{}) error {
+	return rc.execMethod("POST", url, data, result)
 }
 
 // Get executes GET method on the specified URL,
 // putting the result into the provided interface
 func (rc RestClient) Get(url string, result interface{}) error {
-	client := &http.Client{}
-	req, err := http.NewRequest("GET", rc.URL+url, nil)
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("accept", "application/json")
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	if result == nil {
-		return nil
-	}
-
-	err = json.Unmarshal(body, &result)
-	return err
+	return rc.execMethod("GET", url, nil, result)
 }
 
 type ServiceMessage string
@@ -199,20 +260,29 @@ func InitializeService(service Service, config ServiceConfig) (chan ServiceMessa
 		channel <- Starting
 		negroni.Run(hostPort)
 	}()
-	fmt.Println("Listening on " + hostPort)
+	log.Printf("Listening on %s" + hostPort)
 	return channel, nil
 }
 
 // GetServiceConfig is to get configuration from a root service
 func GetServiceConfig(rootServiceUrl string, name string) (*ServiceConfig, error) {
-	client := RestClient{rootServiceUrl}
-	config := &ServiceConfig{}
-	path := "/config/" + name
-	fmt.Println("Calling", rootServiceUrl+path)
-	err := client.Get(path, config)
+	client, err := NewRestClient(rootServiceUrl)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("Got", config)
+	
+	rootIndexResponse := &RootIndexResponse{}
+	err = client.Get("", rootIndexResponse)
+	if err != nil {
+		return nil, err
+	}
+	config := &ServiceConfig{}
+	config.Common.Api.RootServiceUrl = rootServiceUrl
+	configUrl := rootIndexResponse.Links.FindByRel(name +"-config")
+	log.Print("Found config url", configUrl)
+	err = client.Get(configUrl, config)
+	if err != nil {
+		return nil, err
+	}
 	return config, nil
 }
