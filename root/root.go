@@ -20,6 +20,7 @@ package root
 
 import (
 	//	"fmt"
+	
 	"github.com/romana/core/common"
 	"strconv"
 	"strings"
@@ -62,31 +63,19 @@ func (root *Root) Initialize() error {
 	return nil
 }
 
-// Response from the / path for root only
-type IndexResponse struct {
-	ServiceName string `"json:serviceName"`
-	Links       []common.LinkResponse
-	Services    []ServiceResponse
-}
-
-// Service information
-type ServiceResponse struct {
-	Name  string
-	Links []common.LinkResponse
-}
 
 // Handler for the / URL
 // See https://github.com/romanaproject/romana/wiki/Root-service-API
 func (root *Root) handleIndex(input interface{}, ctx common.RestContext) (interface{}, error) {
-	retval := IndexResponse{}
+	retval := common.RootIndexResponse{}
 	retval.ServiceName = "root"
 	myUrl := strings.Join([]string{"http://", root.config.common.Api.Host, ":", strconv.FormatUint(root.config.common.Api.Port, 10)}, "")
 	links := common.LinkResponse{myUrl, "self"}
 	retval.Links = []common.LinkResponse{links}
-	retval.Services = make([]ServiceResponse, len(root.config.full.Services))
+	retval.Services = make([]common.ServiceResponse, len(root.config.full.Services))
 	i := 0
 	for key, value := range root.config.full.Services {
-		retval.Services[i] = ServiceResponse{}
+		retval.Services[i] = common.ServiceResponse{}
 		retval.Services[i].Name = key
 		href := "http://" + value.Common.Api.GetHostPort()
 		link := common.LinkResponse{"service", href}

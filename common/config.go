@@ -17,23 +17,23 @@ package common
 
 import (
 	"errors"
-	//	"reflect"
 	"fmt"
 	"github.com/go-yaml/yaml"
 	"io/ioutil"
-
-	"strconv"
-	"strings"
 )
 
-// Api part of service configuration (host/port).
+// API part of service configuration (host/port).
 type Api struct {
+	// Host to listen on.
 	Host string `yaml:"host" json:"host"`
+	// Port to listen on.
 	Port uint64 `yaml:"port" json:"port"`
+	// Root service URL
+	RootServiceUrl string `json:"root_service_url,omitempty"`
 }
 
 func (api Api) GetHostPort() string {
-	return strings.Join([]string{api.Host, ":", strconv.FormatUint(api.Port, 10)}, "")
+	return fmt.Sprintf("%s:%d", api.Host, api.Port)
 }
 
 // Configuration that is common to all services.
@@ -41,6 +41,7 @@ func (api Api) GetHostPort() string {
 // DB, etc.
 type CommonConfig struct {
 	Api Api `yaml:"api" json:"api"`
+	
 }
 
 // ServiceConfig contains common configuration
@@ -73,7 +74,7 @@ type yamlServiceConfig struct {
 }
 
 // cleanupMap makes sure that map[string]interface{}'s children
-// maps have as keys strings, not interfaces. YAML parses
+// maps have strings as keys , not interfaces. YAML parses
 // file into a map[interface{}]interface{} structure which JSON
 // then cannot marshal.
 func cleanupMap(m map[string]interface{}) map[string]interface{} {
@@ -82,10 +83,8 @@ func cleanupMap(m map[string]interface{}) map[string]interface{} {
 		switch vt := v.(type) {
 		case map[interface{}]interface{}:
 			newVal := cleanupMap2(vt)
-			//			fmt.Println("Cleaning", k, "from", reflect.TypeOf(vt), "to", reflect.TypeOf(newVal))
 			retval[k] = newVal
 		default:
-			//			fmt.Println("here", reflect.TypeOf(vt))
 			retval[k] = v
 		}
 	}
@@ -130,7 +129,7 @@ func ReadConfig(fname string) (Config, error) {
 		// Now convert this to map for easier reading...
 		for i := range serviceConfigs {
 			c := serviceConfigs[i]
-			api := Api{c.Api.Host, c.Api.Port}
+			api := Api{Host: c.Api.Host, Port: c.Api.Port}
 			cleanedConfig := cleanupMap(c.Config)
 			config.Services[c.Service] = ServiceConfig{CommonConfig{api}, cleanedConfig}
 

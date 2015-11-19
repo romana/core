@@ -45,7 +45,7 @@ func TestServiceList(t *testing.T) {
 	}
 	fmt.Println("Received: ", r)
 	svcName := r.ServiceName
-	fmt.Println("Service name: %s", svcName)
+	fmt.Println("Service name:", svcName)
 	if svcName != "root" {
 		t.Errorf("Expected serviceName to be root, got %s", svcName)
 	}

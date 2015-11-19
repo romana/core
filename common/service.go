@@ -15,13 +15,20 @@
 
 package common
 
+// This file in package common has functionality related to REST service
+// interfaces.
+
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/codegangsta/negroni"
 	"io/ioutil"
+	"log"
 	"net/http"
+	"net/url"
+
 	"strconv"
 	"strings"
 )
@@ -34,19 +41,34 @@ type Links []LinkResponse
 // but, of course, in actual usage it is easier to be used as a
 // map.
 func (links Links) FindByRel(rel string) string {
+	retval := ""
 	for i := range links {
 		if links[i].Rel == rel {
-			return links[i].Href
+			retval = links[i].Href
+			break
 		}
 	}
-
-	return ""
+	log.Printf("FindByRel(): looking for %s in %s: [%s]", rel, links, retval)
+	return retval
 }
 
 // Response to /
 type IndexResponse struct {
 	ServiceName string `"json:serviceName"`
 	Links       Links
+}
+
+// Response from the / path for root only
+type RootIndexResponse struct {
+	ServiceName string `json:"serviceName"`
+	Links       Links
+	Services    []ServiceResponse
+}
+
+// Service information
+type ServiceResponse struct {
+	Name  string
+	Links Links
 }
 
 // Structure representing the commonly occurring
@@ -63,11 +85,12 @@ type LinkResponse struct {
 // HostMessage is a structure representing information
 // about the host for the purposes of REST communications
 type HostMessage struct {
-	Ip        string                `json:"ip"`
-	Id        string                `json:"id"`
-	AgentPort int                   `json:"agentPort"`
-	Name      string                `json:"name"`
-	Links     []LinkResponse `json:"links"`
+	Ip        string `json:"ip"`
+	RomanaIp  string `json:"romana_ip"`
+	Id        string `json:"id"`
+	AgentPort int    `json:"agentPort"`
+	Name      string `json:"name"`
+	Links     Links  `json:"links"`
 	//    Tor string       `json:"tor"`
 }
 
@@ -84,60 +107,124 @@ type Service interface {
 	Routes() Routes
 }
 
+// Client for the Romana services.
 type RestClient struct {
-	URL string
+	url    *url.URL
+	client *http.Client
 }
 
-// Get executes POST method on the specified URL
-func (rc RestClient) Post(url string, data interface{}, result interface{}) error {
-	client := &http.Client{}
-	reqBody, err := json.Marshal(data)
+// NewRestClient creates a new Rest client.
+func NewRestClient(url string) (*RestClient, error) {
+	rc := &RestClient{client: &http.Client{}}
+	err := rc.newUrl(url)
 	if err != nil {
-		return err
+		return nil, err
 	}
-	reqBodyReader := bytes.NewReader(reqBody)
-	req, err := http.NewRequest("POST", rc.URL+url, reqBodyReader)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("content-type", "application/json")
-	req.Header.Set("accept", "application/json")
-	resp, err := client.Do(req)
-	if err != nil {
-		return err
-	}
-
-	defer resp.Body.Close()
-	respBody, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	if result == nil {
-		return nil
-	}
-
-	err = json.Unmarshal(respBody, &result)
-	return err
+	return rc, nil
 }
 
-// Get executes GET method on the specified URL,
-// putting the result into the provided interface
-func (rc RestClient) Get(url string, result interface{}) error {
-	client := &http.Client{}
-	req, err := http.NewRequest("GET", rc.URL+url, nil)
+// newUrl sets the client's new URL (yes, it mutates).
+// If newUrl is a relative URL then it will be based
+// on the previous value of the URL that the RestClient had.
+func (rc *RestClient) newUrl(dest string) error {
+	url, err := url.Parse(dest)
 	if err != nil {
 		return err
 	}
+	if rc.url == nil {
+		if !url.IsAbs() {
+			return errors.New("Expected absolute URL.")
+		} else {
+			rc.url = url
+		}
+	} else {
+		newUrl := rc.url.ResolveReference(url)
+		//		log.Printf("newUrl(): Replacing %s with %s", rc.url, newUrl)
+		rc.url = newUrl
+	}
+	return nil
+}
 
-	req.Header.Set("accept", "application/json")
-	resp, err := client.Do(req)
+// GetServiceUrl is a convenience function, which, given the root
+// service URL and name of desired service, returns the URL of that service.
+func GetServiceUrl(rootServiceUrl string, name string) (string, error) {
+	log.Printf("Entering GetServiceUrl(%s, %s)", rootServiceUrl, name)
+	client, err := NewRestClient(rootServiceUrl)
+	if err != nil {
+		return "", err
+	}
+	resp := RootIndexResponse{}
+	err = client.Get("", &resp)
+	if err != nil {
+		return "", err
+	}
+	for i := range resp.Services {
+		service := resp.Services[i]
+		if service.Name == name {
+			href := service.Links.FindByRel("service")
+			if href == "" {
+				return "", errors.New(fmt.Sprintf("Cannot find service %s at %s", name, resp))
+			} else {
+				// Now for a bit of a trick - this href could be relative...
+				// Need to normalize.
+				err = client.newUrl(href)
+				if err != nil {
+					return "", err
+				}
+				return client.url.String(), nil
+			}
+		}
+	}
+
+	return "", errors.New(fmt.Sprintf("Cannot find service %s at %s", name, resp))
+
+}
+
+// execMethod executes the specified method on the provided url (which is interpreted
+// as relative or absolute).
+func (rc *RestClient) execMethod(method string, url string, data interface{}, result interface{}) error {
+	log.Printf("Going to %s from %s", url, rc.url)
+	err := rc.newUrl(url)
 	if err != nil {
 		return err
 	}
+	var reqBodyReader *bytes.Reader
 
-	defer resp.Body.Close()
-	body, err := ioutil.ReadAll(resp.Body)
+	if data != nil {
+		reqBody, err := json.Marshal(data)
+		if err != nil {
+			return err
+		}
+		reqBodyReader = bytes.NewReader(reqBody)
+	} else {
+		reqBodyReader = nil
+	}
+
+	var body []byte
+	if rc.url.Scheme == "http" || rc.url.Scheme == "https" {
+		req, err := http.NewRequest(method, rc.url.String(), reqBodyReader)
+		if reqBodyReader != nil {
+			req.Header.Set("content-type", "application/json")
+		}
+		if err != nil {
+			return err
+		}
+
+		req.Header.Set("accept", "application/json")
+		resp, err := rc.client.Do(req)
+		if err != nil {
+			return err
+		}
+
+		defer resp.Body.Close()
+		body, err = ioutil.ReadAll(resp.Body)
+	} else if rc.url.Scheme == "file" {
+		log.Printf("Loading file ", rc.url.String(), rc.url.Path)
+		body, err = ioutil.ReadFile(rc.url.Path)
+	} else {
+		return errors.New(fmt.Sprintf("Unsupported scheme %s", rc.url.Scheme))
+	}
+
 	if err != nil {
 		return err
 	}
@@ -148,6 +235,17 @@ func (rc RestClient) Get(url string, result interface{}) error {
 
 	err = json.Unmarshal(body, &result)
 	return err
+}
+
+// Post executes POST method on the specified URL
+func (rc *RestClient) Post(url string, data interface{}, result interface{}) error {
+	return rc.execMethod("POST", url, data, result)
+}
+
+// Get executes GET method on the specified URL,
+// putting the result into the provided interface
+func (rc RestClient) Get(url string, result interface{}) error {
+	return rc.execMethod("GET", url, nil, result)
 }
 
 type ServiceMessage string
@@ -199,20 +297,34 @@ func InitializeService(service Service, config ServiceConfig) (chan ServiceMessa
 		channel <- Starting
 		negroni.Run(hostPort)
 	}()
-	fmt.Println("Listening on " + hostPort)
+	log.Printf("Listening on %s" + hostPort)
 	return channel, nil
 }
 
 // GetServiceConfig is to get configuration from a root service
 func GetServiceConfig(rootServiceUrl string, name string) (*ServiceConfig, error) {
-	client := RestClient{rootServiceUrl}
-	config := &ServiceConfig{}
-	path := "/config/" + name
-	fmt.Println("Calling", rootServiceUrl+path)
-	err := client.Get(path, config)
+	client, err := NewRestClient(rootServiceUrl)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("Got", config)
+
+	rootIndexResponse := &RootIndexResponse{}
+	err = client.Get("", rootIndexResponse)
+	if err != nil {
+		return nil, err
+	}
+	config := &ServiceConfig{}
+	config.Common.Api.RootServiceUrl = rootServiceUrl
+	relName := name + "-config"
+
+	configUrl := rootIndexResponse.Links.FindByRel(relName)
+	if configUrl == "" {
+		return nil, errors.New(fmt.Sprintf("Cold not find %s at %s", relName, rootServiceUrl))
+	}
+	log.Printf("GetServiceConfig(): Found config url %s in %s from %", configUrl, rootIndexResponse, relName)
+	err = client.Get(configUrl, config)
+	if err != nil {
+		return nil, err
+	}
 	return config, nil
 }
