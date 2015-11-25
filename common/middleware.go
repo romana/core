@@ -80,6 +80,7 @@ type Route struct {
 	Handler RestHandler
 	// This should return a POINTER to an instance which
 	// this route expects as an input.
+
 	MakeMessage MakeMessage
 }
 
@@ -195,6 +196,7 @@ func newRouter(routes []Route) *mux.Router {
 }
 
 var supportedContentTypes = []string{"text/plain", "application/vnd.romana.v1+json", "application/vnd.romana+json", "application/json"}
+
 
 var supportedContentTypesMessage = struct {
 	SupportedContentTypes []string `"json:supported_content_types"`

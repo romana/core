@@ -23,6 +23,7 @@ package common
 // them whenever you feel like calling GetErrors() (https://godoc.org/github.com/jinzhu/gorm#DB.GetErrors). 
 // Since this is not consistent  with the rest of the code, I prefer to isolate it
 // here and make an adapter.
+
 type MultiError struct {
 	errors []error
 }

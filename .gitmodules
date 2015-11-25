@@ -1,12 +1,12 @@
-[submodule "src/github.com/romanaproject/pani_core/vendor/github.com/go-sql-driver/mysql"]
-	path = src/github.com/romanaproject/pani_core/vendor/github.com/go-sql-driver/mysql
+[submodule "src/github.com/romana/core/vendor/github.com/go-sql-driver/mysql"]
+	path = src/github.com/romana/core/vendor/github.com/go-sql-driver/mysql
 	url = git@github.com:go-sql-driver/mysql.git
 [submodule "vendor/github.com/go-sql-driver/mysql"]
 	path = vendor/github.com/go-sql-driver/mysql
 	url = git@github.com:go-sql-driver/mysql.git
 [submodule "vendor/github.com/gorilla/mux"]
 	path = vendor/github.com/gorilla/mux
-	url = git://github.com/gorilla/mux.git
+	url = git@github.com:gorilla/mux.git
 [submodule "vendor/github.com/gorilla/context"]
 	path = vendor/github.com/gorilla/context
 	url = git@github.com:gorilla/context.git

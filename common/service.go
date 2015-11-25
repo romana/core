@@ -49,6 +49,7 @@ func (links Links) FindByRel(rel string) string {
 	}
 	log.Printf("FindByRel(): looking for %s in %s: [%s]", rel, links, retval)
 	return retval
+
 }
 
 // Response to /
@@ -90,6 +91,7 @@ type HostMessage struct {
 	AgentPort int    `json:"agentPort"`
 	Name      string `json:"name"`
 	Links     Links  `json:"links"`
+r
 	//    Tor string       `json:"tor"`
 }
 
@@ -298,6 +300,7 @@ func InitializeService(service Service, config ServiceConfig) (chan ServiceMessa
 		negroni.Run(hostPort)
 	}()
 	log.Printf("Listening on %s" + hostPort)
+
 	return channel, nil
 }
 

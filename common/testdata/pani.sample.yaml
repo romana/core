@@ -10,6 +10,7 @@ services:
     config:
       store: 
         type: mysql
+
         host: localhost
         username: root
         password: password
@@ -51,4 +52,3 @@ services:
       config:
         lease_file : "/etc/ethers"
         wait_for_iface_try : 6
-        

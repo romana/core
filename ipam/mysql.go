@@ -15,12 +15,4 @@
 
 package ipam
 
-import (
- "database/sql"
-    "github.com/go-sql-driver/mysql"
-    "github.com/jmoiron/sqlx"
-)
 
-type MysqlStore struct {
-	
-}

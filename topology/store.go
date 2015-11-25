@@ -31,12 +31,14 @@ type Datacenter struct {
 	EndpointBits      uint `json:"endpoint_bits"`
 	EndpointSpaceBits uint `json:"endpoint_space_bits"`
 	Name              string `json:""`
+
 }
 
 type Host struct {
 	Id        uint64 `sql:"AUTO_INCREMENT"`
 	Ip        string
 	RomanaIp  string
+
 	Name      string
 	AgentPort uint64
 	//	tor         *Tor

@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/mitchellh/mapstructure"
+
 	"github.com/romana/core/common"
 	"strconv"
 	"strings"
@@ -30,6 +31,7 @@ type Topology struct {
 	datacenter *Datacenter
 	store      topologyStore
 	routes     common.Route
+
 }
 
 const (
@@ -39,6 +41,7 @@ const (
 	torListPath   = "/tors"
 	spineListPath = "/spines"
 	dcPath        = "/datacenter"
+
 )
 
 // Provides Routes
@@ -89,6 +92,7 @@ func (topology *Topology) handleDc(input interface{}, ctx common.RestContext) (i
 }
 
 // handleHost handles request for a specific host's info
+
 func (topology *Topology) handleHost(input interface{}, ctx common.RestContext) (interface{}, error) {
 	idStr := ctx.PathVariables["hostId"]
 	id, err := strconv.ParseUint(idStr, 10, 64)
@@ -99,7 +103,7 @@ func (topology *Topology) handleHost(input interface{}, ctx common.RestContext) 
 	if err != nil {
 		return nil, err
 	}
-	agentUrl := fmt.Sprintf("http://%s:%d", host.Ip, host.AgentPort)
+X	agentUrl := fmt.Sprintf("http://%s:%d", host.Ip, host.AgentPort)
 	agentLink := common.LinkResponse{agentUrl, "agent"}
 	hostLink := common.LinkResponse{hostListPath + "/" + idStr, "self"}
 	collectionLink := common.LinkResponse{hostListPath, "self"}
@@ -158,6 +162,7 @@ type topologyStore interface {
 	findHost(id uint64) (Host, error)
 }
 
+
 // SetConfig implements SetConfig function of the Service interface.
 // Returns an error if cannot connect to the data store
 func (topology *Topology) SetConfig(config common.ServiceConfig) error {
@@ -177,6 +182,7 @@ func (topology *Topology) SetConfig(config common.ServiceConfig) error {
 		return errors.New("Unknown store type: " + storeType)
 	}
 	return nil
+
 }
 
 func (topology *Topology) createSchema(overwrite bool) error {

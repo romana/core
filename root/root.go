@@ -20,7 +20,10 @@ package root
 
 import (
 	//	"fmt"
+<<<<<<< HEAD
 	
+=======
+>>>>>>> master
 	"github.com/romana/core/common"
 	"strconv"
 	"strings"
@@ -67,6 +70,7 @@ func (root *Root) Initialize() error {
 // See https://github.com/romanaproject/romana/wiki/Root-service-API
 func (root *Root) handleIndex(input interface{}, ctx common.RestContext) (interface{}, error) {
 	retval := common.RootIndexResponse{}
+
 	retval.ServiceName = "root"
 	myUrl := strings.Join([]string{"http://", root.config.common.Api.Host, ":", strconv.FormatUint(root.config.common.Api.Port, 10)}, "")
 	links := common.LinkResponse{myUrl, "self"}
