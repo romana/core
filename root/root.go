@@ -20,9 +20,12 @@ package root
 
 import (
 	//	"fmt"
-	"github.com/romanaproject/pani_core/common"
+	
+	"github.com/romana/core/common"
 	"strconv"
 	"strings"
+
+	//	"github.com/gorilla/mux"
 )
 
 // Root-specific configuration. This may seem a bit
@@ -42,47 +45,51 @@ type Root struct {
 	routes common.Route
 }
 
+const fullConfigKey = "fullConfig"
+
 // SetConfig implements SetConfig function of the Service interface
 func (root *Root) SetConfig(config common.ServiceConfig) error {
 	//	RootConfig{fullConfig.ServiceConfigs["root"], fullConfig}
-	//
+
 	root.config = Config{}
-	root.config.common = config.Common
-	fullConfig := config.ServiceSpecific
-	aMap := fullConfig.(common.Config)
-	root.config.full = &aMap
+	root.config.common = &config.Common
+	f := config.ServiceSpecific[fullConfigKey].(common.Config)
+	root.config.full = &f
+
+	return nil
+}
+
+func (root *Root) Initialize() error {
 	return nil
 }
 
 // Handler for the / URL
 // See https://github.com/romanaproject/romana/wiki/Root-service-API
-func (root *Root) index(input interface{}) (interface{}, error) {
-	retval := make(map[string]interface{})
-	retval["serviceName"] = "root"
-
-	selfMap := make(map[string]string)
-	selfMap["href"] = strings.Join([]string{"http://", root.config.common.Api.Host, ":", strconv.FormatUint(root.config.common.Api.Port, 10)}, "")
-	selfMap["rel"] = "self"
-
-	retval["links"] = []map[string]string{selfMap}
-
-	servicesList := make([]map[string]interface{}, len(root.config.full.Services))
-	retval["services"] = servicesList
+func (root *Root) handleIndex(input interface{}, ctx common.RestContext) (interface{}, error) {
+	retval := common.RootIndexResponse{}
+	retval.ServiceName = "root"
+	myUrl := strings.Join([]string{"http://", root.config.common.Api.Host, ":", strconv.FormatUint(root.config.common.Api.Port, 10)}, "")
+	links := common.LinkResponse{myUrl, "self"}
+	retval.Links = []common.LinkResponse{links}
+	retval.Services = make([]common.ServiceResponse, len(root.config.full.Services))
 	i := 0
 	for key, value := range root.config.full.Services {
-		servicesList[i] = make(map[string]interface{})
-		servicesList[i]["name"] = key
-		servicesList[i]["links"] = make(map[string]string)
-		servicesList[i]["links"].(map[string]string)["rel"] = "service"
-		servicesList[i]["links"].(map[string]string)["href"] = strings.Join([]string{"http://", value.Common.Api.Host, ":", strconv.FormatUint(value.Common.Api.Port, 10)}, "")
+		retval.Services[i] = common.ServiceResponse{}
+		retval.Services[i].Name = key
+		href := "http://" + value.Common.Api.GetHostPort()
+		link := common.LinkResponse{"service", href}
+		retval.Services[i].Links = []common.LinkResponse{link}
 		i++
 	}
 	return retval, nil
 }
 
-// Index is a handler for /
-func Index(input interface{}) (interface{}, error) {
-	return common.Config{}, nil
+// Handler for the /config
+func (root *Root) handleConfig(input interface{}, ctx common.RestContext) (interface{}, error) {
+	pathVars := ctx.PathVariables
+	serviceName := pathVars["serviceName"]
+	retval := root.config.full.Services[serviceName]
+	return retval, nil
 }
 
 // Provides Routes
@@ -91,28 +98,29 @@ func (root Root) Routes() common.Routes {
 		common.Route{
 			"GET",
 			"/",
-			root.index,
+			root.handleIndex,
 			nil,
-			common.Config{},
+		},
+		common.Route{
+			"GET",
+			"/config/{serviceName}",
+			root.handleConfig,
+			nil,
 		},
 	}
 	return routes
 }
 
 // Runs root service
-func Run(configFileName string) (chan string, error) {
-
+func Run(configFileName string) (chan common.ServiceMessage, error) {
 	fullConfig, err := common.ReadConfig(configFileName)
 	if err != nil {
 		return nil, err
 	}
 
 	rootService := &Root{}
-	rootServiceConfig := common.ServiceConfig{}
-
-	rootServiceConfig.Common = fullConfig.Services["root"].Common
-	rootServiceConfig.ServiceSpecific = fullConfig
-
+	rootServiceConfig := common.ServiceConfig{fullConfig.Services["root"].Common, make(map[string]interface{})}
+	rootServiceConfig.ServiceSpecific[fullConfigKey] = fullConfig
 	ch, err := common.InitializeService(rootService, rootServiceConfig)
 	return ch, err
 }

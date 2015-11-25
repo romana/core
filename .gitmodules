@@ -28,3 +28,9 @@
 [submodule "vendor/github.com/mitchellh/mapstructure"]
 	path = vendor/github.com/mitchellh/mapstructure
 	url = git@github.com:mitchellh/mapstructure.git
+[submodule "vendor/github.com/qor/inflection"]
+	path = vendor/github.com/qor/inflection
+	url = git@github.com:qor/inflection.git
+[submodule "vendor/github.com/lib/pq"]
+	path = vendor/github.com/lib/pq
+	url = git@github.com:lib/pq.git

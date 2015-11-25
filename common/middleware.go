@@ -5,7 +5,7 @@
 // not use this file except in compliance with the License. You may obtain
 // a copy of the License at
 //
-//   http://www.apache.org/licenses/LICENSE-2.0
+// http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 //  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
@@ -19,18 +19,28 @@ package common
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"github.com/K-Phoen/negotiation"
-	"github.com/codegangsta/negroni"
 	"github.com/gorilla/context"
 	"github.com/gorilla/mux"
 	"github.com/mitchellh/mapstructure"
 	"io/ioutil"
 	"net/http"
 	"reflect"
-	"strconv"
-	"strings"
 )
+
+// Context of the REST request other than the body data
+// that has been unmarshaled.
+type RestContext struct {
+	// Path variables as described in https://godoc.org/code.google.com/p/gorilla/mux
+	// TODO
+	//
+	PathVariables map[string]string
+	// We are passing request for now to be able to access path variables
+	// but it's not ideal to expose this to services; however, at this point
+	// we have no access to these in middleware due to
+	// https://github.com/codegangsta/negroni/issues/74
+	//	Request *http.Request
+}
 
 // RestHandler specifies type of a function that each Route provides.
 // It takes (for now) an interface as input, and returns any
@@ -41,7 +51,7 @@ import (
 // and of marshalling the returned object to the wire (the type of
 // which is determined by type of the instance provided in Produces
 // field of Route type, below).
-type RestHandler func(input interface{}) (interface{}, error)
+type RestHandler func(input interface{}, context RestContext) (interface{}, error)
 
 // UnwrappedRestHandlerInput is used to pass in
 // http.Request and http.ResponseWriter, should some
@@ -52,6 +62,10 @@ type UnwrappedRestHandlerInput struct {
 	ResponseWriter http.ResponseWriter
 	Request        *http.Request
 }
+
+// A factory function, which should return a pointer to
+// an instance into which we will unmarshal wire data.
+type MakeMessage func() interface{}
 
 // Route determines an action taken on a URL pattern/HTTP method.
 // Each service can define a route
@@ -64,31 +78,23 @@ type Route struct {
 	Pattern string
 	// Handler (see documentation above)
 	Handler RestHandler
-	// This would be much cleaner if we could use types but
-	// types are not first-class values
-	// https://groups.google.com/forum/#!topic/golang-nuts/dYMlhyq5FpA
-	// This is an attempt to bring what I think is a very useful model
-	// from JAX-RS (https://jersey.java.net/documentation/latest/jaxrs-resources.html)
-
-	// Specifies the type that this method takes as argument
-	Consumes interface{}
-
-	// Specifies the type that method returns
-	Produces interface{}
+	// This should return a POINTER to an instance which
+	// this route expects as an input.
+	MakeMessage MakeMessage
 }
 
 // Each service defines routes
 type Routes []Route
 
-// PaniHandler interface to comply with http.Handler
-type PaniHandler struct {
-	paniHandler func(writer http.ResponseWriter, request *http.Request)
+// RomanaHandler interface to comply with http.Handler
+type RomanaHandler struct {
+	doServeHTTP func(writer http.ResponseWriter, request *http.Request)
 }
 
 // ServeHTTP is required by
 // https://golang.org/pkg/net/http/#Handler
-func (paniHandler PaniHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	paniHandler.paniHandler(writer, request)
+func (romanaHandler RomanaHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+	romanaHandler.doServeHTTP(writer, request)
 }
 
 // For comparing to the type of Consumes field of Route struct
@@ -99,17 +105,22 @@ var requestType = reflect.TypeOf(http.Request{})
 // which deals with raw HTTP request and response. The wrapper
 // is intended to transparently deal with converting data to/from
 // the wire format into internal representations.
-func wrapHandler(restHandler RestHandler, consumes interface{}) http.Handler {
-	consumesType := reflect.TypeOf(consumes)
-
-	if consumesType == requestType {
+func wrapHandler(restHandler RestHandler, makeMessage MakeMessage) http.Handler {
+	var inData interface{}
+	if makeMessage == nil {
+		inData = nil
+	} else {
+		inData = makeMessage()
+	}
+	if reflect.TypeOf(inData) == requestType {
 		// This would mean the handler actually wants access to raw request/response
 		// Fine, then...
 		httpHandler := func(writer http.ResponseWriter, request *http.Request) {
 			respReq := UnwrappedRestHandlerInput{writer, request}
-			restHandler(respReq)
+
+			restHandler(respReq, RestContext{mux.Vars(request)})
 		}
-		return PaniHandler{httpHandler}
+		return RomanaHandler{httpHandler}
 	} else {
 		httpHandler := func(writer http.ResponseWriter, request *http.Request) {
 			// The "context" that magically appears here is one managed
@@ -121,28 +132,23 @@ func wrapHandler(restHandler RestHandler, consumes interface{}) http.Handler {
 			// middleware (see UnmarshallerMiddleware) to unmarshal the data
 			// into a consumable object, so we can use it.
 			inDataMap := context.Get(request, ContextKeyUnmarshalledMap)
+
 			var err error
-			var inData interface{}
-			if consumesType == nil {
-				inData = ""
-			} else {
-				inData := reflect.New(consumesType)
+			if inData != nil {
 				// This is where we decode a generic map into
 				// actual objects that the code that deals with
 				// logic can manipulate, relying on all the attendant
 				// benefits (auto-completion, type-checking) that come
 				// with using actual objects vs lists/dicts. See
 				// https://github.com/mitchellh/mapstructure
-				err = mapstructure.Decode(inDataMap, &inData)
-
+				err = mapstructure.Decode(inDataMap, inData)
 				if err != nil {
 					writer.WriteHeader(http.StatusInternalServerError)
 					writer.Write([]byte(err.Error()))
 					return
 				}
 			}
-
-			outData, err := restHandler(inData)
+			outData, err := restHandler(inData, RestContext{mux.Vars(request)})
 			if err == nil {
 				contentType := writer.Header().Get("Content-Type")
 				// This should be ok because the middleware took care of negotiating
@@ -150,7 +156,7 @@ func wrapHandler(restHandler RestHandler, consumes interface{}) http.Handler {
 				marshaller := ContentTypeMarshallers[contentType]
 				if marshaller == nil {
 					writer.WriteHeader(http.StatusUnsupportedMediaType)
-					sct := getSupportedContentTypes()
+					sct := supportedContentTypesMessage
 
 					marshaller := ContentTypeMarshallers["application/json"]
 					dataOut, _ := marshaller.Marshal(sct)
@@ -169,49 +175,9 @@ func wrapHandler(restHandler RestHandler, consumes interface{}) http.Handler {
 			writer.WriteHeader(http.StatusInternalServerError)
 			writer.Write([]byte(err.Error()))
 		}
-		return PaniHandler{httpHandler}
+		return RomanaHandler{httpHandler}
 	}
 
-}
-
-// InitializeService initializes the service with the
-// provided config and
-func InitializeService(service Service, config ServiceConfig) (chan string, error) {
-	channel := make(chan string)
-	err := service.SetConfig(config)
-
-	if err != nil {
-		return nil, err
-	}
-	// Create negroni
-	negroni := negroni.New()
-
-	// Add authentication middleware
-	negroni.Use(NewAuth())
-
-	// Add content-negotiation middleware.
-	// This is an example of using a middleware.
-	// This will modify the response header to the
-	// negotiated content type, and can then be used as
-	// ct := w.Header().Get("Content-Type")
-	// where w is http.ResponseWriter
-	negroni.Use(NewNegotiator())
-
-	// Unmarshal data from the content-type format
-	// into a map
-	negroni.Use(NewUnmarshaller())
-
-	routes := service.Routes()
-	router := newRouter(routes)
-	negroni.UseHandler(router)
-
-	hostPort := strings.Join([]string{config.Common.Api.Host, strconv.FormatUint(config.Common.Api.Port, 10)}, ":")
-	go func() {
-		channel <- "Starting."
-		negroni.Run(hostPort)
-	}()
-	fmt.Println("Listening on " + hostPort)
-	return channel, nil
 }
 
 // NewRouter creates router for a new service.
@@ -223,26 +189,20 @@ func newRouter(routes []Route) *mux.Router {
 		router.
 			Methods(route.Method).
 			Path(route.Pattern).
-			//			Name(route.Name).
-			Handler(wrapHandler(handler, route.Consumes))
+			Handler(wrapHandler(handler, route.MakeMessage))
 	}
 	return router
 }
 
-// TODO "text/html"
-var supportedContentTypes = []string{"text/plain", "application/vnd.pani.v1+json", "application/vnd.pani+json", "application/json"}
+var supportedContentTypes = []string{"text/plain", "application/vnd.romana.v1+json", "application/vnd.romana+json", "application/json"}
 
-// getSupportedContentTypes is just providing a struct
-// to return in case of a 406 response
-func getSupportedContentTypes() interface{} {
-	type supportedContentTypesResponse struct {
-		SupportedContentTypes []string `"json:supported_content_types"`
-	}
-	retval := supportedContentTypesResponse{}
-	retval.SupportedContentTypes = supportedContentTypes
-	return retval
+var supportedContentTypesMessage = struct {
+	SupportedContentTypes []string `"json:supported_content_types"`
+}{
+	supportedContentTypes,
 }
 
+// Marshaller is capable of marshalling and unmarshalling data to/from the wire.
 type Marshaller interface {
 	Marshal(v interface{}) ([]byte, error)
 	Unmarshal(data []byte, v interface{}) error
@@ -261,8 +221,8 @@ func (j jsonMarshaller) Unmarshal(data []byte, v interface{}) error {
 // ContentTypeMarshallers maps MIME type to Marshaller instances
 var ContentTypeMarshallers map[string]Marshaller = map[string]Marshaller{
 	"application/json":             jsonMarshaller{},
-	"application/vnd.pani.v1+json": jsonMarshaller{},
-	"application/vnd.pani+json":    jsonMarshaller{},
+	"application/vnd.romana.v1+json": jsonMarshaller{},
+	"application/vnd.romana+json":    jsonMarshaller{},
 }
 
 // Authenticator is the interface that will be used by AuthMiddleware
@@ -320,7 +280,15 @@ type myReader struct{ *bytes.Buffer }
 
 func (r myReader) Close() error { return nil }
 
-const ContextKeyUnmarshalledMap string = "UnmarshalledMap"
+const (
+	// For passing in Gorilla Mux context the unmarshalled data
+	ContextKeyUnmarshalledMap string = "UnmarshalledMap"
+	// For passing in Gorilla Mux context path variables
+	ContextKeyPathVariables string = "PathVars"
+	// 	 For passing in Gorilla Mux context the original body data
+	ContextKeyOriginalBody string = "OriginalBody"
+	ContextKeyMarshaller   string = "Marshaller"
+)
 
 // Unmarshals request body if needed. If not acceptable,
 // returns an http.StatusNotAcceptable and this ends this
@@ -348,12 +316,14 @@ func (m UnmarshallerMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request
 		r.Body = rdr2
 		myMap := make(map[string]interface{})
 		marshaller.Unmarshal(buf, &myMap)
-		// TODO remove this...
 		context.Set(r, ContextKeyUnmarshalledMap, myMap)
+		// TODO
+		context.Set(r, ContextKeyOriginalBody, buf)
+		context.Set(r, ContextKeyMarshaller, marshaller)
 		// Call the next middleware handler
 		next(w, r)
 	} else {
-		sct := getSupportedContentTypes()
+		sct := supportedContentTypesMessage
 		marshaller := ContentTypeMarshallers["application/json"]
 		dataOut, _ := marshaller.Marshal(sct)
 		w.WriteHeader(http.StatusNotAcceptable)

@@ -13,9 +13,8 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Command-line for running IPAM
-package main
+/*
+Implements Topology service. See https://github.com/romanaproject/romana/wiki/Topology-service-API.
+*/
+package topology
 
-func main() {
-  
-}
