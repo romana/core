@@ -53,8 +53,9 @@ type Helper struct {
 	ensureInterHostRoutesMutex *sync.Mutex
 }
 
-// mockAgent creates the agent with the same configuration 
-// as the one made from the test config file
+// mockAgent creates the agent with the configuration 
+// needed for tests without the need to go through 
+// configuration files. 
 func mockAgent() Agent {
 
 	host0 := common.HostMessage{Ip: "172.17.0.1", RomanaIp: "127.0.0.1/8"}

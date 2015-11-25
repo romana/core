@@ -17,7 +17,6 @@ package agent
 
 import (
 	"github.com/romana/core/common"
-
 	"github.com/romana/core/topology"
 
 	"log"
@@ -76,12 +75,12 @@ func (c *NetworkConfig) EndpointBits() uint {
 // the part of pani setup and spit error out.
 func (agent Agent) identifyCurrentHost() error {
 	addrs, _ := net.InterfaceAddrs()
-	
+
 	topologyUrl, err := common.GetServiceUrl(agent.config.Common.Api.RootServiceUrl, "topology")
 	if err != nil {
 		return agentError(err)
 	}
-	
+
 	client, err := common.NewRestClient(topologyUrl)
 	if err != nil {
 		return agentError(err)
@@ -91,9 +90,7 @@ func (agent Agent) identifyCurrentHost() error {
 	if err != nil {
 		return agentError(err)
 	}
-
 	dcUrl := index.Links.FindByRel("datacenter")
-
 	dc := topology.Datacenter{}
 	err = client.Get(dcUrl, &dc)
 	if err != nil {

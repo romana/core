@@ -170,7 +170,6 @@ func TestIsRouteExist(t *testing.T) {
 // TestCreateRoute is checking that createRoute generates correct OS commands
 // to create ip routes for given endopoint.
 func TestCreateRoute(t *testing.T) {
-
 	agent := Agent{Helper: &Helper{}}
 	// when
 

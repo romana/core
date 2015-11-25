@@ -131,6 +131,7 @@ func TestCreateU32Rules(t *testing.T) {
 
 	// we only care for recorded commands, no need for fake output or errors
 	E := &FakeExecutor{nil, nil, nil}
+
 	agent.Helper.Executor = E
 	ip := net.ParseIP("127.0.0.1")
 	fw, _ := NewFirewall(NetIf{"eth0", "A", ip}, &agent)

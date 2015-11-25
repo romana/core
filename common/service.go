@@ -28,7 +28,6 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-
 	"strconv"
 	"strings"
 )
@@ -139,7 +138,6 @@ func (rc *RestClient) newUrl(dest string) error {
 		}
 	} else {
 		newUrl := rc.url.ResolveReference(url)
-		//		log.Printf("newUrl(): Replacing %s with %s", rc.url, newUrl)
 		rc.url = newUrl
 	}
 	return nil
@@ -221,6 +219,7 @@ func (rc *RestClient) execMethod(method string, url string, data interface{}, re
 	} else if rc.url.Scheme == "file" {
 		log.Printf("Loading file ", rc.url.String(), rc.url.Path)
 		body, err = ioutil.ReadFile(rc.url.Path)
+
 	} else {
 		return errors.New(fmt.Sprintf("Unsupported scheme %s", rc.url.Scheme))
 	}
@@ -232,8 +231,9 @@ func (rc *RestClient) execMethod(method string, url string, data interface{}, re
 	if result == nil {
 		return nil
 	}
-
+	
 	err = json.Unmarshal(body, &result)
+	log.Printf("Unmarshaling %s to %s : %s", body, result, err)
 	return err
 }
 
@@ -307,7 +307,6 @@ func GetServiceConfig(rootServiceUrl string, name string) (*ServiceConfig, error
 	if err != nil {
 		return nil, err
 	}
-
 	rootIndexResponse := &RootIndexResponse{}
 	err = client.Get("", rootIndexResponse)
 	if err != nil {
@@ -315,6 +314,7 @@ func GetServiceConfig(rootServiceUrl string, name string) (*ServiceConfig, error
 	}
 	config := &ServiceConfig{}
 	config.Common.Api.RootServiceUrl = rootServiceUrl
+
 	relName := name + "-config"
 
 	configUrl := rootIndexResponse.Links.FindByRel(relName)

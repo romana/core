@@ -53,6 +53,7 @@ func (agent *Agent) SetConfig(config common.ServiceConfig) error {
 	leaseFileName := config.ServiceSpecific["lease_file"].(string)
 	lf := NewLeaseFile(leaseFileName, agent)
 	agent.leaseFile = &lf
+
 	agent.waitForIfaceTry = int(config.ServiceSpecific["wait_for_iface_try"].(float64))
 	agent.networkConfig = &NetworkConfig{}
 	log.Printf("Agent.SetConfig() finished.")

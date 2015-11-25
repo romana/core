@@ -4,7 +4,7 @@
                 {
                    "href" : "./config/agent.json",
                    "rel"  : "agent-config"
-                 }
+                }
               ],
     "services" : [
         {

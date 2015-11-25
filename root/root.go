@@ -63,7 +63,6 @@ func (root *Root) Initialize() error {
 	return nil
 }
 
-
 // Handler for the / URL
 // See https://github.com/romanaproject/romana/wiki/Root-service-API
 func (root *Root) handleIndex(input interface{}, ctx common.RestContext) (interface{}, error) {
