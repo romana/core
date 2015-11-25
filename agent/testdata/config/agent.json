@@ -1,0 +1,13 @@
+{ 
+    "common" :
+       {
+            "host" : "0.0.0.0",
+            "port" : "8899"
+       },
+    "config" : 
+       {
+       "lease_file" : "/etc/ethers",
+       "wait_for_iface_try" : 6
+       }        
+}
+    

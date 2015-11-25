@@ -1,24 +1,9 @@
-// Copyright (c) 2015 Pani Networks
-// All Rights Reserved.
-//
-// Licensed under the Apache License, Version 2.0 (the "License"); you may
-// not use this file except in compliance with the License. You may obtain
-// a copy of the License at
-//
-//   http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-//  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-// WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-// License for the specific language governing permissions and limitations
-// under the License.
-
 package agent
 
 import (
 	"fmt"
-	"github.com/romana/core/common"
 	"log"
+	"net/http"
 )
 
 // Agent provides access to configuration and helper functions, shared across
@@ -26,12 +11,11 @@ import (
 // Types Config, Leasefile and Firewall are designed to be loosely coupled
 // so they could later be separated into packages and used independently.
 type Agent struct {
-	// Discovered run-time configuration.
-	networkConfig *NetworkConfig
+	// Configuration from config file as well as discovered run-time configuration.
+	config *Config
 
-	config common.ServiceConfig
 	// Leasefile is a type that manages DHCP leases in the file
-	leaseFile *LeaseFile
+	LeaseFile *LeaseFile
 
 	// Helper here is a type that organizes swappable interfaces for 3rd
 	// party libraries (e.g. os.exec), and some functions that are using
@@ -42,68 +26,46 @@ type Agent struct {
 	// Should this flexibility not be required, a suitable alternative is to re-implement the
 	// Agent structure as a set of global variables.
 	Helper *Helper
-
-	waitForIfaceTry int
 }
 
-// SetConfig implements SetConfig function of the Service interface.
-func (agent *Agent) SetConfig(config common.ServiceConfig) error {
-	fmt.Println(config)
+// NewAgent returns Agent structure with all fields initialized.
+func NewAgent(config *Config) Agent {
+	// new agent
+	agent := new(Agent)
+
+	// plug helper
+	h := NewAgentHelper(agent)
+	agent.Helper = &h
+
+	// plug config
 	agent.config = config
-	leaseFileName := config.ServiceSpecific["lease_file"].(string)
-	lf := NewLeaseFile(leaseFileName, agent)
-	agent.leaseFile = &lf
 
-	agent.waitForIfaceTry = int(config.ServiceSpecific["wait_for_iface_try"].(float64))
-	agent.networkConfig = &NetworkConfig{}
-	log.Printf("Agent.SetConfig() finished.")
-	return nil
-}
+	// plug leasefile
+	lf := NewLeaseFile(agent.config.LeaseFileLocation, agent)
+	agent.LeaseFile = &lf
 
-// Provides Routes
-func (agent *Agent) Routes() common.Routes {
-	routes := common.Routes{
-		common.Route{
-			"POST",
-			"/",
-			agent.index,
-			func() interface{} {
-				return &NetIf{}
-			},
-		},
-	}
-	return routes
-}
-
-// Runs agent service
-func Run(rootServiceUrl string) (chan common.ServiceMessage, error) {
-	agent := &Agent{}
-	helper := NewAgentHelper(agent)
-	agent.Helper = &helper
-	log.Printf("Agent: Getting configuration from %s", rootServiceUrl)
-	config, err := common.GetServiceConfig(rootServiceUrl, "agent")
-	if err != nil {
-		return nil, err
-	}
-	ch, err := common.InitializeService(agent, *config)
-	return ch, err
+	return *agent
 }
 
 // interfaceHandler handles HTTP requests for endpoints provisioning.
 // Currently tested with pani ML2 driver.
-func (a *Agent) index(input interface{}, ctx common.RestContext) (interface{}, error) {
+func (a *Agent) interfaceHandler(w http.ResponseWriter, r *http.Request) {
 	// Parse out NetIf form the request
-	netif := input.(NetIf)
+	netif := new(NetIf)
+	r.ParseForm()
+	log.Print("Handler: parsing netif")
+	if err := netif.ParseNetIf(r.Form); err != nil {
+		log.Print("Handler: parsing netif failed", w, r)
+	}
+	log.Print("Handler: calling agent")
+
 	// Spawn new thread to process the request
 
 	// TODO don't know if fork-bombs are possible in go but if they are this
 	// need to be refactored as buffered channel with fixed pool of workers
-	go a.interfaceHandle(netif)
+	go a.interfaceHandle(*netif)
+	w.Write([]byte("OK"))
 
-	// TODO I wonder if this should actually return something like a
-	// link to a status of this request which will later get updated
-	// with success or failure -- Greg.
-	return "OK", nil
 }
 
 // interfaceHandle does a number of opertaions on given endpoint to ensure
@@ -116,11 +78,11 @@ func (a *Agent) index(input interface{}, ctx common.RestContext) (interface{}, e
 // 6. Provisions firewall rules
 func (a *Agent) interfaceHandle(netif NetIf) error {
 	log.Print("Agent: processing request to provision new interface")
-	if !a.Helper.waitForIface(netif.Name) {
+	if !a.Helper.waitForIface(netif.name) {
 		// TODO should we resubmit failed interface in queue for later
 		// retry ? ... considering oenstack will give up as well after
 		// timeout
-		return agentErrorString(fmt.Sprintf("Requested interface not available in time - %s", netif.Name))
+		return agentErrorString(fmt.Sprintf("Requested interface not available in time - %s", netif.name))
 	}
 
 	// Ensure we have all the routes to our neighbours
@@ -143,7 +105,7 @@ func (a *Agent) interfaceHandle(netif NetIf) error {
 		return agentError(err)
 	}
 	log.Print("Agent: provisioning DHCP")
-	if err := a.leaseFile.provisionLease(&netif); err != nil {
+	if err := a.LeaseFile.provisionLease(&netif); err != nil {
 		log.Print(agentError(err))
 		return agentError(err)
 	}
@@ -155,13 +117,6 @@ func (a *Agent) interfaceHandle(netif NetIf) error {
 
 	log.Print("All good", netif)
 	return nil
-}
-
-// Implements the Initialize method of common.Service
-// interface.
-func (agent *Agent) Initialize() error {
-	log.Printf("Entering Agent.Initialize()")
-	return agent.identifyCurrentHost()
 }
 
 /* development code

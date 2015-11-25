@@ -1,17 +1,3 @@
-// Copyright (c) 2015 Pani Networks
-// All Rights Reserved.
-//
-// Licensed under the Apache License, Version 2.0 (the "License"); you may
-// not use this file except in compliance with the License. You may obtain
-// a copy of the License at
-//
-//   http://www.apache.org/licenses/LICENSE-2.0
-//
-// Unless required by applicable law or agreed to in writing, software
-//  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-// WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-// License for the specific language governing permissions and limitations
-// under the License.
 package agent
 
 import (
@@ -19,7 +5,6 @@ import (
 	"net"
 	"strings"
 	"testing"
-	
 )
 
 // TestAppendLineToFile writes data to fake file and ensures it's got written.
@@ -38,14 +23,20 @@ func TestAppendLineToFile(t *testing.T) {
 	   * Data written by appendLineToFile available via OS.fakeFile.content
 	*/
 
+	// Init global `Agent` s, &leasefiletructure, read config file
+	config := "test-poc-conf.yaml"
+	leasefile := "/tmp/dummy"
+	waitForIfaceTry := 0 // dummy
+	agent := Init(&config, &leasefile, &waitForIfaceTry)
+
 	// Init fake helpe, &leasefiler
 	fOS := &FakeOS{"", nil}
-	helper := Helper{OS: fOS}
-	agent := Agent{Helper: &helper}
+	agent.Helper.OS = fOS
 
 	// when
-	netif := NetIf{"eth0", "A", net.ParseIP("127.0.0.1")}
-	lease := fmt.Sprintf("%s %s", netif.Mac, netif.Ip)
+	ip := net.ParseIP("127.0.0.1")
+	netif := NetIf{"eth0", "A", ip}
+	lease := fmt.Sprintf("%s %s", netif.mac, netif.ip)
 	_ = agent.Helper.appendLineToFile("stub", lease)
 
 	// expect
@@ -58,15 +49,20 @@ func TestAppendLineToFile(t *testing.T) {
 // TestIsLineInFile is checking that isLineInFile correctly detect presence of
 // given line in the file.
 func TestIsLineInFile(t *testing.T) {
-	// Returning correct lease via FakeOS
-	fOS := &FakeOS{"A 127.0.0.1", nil}
-	agent := Agent{Helper: &Helper{OS: fOS}}
+	config := "test-poc-conf.yaml"
+	leasefile := "/tmp/dummy"
+	waitForIfaceTry := 0 // dummy
+	agent := Init(&config, &leasefile, &waitForIfaceTry)
+	// when
 
 	// NetIf to make a lease from
 	ip := net.ParseIP("127.0.0.1")
 	netif := NetIf{"eth0", "A", ip}
 
-	lease := fmt.Sprintf("%s %s", netif.Mac, netif.Ip)
+	// Returning correct lease via FakeOS
+	fOS := &FakeOS{"A 127.0.0.1", nil}
+	agent.Helper.OS = fOS
+	lease := fmt.Sprintf("%s %s", netif.mac, netif.ip)
 
 	// we don't care for lease file name in this test so it's just "stub"
 	out, err := agent.Helper.isLineInFile("stub", lease)
@@ -87,7 +83,7 @@ func TestIsLineInFile(t *testing.T) {
 	// Returning wrong lease via FakeOS
 	fOS = &FakeOS{"C 127.0.0.1", nil}
 	agent.Helper.OS = fOS
-	lease = fmt.Sprintf("%s %s", netif.Mac, netif.Ip)
+	lease = fmt.Sprintf("%s %s", netif.mac, netif.ip)
 
 	// we don't care for lease file name in this test so it's just "stub"
 	out, err = agent.Helper.isLineInFile("stub", lease)
@@ -105,7 +101,10 @@ func TestIsLineInFile(t *testing.T) {
 // TestDhcpPid is checking that DhcpPid is successfully detecting
 // running DHCP server.
 func TestDhcpPid(t *testing.T) {
-	agent := Agent{Helper: &Helper{}}
+	config := "test-poc-conf.yaml"
+	leasefile := "/tmp/dummy"
+	waitForIfaceTry := 0 // dummy
+	agent := Init(&config, &leasefile, &waitForIfaceTry)
 	// when
 
 	// DhcpPid is expecting pid in stdout
@@ -135,7 +134,10 @@ func TestDhcpPid(t *testing.T) {
 // TestIsRouteExist is checking that isRouteExist detects correctly if given
 // ip route already exist.
 func TestIsRouteExist(t *testing.T) {
-	agent := Agent{Helper: &Helper{}}
+	config := "test-poc-conf.yaml"
+	leasefile := "/tmp/dummy"
+	waitForIfaceTry := 0 // dummy
+	agent := Init(&config, &leasefile, &waitForIfaceTry)
 	// when
 
 	// IsRouteExist treats non empty output as a success
@@ -170,7 +172,10 @@ func TestIsRouteExist(t *testing.T) {
 // TestCreateRoute is checking that createRoute generates correct OS commands
 // to create ip routes for given endopoint.
 func TestCreateRoute(t *testing.T) {
-	agent := Agent{Helper: &Helper{}}
+	config := "test-poc-conf.yaml"
+	leasefile := "/tmp/dummy"
+	waitForIfaceTry := 0 // dummy
+	agent := Init(&config, &leasefile, &waitForIfaceTry)
 	// when
 
 	// we only care for recorded commands, no need for fake output or errors
@@ -188,9 +193,12 @@ func TestCreateRoute(t *testing.T) {
 }
 
 // TestCreateInterhostRoutes is checking that ensureInterHostRoutes generates
-// correct commands to create IP routes to other romana hosts.
+// correct commands to create IP routes to other pani hosts.
 func TestCreateInterhostRoutes(t *testing.T) {
-	agent := mockAgent()
+	config := "test-poc-conf.yaml"
+	leasefile := "/tmp/dummy"
+	waitForIfaceTry := 0 // dummy
+	agent := Init(&config, &leasefile, &waitForIfaceTry)
 	// when
 
 	// we only care for recorded commands, no need for fake output or errors

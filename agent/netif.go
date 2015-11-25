@@ -1,10 +1,24 @@
+// Copyright (c) 2015 Pani Networks
+// All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License"); you may
+// not use this file except in compliance with the License. You may obtain
+// a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+//  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+// License for the specific language governing permissions and limitations
+// under the License.
 package agent
 
 import (
 	//	"fmt"
 	//	"log"
+	"encoding/json"
 	"net"
-	"net/url"
 )
 
 const (
@@ -15,34 +29,23 @@ const (
 // network interface and it's ip configuration
 // together with basic methods operating on this structure.
 type NetIf struct {
-	name string
-	mac  string
-	ip   net.IP
+	Name string
+	Mac  string
+	Ip   net.IP
 }
 
-// ParseNetIf is a method of NetIF that fills new structure with data from HTTP request.
-func (i *NetIf) ParseNetIf(r url.Values) error {
-	fields := 0
-	for key, values := range r {
-		switch key {
-		case "interface_name":
-			i.name = values[0]
-			fields++
-		case "mac_address":
-			i.mac = values[0]
-			fields++
-		case "ip_address":
-			i.ip = net.ParseIP(values[0])
-			if i.ip == nil {
-				return failedToParseNetif()
-			}
-			fields++
-		default:
-			return garbageRequestError(key)
-		}
+// UnmarshalJSON results in having NetIf implement Unmarshaler
+// interface from encoding/json
+func (netif *NetIf) UnmarshalJSON(data []byte) error {
+	m := make(map[string]string)
+	json.Unmarshal(data, &m)
+
+	netif.Ip = net.ParseIP(m["ip"])
+	if netif.Ip == nil {
+		return failedToParseNetif()
 	}
-	if fields != expectedNumberOfFileds {
-		return requestParseError(fields)
-	}
+
+	netif.Name = m["name"]
+	netif.Mac = m["mac"]
 	return nil
 }

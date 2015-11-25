@@ -12,27 +12,29 @@
 // WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 // License for the specific language governing permissions and limitations
 // under the License.
-package main
+package agent
+
+// Some comments on use of mocking framework in helpers_test.go.
 
 import (
-	"flag"
-	"github.com/romana/core/agent"
+	"fmt"
+	"os"
+	"testing"
 )
 
-// main function is entrypoint to everything.
-func main() {
-	var rootUrl = flag.String("rootUrl", "", "URL to root service URL")
-	flag.Parse()
-	if (rootUrl == nil)  {
-		fmt.Println("Must specify rootUrl.")
-		return
-	}
-	channel, err := agent.Run(rootUrl)
+// TestService will test agents talking to other services
+func TestService(t *testing.T) {
+	cwd, err := os.Getwd()
+	fmt.Println("In", cwd)
 	if err != nil {
 		panic(err)
 	}
-	for {
-		msg := <-channel
-		fmt.Println(msg)
+	rootUrl := fmt.Sprintf("file://%s/testdata/root.json", cwd)
+	channelRoot, err := Run(rootUrl)
+	if err != nil {
+		t.Fatal(err)
 	}
+	msg := <-channelRoot
+	t.Log("Service says", msg)
+	fmt.Println(msg)
 }
