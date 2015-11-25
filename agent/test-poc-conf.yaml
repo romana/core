@@ -1,0 +1,36 @@
+datacenter: 
+  pseudo_net:
+    ip_version: 4
+    cidr: 10.0.0.0/8
+    host_bits: 8
+    tenant_bits: 4
+    segment_bits: 4
+    endpoint_space_bits: 0
+    endpoint_bits: 8
+  leaves: 
+    - leaf: rack1
+      romana_ip: 10.0.0.0/8
+      hosts:
+        - host: h1
+          external_id: host64
+          ip: 172.17.0.1
+          romana_ip: 127.0.0.1/8
+        - host: h2
+          external_id: host65
+          ip: 192.168.0.12
+          romana_ip: 10.65.0.0/16
+  tenants: 
+    - tenant: t1
+      external_id: tenant1
+      segments:
+        - segment: 1
+          external_id: segment1
+        - segment: 3
+          external_id: segment2
+    - tenant: t2
+      external_id: tenant2
+      segments: 
+        - segment: 3
+          external_id: segment3
+        - segment: 4
+          external_id: segment4
