@@ -13,9 +13,12 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Command-line for running IPAM
-package main
+/*
+Implements Tenant service
+*/
+package tenant
 
-func main() {
-  
-}
+import (
+
+)
+
