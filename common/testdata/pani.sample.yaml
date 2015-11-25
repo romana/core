@@ -32,7 +32,7 @@ services:
       port: 9603
     config:
       store: 
-        type: mysql
+        type: mock
         host: localhost
         username: root
         password: password
@@ -46,9 +46,9 @@ services:
         endpoint_space_bits: 0
         endpoint_bits: 8
   - service: agent 
-      api:
+    api:
       host: 0.0.0.0
       port: 9604
-      config:
-        lease_file : "/etc/ethers"
-        wait_for_iface_try : 6
+    config:
+      lease_file : "/etc/ethers"
+      wait_for_iface_try : 6

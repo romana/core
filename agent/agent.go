@@ -5,7 +5,7 @@
 // not use this file except in compliance with the License. You may obtain
 // a copy of the License at
 //
-//   http://www.apache.org/licenses/LICENSE-2.0
+// http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 //  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
@@ -60,7 +60,7 @@ func (agent *Agent) SetConfig(config common.ServiceConfig) error {
 	return nil
 }
 
-// Provides Routes
+// Routes implements Routes function of Service interface.
 func (agent *Agent) Routes() common.Routes {
 	routes := common.Routes{
 		common.Route{
@@ -75,7 +75,7 @@ func (agent *Agent) Routes() common.Routes {
 	return routes
 }
 
-// Runs agent service
+// Run runs the agent service.
 func Run(rootServiceUrl string) (chan common.ServiceMessage, error) {
 	agent := &Agent{}
 	helper := NewAgentHelper(agent)
@@ -157,7 +157,7 @@ func (a *Agent) interfaceHandle(netif NetIf) error {
 	return nil
 }
 
-// Implements the Initialize method of common.Service
+// Initialize implements the Initialize method of common.Service
 // interface.
 func (agent *Agent) Initialize() error {
 	log.Printf("Entering Agent.Initialize()")

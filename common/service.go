@@ -91,7 +91,6 @@ type HostMessage struct {
 	AgentPort int    `json:"agentPort"`
 	Name      string `json:"name"`
 	Links     Links  `json:"links"`
-r
 	//    Tor string       `json:"tor"`
 }
 
@@ -202,7 +201,13 @@ func (rc *RestClient) execMethod(method string, url string, data interface{}, re
 
 	var body []byte
 	if rc.url.Scheme == "http" || rc.url.Scheme == "https" {
-		req, err := http.NewRequest(method, rc.url.String(), reqBodyReader)
+		fmt.Printf("BO: %s - %s", method, rc.url)
+		var req *http.Request
+		if reqBodyReader == nil {
+			req, err = http.NewRequest(method, rc.url.String(), nil)
+		} else {
+			req, err = http.NewRequest(method, rc.url.String(), reqBodyReader)
+		}
 		if reqBodyReader != nil {
 			req.Header.Set("content-type", "application/json")
 		}
@@ -233,7 +238,7 @@ func (rc *RestClient) execMethod(method string, url string, data interface{}, re
 	if result == nil {
 		return nil
 	}
-	
+
 	err = json.Unmarshal(body, &result)
 	log.Printf("Unmarshaling %s to %s : %s", body, result, err)
 	return err
@@ -297,6 +302,7 @@ func InitializeService(service Service, config ServiceConfig) (chan ServiceMessa
 	hostPort := strings.Join([]string{config.Common.Api.Host, portStr}, ":")
 	go func() {
 		channel <- Starting
+		log.Printf("Trying to listen on %s" + hostPort)
 		negroni.Run(hostPort)
 	}()
 	log.Printf("Listening on %s" + hostPort)

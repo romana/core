@@ -18,7 +18,7 @@ package topology
 import (
 	"errors"
 	"fmt"
-	"github.com/mitchellh/mapstructure"
+	
 
 	"github.com/romana/core/common"
 	"strconv"
@@ -103,7 +103,7 @@ func (topology *Topology) handleHost(input interface{}, ctx common.RestContext) 
 	if err != nil {
 		return nil, err
 	}
-X	agentUrl := fmt.Sprintf("http://%s:%d", host.Ip, host.AgentPort)
+	agentUrl := fmt.Sprintf("http://%s:%d", host.Ip, host.AgentPort)
 	agentLink := common.LinkResponse{agentUrl, "agent"}
 	hostLink := common.LinkResponse{hostListPath + "/" + idStr, "self"}
 	collectionLink := common.LinkResponse{hostListPath, "self"}
@@ -160,8 +160,8 @@ type topologyStore interface {
 	addHost(host Host) (string, error)
 	listHosts() ([]Host, error)
 	findHost(id uint64) (Host, error)
+	setConfig(config map[string]interface{}) error
 }
-
 
 // SetConfig implements SetConfig function of the Service interface.
 // Returns an error if cannot connect to the data store
@@ -169,20 +169,19 @@ func (topology *Topology) SetConfig(config common.ServiceConfig) error {
 	fmt.Println(config)
 	topology.config = config
 	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
-	mapstructure.Decode(config.ServiceSpecific["datacenter"], topology.datacenter)
 
 	storeType := strings.ToLower(storeConfig["type"].(string))
 	switch storeType {
 	case "mysql":
-		mysqlStore := &mysqlStore{}
-		topology.store = mysqlStore
-		return mysqlStore.setConfig(storeConfig)
+		topology.store = &mysqlStore{}
+		
+		case "mock":
+		topology.store = &mockStore{}
 
 	default:
 		return errors.New("Unknown store type: " + storeType)
 	}
-	return nil
-
+	return topology.store.setConfig(storeConfig)
 }
 
 func (topology *Topology) createSchema(overwrite bool) error {

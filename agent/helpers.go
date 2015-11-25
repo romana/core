@@ -114,7 +114,7 @@ func (h Helper) createRoute(ip net.IP, netmask string, via string, dest string) 
 // ensureRouteToEndpoint verifies that ip route to endpoint interface exists, creates it otherwise.
 // Error if failed, nil if success.
 func (h Helper) ensureRouteToEndpoint(netif *NetIf) error {
-	mask := fmt.Sprintf("%d", h.Agent.networkConfig.EndpointNetmask())
+	mask := fmt.Sprintf("%d", h.Agent.networkConfig.EndpointNetmaskSize())
 	log.Print("Ensuring routes for ", netif.Ip, " ", netif.Name)
 	log.Print("Acquiring mutex ensureRouteToEndpoint")
 	h.ensureRouteToEndpointMutex.Lock()
