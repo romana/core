@@ -39,8 +39,8 @@ type NetworkConfig struct {
 	dc               topology.Datacenter
 }
 
-// EndpointNetmask returns integer value (aka size) of endpoint netmask.
-func (c *NetworkConfig) EndpointNetmask() uint64 {
+// EndpointNetmaskSize returns integer value (aka size) of endpoint netmask.
+func (c *NetworkConfig) EndpointNetmaskSize() uint64 {
 	// TODO make this depend on the IP version
 	return 32 - uint64(c.dc.EndpointSpaceBits)
 }
@@ -48,7 +48,7 @@ func (c *NetworkConfig) EndpointNetmask() uint64 {
 // PNetCIDR returns pseudo net cidr in net.IPNet format.
 func (c *NetworkConfig) PNetCIDR() (cidr *net.IPNet, err error) {
 	_, cidr, err = net.ParseCIDR(c.dc.Cidr)
-	return
+	return 
 }
 
 // TenantBits returns tenant bits value from POC config.

@@ -18,10 +18,7 @@ Implements IPAM service
 */
 package ipam
 
-import (
-)
 
 type ipamStore interface {
-	func Connect(config map[string]interface{}) error	
-
+	Connect(config map[string]interface{}) error
 }

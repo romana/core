@@ -91,7 +91,6 @@ type HostMessage struct {
 	AgentPort int    `json:"agentPort"`
 	Name      string `json:"name"`
 	Links     Links  `json:"links"`
-r
 	//    Tor string       `json:"tor"`
 }
 
@@ -202,7 +201,12 @@ func (rc *RestClient) execMethod(method string, url string, data interface{}, re
 
 	var body []byte
 	if rc.url.Scheme == "http" || rc.url.Scheme == "https" {
-		req, err := http.NewRequest(method, rc.url.String(), reqBodyReader)
+		var req *http.Request
+		if reqBodyReader == nil {
+			req, err = http.NewRequest(method, rc.url.String(), nil)
+		} else {
+			req, err = http.NewRequest(method, rc.url.String(), reqBodyReader)
+		}
 		if reqBodyReader != nil {
 			req.Header.Set("content-type", "application/json")
 		}
@@ -233,7 +237,7 @@ func (rc *RestClient) execMethod(method string, url string, data interface{}, re
 	if result == nil {
 		return nil
 	}
-	
+
 	err = json.Unmarshal(body, &result)
 	log.Printf("Unmarshaling %s to %s : %s", body, result, err)
 	return err
@@ -297,6 +301,7 @@ func InitializeService(service Service, config ServiceConfig) (chan ServiceMessa
 	hostPort := strings.Join([]string{config.Common.Api.Host, portStr}, ":")
 	go func() {
 		channel <- Starting
+		log.Printf("Trying to listen on %s" + hostPort)
 		negroni.Run(hostPort)
 	}()
 	log.Printf("Listening on %s" + hostPort)
@@ -304,7 +309,8 @@ func InitializeService(service Service, config ServiceConfig) (chan ServiceMessa
 	return channel, nil
 }
 
-// GetServiceConfig is to get configuration from a root service
+// GetServiceConfig retrieves configuration for a given service from the root service.
+// TODO perhaps this should be a method on RestClient interface.
 func GetServiceConfig(rootServiceUrl string, name string) (*ServiceConfig, error) {
 	client, err := NewRestClient(rootServiceUrl)
 	if err != nil {

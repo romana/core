@@ -18,7 +18,7 @@ package topology
 import (
 	"errors"
 	"fmt"
-	"github.com/mitchellh/mapstructure"
+	"log"
 
 	"github.com/romana/core/common"
 	"strconv"
@@ -103,7 +103,7 @@ func (topology *Topology) handleHost(input interface{}, ctx common.RestContext) 
 	if err != nil {
 		return nil, err
 	}
-X	agentUrl := fmt.Sprintf("http://%s:%d", host.Ip, host.AgentPort)
+	agentUrl := fmt.Sprintf("http://%s:%d", host.Ip, host.AgentPort)
 	agentLink := common.LinkResponse{agentUrl, "agent"}
 	hostLink := common.LinkResponse{hostListPath + "/" + idStr, "self"}
 	collectionLink := common.LinkResponse{hostListPath, "self"}
@@ -129,7 +129,7 @@ func (topology *Topology) handleHostListPost(input interface{}, ctx common.RestC
 		return nil, err
 	}
 	returnHostMessage := hostMessage
-	fmt.Println("Added host", hostMessage)
+	log.Println("Added host", hostMessage)
 	returnHostMessage.Id = id
 
 	return returnHostMessage, nil
@@ -160,29 +160,28 @@ type topologyStore interface {
 	addHost(host Host) (string, error)
 	listHosts() ([]Host, error)
 	findHost(id uint64) (Host, error)
+	setConfig(config map[string]interface{}) error
 }
-
 
 // SetConfig implements SetConfig function of the Service interface.
 // Returns an error if cannot connect to the data store
 func (topology *Topology) SetConfig(config common.ServiceConfig) error {
-	fmt.Println(config)
+	log.Println(config)
 	topology.config = config
 	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
-	mapstructure.Decode(config.ServiceSpecific["datacenter"], topology.datacenter)
 
 	storeType := strings.ToLower(storeConfig["type"].(string))
 	switch storeType {
 	case "mysql":
-		mysqlStore := &mysqlStore{}
-		topology.store = mysqlStore
-		return mysqlStore.setConfig(storeConfig)
+		topology.store = &mysqlStore{}
+		
+		case "mock":
+		topology.store = &mockStore{}
 
 	default:
 		return errors.New("Unknown store type: " + storeType)
 	}
-	return nil
-
+	return topology.store.setConfig(storeConfig)
 }
 
 func (topology *Topology) createSchema(overwrite bool) error {
@@ -206,7 +205,7 @@ func (topology *Topology) Initialize() error {
 
 // Runs topology service
 func CreateSchema(rootServiceUrl string, overwrite bool) error {
-	fmt.Println("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
+	log.Println("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
 	topologyService := &Topology{}
 	config, err := common.GetServiceConfig(rootServiceUrl, "topology")
 	if err != nil {

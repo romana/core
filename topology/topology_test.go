@@ -94,7 +94,10 @@ func (s *MySuite) TestTopology(c *check.C) {
 	msg := <-channelTop
 	myLog(c, "Topology service said:", msg)
 	addr := "http://" + s.config.Services["topology"].Common.Api.GetHostPort()
-	client := common.RestClient{addr}
+	client, err := common.NewRestClient(addr)
+	if err != nil {
+		c.Error(err)
+	}
 	myLog(c, "Calling ", addr)
 
 	topIndex := &common.IndexResponse{}
