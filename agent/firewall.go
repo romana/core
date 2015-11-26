@@ -12,7 +12,6 @@
 // WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 // License for the specific language governing permissions and limitations
 // under the License.
-package agent
 
 // This file is a Firewall manager,
 // as of now responsibilities of the Firewall manager is to
@@ -28,9 +27,10 @@ package agent
 //
 // There are 4 public function available
 // - Firewall.CreateChains() - creates managed Firewall chains
-// - Firewall.DiverTrafficToPaniIptablesChain() - diverts traffic to/from/via interface
+// - Firewall.DivertTrafficToPaniIptablesChain() - diverts traffic to/from/via interface
 // - Firewall.CreateRules() - installs basic permissive rules
 // - Firewall.CreateU32Rules() - installs u32 rules
+package agent
 
 import (
 	"fmt"
@@ -47,7 +47,7 @@ const (
 	forwardChainIndex     = 2
 )
 
-// Firewall type describes state of firewall rules for the given endpoint.
+// Firewall describes state of firewall rules for the given endpoint.
 // Currently methods of this type have no critical sections because
 // Firewall won't do anything if per-tenant chains already created.
 // But any new features must be safe for concurrent execution.
@@ -67,12 +67,13 @@ type FirewallChain struct {
 	chainName string
 }
 
-// NewFirewallChain initializes new a firewall chain.
+// NewFirewallChain initializes a new firewall chain.
 func NewFirewallChain(baseChain string, direction string, rules []string, chainName string) *FirewallChain {
 	return &FirewallChain{baseChain, direction, rules, chainName}
 }
 
-// NewFirewall returns fully initialized firewall struct.
+// NewFirewall returns fully initialized firewall struct, with rules and chains
+// configured for diven endpoint.
 func NewFirewall(netif NetIf, agent *Agent) (*Firewall, error) {
 	fw := new(Firewall)
 	fw.Agent = agent
@@ -168,8 +169,8 @@ func (fw *Firewall) CreateChains(newChains []int) error {
 	return nil
 }
 
-// DiverTrafficToPaniIptablesChain injects iptables rules to send traffic into the PANI chain.
-func (fw *Firewall) DiverTrafficToPaniIptablesChain(chain int) error {
+// DivertTrafficToPaniIptablesChain injects iptables rules to send traffic into the PANI chain.
+func (fw *Firewall) DivertTrafficToPaniIptablesChain(chain int) error {
 	// Should be like that
 	// iptables -A INPUT -i tap1234 -j PANI-T0S1-INPUT
 	log.Print("Diverting traffic in", chain)
@@ -353,7 +354,7 @@ func provisionFirewallRules(netif NetIf, agent *Agent) error {
 		return err
 	}
 	for chain := range missingChains {
-		if err := fw.DiverTrafficToPaniIptablesChain(chain); err != nil {
+		if err := fw.DivertTrafficToPaniIptablesChain(chain); err != nil {
 			return err
 		}
 		if err := fw.CreateRules(chain); err != nil {
