@@ -23,10 +23,6 @@ import (
 	"net"
 )
 
-const (
-	expectedNumberOfFileds = 3
-)
-
 // NetIf is a structure that represents
 // network interface and it's ip configuration
 // together with basic methods operating on this structure.
