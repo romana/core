@@ -12,10 +12,10 @@
 // WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 // License for the specific language governing permissions and limitations
 // under the License.
-package agent
 
 // This file contains Helper methods used mostly used to interact with OS
 // together with some auxiliary functions.
+package agent
 
 // Description of Helper struct in mocks.go.
 
