@@ -99,7 +99,7 @@ func (h Helper) isRouteExist(ip net.IP, netmask string) error {
 	return noSuchRouteError()
 }
 
-// createRoute Creates IP route, returns nil if success and error otherwise.
+// createRoute creates IP route, returns nil if success and error otherwise.
 func (h Helper) createRoute(ip net.IP, netmask string, via string, dest string) error {
 	log.Print("Helper: creating route")
 	cmd := "/sbin/ip"
@@ -160,7 +160,8 @@ func (h Helper) isLineInFile(path string, token string) (bool, error) {
 	return false, nil
 }
 
-// appendLineToFile is a method that appends a string to a file.
+// appendLineToFile appends a string to a file.
+// TODO ensure we're getting a new line if there is no '\n' at EOF
 func (h *Helper) appendLineToFile(path string, token string) error {
 	file, err := h.OS.appendFile(path)
 	if err != nil {
@@ -176,7 +177,7 @@ func (h *Helper) appendLineToFile(path string, token string) error {
 	return nil
 }
 
-// ensureLine is a method which ensures that line is present in a file.
+// ensureLine ensures that line is present in a file.
 func (h Helper) ensureLine(path string, token string) error {
 	// if file exist
 	if err := h.OS.createIfMissing(path); err != nil {
@@ -206,7 +207,7 @@ func (h Helper) ensureLine(path string, token string) error {
 	return nil
 }
 
-// otherHosts method builds array of hosts in pani setup other then
+// otherHosts builds array of hosts in pani setup other then
 // ourselves, for the purposes of routing mainly.
 func (h Helper) otherHosts() []common.HostMessage {
 	index := h.Agent.networkConfig.currentHostIndex
@@ -217,19 +218,19 @@ func (h Helper) otherHosts() []common.HostMessage {
 	return others
 }
 
-// ensureInterHostRoutes method ensures we have routes to every other host.
+// ensureInterHostRoutes ensures we have routes to every other host.
 func (h Helper) ensureInterHostRoutes() error {
-	OtherHosts := h.otherHosts()
-	for j := range OtherHosts {
-		romanaIP, romanaCidr, err := net.ParseCIDR(OtherHosts[j].RomanaIp)
+	otherHosts := h.otherHosts()
+	via := "via"
+	for j := range otherHosts {
+		romanaIP, romanaCidr, err := net.ParseCIDR(otherHosts[j].RomanaIp)
 		if err != nil {
-			return failedToParseOtherHosts(OtherHosts[j].RomanaIp)
+			return failedToParseOtherHosts(otherHosts[j].RomanaIp)
 		}
 		//		romanaIP := romanaIP
 		romanaMaskInt, _ := romanaCidr.Mask.Size()
 		romanaMask := fmt.Sprintf("%d", romanaMaskInt)
-		via := "via"
-		dest := OtherHosts[j].Ip
+		dest := otherHosts[j].Ip
 
 		// wait until no one messing with routes
 		log.Print("Acquiring mutex ensureInterhostRoutes")
