@@ -24,7 +24,7 @@ import (
 	"net"
 )
 
-// Config holds the agent's current configuration.
+// NetworkConfig holds the agent's current configuration.
 // This consists of data parsed from the config file as well as
 // runtime or discovered configuration, such as the network
 // config of the current host.
