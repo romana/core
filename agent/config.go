@@ -13,7 +13,6 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// config.go contains configuration related functions for Romana Agent service.
 package agent
 
 import (
@@ -49,7 +48,7 @@ func (c *NetworkConfig) EndpointNetmaskSize() uint64 {
 // PNetCIDR returns pseudo net cidr in net.IPNet format.
 func (c *NetworkConfig) PNetCIDR() (cidr *net.IPNet, err error) {
 	_, cidr, err = net.ParseCIDR(c.dc.Cidr)
-	return 
+	return
 }
 
 // TenantBits returns tenant bits value from POC config.
@@ -75,30 +74,30 @@ func (c *NetworkConfig) EndpointBits() uint {
 // If no match is found we assume we are running on host which is not
 // part of the Romana setup and spit error out.
 func (agent Agent) identifyCurrentHost() error {
-	topologyUrl, err := common.GetServiceUrl(agent.config.Common.Api.RootServiceUrl, "topology")
+	topologyURL, err := common.GetServiceUrl(agent.config.Common.Api.RootServiceUrl, "topology")
 	if err != nil {
 		return agentError(err)
 	}
 
-	client, err := common.NewRestClient(topologyUrl)
+	client, err := common.NewRestClient(topologyURL)
 	if err != nil {
 		return agentError(err)
 	}
 	index := common.IndexResponse{}
-	err = client.Get(topologyUrl, &index)
+	err = client.Get(topologyURL, &index)
 	if err != nil {
 		return agentError(err)
 	}
-	dcUrl := index.Links.FindByRel("datacenter")
+	dcURL := index.Links.FindByRel("datacenter")
 	dc := topology.Datacenter{}
-	err = client.Get(dcUrl, &dc)
+	err = client.Get(dcURL, &dc)
 	if err != nil {
 		return agentError(err)
 	}
 
-	hostUrl := index.Links.FindByRel("host-list")
+	hostURL := index.Links.FindByRel("host-list")
 	hosts := []common.HostMessage{}
-	err = client.Get(hostUrl, &hosts)
+	err = client.Get(hostURL, &hosts)
 	if err != nil {
 		return agentError(err)
 	}
@@ -107,7 +106,7 @@ func (agent Agent) identifyCurrentHost() error {
 	// matching interface address in configuration.
 	addrs, _ := net.InterfaceAddrs()
 	for i := range addrs {
-		romanaIp, _, err := net.ParseCIDR(addrs[i].String())
+		romanaIP, _, err := net.ParseCIDR(addrs[i].String())
 		if err != nil {
 			log.Printf("Failed to parse %s", addrs[i].String())
 			return err
@@ -122,13 +121,13 @@ func (agent Agent) identifyCurrentHost() error {
 			}
 			log.Printf("Init:IdentifyCurrentHost %s belongs to %s %s",
 				romanaNet,
-				romanaIp,
-				romanaNet.Contains(romanaIp))
+				romanaIP,
+				romanaNet.Contains(romanaIP))
 
 			// Found it
-			if romanaNet.Contains(romanaIp) {
+			if romanaNet.Contains(romanaIP) {
 				agent.networkConfig.currentHostIP = net.ParseIP(hosts[j].Ip)
-				agent.networkConfig.currentHostGW = romanaIp
+				agent.networkConfig.currentHostGW = romanaIP
 				agent.networkConfig.currentHostGWNet = *romanaNet
 				agent.networkConfig.currentHostGWNetSize, _ = romanaNet.Mask.Size()
 				agent.networkConfig.currentHostIndex = j

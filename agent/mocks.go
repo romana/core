@@ -22,6 +22,7 @@
 // Both interfaces has default and fake implementations, default implementation
 // will usually just proxy calls to standard library while test implemetation
 // will allow mocking all interactions.
+
 package agent
 
 import (
@@ -60,10 +61,10 @@ func mockAgent() Agent {
 
 	host0 := common.HostMessage{Ip: "172.17.0.1", RomanaIp: "127.0.0.1/8"}
 
-	romanaIp, romanaNet, _ := net.ParseCIDR(host0.RomanaIp)
+	romanaIP, romanaNet, _ := net.ParseCIDR(host0.RomanaIp)
 	networkConfig := &NetworkConfig{}
 	networkConfig.currentHostIP = net.ParseIP(host0.Ip)
-	networkConfig.currentHostGW = romanaIp
+	networkConfig.currentHostGW = romanaIP
 	networkConfig.currentHostGWNet = *romanaNet
 	networkConfig.currentHostGWNetSize, _ = romanaNet.Mask.Size()
 	networkConfig.currentHostIndex = 0

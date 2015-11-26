@@ -29,8 +29,8 @@ func TestService(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	rootUrl := fmt.Sprintf("file://%s/testdata/root.json", cwd)
-	channelRoot, err := Run(rootUrl)
+	rootURL := fmt.Sprintf("file://%s/testdata/root.json", cwd)
+	channelRoot, err := Run(rootURL)
 	if err != nil {
 		t.Fatal(err)
 	}

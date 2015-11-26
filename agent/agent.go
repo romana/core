@@ -13,7 +13,7 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// This is a Romana service which provides networking functions on the host.
+// Package agent is a Romana service which provides networking functions on the host.
 package agent
 
 import (
@@ -48,26 +48,26 @@ type Agent struct {
 }
 
 // SetConfig implements SetConfig function of the Service interface.
-func (agent *Agent) SetConfig(config common.ServiceConfig) error {
+func (a *Agent) SetConfig(config common.ServiceConfig) error {
 	log.Println(config)
-	agent.config = config
+	a.config = config
 	leaseFileName := config.ServiceSpecific["lease_file"].(string)
-	lf := NewLeaseFile(leaseFileName, agent)
-	agent.leaseFile = &lf
+	lf := NewLeaseFile(leaseFileName, a)
+	a.leaseFile = &lf
 
-	agent.waitForIfaceTry = int(config.ServiceSpecific["wait_for_iface_try"].(float64))
-	agent.networkConfig = &NetworkConfig{}
+	a.waitForIfaceTry = int(config.ServiceSpecific["wait_for_iface_try"].(float64))
+	a.networkConfig = &NetworkConfig{}
 	log.Printf("Agent.SetConfig() finished.")
 	return nil
 }
 
 // Routes implements Routes function of Service interface.
-func (agent *Agent) Routes() common.Routes {
+func (a *Agent) Routes() common.Routes {
 	routes := common.Routes{
 		common.Route{
 			"POST",
 			"/",
-			agent.index,
+			a.index,
 			func() interface{} {
 				return &NetIf{}
 			},
@@ -77,12 +77,12 @@ func (agent *Agent) Routes() common.Routes {
 }
 
 // Run runs the agent service.
-func Run(rootServiceUrl string) (chan common.ServiceMessage, error) {
+func Run(rootServiceURL string) (chan common.ServiceMessage, error) {
 	agent := &Agent{}
 	helper := NewAgentHelper(agent)
 	agent.Helper = &helper
-	log.Printf("Agent: Getting configuration from %s", rootServiceUrl)
-	config, err := common.GetServiceConfig(rootServiceUrl, "agent")
+	log.Printf("Agent: Getting configuration from %s", rootServiceURL)
+	config, err := common.GetServiceConfig(rootServiceURL, "agent")
 	if err != nil {
 		return nil, err
 	}
@@ -162,9 +162,9 @@ func (a *Agent) interfaceHandle(netif NetIf) error {
 
 // Initialize implements the Initialize method of common.Service
 // interface.
-func (agent *Agent) Initialize() error {
+func (a *Agent) Initialize() error {
 	log.Printf("Entering Agent.Initialize()")
-	return agent.identifyCurrentHost()
+	return a.identifyCurrentHost()
 }
 
 /* development code

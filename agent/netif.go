@@ -13,7 +13,6 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// netif.go contains structure for representing Romana endpoint.
 package agent
 
 import (
@@ -29,7 +28,7 @@ import (
 type NetIf struct {
 	Name string
 	Mac  string
-	Ip   net.IP
+	IP   net.IP
 }
 
 // UnmarshalJSON results in having NetIf implement Unmarshaler
@@ -38,8 +37,8 @@ func (netif *NetIf) UnmarshalJSON(data []byte) error {
 	m := make(map[string]string)
 	json.Unmarshal(data, &m)
 
-	netif.Ip = net.ParseIP(m["ip"])
-	if netif.Ip == nil {
+	netif.IP = net.ParseIP(m["ip"])
+	if netif.IP == nil {
 		return failedToParseNetif()
 	}
 

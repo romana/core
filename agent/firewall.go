@@ -30,6 +30,7 @@
 // - Firewall.DivertTrafficToPaniIptablesChain() - diverts traffic to/from/via interface
 // - Firewall.CreateRules() - installs basic permissive rules
 // - Firewall.CreateU32Rules() - installs u32 rules
+
 package agent
 
 import (
@@ -99,7 +100,7 @@ func (fw *Firewall) prepareChainName(chainName string) string {
 // Init initializes current firewall with a data from the given endpoint.
 func (fw *Firewall) Init(netif NetIf) error {
 	var err error
-	fw.u32Filter, fw.chainPrefix, err = fw.prepareU32Rules(netif.Ip)
+	fw.u32Filter, fw.chainPrefix, err = fw.prepareU32Rules(netif.IP)
 	if err != nil {
 		// TODO need personalized error here, or even panic
 		return err

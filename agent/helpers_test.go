@@ -48,7 +48,7 @@ func TestAppendLineToFile(t *testing.T) {
 
 	// when
 	netif := NetIf{"eth0", "A", net.ParseIP("127.0.0.1")}
-	lease := fmt.Sprintf("%s %s", netif.Mac, netif.Ip)
+	lease := fmt.Sprintf("%s %s", netif.Mac, netif.IP)
 	_ = agent.Helper.appendLineToFile("stub", lease)
 
 	// expect
@@ -69,7 +69,7 @@ func TestIsLineInFile(t *testing.T) {
 	ip := net.ParseIP("127.0.0.1")
 	netif := NetIf{"eth0", "A", ip}
 
-	lease := fmt.Sprintf("%s %s", netif.Mac, netif.Ip)
+	lease := fmt.Sprintf("%s %s", netif.Mac, netif.IP)
 
 	// we don't care for lease file name in this test so it's just "stub"
 	out, err := agent.Helper.isLineInFile("stub", lease)
@@ -90,7 +90,7 @@ func TestIsLineInFile(t *testing.T) {
 	// Returning wrong lease via FakeOS
 	fOS = &FakeOS{"C 127.0.0.1", nil}
 	agent.Helper.OS = fOS
-	lease = fmt.Sprintf("%s %s", netif.Mac, netif.Ip)
+	lease = fmt.Sprintf("%s %s", netif.Mac, netif.IP)
 
 	// we don't care for lease file name in this test so it's just "stub"
 	out, err = agent.Helper.isLineInFile("stub", lease)

@@ -13,8 +13,6 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// helpers.go contains Helper methods used mostly used to interact with OS
-// together with some auxiliary functions.
 package agent
 
 // Description of Helper struct in mocks.go.
@@ -115,7 +113,7 @@ func (h Helper) createRoute(ip net.IP, netmask string, via string, dest string) 
 // Error if failed, nil if success.
 func (h Helper) ensureRouteToEndpoint(netif *NetIf) error {
 	mask := fmt.Sprintf("%d", h.Agent.networkConfig.EndpointNetmaskSize())
-	log.Print("Ensuring routes for ", netif.Ip, " ", netif.Name)
+	log.Print("Ensuring routes for ", netif.IP, " ", netif.Name)
 	log.Print("Acquiring mutex ensureRouteToEndpoint")
 	h.ensureRouteToEndpointMutex.Lock()
 	defer func() {
@@ -124,13 +122,13 @@ func (h Helper) ensureRouteToEndpoint(netif *NetIf) error {
 	}()
 	log.Print("Acquired mutex ensureRouteToEndpoint")
 	// If route not exist
-	if err := h.isRouteExist(netif.Ip, mask); err != nil {
+	if err := h.isRouteExist(netif.IP, mask); err != nil {
 
 		// Create route
 		via := "dev"
 		dest := netif.Name
 
-		if err := h.createRoute(netif.Ip,
+		if err := h.createRoute(netif.IP,
 			mask, via, dest); err != nil {
 
 			// Or report error
