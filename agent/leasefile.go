@@ -12,6 +12,8 @@
 // WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 // License for the specific language governing permissions and limitations
 // under the License.
+
+// Leasefile.go contains logic for managing DHCP leases
 package agent
 
 import (
@@ -33,7 +35,7 @@ func NewLeaseFile(path string, agent *Agent) LeaseFile {
 	return *lf
 }
 
-// provisionLease is a method that adds a lease to leasefile
+// provisionLease adds a lease to leasefile
 // and notifies DHCP server if file has changed.
 func (l LeaseFile) provisionLease(netif *NetIf) error {
 	lease := fmt.Sprintf("%s %s", netif.Mac, netif.Ip)
