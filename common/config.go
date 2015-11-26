@@ -17,7 +17,7 @@ package common
 
 import (
 	"errors"
-	//	"reflect"
+	"log"
 	"fmt"
 	"github.com/go-yaml/yaml"
 	"io/ioutil"
@@ -103,10 +103,8 @@ func cleanupMap2(ifcIfc map[interface{}]interface{}) map[string]interface{} {
 		switch vt := v.(type) {
 		case map[interface{}]interface{}:
 			newVal := cleanupMap2(vt)
-			//			fmt.Println("Cleaning", kStr, "from", reflect.TypeOf(vt), "to", reflect.TypeOf(newVal))
 			retval[kStr] = newVal
 		default:
-			//			fmt.Println(reflect.TypeOf(vt))
 			retval[kStr] = v
 		}
 	}
@@ -139,7 +137,7 @@ func ReadConfig(fname string) (Config, error) {
 			config.Services[c.Service] = ServiceConfig{CommonConfig{api}, cleanedConfig}
 
 		}
-		fmt.Println("Read configuration from", fname)
+		log.Println("Read configuration from", fname)
 		return *config, nil
 	} else {
 		return *config, errors.New("Empty filename.")

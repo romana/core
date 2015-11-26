@@ -201,7 +201,6 @@ func (rc *RestClient) execMethod(method string, url string, data interface{}, re
 
 	var body []byte
 	if rc.url.Scheme == "http" || rc.url.Scheme == "https" {
-		fmt.Printf("BO: %s - %s", method, rc.url)
 		var req *http.Request
 		if reqBodyReader == nil {
 			req, err = http.NewRequest(method, rc.url.String(), nil)
@@ -310,7 +309,8 @@ func InitializeService(service Service, config ServiceConfig) (chan ServiceMessa
 	return channel, nil
 }
 
-// GetServiceConfig is to get configuration from a root service
+// GetServiceConfig retrieves configuration for a given service from the root service.
+// TODO perhaps this should be a method on RestClient interface.
 func GetServiceConfig(rootServiceUrl string, name string) (*ServiceConfig, error) {
 	client, err := NewRestClient(rootServiceUrl)
 	if err != nil {

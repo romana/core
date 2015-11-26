@@ -18,7 +18,7 @@ package topology
 import (
 	"errors"
 	"fmt"
-	
+	"log"
 
 	"github.com/romana/core/common"
 	"strconv"
@@ -129,7 +129,7 @@ func (topology *Topology) handleHostListPost(input interface{}, ctx common.RestC
 		return nil, err
 	}
 	returnHostMessage := hostMessage
-	fmt.Println("Added host", hostMessage)
+	log.Println("Added host", hostMessage)
 	returnHostMessage.Id = id
 
 	return returnHostMessage, nil
@@ -166,7 +166,7 @@ type topologyStore interface {
 // SetConfig implements SetConfig function of the Service interface.
 // Returns an error if cannot connect to the data store
 func (topology *Topology) SetConfig(config common.ServiceConfig) error {
-	fmt.Println(config)
+	log.Println(config)
 	topology.config = config
 	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
 
@@ -205,7 +205,7 @@ func (topology *Topology) Initialize() error {
 
 // Runs topology service
 func CreateSchema(rootServiceUrl string, overwrite bool) error {
-	fmt.Println("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
+	log.Println("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
 	topologyService := &Topology{}
 	config, err := common.GetServiceConfig(rootServiceUrl, "topology")
 	if err != nil {

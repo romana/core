@@ -15,6 +15,7 @@
 package topology
 
 import (
+	"log"
 	"fmt"
 	//	"github.com/go-sql-driver/mysql"
 	"github.com/jinzhu/gorm"
@@ -32,7 +33,7 @@ type mysqlStore struct {
 }
 
 func (mysqlStore *mysqlStore) setConfig(storeConfig map[string]interface{}) error {
-	fmt.Println("In setConfig()")
+	log.Println("In setConfig()")
 	info := common.MysqlStoreInfo{}
 	if storeConfig["host"] == nil {
 		return errors.New("No host specified.")
@@ -96,13 +97,13 @@ func (mysqlStore *mysqlStore) findHost(id uint64) (Host, error) {
 
 func (mysqlStore *mysqlStore) listHosts() ([]Host, error) {
 	var hosts []Host
-	fmt.Println("In listHosts()")
+	log.Println("In listHosts()")
 	mysqlStore.db.Find(&hosts)
 	err := common.MakeMultiError(mysqlStore.db.GetErrors())
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println(hosts)
+	log.Println(hosts)
 	return hosts, nil
 }
 
@@ -117,7 +118,7 @@ func (mysqlStore *mysqlStore) addHost(host Host) (string, error) {
 }
 
 func (mysqlStore *mysqlStore) connect() error {
-	fmt.Println("in connect(", mysqlStore.connStr, ")")
+	log.Println("in connect(", mysqlStore.connStr, ")")
 	if mysqlStore.connStr == "" {
 		return errors.New("No connection information.")
 	}
@@ -130,7 +131,7 @@ func (mysqlStore *mysqlStore) connect() error {
 }
 
 func (mysqlStore *mysqlStore) createSchema(force bool) error {
-	fmt.Println("in createSchema(", force, ")")
+	log.Println("in createSchema(", force, ")")
 	// Connect to mysql database
 	schemaName := mysqlStore.info.Database
 	mysqlStore.info.Database = "mysql"
@@ -147,7 +148,7 @@ func (mysqlStore *mysqlStore) createSchema(force bool) error {
 		}
 
 		rows, _ := res.RowsAffected()
-		fmt.Println(sql, ": ", rows)
+		log.Println(sql, ": ", rows)
 	}
 
 	sql = fmt.Sprintf("CREATE DATABASE %s", schemaName)
@@ -156,7 +157,7 @@ func (mysqlStore *mysqlStore) createSchema(force bool) error {
 		return err
 	}
 	rows, _ := res.RowsAffected()
-	fmt.Println(sql, ": ", rows)
+	log.Println(sql, ": ", rows)
 	mysqlStore.info.Database = schemaName
 	mysqlStore.setConnString()
 	err = mysqlStore.connect()
@@ -167,7 +168,7 @@ func (mysqlStore *mysqlStore) createSchema(force bool) error {
 	mysqlStore.db.CreateTable(&Tor{})
 	mysqlStore.db.CreateTable(&Host{})
 	errs := mysqlStore.db.GetErrors()
-	fmt.Println("Errors", errs)
+	log.Println("Errors", errs)
 	err2 := common.MakeMultiError(errs)
 
 	if err2 != nil {

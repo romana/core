@@ -49,7 +49,7 @@ type Agent struct {
 
 // SetConfig implements SetConfig function of the Service interface.
 func (agent *Agent) SetConfig(config common.ServiceConfig) error {
-	fmt.Println(config)
+	log.Println(config)
 	agent.config = config
 	leaseFileName := config.ServiceSpecific["lease_file"].(string)
 	lf := NewLeaseFile(leaseFileName, agent)
