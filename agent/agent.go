@@ -13,6 +13,7 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
+// This is a Romana service which provides networking functions on the host.
 package agent
 
 import (
