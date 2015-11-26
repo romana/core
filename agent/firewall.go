@@ -143,6 +143,7 @@ func (fw *Firewall) isChainExist(chain int) bool {
 }
 
 // detectMissingChains checks which Firewall chains haven't been created yet.
+// Because we do not want to create chains that already exist.
 func (fw *Firewall) detectMissingChains() []int {
 	var ret []int
 	for chain := range fw.chains {
