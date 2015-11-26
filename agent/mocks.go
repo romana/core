@@ -26,21 +26,21 @@ package agent
 
 import (
 	"fmt"
+	"github.com/romana/core/common"
+	"github.com/romana/core/topology"
 	"io"
 	"log"
+	"net"
 	"os"
 	"os/exec"
 	"strings"
 	"sync"
-	"net"
-	"github.com/romana/core/common"
-	"github.com/romana/core/topology"
 )
 
 // TODO There is a tradeoff, either use global variable for provider
 // or pass provider down to each method.
 // Passing down to each method is more explicit which is good,
-// but pollutes method's signatures too much. Need to have a discussion.
+// but pollutes methods' signatures too much. Need to have a discussion.
 
 // Helper groups testable implementations
 // of standard library functions.
@@ -53,24 +53,24 @@ type Helper struct {
 	ensureInterHostRoutesMutex *sync.Mutex
 }
 
-// mockAgent creates the agent with the configuration 
-// needed for tests without the need to go through 
-// configuration files. 
+// mockAgent creates the agent with the configuration
+// needed for tests without the need to go through
+// configuration files.
 func mockAgent() Agent {
 
 	host0 := common.HostMessage{Ip: "172.17.0.1", RomanaIp: "127.0.0.1/8"}
-	
+
 	romanaIp, romanaNet, _ := net.ParseCIDR(host0.RomanaIp)
-	networkConfig  := &NetworkConfig{}
+	networkConfig := &NetworkConfig{}
 	networkConfig.currentHostIP = net.ParseIP(host0.Ip)
 	networkConfig.currentHostGW = romanaIp
 	networkConfig.currentHostGWNet = *romanaNet
 	networkConfig.currentHostGWNetSize, _ = romanaNet.Mask.Size()
 	networkConfig.currentHostIndex = 0
-	
+
 	host1 := common.HostMessage{Ip: "192.168.0.12", RomanaIp: "10.65.0.0/16"}
-	networkConfig.hosts = []common.HostMessage{ host0, host1}
-	
+	networkConfig.hosts = []common.HostMessage{host0, host1}
+
 	dc := topology.Datacenter{}
 	dc.Cidr = "10.0.0.0/8"
 	dc.PortBits = 8
@@ -78,9 +78,9 @@ func mockAgent() Agent {
 	dc.SegmentBits = 4
 	dc.EndpointSpaceBits = 0
 	dc.EndpointBits = 8
-	
+
 	networkConfig.dc = dc
-	
+
 	agent := &Agent{networkConfig: networkConfig}
 	helper := NewAgentHelper(agent)
 	agent.Helper = &helper
@@ -97,7 +97,8 @@ type Executable interface {
 // back to standard library.
 type DefaultExecutor struct{}
 
-// Exec is a method of DefaultExecutor which proxies all requests to exec.Command()
+// Exec proxies all requests to exec.Command()
+// Used to support unit testing.
 func (DefaultExecutor) Exec(cmd string, args []string) ([]byte, error) {
 	log.Printf("Helper.Executor: executing command: %s %s", cmd, args)
 	out, err := exec.Command(cmd, args...).Output()
@@ -119,7 +120,7 @@ type OSFile interface {
 }
 
 // DefaultOS is a default implementation of OS interface
-// which proxyes everything to standard lib.
+// which proxies everything to standard lib.
 type DefaultOS struct {
 }
 
@@ -171,14 +172,13 @@ type FakeOS struct {
 	fakeFile *FakeFile
 }
 
-// open is a method of FakeOS that will pass a structure that will return
-// a file stuffed with fake data.
+// open returns a FakeFile stuffed with fake data
 func (o FakeOS) open(name string) (OSFile, error) {
 	fake := FakeFile{strings.NewReader(o.fakeData), ""}
 	return &fake, nil
 }
 
-// appendFile is a method of FakeOS that returns a FakeFile implementation
+// appendFile returns a FakeFile implementation
 // that will record any data it receives for later analisis.
 func (o *FakeOS) appendFile(name string) (OSFile, error) {
 	fake := FakeFile{strings.NewReader(o.fakeData), ""}
