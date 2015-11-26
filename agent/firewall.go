@@ -170,6 +170,7 @@ func (fw *Firewall) CreateChains(newChains []int) error {
 }
 
 // DivertTrafficToPaniIptablesChain injects iptables rules to send traffic into the PANI chain.
+// We need to do this for each tenant/segment pair as each pair will have different chain name.
 func (fw *Firewall) DivertTrafficToPaniIptablesChain(chain int) error {
 	// Should be like that
 	// iptables -A INPUT -i tap1234 -j PANI-T0S1-INPUT
@@ -188,7 +189,7 @@ func (fw *Firewall) DivertTrafficToPaniIptablesChain(chain int) error {
 	return nil
 }
 
-// CreateRules creates permissive iptables rules for the given PANI chain
+// CreateRules creates permissive iptables rules for the given Romana chain
 // to allow a traffic to flow between the Host and Endpoint.
 func (fw *Firewall) CreateRules(chain int) error {
 	log.Print("Creating firewall rules for chain", chain)
@@ -224,7 +225,7 @@ func (fw *Firewall) CreateU32Rules(chain int) error {
 	return nil
 }
 
-// prepareTenantSegmentMask returns integer representation of a netmask
+// prepareTenantSegmentMask returns integer representation of a bitmask
 // for tenant+segment bits in pseudo network.
 func (fw *Firewall) prepareTenantSegmentMask() uint64 {
 	var res uint64
@@ -237,7 +238,7 @@ func (fw *Firewall) prepareTenantSegmentMask() uint64 {
 }
 
 // ipToInt transforms IP address from net.IP form to integer form.
-// Stolen from IPAM/config, should really be in some shared library.
+// Taken from IPAM/config, should really be in some shared library.
 func ipToInt(ip net.IP) uint64 {
 	return uint64(ip[12])<<24 | uint64(ip[13])<<16 | uint64(ip[14])<<8 | uint64(ip[15])
 }
@@ -283,6 +284,7 @@ func MaskToInt(mask net.IPMask) (uint64, error) {
 //      filter = '12&0xFF00FF00=0xA000100 && 16&0xFF00FF00=0xA000100'
 //      chainPrefix = 'pani-T0S1-'
 //
+//   TODO Refactor chain-prefix routine into separate function (prepareChainPrefix).
 //   Also return the chain-prefix we'll use for this interface. This is
 //   typically a string such as:
 //       pani-T<tenant-id>S<segment-id>-
@@ -305,7 +307,9 @@ func (fw *Firewall) prepareU32Rules(ipAddr net.IP) (string, string, error) {
 	return filter, chainPrefix, nil
 }
 
-// prepareNetmaskBits returns integer representation of pseudo network netmask.
+// prepareNetmaskBits returns integer representation of pseudo network bitmask.
+// Used to prepare u32 firewall rules that would match ip addresses belonging
+// to given tenant/segment pair.
 func (fw *Firewall) prepareNetmaskBits() (uint64, error) {
 	iCidrMask, err := fw.PseudoNetNetmaskInt()
 	if err != nil {

@@ -73,7 +73,7 @@ func TestCreateChains(t *testing.T) {
 	}
 }
 
-// TestDivertTraffic is checking that DiverTrafficToPaniIptablesChain generates correct commands for
+// TestDivertTraffic is checking that DivertTrafficToPaniIptablesChain generates correct commands for
 // firewall to divert traffic into pani chains.
 func TestDivertTraffic(t *testing.T) {
 	agent := mockAgent()
@@ -86,7 +86,7 @@ func TestDivertTraffic(t *testing.T) {
 	fw, _ := NewFirewall(NetIf{"eth0", "A", ip}, &agent)
 
 	// 0 is a first standard chain - INPUT
-	fw.DiverTrafficToPaniIptablesChain(0)
+	fw.DivertTrafficToPaniIptablesChain(0)
 
 	// expect
 	expect := "/sbin/iptables -A INPUT -i eth0 -j pani-T0S0-INPUT"
