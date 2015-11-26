@@ -12,6 +12,8 @@
 // WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 // License for the specific language governing permissions and limitations
 // under the License.
+
+// Errors for Romana Agent
 package agent
 
 import (
@@ -20,11 +22,10 @@ import (
 
 // Error codes.
 const (
-	EcodeDefault              = iota + 100
-	EcodeShelloutFailed     
-	EcodeRequestParsingFailed 
-	EcodeCreateRouteFailed   
-	
+	EcodeDefault = iota + 100
+	EcodeShelloutFailed
+	EcodeRequestParsingFailed
+	EcodeCreateRouteFailed
 )
 
 // ErrorMessages provides description for error codes ErrorMessages[Ecode]string.
@@ -33,10 +34,9 @@ var ErrorMessages = map[int]string{
 	EcodeShelloutFailed:       "External command unsuccessful",
 	EcodeRequestParsingFailed: "Garbage in the request",
 	EcodeCreateRouteFailed:    "Can't create IP route",
-	
 }
 
-// Error is a structure that represents error.
+// Error is a structure that represents an error.
 type Error struct {
 	ErrorCode int
 	Message   string
@@ -52,7 +52,7 @@ func NewError(ecode int, cause string) Error {
 	}
 }
 
-// Error is a method to satisfy error interface.
+// Error is a method to satisfy error interface and returns a string representation of the error.
 func (e Error) Error() string {
 	return e.Message + " (" + e.Cause + ")"
 }
@@ -100,7 +100,6 @@ func wrongHostError() error {
 func failedToParseOtherHosts(s string) error {
 	return NewError(EcodeDefault, fmt.Sprintf("ERROR: Failed to parse netmask out of %s in CreateInterhostRoutes", s))
 }
-
 
 func combinedError(s string, err error) error {
 	// TODO scheduled for deprecation, all calls must be refactored
