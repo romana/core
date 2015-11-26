@@ -72,11 +72,9 @@ func (c *NetworkConfig) EndpointBits() uint {
 // We need to know public IP and pani gateway IP of the current host.
 // This is done by matching current host IP addresses against what topology
 // service thinks the host address is.
-// If no match found we assume we are running on host which is not
-// the part of pani setup and spit error out.
+// If no match is found we assume we are running on host which is not
+// part of the Romana setup and spit error out.
 func (agent Agent) identifyCurrentHost() error {
-	addrs, _ := net.InterfaceAddrs()
-
 	topologyUrl, err := common.GetServiceUrl(agent.config.Common.Api.RootServiceUrl, "topology")
 	if err != nil {
 		return agentError(err)
@@ -105,21 +103,17 @@ func (agent Agent) identifyCurrentHost() error {
 		return agentError(err)
 	}
 
-	// Yeah, nested loop. Can't think anything better.
+	// Walking through all interfaces on a host and looking for a
+	// matching interface address in configuration.
+	addrs, _ := net.InterfaceAddrs()
 	for i := range addrs {
-		// TODO This condition required to break from outer loop
-		// when inner one *broken*. Don't look pretty,
-		// but do we justify use of labels for that case ?
-		if agent.networkConfig.currentHostGW != nil {
-			break
-		}
-
 		romanaIp, _, err := net.ParseCIDR(addrs[i].String())
 		if err != nil {
 			log.Printf("Failed to parse %s", addrs[i].String())
 			return err
 		}
-		agent.networkConfig.hosts = hosts
+		// Walking through host addresses in our config and looking
+		// for a match to current interface address
 		for j := range hosts {
 			_, romanaNet, err := net.ParseCIDR(hosts[j].RomanaIp)
 			if err != nil {
@@ -131,18 +125,17 @@ func (agent Agent) identifyCurrentHost() error {
 				romanaIp,
 				romanaNet.Contains(romanaIp))
 
+			// Found it
 			if romanaNet.Contains(romanaIp) {
 				agent.networkConfig.currentHostIP = net.ParseIP(hosts[j].Ip)
 				agent.networkConfig.currentHostGW = romanaIp
 				agent.networkConfig.currentHostGWNet = *romanaNet
 				agent.networkConfig.currentHostGWNetSize, _ = romanaNet.Mask.Size()
 				agent.networkConfig.currentHostIndex = j
-				break
+				agent.networkConfig.hosts = hosts
+				return nil
 			}
 		}
 	}
-	if agent.networkConfig.currentHostGW == nil {
-		return wrongHostError()
-	}
-	return nil
+	return wrongHostError()
 }
