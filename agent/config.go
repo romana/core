@@ -67,8 +67,8 @@ func (c *NetworkConfig) EndpointBits() uint {
 	return c.dc.EndpointBits
 }
 
-// IdentifyCurrentHost is a function that discovers network configuration
-// of the host we are running at.
+// identifyCurrentHost discovers network configuration
+// of the host we are running on.
 // We need to know public IP and pani gateway IP of the current host.
 // This is done by matching current host IP addresses against what topology
 // service thinks the host address is.
