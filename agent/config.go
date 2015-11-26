@@ -13,6 +13,7 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
+// Configuration related functions for Romana Agent service.
 package agent
 
 import (
@@ -48,7 +49,7 @@ func (c *NetworkConfig) EndpointNetmaskSize() uint64 {
 // PNetCIDR returns pseudo net cidr in net.IPNet format.
 func (c *NetworkConfig) PNetCIDR() (cidr *net.IPNet, err error) {
 	_, cidr, err = net.ParseCIDR(c.dc.Cidr)
-	return 
+	return
 }
 
 // TenantBits returns tenant bits value from POC config.
