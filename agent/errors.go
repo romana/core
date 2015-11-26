@@ -13,7 +13,7 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Errors for Romana Agent
+// errors.go contains defenitions of errors used in Romana Agent service.
 package agent
 
 import (

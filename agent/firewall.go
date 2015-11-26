@@ -13,7 +13,7 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// This file is a Firewall manager,
+// firewall.go is a Firewall manager,
 // as of now responsibilities of the Firewall manager is to
 // 1. Create per tenant per segment chains
 // 2. Divert traffic from base chains into ones created above

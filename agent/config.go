@@ -13,7 +13,7 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Configuration related functions for Romana Agent service.
+// config.go contains configuration related functions for Romana Agent service.
 package agent
 
 import (

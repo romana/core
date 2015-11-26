@@ -13,7 +13,7 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// This file contains Helper methods used mostly used to interact with OS
+// helpers.go contains Helper methods used mostly used to interact with OS
 // together with some auxiliary functions.
 package agent
 

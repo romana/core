@@ -12,9 +12,8 @@
 // WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 // License for the specific language governing permissions and limitations
 // under the License.
-package agent
 
-// This file contins Helper structure with interfaces which which is used
+// mocks.go contins Helper structure with interfaces which which is used
 // to interact with operation system.
 //
 // - OS interface used to access filesystem, write and read files.
@@ -23,6 +22,7 @@ package agent
 // Both interfaces has default and fake implementations, default implementation
 // will usually just proxy calls to standard library while test implemetation
 // will allow mocking all interactions.
+package agent
 
 import (
 	"fmt"

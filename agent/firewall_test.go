@@ -13,7 +13,7 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Tests for firewall.go
+// firewall_test.go contains test cases for firewall.go
 package agent
 
 // Some comments on use of mocking framework in helpers_test.go.

@@ -14,7 +14,7 @@
 // under the License.
 
 
-// Tests cases for helpers
+// helpers_test.go contains tests cases for helpers
 package agent
 
 import (
