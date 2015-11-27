@@ -12,8 +12,39 @@
 // WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 // License for the specific language governing permissions and limitations
 // under the License.
+
+// Command for running the Tenant service.
 package main
 
+import (
+	"flag"
+	"fmt"
+
+	"github.com/romana/core/ipam"
+)
+
+// Main entry point for the tenant microservice
 func main() {
-  
+	createSchema := flag.Bool("createSchema", false, "Create schema")
+	overwriteSchema := flag.Bool("overwriteSchema", false, "Overwrite schema")
+	rootUrl := flag.String("rootUrl", "", "Root service URL")
+	flag.Parse()
+
+	if *createSchema || *overwriteSchema {
+		err := ipam.CreateSchema(*rootUrl, *overwriteSchema)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println("Schema created.")
+		return
+	}
+
+	channel, err := ipam.Run(*rootUrl)
+	if err != nil {
+		panic(err)
+	}
+	for {
+		msg := <-channel
+		fmt.Println(msg)
+	}
 }

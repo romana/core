@@ -18,20 +18,19 @@ package topology
 import (
 	"errors"
 	"fmt"
-	"log"
-
 	"github.com/romana/core/common"
+	"log"
+	"net"
 	"strconv"
 	"strings"
 )
 
-// Topology service
-type Topology struct {
+// TopologySvc service
+type TopologySvc struct {
 	config     common.ServiceConfig
-	datacenter *Datacenter
+	datacenter *common.Datacenter
 	store      topologyStore
 	routes     common.Route
-
 }
 
 const (
@@ -41,11 +40,10 @@ const (
 	torListPath   = "/tors"
 	spineListPath = "/spines"
 	dcPath        = "/datacenter"
-
 )
 
 // Provides Routes
-func (topology *Topology) Routes() common.Routes {
+func (topology *TopologySvc) Routes() common.Routes {
 	routes := common.Routes{
 		common.Route{
 			"GET",
@@ -86,14 +84,13 @@ func (topology *Topology) Routes() common.Routes {
 type HostListMessage []common.HostMessage
 
 // handleHost handles request for a specific host's info
-func (topology *Topology) handleDc(input interface{}, ctx common.RestContext) (interface{}, error) {
+func (topology *TopologySvc) handleDc(input interface{}, ctx common.RestContext) (interface{}, error) {
 	// For now it's from config, later on we can use this to manage multiple dcs.
 	return topology.datacenter, nil
 }
 
 // handleHost handles request for a specific host's info
-
-func (topology *Topology) handleHost(input interface{}, ctx common.RestContext) (interface{}, error) {
+func (topology *TopologySvc) handleHost(input interface{}, ctx common.RestContext) (interface{}, error) {
 	idStr := ctx.PathVariables["hostId"]
 	id, err := strconv.ParseUint(idStr, 10, 64)
 	if err != nil {
@@ -113,7 +110,7 @@ func (topology *Topology) handleHost(input interface{}, ctx common.RestContext) 
 	return hostMessage, nil
 }
 
-func (topology *Topology) handleHostListGet(input interface{}, ctx common.RestContext) (interface{}, error) {
+func (topology *TopologySvc) handleHostListGet(input interface{}, ctx common.RestContext) (interface{}, error) {
 	hosts, err := topology.store.listHosts()
 	if err != nil {
 		return nil, err
@@ -121,7 +118,7 @@ func (topology *Topology) handleHostListGet(input interface{}, ctx common.RestCo
 	return hosts, nil
 }
 
-func (topology *Topology) handleHostListPost(input interface{}, ctx common.RestContext) (interface{}, error) {
+func (topology *TopologySvc) handleHostListPost(input interface{}, ctx common.RestContext) (interface{}, error) {
 	hostMessage := input.(*common.HostMessage)
 	host := Host{Ip: hostMessage.Ip, Name: hostMessage.Name, AgentPort: uint64(hostMessage.AgentPort)}
 	id, err := topology.store.addHost(host)
@@ -135,7 +132,7 @@ func (topology *Topology) handleHostListPost(input interface{}, ctx common.RestC
 	return returnHostMessage, nil
 }
 
-func (topology *Topology) handleIndex(input interface{}, ctx common.RestContext) (interface{}, error) {
+func (topology *TopologySvc) handleIndex(input interface{}, ctx common.RestContext) (interface{}, error) {
 	retval := common.IndexResponse{}
 	retval.ServiceName = "topology"
 	myUrl := strings.Join([]string{"http://", topology.config.Common.Api.Host, ":", strconv.FormatUint(topology.config.Common.Api.Port, 10)}, "")
@@ -165,7 +162,7 @@ type topologyStore interface {
 
 // SetConfig implements SetConfig function of the Service interface.
 // Returns an error if cannot connect to the data store
-func (topology *Topology) SetConfig(config common.ServiceConfig) error {
+func (topology *TopologySvc) SetConfig(config common.ServiceConfig) error {
 	log.Println(config)
 	topology.config = config
 	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
@@ -174,8 +171,8 @@ func (topology *Topology) SetConfig(config common.ServiceConfig) error {
 	switch storeType {
 	case "mysql":
 		topology.store = &mysqlStore{}
-		
-		case "mock":
+
+	case "mock":
 		topology.store = &mockStore{}
 
 	default:
@@ -184,13 +181,9 @@ func (topology *Topology) SetConfig(config common.ServiceConfig) error {
 	return topology.store.setConfig(storeConfig)
 }
 
-func (topology *Topology) createSchema(overwrite bool) error {
-	return topology.store.createSchema(overwrite)
-}
-
 // Runs topology service
 func Run(rootServiceUrl string) (chan common.ServiceMessage, error) {
-	topologyService := &Topology{}
+	topologyService := &TopologySvc{}
 	config, err := common.GetServiceConfig(rootServiceUrl, "topology")
 	if err != nil {
 		return nil, err
@@ -199,14 +192,19 @@ func Run(rootServiceUrl string) (chan common.ServiceMessage, error) {
 	return ch, err
 }
 
-func (topology *Topology) Initialize() error {
+func (topology *TopologySvc) Initialize() error {
+	ip, _, err := net.ParseCIDR(topology.datacenter.Cidr)
+	if err != nil {
+		return err
+	}
+	topology.datacenter.Prefix = common.IPv4ToInt(ip)
 	return topology.store.connect()
 }
 
 // Runs topology service
 func CreateSchema(rootServiceUrl string, overwrite bool) error {
 	log.Println("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
-	topologyService := &Topology{}
+	topologyService := &TopologySvc{}
 	config, err := common.GetServiceConfig(rootServiceUrl, "topology")
 	if err != nil {
 		return err
@@ -216,5 +214,5 @@ func CreateSchema(rootServiceUrl string, overwrite bool) error {
 	if err != nil {
 		return err
 	}
-	return topologyService.createSchema(overwrite)
+	return topologyService.store.createSchema(overwrite)
 }

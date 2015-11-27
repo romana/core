@@ -13,9 +13,38 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Command-line for running IPAM
+// Command for running the IPAM service.
 package main
 
+import (
+	"flag"
+	"fmt"
+
+	"github.com/romana/core/ipam"
+)
+
+// Main entry point for the IPAM microservice
 func main() {
-  
+	createSchema := flag.Bool("createSchema", false, "Create schema")
+	overwriteSchema := flag.Bool("overwriteSchema", false, "Overwrite schema")
+	rootUrl := flag.String("rootUrl", "", "Root service URL")
+	flag.Parse()
+
+	if *createSchema || *overwriteSchema {
+		err := topology.CreateSchema(*rootUrl, *overwriteSchema)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println("Schema created.")
+		return
+	}
+
+	channel, err := topology.Run(*rootUrl)
+	if err != nil {
+		panic(err)
+	}
+	for {
+		msg := <-channel
+		fmt.Println(msg)
+	}
 }

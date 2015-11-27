@@ -8,30 +8,34 @@
 //   http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+//  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
 // WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Command to launch root service
-package main
+package ipam
 
 import (
-	"flag"
-	"github.com/romana/core/root"
-	"log"
+	"database/sql"
+	//	"github.com/romana/core/common"
 )
 
-// Main entry point for the root microservice
-func main() {
-	configFileName := flag.String("c", "", "Configuration file")
-	flag.Parse()
-	channel, err := root.Run(*configFileName)
-	if err != nil {
-		panic(err)
-	}
-	for {
-		msg := <-channel
-		log.Println(msg)
-	}
+type Vm struct {
+	TenantId  uint64
+	SegmentId uint64
+	HostId    string
+	Name      string
+	Seq       uint64
+}
+
+type HostDb struct {
+	Vms []Vm
+	Id  string `gorm:"primary_key"`
+}
+
+type VmDb struct {
+	Vm
+	Id uint64 `sql:"AUTO_INCREMENT"`
+	HostId sql.NullString
+	Host   HostDb
 }

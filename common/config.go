@@ -17,11 +17,10 @@ package common
 
 import (
 	"errors"
-	"log"
 	"fmt"
 	"github.com/go-yaml/yaml"
 	"io/ioutil"
-
+	"log"
 )
 
 // API part of service configuration (host/port).
@@ -44,7 +43,6 @@ func (api Api) GetHostPort() string {
 // DB, etc.
 type CommonConfig struct {
 	Api Api `yaml:"api" json:"api"`
-	
 }
 
 // ServiceConfig contains common configuration
@@ -76,9 +74,8 @@ type yamlServiceConfig struct {
 	Config  map[string]interface{}
 }
 
-// cleanupMap makes sure that map[string]interface{}'s children
-// maps have strings as keys , not interfaces. YAML parses
-
+// cleanupMap ensures that map[string]interface{}'s children
+// maps have strings as keys, not interfaces. YAML parses a
 // file into a map[interface{}]interface{} structure which JSON
 // then cannot marshal.
 func cleanupMap(m map[string]interface{}) map[string]interface{} {

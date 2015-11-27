@@ -15,30 +15,13 @@
 package topology
 
 import (
-//	"github.com/romana/core/common"
+	"github.com/romana/core/common"
 )
-
-type Datacenter struct {
-	Id                uint64 `sql:"AUTO_INCREMENT"`
-	IpVersion         uint
-//	Prefix            uint64
-	Cidr              string
-	PrefixBits        uint `json:"prefix_bits"`
-	PortBits          uint `json:"port_bits"`
-	TenantBits        uint `json:"tenant_bits"`
-	SegmentBits       uint `json:"segment_bits"`
-	// We don't need to store this, but calculate and pass around
-	EndpointBits      uint `json:"endpoint_bits"`
-	EndpointSpaceBits uint `json:"endpoint_space_bits"`
-	Name              string `json:""`
-
-}
 
 type Host struct {
 	Id        uint64 `sql:"AUTO_INCREMENT"`
 	Ip        string
 	RomanaIp  string
-
 	Name      string
 	AgentPort uint64
 	//	tor         *Tor
@@ -46,5 +29,5 @@ type Host struct {
 
 type Tor struct {
 	Id         uint64 `sql:"AUTO_INCREMENT"`
-	datacenter *Datacenter
+	datacenter *common.Datacenter
 }

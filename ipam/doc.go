@@ -8,30 +8,13 @@
 //   http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+//  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
 // WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Command to launch root service
-package main
+/*
+Implements IPAM service. See https://github.com/romanaproject/romana/wiki/IPAM-service-API.
+*/
+package ipam
 
-import (
-	"flag"
-	"github.com/romana/core/root"
-	"log"
-)
-
-// Main entry point for the root microservice
-func main() {
-	configFileName := flag.String("c", "", "Configuration file")
-	flag.Parse()
-	channel, err := root.Run(*configFileName)
-	if err != nil {
-		panic(err)
-	}
-	for {
-		msg := <-channel
-		log.Println(msg)
-	}
-}

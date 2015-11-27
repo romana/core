@@ -17,13 +17,12 @@ package common
 
 //import "fmt"
 
-// Adapts GORM (ORM - see https://github.com/jinzhu/gorm) array of errors found in GetErrors()
+// MultiError adapts GORM (ORM - see https://github.com/jinzhu/gorm) array of errors found in GetErrors()
 // to a single error interface.
 // GORMdoes not return errors at every turn. It accumulates them and returns 
 // them whenever you feel like calling GetErrors() (https://godoc.org/github.com/jinzhu/gorm#DB.GetErrors). 
 // Since this is not consistent  with the rest of the code, I prefer to isolate it
 // here and make an adapter.
-
 type MultiError struct {
 	errors []error
 }

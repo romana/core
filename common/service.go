@@ -58,7 +58,8 @@ type IndexResponse struct {
 	Links       Links
 }
 
-// Response from the / path for root only
+// RootIndexResponse represents a response from the / path 
+// specific for root service only.
 type RootIndexResponse struct {
 	ServiceName string `json:"serviceName"`
 	Links       Links
@@ -116,17 +117,17 @@ type RestClient struct {
 // NewRestClient creates a new Rest client.
 func NewRestClient(url string) (*RestClient, error) {
 	rc := &RestClient{client: &http.Client{}}
-	err := rc.newUrl(url)
+	err := rc.NewUrl(url)
 	if err != nil {
 		return nil, err
 	}
 	return rc, nil
 }
 
-// newUrl sets the client's new URL (yes, it mutates).
-// If newUrl is a relative URL then it will be based
+// NewUrl sets the client's new URL (yes, it mutates).
+// If NewUrl is a relative URL then it will be based
 // on the previous value of the URL that the RestClient had.
-func (rc *RestClient) newUrl(dest string) error {
+func (rc *RestClient) NewUrl(dest string) error {
 	url, err := url.Parse(dest)
 	if err != nil {
 		return err
@@ -138,8 +139,8 @@ func (rc *RestClient) newUrl(dest string) error {
 			rc.url = url
 		}
 	} else {
-		newUrl := rc.url.ResolveReference(url)
-		rc.url = newUrl
+		NewUrl := rc.url.ResolveReference(url)
+		rc.url = NewUrl
 	}
 	return nil
 }
@@ -166,7 +167,7 @@ func GetServiceUrl(rootServiceUrl string, name string) (string, error) {
 			} else {
 				// Now for a bit of a trick - this href could be relative...
 				// Need to normalize.
-				err = client.newUrl(href)
+				err = client.NewUrl(href)
 				if err != nil {
 					return "", err
 				}
@@ -183,7 +184,7 @@ func GetServiceUrl(rootServiceUrl string, name string) (string, error) {
 // as relative or absolute).
 func (rc *RestClient) execMethod(method string, url string, data interface{}, result interface{}) error {
 	log.Printf("Going to %s from %s", url, rc.url)
-	err := rc.newUrl(url)
+	err := rc.NewUrl(url)
 	if err != nil {
 		return err
 	}
@@ -337,3 +338,33 @@ func GetServiceConfig(rootServiceUrl string, name string) (*ServiceConfig, error
 	}
 	return config, nil
 }
+
+// Datacenter represents the configuration of a datacenter
+type Datacenter struct {
+	Id                uint64 `sql:"AUTO_INCREMENT"`
+	IpVersion         uint
+	// We don't need to store this, but calculate and pass around
+	Prefix            uint64
+	Cidr              string
+	PrefixBits        uint `json:"prefix_bits"`
+	PortBits          uint `json:"port_bits"`
+	TenantBits        uint `json:"tenant_bits"`
+	SegmentBits       uint `json:"segment_bits"`
+	// We don't need to store this, but calculate and pass around
+	EndpointBits      uint `json:"endpoint_bits"`
+	EndpointSpaceBits uint `json:"endpoint_space_bits"`
+	Name              string `json:""`
+}
+
+// TODO move here?
+//type Tenant struct {
+//	Id       uint64 `sql:"AUTO_INCREMENT"`
+//	Name     string
+//	Seq      uint64
+//}
+//
+//type Segment struct {
+//	Id       uint64 `sql:"AUTO_INCREMENT"`
+//	Name     string
+//	Seq      uint64
+//}

@@ -5,14 +5,15 @@
 // not use this file except in compliance with the License. You may obtain
 // a copy of the License at
 //
-//   http://www.apache.org/licenses/LICENSE-2.0
+// http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 //  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
 // WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 // License for the specific language governing permissions and limitations
 // under the License.
-package topology
+
+package tenant
 
 import (
 	"errors"
@@ -81,38 +82,6 @@ func (mysqlStore *mysqlStore) setConnString() {
 	mysqlStore.connStr = fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", info.Username, info.Password, info.Host, info.Port, info.Database)
 }
 
-func (mysqlStore *mysqlStore) findHost(id uint64) (Host, error) {
-	host := Host{}
-	mysqlStore.db.Where("id = ?", id).First(&host)
-	err := common.MakeMultiError(mysqlStore.db.GetErrors())
-	if err != nil {
-		return host, err
-	}
-	return host, nil
-}
-
-func (mysqlStore *mysqlStore) listHosts() ([]Host, error) {
-	var hosts []Host
-	log.Println("In listHosts()")
-	mysqlStore.db.Find(&hosts)
-	err := common.MakeMultiError(mysqlStore.db.GetErrors())
-	if err != nil {
-		return nil, err
-	}
-	log.Println(hosts)
-	return hosts, nil
-}
-
-func (mysqlStore *mysqlStore) addHost(host Host) (string, error) {
-	mysqlStore.db.NewRecord(host)
-	mysqlStore.db.Create(&host)
-	err := common.MakeMultiError(mysqlStore.db.GetErrors())
-	if err != nil {
-		return "", err
-	}
-	return strconv.FormatUint(host.Id, 10), nil
-}
-
 func (mysqlStore *mysqlStore) connect() error {
 	log.Println("in connect(", mysqlStore.connStr, ")")
 	if mysqlStore.connStr == "" {
@@ -126,12 +95,112 @@ func (mysqlStore *mysqlStore) connect() error {
 	return nil
 }
 
+func (mysqlStore *mysqlStore) listTenants() ([]Tenant, error) {
+	var tenants []Tenant
+	log.Println("In listTenants()")
+	mysqlStore.db.Find(&tenants)
+	err := common.MakeMultiError(mysqlStore.db.GetErrors())
+	if err != nil {
+		return nil, err
+	}
+	log.Println(tenants)
+	return tenants, nil
+}
+
+func (mysqlStore *mysqlStore) addTenant(tenant Tenant) (string, error) {
+	mysqlStore.db.NewRecord(tenant)
+	mysqlStore.db.Create(&tenant)
+	err := common.MakeMultiError(mysqlStore.db.GetErrors())
+	if err != nil {
+		return "", err
+	}
+	return strconv.FormatUint(tenant.Id, 10), nil
+}
+
+func (mysqlStore *mysqlStore) findTenant(id uint64) (Tenant, error) {
+
+	var tenants []Tenant
+	log.Println("In listTenants()")
+	mysqlStore.db.Find(&tenants)
+	err := common.MakeMultiError(mysqlStore.db.GetErrors())
+	if err != nil {
+		return Tenant{}, err
+	}
+	for i := range tenants {
+		if tenants[i].Id == id {
+			tenants[i].Seq = uint64(i)
+			return tenants[i], nil
+		}
+	}
+	return Tenant{}, errors.New("Not found")
+	//	tenant := Tenant{}
+	//	mysqlStore.db.Where("id = ?", id).First(&tenant)
+	//	err := common.MakeMultiError(mysqlStore.db.GetErrors())
+	//	if err != nil {
+	//		return tenant, err
+	//	}
+	//	return tenant, nil
+}
+
+func (mysqlStore *mysqlStore) addSegment(tenantId uint64, segment Segment) (string, error) {
+	mysqlStore.db.NewRecord(segment)
+	t, err := mysqlStore.findTenant(tenantId)
+	if err != nil {
+		return "", nil
+	}
+	segment.Tenant = t
+	mysqlStore.db.Create(&segment)
+	err = common.MakeMultiError(mysqlStore.db.GetErrors())
+	if err != nil {
+		return "", err
+	}
+	return strconv.FormatUint(segment.Id, 10), nil
+}
+
+func (mysqlStore *mysqlStore) findSegment(tenantId uint64, id uint64) (Segment, error) {
+	var segments []Segment
+	log.Println("In listSegments()")
+	mysqlStore.db.Where("tenant_id = ?", tenantId).Find(&segments)
+	err := common.MakeMultiError(mysqlStore.db.GetErrors())
+	if err != nil {
+		return Segment{}, err
+	}
+	for i := range segments {
+		if segments[i].Id == id {
+			segments[i].Seq = uint64(i)
+			return segments[i], nil
+		}
+	}
+	return Segment{}, errors.New("Not found")
+	//	segment := Segment{}
+	//	mysqlStore.db.Where("tenant_id = ? AND id = ?", tenantId, id).First(&segment)
+	//	err := common.MakeMultiError(mysqlStore.db.GetErrors())
+	//	if err != nil {
+	//		return segment, err
+	//	}
+	//	return segment, nil
+}
+
+//func (mysqlStore *mysqlStore) listSegments() ([]Tenant, error) {
+//	var tenants []Segment
+//	log.Println("In listSegments()")
+//	mysqlStore.db.Find(&tenant)
+//	err := common.MakeMultiError(mysqlStore.db.GetErrors())
+//	if err != nil {
+//		return nil, err
+//	}
+//	log.Println(tenants)
+//	return tenants, nil
+//}
+
 func (mysqlStore *mysqlStore) createSchema(force bool) error {
 	log.Println("in createSchema(", force, ")")
 	// Connect to mysql database
 	schemaName := mysqlStore.info.Database
 	mysqlStore.info.Database = "mysql"
+	mysqlStore.setConnString()
 	err := mysqlStore.connect()
+
 	if err != nil {
 		return err
 	}
@@ -160,9 +229,9 @@ func (mysqlStore *mysqlStore) createSchema(force bool) error {
 	if err != nil {
 		return err
 	}
-	mysqlStore.db.CreateTable(&common.Datacenter{})
-	mysqlStore.db.CreateTable(&Tor{})
-	mysqlStore.db.CreateTable(&Host{})
+	mysqlStore.db.CreateTable(&Segment{})
+	mysqlStore.db.CreateTable(&Tenant{})
+
 	errs := mysqlStore.db.GetErrors()
 	log.Println("Errors", errs)
 	err2 := common.MakeMultiError(errs)

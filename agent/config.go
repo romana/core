@@ -89,7 +89,7 @@ func (a Agent) identifyCurrentHost() error {
 		return agentError(err)
 	}
 	dcURL := index.Links.FindByRel("datacenter")
-	dc := topology.Datacenter{}
+	dc := common.Datacenter{}
 	err = client.Get(dcURL, &dc)
 	if err != nil {
 		return agentError(err)
