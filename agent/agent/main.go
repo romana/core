@@ -25,13 +25,13 @@ import (
 
 // main function is entrypoint to everything.
 func main() {
-	var rootUrl = flag.String("rootUrl", "", "URL to root service URL")
+	var rootURL = flag.String("rootURL", "", "URL to root service URL")
 	flag.Parse()
-	if rootUrl == nil {
-		fmt.Println("Must specify rootUrl.")
+	if rootURL == nil {
+		fmt.Println("Must specify rootURL.")
 		return
 	}
-	channel, err := agent.Run(*rootUrl)
+	channel, err := agent.Run(*rootURL)
 	if err != nil {
 		panic(err)
 	}

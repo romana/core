@@ -74,7 +74,7 @@ func NewFirewallChain(baseChain string, direction string, rules []string, chainN
 }
 
 // NewFirewall returns fully initialized firewall struct, with rules and chains
-// configured for diven endpoint.
+// configured for given endpoint.
 func NewFirewall(netif NetIf, agent *Agent) (*Firewall, error) {
 	fw := new(Firewall)
 	fw.Agent = agent
@@ -191,7 +191,7 @@ func (fw *Firewall) DivertTrafficToPaniIptablesChain(chain int) error {
 	return nil
 }
 
-// CreateRules creates permissive iptables rules for the given Romana chain
+// CreateRules creates iptables rules for the given Romana chain
 // to allow a traffic to flow between the Host and Endpoint.
 func (fw *Firewall) CreateRules(chain int) error {
 	log.Print("Creating firewall rules for chain", chain)

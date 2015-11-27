@@ -73,8 +73,8 @@ func (c *NetworkConfig) EndpointBits() uint {
 // service thinks the host address is.
 // If no match is found we assume we are running on host which is not
 // part of the Romana setup and spit error out.
-func (agent Agent) identifyCurrentHost() error {
-	topologyURL, err := common.GetServiceUrl(agent.config.Common.Api.RootServiceUrl, "topology")
+func (a Agent) identifyCurrentHost() error {
+	topologyURL, err := common.GetServiceUrl(a.config.Common.Api.RootServiceUrl, "topology")
 	if err != nil {
 		return agentError(err)
 	}
@@ -126,12 +126,12 @@ func (agent Agent) identifyCurrentHost() error {
 
 			// Found it
 			if romanaNet.Contains(romanaIP) {
-				agent.networkConfig.currentHostIP = net.ParseIP(hosts[j].Ip)
-				agent.networkConfig.currentHostGW = romanaIP
-				agent.networkConfig.currentHostGWNet = *romanaNet
-				agent.networkConfig.currentHostGWNetSize, _ = romanaNet.Mask.Size()
-				agent.networkConfig.currentHostIndex = j
-				agent.networkConfig.hosts = hosts
+				a.networkConfig.currentHostIP = net.ParseIP(hosts[j].Ip)
+				a.networkConfig.currentHostGW = romanaIP
+				a.networkConfig.currentHostGWNet = *romanaNet
+				a.networkConfig.currentHostGWNetSize, _ = romanaNet.Mask.Size()
+				a.networkConfig.currentHostIndex = j
+				a.networkConfig.hosts = hosts
 				return nil
 			}
 		}
