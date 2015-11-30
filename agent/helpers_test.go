@@ -13,7 +13,6 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-
 // helpers_test.go contains tests cases for helpers
 package agent
 
@@ -22,7 +21,6 @@ import (
 	"net"
 	"strings"
 	"testing"
-	
 )
 
 // TestAppendLineToFile writes data to fake file and ensures it's got written.
@@ -79,7 +77,7 @@ func TestIsLineInFile(t *testing.T) {
 		t.Error("IsLineInFile unkown error", err)
 	}
 	if out != true {
-		t.Errorf("IsLineInFile failed, got %q, expect true", out)
+		t.Errorf("IsLineInFile failed, got %t, expect true", out)
 	}
 
 	// when
@@ -101,7 +99,7 @@ func TestIsLineInFile(t *testing.T) {
 	}
 
 	if out == true {
-		t.Errorf("IsLineInFile failed, got %q, expect false", out)
+		t.Errorf("IsLineInFile failed, got %t, expect false", out)
 	}
 }
 

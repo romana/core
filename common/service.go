@@ -54,7 +54,7 @@ func (links Links) FindByRel(rel string) string {
 
 // Response to /
 type IndexResponse struct {
-	ServiceName string `"json:serviceName"`
+	ServiceName string `json:"serviceName"`
 	Links       Links
 }
 
@@ -223,7 +223,7 @@ func (rc *RestClient) execMethod(method string, url string, data interface{}, re
 		defer resp.Body.Close()
 		body, err = ioutil.ReadAll(resp.Body)
 	} else if rc.url.Scheme == "file" {
-		log.Printf("Loading file ", rc.url.String(), rc.url.Path)
+		log.Printf("Loading file %s, %s", rc.url.String(), rc.url.Path)
 		body, err = ioutil.ReadFile(rc.url.Path)
 
 	} else {
@@ -330,7 +330,7 @@ func GetServiceConfig(rootServiceUrl string, name string) (*ServiceConfig, error
 	if configUrl == "" {
 		return nil, errors.New(fmt.Sprintf("Cold not find %s at %s", relName, rootServiceUrl))
 	}
-	log.Printf("GetServiceConfig(): Found config url %s in %s from %", configUrl, rootIndexResponse, relName)
+	log.Printf("GetServiceConfig(): Found config url %s in %s from %s", configUrl, rootIndexResponse, relName)
 	err = client.Get(configUrl, config)
 	if err != nil {
 		return nil, err
