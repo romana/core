@@ -203,8 +203,8 @@ func (fw *Firewall) CreateRules(chain int) error {
 		args = append(args, []string{"-j", "ACCEPT"}...)
 		_, err := fw.Agent.Helper.Executor.Exec(cmd, args)
 		if err != nil {
-			return err
 			log.Print("Creating firewall rules failed")
+			return err
 		}
 	}
 	log.Print("Creating firewall rules success")
@@ -220,8 +220,8 @@ func (fw *Firewall) CreateU32Rules(chain int) error {
 	args := []string{"-A", chainName, "-m", "u32", "--u32", fw.u32Filter, "-j", "ACCEPT"}
 	_, err := fw.Agent.Helper.Executor.Exec(cmd, args)
 	if err != nil {
-		return err
 		log.Print("Creating U32 firewall rules failed")
+		return err
 	}
 	log.Print("Creating U32 firewall rules failed for chain", chain)
 	return nil

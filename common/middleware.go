@@ -197,9 +197,8 @@ func newRouter(routes []Route) *mux.Router {
 
 var supportedContentTypes = []string{"text/plain", "application/vnd.romana.v1+json", "application/vnd.romana+json", "application/json"}
 
-
 var supportedContentTypesMessage = struct {
-	SupportedContentTypes []string `"json:supported_content_types"`
+	SupportedContentTypes []string `json:"supported_content_types"`
 }{
 	supportedContentTypes,
 }
@@ -222,7 +221,7 @@ func (j jsonMarshaller) Unmarshal(data []byte, v interface{}) error {
 
 // ContentTypeMarshallers maps MIME type to Marshaller instances
 var ContentTypeMarshallers map[string]Marshaller = map[string]Marshaller{
-	"application/json":             jsonMarshaller{},
+	"application/json":               jsonMarshaller{},
 	"application/vnd.romana.v1+json": jsonMarshaller{},
 	"application/vnd.romana+json":    jsonMarshaller{},
 }

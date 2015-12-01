@@ -15,12 +15,16 @@
 package topology
 
 import (
-	"errors"
 	"fmt"
-	_ "github.com/go-sql-driver/mysql"
 	"github.com/jinzhu/gorm"
-	"github.com/romana/core/common"
 	"log"
+
+	"errors"
+
+	_ "github.com/go-sql-driver/mysql"
+
+	"github.com/romana/core/common"
+
 	"strconv"
 )
 
@@ -118,6 +122,7 @@ func (mysqlStore *mysqlStore) connect() error {
 	if mysqlStore.connStr == "" {
 		return errors.New("No connection information.")
 	}
+
 	db, err := gorm.Open("mysql", mysqlStore.connStr)
 	if err != nil {
 		return err
@@ -131,11 +136,15 @@ func (mysqlStore *mysqlStore) createSchema(force bool) error {
 	// Connect to mysql database
 	schemaName := mysqlStore.info.Database
 	mysqlStore.info.Database = "mysql"
+	mysqlStore.setConnString()
+
 	err := mysqlStore.connect()
+
 	if err != nil {
 		return err
 	}
 	var sql string
+
 	if force {
 		sql = fmt.Sprintf("DROP DATABASE IF EXISTS %s", schemaName)
 		res, err := mysqlStore.db.DB().Exec(sql)
