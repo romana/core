@@ -5,7 +5,7 @@
 // not use this file except in compliance with the License. You may obtain
 // a copy of the License at
 //
-//   http://www.apache.org/licenses/LICENSE-2.0
+// http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 //  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
@@ -19,7 +19,6 @@ package common
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"github.com/K-Phoen/negotiation"
 	"github.com/gorilla/context"
 	"github.com/gorilla/mux"
@@ -68,7 +67,6 @@ type UnwrappedRestHandlerInput struct {
 // an instance into which we will unmarshal wire data.
 type MakeMessage func() interface{}
 
-
 // Route determines an action taken on a URL pattern/HTTP method.
 // Each service can define a route
 // See routes.go and handlers.go in root package for a demonstration
@@ -81,41 +79,24 @@ type Route struct {
 	// Handler (see documentation above)
 	Handler RestHandler
 	// This should return a POINTER to an instance which
-	// this route expects as an input. 
+	// this route expects as an input.
+
 	MakeMessage MakeMessage
 }
 
 // Each service defines routes
 type Routes []Route
 
-// PaniHandler interface to comply with http.Handler
-type PaniHandler struct {
-	paniHandler func(writer http.ResponseWriter, request *http.Request)
+// RomanaHandler interface to comply with http.Handler
+type RomanaHandler struct {
+	doServeHTTP func(writer http.ResponseWriter, request *http.Request)
 }
 
 // ServeHTTP is required by
 // https://golang.org/pkg/net/http/#Handler
-func (paniHandler PaniHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	paniHandler.paniHandler(writer, request)
+func (romanaHandler RomanaHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+	romanaHandler.doServeHTTP(writer, request)
 }
-
-//func removeNils(m map[string]interface{}) map[string]interface{} {
-//	retval := make(map[string]interface{})
-//	for k, v := range m {
-//		if v == nil {
-//			continue
-//		}
-//		switch vt := v.(type) {
-//		case map[string]interface{}:
-//			newVal := removeNils(vt)
-//			retval[k] = newVal
-//		default:
-//			retval[k] = v
-//		}
-//	}
-//	fmt.Println("Cleaned up",m,"to",retval)
-//	return retval
-//}
 
 // For comparing to the type of Consumes field of Route struct
 var requestType = reflect.TypeOf(http.Request{})
@@ -140,7 +121,7 @@ func wrapHandler(restHandler RestHandler, makeMessage MakeMessage) http.Handler 
 
 			restHandler(respReq, RestContext{mux.Vars(request)})
 		}
-		return PaniHandler{httpHandler}
+		return RomanaHandler{httpHandler}
 	} else {
 		httpHandler := func(writer http.ResponseWriter, request *http.Request) {
 			// The "context" that magically appears here is one managed
@@ -161,17 +142,13 @@ func wrapHandler(restHandler RestHandler, makeMessage MakeMessage) http.Handler 
 				// benefits (auto-completion, type-checking) that come
 				// with using actual objects vs lists/dicts. See
 				// https://github.com/mitchellh/mapstructure
-				//				inDataMapNoNils := removeNils(inDataMap.(map[string]interface{}))
 				err = mapstructure.Decode(inDataMap, inData)
-				fmt.Println("1. Error",err,"In",inDataMap,"Out",inData,"Type",reflect.TypeOf(inData))
 				if err != nil {
 					writer.WriteHeader(http.StatusInternalServerError)
 					writer.Write([]byte(err.Error()))
 					return
 				}
 			}
-			fmt.Println("Calling", restHandler, "(", inData, ", ", "...", ")")
-
 			outData, err := restHandler(inData, RestContext{mux.Vars(request)})
 			if err == nil {
 				contentType := writer.Header().Get("Content-Type")
@@ -199,7 +176,7 @@ func wrapHandler(restHandler RestHandler, makeMessage MakeMessage) http.Handler 
 			writer.WriteHeader(http.StatusInternalServerError)
 			writer.Write([]byte(err.Error()))
 		}
-		return PaniHandler{httpHandler}
+		return RomanaHandler{httpHandler}
 	}
 
 }
@@ -218,10 +195,10 @@ func newRouter(routes []Route) *mux.Router {
 	return router
 }
 
-var supportedContentTypes = []string{"text/plain", "application/vnd.pani.v1+json", "application/vnd.pani+json", "application/json"}
+var supportedContentTypes = []string{"text/plain", "application/vnd.romana.v1+json", "application/vnd.romana+json", "application/json"}
 
 var supportedContentTypesMessage = struct {
-	SupportedContentTypes []string `"json:supported_content_types"`
+	SupportedContentTypes []string `json:"supported_content_types"`
 }{
 	supportedContentTypes,
 }
@@ -244,9 +221,9 @@ func (j jsonMarshaller) Unmarshal(data []byte, v interface{}) error {
 
 // ContentTypeMarshallers maps MIME type to Marshaller instances
 var ContentTypeMarshallers map[string]Marshaller = map[string]Marshaller{
-	"application/json":             jsonMarshaller{},
-	"application/vnd.pani.v1+json": jsonMarshaller{},
-	"application/vnd.pani+json":    jsonMarshaller{},
+	"application/json":               jsonMarshaller{},
+	"application/vnd.romana.v1+json": jsonMarshaller{},
+	"application/vnd.romana+json":    jsonMarshaller{},
 }
 
 // Authenticator is the interface that will be used by AuthMiddleware

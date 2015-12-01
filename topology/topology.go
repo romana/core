@@ -18,6 +18,8 @@ package topology
 import (
 	"errors"
 	"fmt"
+	"log"
+
 	"github.com/romana/core/common"
 	"strconv"
 	"strings"
@@ -25,9 +27,11 @@ import (
 
 // Topology service
 type Topology struct {
-	config common.ServiceConfig
-	store  topologyStore
-	routes common.Route
+	config     common.ServiceConfig
+	datacenter *Datacenter
+	store      topologyStore
+	routes     common.Route
+
 }
 
 const (
@@ -36,7 +40,8 @@ const (
 	hostListPath  = "/hosts"
 	torListPath   = "/tors"
 	spineListPath = "/spines"
-	dcListPath    = "/datacenters"
+	dcPath        = "/datacenter"
+
 )
 
 // Provides Routes
@@ -68,6 +73,12 @@ func (topology *Topology) Routes() common.Routes {
 			topology.handleHost,
 			nil,
 		},
+		common.Route{
+			"GET",
+			dcPath,
+			topology.handleDc,
+			nil,
+		},
 	}
 	return routes
 }
@@ -75,6 +86,13 @@ func (topology *Topology) Routes() common.Routes {
 type HostListMessage []common.HostMessage
 
 // handleHost handles request for a specific host's info
+func (topology *Topology) handleDc(input interface{}, ctx common.RestContext) (interface{}, error) {
+	// For now it's from config, later on we can use this to manage multiple dcs.
+	return topology.datacenter, nil
+}
+
+// handleHost handles request for a specific host's info
+
 func (topology *Topology) handleHost(input interface{}, ctx common.RestContext) (interface{}, error) {
 	idStr := ctx.PathVariables["hostId"]
 	id, err := strconv.ParseUint(idStr, 10, 64)
@@ -85,7 +103,7 @@ func (topology *Topology) handleHost(input interface{}, ctx common.RestContext) 
 	if err != nil {
 		return nil, err
 	}
-	agentUrl := strings.Join([]string{"http://", host.Ip, ":", strconv.FormatUint(host.AgentPort, 10)}, "")
+	agentUrl := fmt.Sprintf("http://%s:%d", host.Ip, host.AgentPort)
 	agentLink := common.LinkResponse{agentUrl, "agent"}
 	hostLink := common.LinkResponse{hostListPath + "/" + idStr, "self"}
 	collectionLink := common.LinkResponse{hostListPath, "self"}
@@ -111,7 +129,7 @@ func (topology *Topology) handleHostListPost(input interface{}, ctx common.RestC
 		return nil, err
 	}
 	returnHostMessage := hostMessage
-	fmt.Println("Added host",hostMessage)
+	log.Println("Added host", hostMessage)
 	returnHostMessage.Id = id
 
 	return returnHostMessage, nil
@@ -128,9 +146,9 @@ func (topology *Topology) handleIndex(input interface{}, ctx common.RestContext)
 	hostsLink := common.LinkResponse{hostListPath, "host-list"}
 	torsLink := common.LinkResponse{torListPath, "tor-list"}
 	spinesLink := common.LinkResponse{spineListPath, "spine-list"}
-	dcsLink := common.LinkResponse{dcListPath, "datacenter-list"}
+	dcLink := common.LinkResponse{dcPath, "datacenter"}
 
-	retval.Links = []common.LinkResponse{selfLink, aboutLink, agentsLink, hostsLink, torsLink, spinesLink, dcsLink}
+	retval.Links = []common.LinkResponse{selfLink, aboutLink, agentsLink, hostsLink, torsLink, spinesLink, dcLink}
 	return retval, nil
 }
 
@@ -148,7 +166,7 @@ type topologyStore interface {
 // SetConfig implements SetConfig function of the Service interface.
 // Returns an error if cannot connect to the data store
 func (topology *Topology) SetConfig(config common.ServiceConfig) error {
-	fmt.Println(config)
+	log.Println(config)
 	topology.config = config
 	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
 
@@ -187,7 +205,7 @@ func (topology *Topology) Initialize() error {
 
 // Runs topology service
 func CreateSchema(rootServiceUrl string, overwrite bool) error {
-	fmt.Println("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
+	log.Println("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
 	topologyService := &Topology{}
 	config, err := common.GetServiceConfig(rootServiceUrl, "topology")
 	if err != nil {

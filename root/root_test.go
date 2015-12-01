@@ -36,16 +36,22 @@ func TestServiceList(t *testing.T) {
 	}
 	msg := <-channel
 	fmt.Println("Root service said:", msg)
-	addr := "http://localhost:8000"
-	client := common.RestClient{addr}
-	r := IndexResponse{}
-	err = client.Get("/", &r)
+	addr := "http://localhost:9600"
+	client , err := common.NewRestClient(addr)
 	if err != nil {
 		t.Error(err)
+		t.FailNow()
+	}
+	r := common.IndexResponse{}
+	err = client.Get("", &r)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
 	}
 	fmt.Println("Received: ", r)
 	svcName := r.ServiceName
-	fmt.Println("Service name: %s", svcName)
+	fmt.Println("Service name:", svcName)
+
 	if svcName != "root" {
 		t.Errorf("Expected serviceName to be root, got %s", svcName)
 	}

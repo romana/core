@@ -2,14 +2,15 @@ services:
   - service: root
     api:
       host: localhost
-      port: 8000
+      port: 9600
   - service: ipam
     api:
       host: localhost
-      port: 8001
+      port: 9601
     config:
       store: 
-        type: mock
+        type: mysql
+
         host: localhost
         username: root
         password: password
@@ -17,10 +18,10 @@ services:
   - service: tenant
     api:
       host: localhost
-      port: 8002
+      port: 9602
     config:
       store: 
-        type: mock
+        type: mysql
         host: localhost
         username: root
         password: password
@@ -28,7 +29,7 @@ services:
   - service: topology
     api:
       host: localhost
-      port: 8003
+      port: 9603
     config:
       store: 
         type: mock
@@ -36,3 +37,18 @@ services:
         username: root
         password: password
         database: topology
+      datacenter: 
+        ip_version: 4
+        cidr: 10.0.0.0/8
+        host_bits: 8
+        tenant_bits: 4
+        segment_bits: 4
+        endpoint_space_bits: 0
+        endpoint_bits: 8
+  - service: agent 
+    api:
+      host: 0.0.0.0
+      port: 9604
+    config:
+      lease_file : "/etc/ethers"
+      wait_for_iface_try : 6

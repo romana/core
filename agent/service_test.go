@@ -12,13 +12,29 @@
 // WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 // License for the specific language governing permissions and limitations
 // under the License.
+package agent
 
-/*
-Implements IPAM service
-*/
-package ipam
+// Some comments on use of mocking framework in helpers_test.go.
 
+import (
+	"fmt"
+	"os"
+	"testing"
+)
 
-type ipamStore interface {
-	Connect(config map[string]interface{}) error
+// TestService will test agents talking to other services
+func TestService(t *testing.T) {
+	cwd, err := os.Getwd()
+	fmt.Println("In", cwd)
+	if err != nil {
+		panic(err)
+	}
+	rootURL := fmt.Sprintf("file://%s/testdata/root.json", cwd)
+	channelRoot, err := Run(rootURL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	msg := <-channelRoot
+	t.Log("Service says", msg)
+	fmt.Println(msg)
 }

@@ -15,7 +15,7 @@
 package topology
 
 import (
-	"fmt"
+	"log"
 
 	"strconv"
 )
@@ -40,22 +40,22 @@ func (mockStore *mockStore) findHost(id uint64) (Host, error) {
 func (mockStore *mockStore) listHosts() ([]Host, error) {
 	retval := make([]Host, len(mockStore.hosts))
 	for k, v := range mockStore.hosts {
-		fmt.Println(k,": ",v)
+		log.Println(k,": ",v)
 		retval[k-1] = v
 	}
-	fmt.Println("Listing hosts", retval)
+	log.Println("Listing hosts", retval)
 	return retval, nil
 }
 
 func (mockStore *mockStore) addHost(host Host) (string, error) {
 	mockStore.id++
-	fmt.Println("ID: ", mockStore.id)
+	log.Println("ID: ", mockStore.id)
 	mockStore.hosts[mockStore.id] = host
 	return strconv.FormatUint(mockStore.id, 10), nil
 }
 
 func (mockStore *mockStore) connect() error {
-	fmt.Println("Connecting to mock store")
+	log.Println("Connecting to mock store")
 	mockStore.hosts = make(map[uint64]Host)
 	return nil
 }

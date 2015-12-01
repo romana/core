@@ -15,10 +15,4 @@
 
 package ipam
 
-import (
 
-)
-
-type MysqlStore struct {
-	
-}
