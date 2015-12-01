@@ -18,6 +18,7 @@ package topology
 import (
 	"errors"
 	"fmt"
+	"github.com/mitchellh/mapstructure"
 	"github.com/romana/core/common"
 	"log"
 	"net"
@@ -106,7 +107,8 @@ func (topology *TopologySvc) handleHost(input interface{}, ctx common.RestContex
 	collectionLink := common.LinkResponse{hostListPath, "self"}
 
 	links := []common.LinkResponse{agentLink, hostLink, collectionLink}
-	hostMessage := common.HostMessage{Id: strconv.FormatUint(host.Id, 10), Ip: host.Ip, Name: host.Name, AgentPort: int(host.AgentPort), Links: links}
+	hostIdStr := strconv.FormatUint(host.Id, 10)
+	hostMessage := common.HostMessage{Id: hostIdStr, Ip: host.Ip, Name: host.Name, AgentPort: int(host.AgentPort), Links: links}
 	return hostMessage, nil
 }
 
@@ -115,7 +117,13 @@ func (topology *TopologySvc) handleHostListGet(input interface{}, ctx common.Res
 	if err != nil {
 		return nil, err
 	}
-	return hosts, nil
+	// TODO nested structures or some sort of easy
+	// way of translating between string and auto-increment ID.
+	retval := make([]common.HostMessage, len(hosts))
+	for i := range hosts {
+		retval[i] = common.HostMessage{Ip: hosts[i].Ip, RomanaIp: hosts[i].RomanaIp, Name: hosts[i].Name, Id: strconv.FormatUint(hosts[i].Id, 10)}
+	}
+	return retval, nil
 }
 
 func (topology *TopologySvc) handleHostListPost(input interface{}, ctx common.RestContext) (interface{}, error) {
@@ -165,8 +173,14 @@ type topologyStore interface {
 func (topology *TopologySvc) SetConfig(config common.ServiceConfig) error {
 	log.Println(config)
 	topology.config = config
+	dcMap := config.ServiceSpecific["datacenter"].(map[string]interface{})
+	dc := common.Datacenter{}
+	err := mapstructure.Decode(dcMap, &dc)
+	if err != nil {
+		return err
+	}
+	topology.datacenter = &dc
 	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
-
 	storeType := strings.ToLower(storeConfig["type"].(string))
 	switch storeType {
 	case "mysql":
@@ -193,6 +207,7 @@ func Run(rootServiceUrl string) (chan common.ServiceMessage, error) {
 }
 
 func (topology *TopologySvc) Initialize() error {
+	log.Println("Parsing", topology.datacenter)
 	ip, _, err := net.ParseCIDR(topology.datacenter.Cidr)
 	if err != nil {
 		return err

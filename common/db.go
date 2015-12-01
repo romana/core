@@ -15,7 +15,7 @@
 
 package common
 
-//import "fmt"
+import "fmt"
 
 // MultiError adapts GORM (ORM - see https://github.com/jinzhu/gorm) array of errors found in GetErrors()
 // to a single error interface.
@@ -27,13 +27,16 @@ type MultiError struct {
 	errors []error
 }
 
-func MakeMultiError(errors []error) *MultiError {
+func MakeMultiError(errors []error) error {
 	if errors == nil {
+		fmt.Println("Returning nil")
 		return nil
 	}
 	if len(errors) == 0 {
+		fmt.Println("Returning nil")
 		return nil
 	}
+	fmt.Println("Returning not nil")
 	return &MultiError{errors}
 }
 

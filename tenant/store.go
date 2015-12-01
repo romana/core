@@ -16,7 +16,7 @@
 package tenant
 
 import (
-	"database/sql"
+//	"database/sql"
 	//	"github.com/romana/core/common"
 )
 
@@ -27,9 +27,9 @@ type tenantStore interface {
 	createSchema(overwrite bool) error
 	setConfig(config map[string]interface{}) error
 
-	addTenant(tenant Tenant) (string, error)
+	addTenant(tenant *Tenant) error
 	findTenant(id uint64) (Tenant, error)
-	addSegment(tenantId uint64, segment Segment) (string, error)
+	addSegment(tenantId uint64, segment *Segment) error
 	findSegment(tenantId uint64, id uint64) (Segment, error)
 }
 
@@ -43,7 +43,7 @@ type Tenant struct {
 type Segment struct {
 	Id       uint64 `sql:"AUTO_INCREMENT"`
 	Tenant   Tenant
-	TenantId sql.NullInt64
+	TenantId uint64
 	Name     string
 	Seq      uint64
 }

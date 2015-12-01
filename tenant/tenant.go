@@ -71,13 +71,13 @@ func (tsvc *TenantSvc) Routes() common.Routes {
 }
 
 func (tsvc *TenantSvc) addTenant(input interface{}, ctx common.RestContext) (interface{}, error) {
-	newTenant := input.(Tenant)
-	_, err := tsvc.store.addTenant(newTenant)
-	
+	newTenant := input.(*Tenant)
+	err := tsvc.store.addTenant(newTenant)
+
 	if err != nil {
 		return nil, err
 	}
-	return newTenant, nil
+	return newTenant, err
 }
 
 func (tsvc *TenantSvc) findTenant(input interface{}, ctx common.RestContext) (interface{}, error) {
@@ -99,12 +99,11 @@ func (tsvc *TenantSvc) addSegment(input interface{}, ctx common.RestContext) (in
 	if err != nil {
 		return nil, err
 	}
-	newSegment := input.(Segment)
-	_, err = tsvc.store.addSegment(tenantId, newSegment)
-	if err != nil {
-		return nil, err
-	}
-	return newSegment, nil
+	newSegment := input.(*Segment)
+	err = tsvc.store.addSegment(tenantId, newSegment)
+	
+	return newSegment, err
+
 }
 
 func (tsvc *TenantSvc) findSegment(input interface{}, ctx common.RestContext) (interface{}, error) {
@@ -126,8 +125,6 @@ func (tsvc *TenantSvc) findSegment(input interface{}, ctx common.RestContext) (i
 	return segment, nil
 }
 
-
-
 // SetConfig implements SetConfig function of the Service interface.
 // Returns an error if cannot connect to the data store
 func (tsvc *TenantSvc) SetConfig(config common.ServiceConfig) error {
@@ -139,8 +136,8 @@ func (tsvc *TenantSvc) SetConfig(config common.ServiceConfig) error {
 	case "mysql":
 		tsvc.store = &mysqlStore{}
 
-//	case "mock":
-//		tsvc.store = &mockStore{}
+		//	case "mock":
+		//		tsvc.store = &mockStore{}
 
 	default:
 		return errors.New("Unknown store type: " + storeType)
@@ -199,7 +196,7 @@ func (tsvc *TenantSvc) Initialize() error {
 func CreateSchema(rootServiceUrl string, overwrite bool) error {
 	log.Println("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
 	tsvc := &TenantSvc{}
-	config, err := common.GetServiceConfig(rootServiceUrl, "ipam")
+	config, err := common.GetServiceConfig(rootServiceUrl, "tenant")
 	if err != nil {
 		return err
 	}

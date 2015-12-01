@@ -17,6 +17,7 @@
 package common
 
 import (
+//	"log"
 	"bytes"
 	"encoding/json"
 	"github.com/K-Phoen/negotiation"
@@ -150,7 +151,9 @@ func wrapHandler(restHandler RestHandler, makeMessage MakeMessage) http.Handler 
 				}
 			}
 			outData, err := restHandler(inData, RestContext{mux.Vars(request)})
+//			log.Println("In here, outData:", outData, "Error", err)
 			if err == nil {
+				
 				contentType := writer.Header().Get("Content-Type")
 				// This should be ok because the middleware took care of negotiating
 				// only the content types we support
@@ -171,6 +174,7 @@ func wrapHandler(restHandler RestHandler, makeMessage MakeMessage) http.Handler 
 					return
 				}
 			}
+		
 			// There was an error -- that's the only way we fell through
 			// here
 			writer.WriteHeader(http.StatusInternalServerError)

@@ -103,7 +103,7 @@ func (mysqlStore *mysqlStore) listHosts() ([]Host, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Println(hosts)
+	log.Println("MySQL found hosts:", hosts)
 	return hosts, nil
 }
 

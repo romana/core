@@ -52,11 +52,6 @@ func (ipam *IPAMSvc) Routes() common.Routes {
 	return routes
 }
 
-type IpamResponse struct {
-	Ip string
-}
-
-
 // handleHost handles request for a specific host's info
 func (ipam *IPAMSvc) addVm(input interface{}, ctx common.RestContext) (interface{}, error) {
 	vm := input.(Vm)
@@ -121,7 +116,8 @@ func (ipam *IPAMSvc) addVm(input interface{}, ctx common.RestContext) (interface
 	hostIpInt := common.IPv4ToInt(hostIp)
 	vmIpInt := (ipam.dc.Prefix << prefixBitShift) | hostIpInt | (t.Seq << tenantBitShift) | (segment.Seq << segmentBitShift) | vm.Seq
 	vmIpIp := common.IntToIPv4(vmIpInt)
-	return IpamResponse{Ip: vmIpIp.String()}, nil
+	vm.Ip = vmIpIp.String()
+	return vm, nil
 
 }
 

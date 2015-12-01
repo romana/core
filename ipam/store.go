@@ -16,11 +16,12 @@
 package ipam
 
 import (
-	"database/sql"
+//	"database/sql"
 	//	"github.com/romana/core/common"
 )
 
 type Vm struct {
+	Ip        string
 	TenantId  uint64
 	SegmentId uint64
 	HostId    string
@@ -28,14 +29,15 @@ type Vm struct {
 	Seq       uint64
 }
 
-type HostDb struct {
-	Vms []Vm
-	Id  string `gorm:"primary_key"`
+type IpamHost struct {
+	Vms []IpamVm
+	Id  string `sql:"unique_index"`
+	
+	
 }
 
-type VmDb struct {
+type IpamVm struct {
 	Vm
 	Id uint64 `sql:"AUTO_INCREMENT"`
-	HostId sql.NullString
-	Host   HostDb
+//	IpamHostId sql.NullString
 }

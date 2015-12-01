@@ -79,7 +79,7 @@ func (root *Root) handleIndex(input interface{}, ctx common.RestContext) (interf
 		retval.Services[i] = common.ServiceResponse{}
 		retval.Services[i].Name = key
 		href := "http://" + value.Common.Api.GetHostPort()
-		link := common.LinkResponse{"service", href}
+		link := common.LinkResponse{Rel: "service", Href: href}
 		retval.Services[i].Links = []common.LinkResponse{link}
 		configLink := common.LinkResponse{"/config/" + key, key +"-config"}
 		retval.Links[i] = configLink

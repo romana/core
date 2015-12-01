@@ -47,7 +47,6 @@ func (links Links) FindByRel(rel string) string {
 			break
 		}
 	}
-	log.Printf("FindByRel(): looking for %s in %s: [%s]", rel, links, retval)
 	return retval
 
 }
@@ -58,7 +57,7 @@ type IndexResponse struct {
 	Links       Links
 }
 
-// RootIndexResponse represents a response from the / path 
+// RootIndexResponse represents a response from the / path
 // specific for root service only.
 type RootIndexResponse struct {
 	ServiceName string `json:"serviceName"`
@@ -83,14 +82,21 @@ type LinkResponse struct {
 	Rel  string
 }
 
+//type HostInfo struct {
+//	Ip        string `json:"ip"`
+//	RomanaIp  string `json:"romana_ip"`
+//	AgentPort int    `json:"agentPort"`
+//	Name      string `json:"name"`
+//}
+
 // HostMessage is a structure representing information
 // about the host for the purposes of REST communications
 type HostMessage struct {
 	Ip        string `json:"ip"`
 	RomanaIp  string `json:"romana_ip"`
-	Id        string `json:"id"`
 	AgentPort int    `json:"agentPort"`
 	Name      string `json:"name"`
+	Id        string `json:"id"`
 	Links     Links  `json:"links"`
 	//    Tor string       `json:"tor"`
 }
@@ -160,8 +166,10 @@ func GetServiceUrl(rootServiceUrl string, name string) (string, error) {
 	}
 	for i := range resp.Services {
 		service := resp.Services[i]
+		log.Println("Checking", service.Name, "against", name, "links:", service.Links)
 		if service.Name == name {
 			href := service.Links.FindByRel("service")
+			log.Println("href:", href)
 			if href == "" {
 				return "", errors.New(fmt.Sprintf("Cannot find service %s at %s", name, resp))
 			} else {
@@ -189,16 +197,19 @@ func (rc *RestClient) execMethod(method string, url string, data interface{}, re
 		return err
 	}
 	var reqBodyReader *bytes.Reader
-
+	var reqBody []byte
 	if data != nil {
-		reqBody, err := json.Marshal(data)
+		reqBody, err = json.Marshal(data)
+		
 		if err != nil {
+			
 			return err
 		}
 		reqBodyReader = bytes.NewReader(reqBody)
 	} else {
 		reqBodyReader = nil
 	}
+	log.Printf("\n\t=================================\n\t%s %s\n\t%s\n\t=================================", method, rc.url, string(reqBody))
 
 	var body []byte
 	if rc.url.Scheme == "http" || rc.url.Scheme == "https" {
@@ -240,7 +251,7 @@ func (rc *RestClient) execMethod(method string, url string, data interface{}, re
 	}
 
 	err = json.Unmarshal(body, &result)
-	log.Printf("Unmarshaling %s to %s : %s", body, result, err)
+	log.Println(">>>>>4", rc.url, string(body))
 	return err
 }
 
@@ -341,18 +352,18 @@ func GetServiceConfig(rootServiceUrl string, name string) (*ServiceConfig, error
 
 // Datacenter represents the configuration of a datacenter
 type Datacenter struct {
-	Id                uint64 `sql:"AUTO_INCREMENT"`
-	IpVersion         uint
+	Id        uint64 `sql:"AUTO_INCREMENT"`
+	IpVersion uint
 	// We don't need to store this, but calculate and pass around
-	Prefix            uint64
-	Cidr              string
-	PrefixBits        uint `json:"prefix_bits"`
-	PortBits          uint `json:"port_bits"`
-	TenantBits        uint `json:"tenant_bits"`
-	SegmentBits       uint `json:"segment_bits"`
+	Prefix      uint64
+	Cidr        string
+	PrefixBits  uint `json:"prefix_bits"`
+	PortBits    uint `json:"port_bits"`
+	TenantBits  uint `json:"tenant_bits"`
+	SegmentBits uint `json:"segment_bits"`
 	// We don't need to store this, but calculate and pass around
-	EndpointBits      uint `json:"endpoint_bits"`
-	EndpointSpaceBits uint `json:"endpoint_space_bits"`
+	EndpointBits      uint   `json:"endpoint_bits"`
+	EndpointSpaceBits uint   `json:"endpoint_space_bits"`
 	Name              string `json:""`
 }
 

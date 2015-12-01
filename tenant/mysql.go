@@ -97,7 +97,7 @@ func (mysqlStore *mysqlStore) connect() error {
 
 func (mysqlStore *mysqlStore) listTenants() ([]Tenant, error) {
 	var tenants []Tenant
-	log.Println("In listTenants()")
+	log.Println("In listTenants()", &tenants)
 	mysqlStore.db.Find(&tenants)
 	err := common.MakeMultiError(mysqlStore.db.GetErrors())
 	if err != nil {
@@ -107,20 +107,19 @@ func (mysqlStore *mysqlStore) listTenants() ([]Tenant, error) {
 	return tenants, nil
 }
 
-func (mysqlStore *mysqlStore) addTenant(tenant Tenant) (string, error) {
-	mysqlStore.db.NewRecord(tenant)
-	mysqlStore.db.Create(&tenant)
+func (mysqlStore *mysqlStore) addTenant(tenant *Tenant) error {
+	mysqlStore.db.NewRecord(*tenant)
+	mysqlStore.db.Create(tenant)
 	err := common.MakeMultiError(mysqlStore.db.GetErrors())
 	if err != nil {
-		return "", err
+		return err
 	}
-	return strconv.FormatUint(tenant.Id, 10), nil
+	return nil
 }
 
 func (mysqlStore *mysqlStore) findTenant(id uint64) (Tenant, error) {
-
 	var tenants []Tenant
-	log.Println("In listTenants()")
+	log.Println("In findTenant()")
 	mysqlStore.db.Find(&tenants)
 	err := common.MakeMultiError(mysqlStore.db.GetErrors())
 	if err != nil {
@@ -142,19 +141,18 @@ func (mysqlStore *mysqlStore) findTenant(id uint64) (Tenant, error) {
 	//	return tenant, nil
 }
 
-func (mysqlStore *mysqlStore) addSegment(tenantId uint64, segment Segment) (string, error) {
-	mysqlStore.db.NewRecord(segment)
-	t, err := mysqlStore.findTenant(tenantId)
-	if err != nil {
-		return "", nil
-	}
-	segment.Tenant = t
-	mysqlStore.db.Create(&segment)
+func (mysqlStore *mysqlStore) addSegment(tenantId uint64, segment *Segment) error {
+	var err error
+	mysqlStore.db.NewRecord(*segment)
+
+	segment.TenantId = tenantId
+	mysqlStore.db.Create(segment)	
+	log.Println("Calling MakeMultiError")
 	err = common.MakeMultiError(mysqlStore.db.GetErrors())
-	if err != nil {
-		return "", err
-	}
-	return strconv.FormatUint(segment.Id, 10), nil
+	log.Println(err == nil, err)
+
+	
+	return nil
 }
 
 func (mysqlStore *mysqlStore) findSegment(tenantId uint64, id uint64) (Segment, error) {
@@ -194,7 +192,7 @@ func (mysqlStore *mysqlStore) findSegment(tenantId uint64, id uint64) (Segment, 
 //}
 
 func (mysqlStore *mysqlStore) createSchema(force bool) error {
-	log.Println("in createSchema(", force, ")")
+	log.Println("tenant: in createSchema(", force, ")")
 	// Connect to mysql database
 	schemaName := mysqlStore.info.Database
 	mysqlStore.info.Database = "mysql"
@@ -229,7 +227,9 @@ func (mysqlStore *mysqlStore) createSchema(force bool) error {
 	if err != nil {
 		return err
 	}
+	log.Println("Creating segments table")
 	mysqlStore.db.CreateTable(&Segment{})
+	log.Println("Creating tenants table")
 	mysqlStore.db.CreateTable(&Tenant{})
 
 	errs := mysqlStore.db.GetErrors()

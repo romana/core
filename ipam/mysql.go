@@ -35,19 +35,19 @@ func (mysqlStore *mysqlStore) addVm(vm Vm) (Vm, error) {
 	// TODO should be ptr
 	// This is tricky... What IPAM considers host ID is its
 	// internal host ID.
-	host := HostDb{Id: vm.HostId}
+	host := IpamHost{Id: vm.HostId}
 	mysqlStore.db.Where(host).FirstOrCreate(&host)
-	vmDb := VmDb{Host: host, Vm: vm}
-	mysqlStore.db.NewRecord(vmDb)
-	mysqlStore.db.Create(&vmDb)
+	ipamVm := IpamVm{Vm: vm}
+	mysqlStore.db.NewRecord(ipamVm)
+	mysqlStore.db.Create(&ipamVm)
 	err := common.MakeMultiError(mysqlStore.db.GetErrors())
 	if err != nil {
 		return vm, err
 	}
-	myId := vmDb.Id
+	myId := ipamVm.Id
 
 	// TODO better way of getting sequence
-	var vms []VmDb
+	var vms []IpamVm
 	log.Println("In listSegments()")
 	mysqlStore.db.Where("host_id = ?", vm.HostId).Find(&vms)
 	err = common.MakeMultiError(mysqlStore.db.GetErrors())
@@ -177,8 +177,12 @@ func (mysqlStore *mysqlStore) createSchema(force bool) error {
 	if err != nil {
 		return err
 	}
-	mysqlStore.db.CreateTable(&HostDb{})
-	mysqlStore.db.CreateTable(&VmDb{})
+	log.Println("Creating vms table.")
+	ipamVm := IpamVm{}
+	mysqlStore.db.CreateTable(&ipamVm)
+	log.Println("Creating hosts table.")
+
+	mysqlStore.db.CreateTable(&IpamHost{})
 
 	errs := mysqlStore.db.GetErrors()
 	log.Println("Errors", errs)

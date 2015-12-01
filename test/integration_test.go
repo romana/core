@@ -26,7 +26,7 @@ import (
 	"github.com/romana/core/tenant"
 	"github.com/romana/core/topology"
 	"os"
-	"reflect"
+	//	"reflect"
 	"testing"
 )
 
@@ -68,7 +68,6 @@ func (s *MySuite) SetUpTest(c *check.C) {
 
 	c.Log("Creating topology schema")
 	err = topology.CreateSchema(s.rootUrl, true)
-	myLog(c, "CreateSchema returned err: ", err, "which is of type", reflect.TypeOf(err), "let's compare it to", nil, ": err != nil: ", err != nil)
 	if err != nil {
 		c.Fatal(err)
 	}
@@ -76,7 +75,6 @@ func (s *MySuite) SetUpTest(c *check.C) {
 
 	c.Log("Creating tenant schema")
 	err = tenant.CreateSchema(s.rootUrl, true)
-	myLog(c, "CreateSchema returned err: ", err, "which is of type", reflect.TypeOf(err), "let's compare it to", nil, ": err != nil: ", err != nil)
 	if err != nil {
 		c.Fatal(err)
 	}
@@ -84,7 +82,6 @@ func (s *MySuite) SetUpTest(c *check.C) {
 
 	c.Log("Creating IPAM schema")
 	err = ipam.CreateSchema(s.rootUrl, true)
-	myLog(c, "CreateSchema returned err: ", err, "which is of type", reflect.TypeOf(err), "let's compare it to", nil, ": err != nil: ", err != nil)
 	if err != nil {
 		c.Fatal(err)
 	}
@@ -100,13 +97,13 @@ func myLog(c *check.C, args ...interface{}) {
 
 // Test the integration with root and topology service
 func (s *MySuite) TestIntegration(c *check.C) {
-	myLog(c, "Entering TestTopology()")
+	myLog(c, "Entering TestIntegration()")
 
 	dir, _ := os.Getwd()
 	myLog(c, "In", dir)
 
 	// 1. Start topology service
-	myLog(c, "Starting topology service")
+	myLog(c, "Starting topology service, our root URL is", s.rootUrl)
 
 	channelTop, err := topology.Run(s.rootUrl)
 	if err != nil {
@@ -144,7 +141,7 @@ func (s *MySuite) TestIntegration(c *check.C) {
 	client.Post(hostsRelUrl, newHostReq, &newHostResp)
 	myLog(c, "Response: ", newHostResp)
 	c.Assert(newHostResp.Ip, check.Equals, "10.10.10.10")
-	c.Assert(newHostResp.Id, check.Equals, "1")
+	//	c.Assert(newHostResp.Id, check.Equals, "1")
 
 	newHostReq = common.HostMessage{Ip: "10.10.10.11", AgentPort: 9999, Name: "host11"}
 	newHostResp = common.HostMessage{}
@@ -157,6 +154,7 @@ func (s *MySuite) TestIntegration(c *check.C) {
 	var hostList2 []common.HostMessage
 	client.Get(hostsRelUrl, &hostList2)
 	myLog(c, "Host list: ", hostList2)
+
 	c.Assert(len(hostList2), check.Equals, 2)
 
 	// 3. Start tenant service
@@ -178,11 +176,54 @@ func (s *MySuite) TestIntegration(c *check.C) {
 		c.Error(err)
 	}
 
-	myLog(c, "Calling ", tenantAddr)
-	topIndex = &common.IndexResponse{}
-	err = client.Get("/", &topIndex)
+	// Add first tenant
+	tIn := tenant.Tenant{Name: "t1"}
+	tOut := tenant.Tenant{}
+	err = client.Post("/tenants", tIn, &tOut)
 	if err != nil {
 		c.Error(err)
 	}
+	myLog(c, "Tenant", tOut)
+
+	// Find first tenant
+	tOut2 := tenant.Tenant{}
+	tenantPath := fmt.Sprintf("/tenants/%d", tOut.Id)
+	err = client.Get(tenantPath, &tOut2)
+	if err != nil {
+		c.Error(err)
+	}
+	myLog(c, "Found", tOut2)
+
+	// Add segment tenant
+	sIn := tenant.Segment{Name: "s1", TenantId: tOut.Id}
+	sOut := tenant.Segment{}
+	err = client.Post(tenantPath+"/segments", sIn, &sOut)
+	if err != nil {
+		c.Error(err)
+	}
+	myLog(c, "Segment", sOut)
+
+	// 4. Start IPAM service
+	channelIpam, err := ipam.Run(s.rootUrl)
+	if err != nil {
+		c.Error(err)
+	}
+	msg = <-channelIpam
+	myLog(c, "IPAM service said:", msg)
+
+	// Try to get an address
+	ipamAddr := "http://" + s.config.Services["ipam"].Common.Api.GetHostPort()
+	client, err = common.NewRestClient(ipamAddr)
+	if err != nil {
+		c.Error(err)
+	}
+	
+	vmIn := ipam.Vm{Name: "vm1", TenantId: tOut.Id, SegmentId: sOut.Id, HostId : "2" }
+	vmOut := ipam.Vm{}
+	err = client.Post(tenantPath+"/segments", vmIn, &vmOut)
+	if err != nil {
+		c.Error(err)
+	}
+	myLog(c, "Ip:", sOut)
 
 }
