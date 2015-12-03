@@ -38,8 +38,7 @@ const (
 
 // Provides Routes
 func (ipam *IPAMSvc) Routes() common.Routes {
-
-	routes := common.Routes{
+routes := common.Routes{
 		common.Route{
 			"POST",
 			"/vms",
@@ -133,6 +132,7 @@ func (ipam *IPAMSvc) addVm(input interface{}, ctx common.RestContext) (interface
 
 }
 
+// Name provides name of this service.
 func (ipam *IPAMSvc) Name() string {
 	return "ipam"
 }

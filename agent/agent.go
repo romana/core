@@ -82,12 +82,16 @@ func Run(rootServiceURL string) (chan common.ServiceMessage, error) {
 	helper := NewAgentHelper(agent)
 	agent.Helper = &helper
 	log.Printf("Agent: Getting configuration from %s", rootServiceURL)
-	config, err := common.GetServiceConfig(rootServiceURL, "agent")
+	config, err := common.GetServiceConfig(rootServiceURL, agent)
 	if err != nil {
 		return nil, err
 	}
 	ch, err := common.InitializeService(agent, *config)
 	return ch, err
+}
+
+func (a *Agent) Name() string {
+	return "agent"	
 }
 
 // index handles HTTP requests for endpoints provisioning.

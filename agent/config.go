@@ -17,7 +17,7 @@ package agent
 
 import (
 	"github.com/romana/core/common"
-	"github.com/romana/core/topology"
+//	"github.com/romana/core/topology"
 
 	"log"
 	"net"
@@ -36,7 +36,7 @@ type NetworkConfig struct {
 	// index of the current host in POC config file
 	currentHostIndex int
 	hosts            []common.HostMessage
-	dc               topology.Datacenter
+	dc               common.Datacenter
 }
 
 // EndpointNetmaskSize returns integer value (aka size) of endpoint netmask.
