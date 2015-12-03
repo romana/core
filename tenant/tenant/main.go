@@ -20,7 +20,7 @@ import (
 	"flag"
 	"fmt"
 
-	"github.com/romana/core/ipam"
+	"github.com/romana/core/tenant"
 )
 
 // Main entry point for the tenant microservice
@@ -31,7 +31,7 @@ func main() {
 	flag.Parse()
 
 	if *createSchema || *overwriteSchema {
-		err := ipam.CreateSchema(*rootUrl, *overwriteSchema)
+		err := tenant.CreateSchema(*rootUrl, *overwriteSchema)
 		if err != nil {
 			panic(err)
 		}
@@ -39,7 +39,7 @@ func main() {
 		return
 	}
 
-	channel, err := ipam.Run(*rootUrl)
+	channel, err := tenant.Run(*rootUrl)
 	if err != nil {
 		panic(err)
 	}

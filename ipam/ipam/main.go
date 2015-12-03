@@ -31,7 +31,7 @@ func main() {
 	flag.Parse()
 
 	if *createSchema || *overwriteSchema {
-		err := topology.CreateSchema(*rootUrl, *overwriteSchema)
+		err := ipam.CreateSchema(*rootUrl, *overwriteSchema)
 		if err != nil {
 			panic(err)
 		}
@@ -39,7 +39,7 @@ func main() {
 		return
 	}
 
-	channel, err := topology.Run(*rootUrl)
+	channel, err := ipam.Run(*rootUrl)
 	if err != nil {
 		panic(err)
 	}
