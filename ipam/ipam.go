@@ -17,11 +17,11 @@ package ipam
 
 import (
 	"errors"
-	"net"
 	"fmt"
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
 	"log"
+	"net"
 	"strings"
 )
 
@@ -54,8 +54,8 @@ func (ipam *IPAMSvc) Routes() common.Routes {
 
 // handleHost handles request for a specific host's info
 func (ipam *IPAMSvc) addVm(input interface{}, ctx common.RestContext) (interface{}, error) {
-	vm := input.(Vm)
-	vm, err := ipam.store.addVm(vm)
+	vm := input.(*Vm)
+	err := ipam.store.addVm(vm)
 	if err != nil {
 		return nil, err
 	}
@@ -65,6 +65,7 @@ func (ipam *IPAMSvc) addVm(input interface{}, ctx common.RestContext) (interface
 	if err != nil {
 		return nil, err
 	}
+
 	client, err := common.NewRestClient(topoUrl)
 	if err != nil {
 		return nil, err
@@ -74,9 +75,16 @@ func (ipam *IPAMSvc) addVm(input interface{}, ctx common.RestContext) (interface
 	if err != nil {
 		return nil, err
 	}
+
 	hostsUrl := index.Links.FindByRel("host-list")
 	host := common.HostMessage{}
-	err = client.Get(fmt.Sprintf("%s/%d", hostsUrl, vm.HostId), &host)
+
+	hostInfoUrl := fmt.Sprintf("%s/%s", hostsUrl, vm.HostId)
+
+
+	err = client.Get(hostInfoUrl, &host)
+
+	log.Printf(">>>>>>>>>>>>Calling %s, got %s\n", hostInfoUrl, host)
 	if err != nil {
 		return nil, err
 	}
@@ -89,36 +97,44 @@ func (ipam *IPAMSvc) addVm(input interface{}, ctx common.RestContext) (interface
 	// TODO follow links once tenant service supports it. For now...
 
 	t := &tenant.Tenant{}
-	err = client.Get(fmt.Sprintf("%s/tenants/%d", tenantUrl, vm.TenantId), t)
+	tenantsUrl := fmt.Sprintf("%s/tenants/%d", tenantUrl, vm.TenantId)
+	
+	err = client.Get(tenantsUrl, t)
 	if err != nil {
 		return nil, err
 	}
-
+	segmentUrl := fmt.Sprintf("/tenants/%d/segments/%d", vm.TenantId, vm.SegmentId)
+	
 	segment := &tenant.Segment{}
-	err = client.Get(fmt.Sprintf("%s/segments/%d", tenantUrl, vm.SegmentId), segment)
+	err = client.Get(segmentUrl, segment)
 	if err != nil {
 		return nil, err
 	}
+	
 
 	log.Printf("Constructing IP from Host IP %s, Tenant %d, Segment %d", host.RomanaIp, t.Seq, segment.Seq)
 
-	
 	vmBits := 32 - ipam.dc.PrefixBits - ipam.dc.PortBits - ipam.dc.TenantBits - ipam.dc.SegmentBits
 	segmentBitShift := vmBits
 	prefixBitShift := 32 - ipam.dc.PrefixBits
 	tenantBitShift := segmentBitShift + ipam.dc.SegmentBits
-//	hostBitShift := tenantBitShift + ipam.dc.TenantBits
-	
+	//	hostBitShift := tenantBitShift + ipam.dc.TenantBits
+
 	hostIp, _, err := net.ParseCIDR(host.RomanaIp)
 	if err != nil {
-		return nil, err	
+		return nil, err
 	}
 	hostIpInt := common.IPv4ToInt(hostIp)
 	vmIpInt := (ipam.dc.Prefix << prefixBitShift) | hostIpInt | (t.Seq << tenantBitShift) | (segment.Seq << segmentBitShift) | vm.Seq
 	vmIpIp := common.IntToIPv4(vmIpInt)
 	vm.Ip = vmIpIp.String()
+	
 	return vm, nil
 
+}
+
+func (ipam *IPAMSvc) Name() string {
+	return "ipam"
 }
 
 // Backing store
@@ -128,7 +144,7 @@ type ipamStore interface {
 	createSchema(overwrite bool) error
 	setConfig(config map[string]interface{}) error
 	// TODO use ptr
-	addVm(vm Vm) (Vm, error)
+	addVm(vm *Vm) error
 }
 
 // SetConfig implements SetConfig function of the Service interface.
@@ -149,6 +165,7 @@ func (ipam *IPAMSvc) SetConfig(config common.ServiceConfig) error {
 	default:
 		return errors.New("Unknown store type: " + storeType)
 	}
+	log.Printf("IPAM port: %s", config.Common.Api.Port)
 	return ipam.store.setConfig(storeConfig)
 }
 
@@ -159,7 +176,7 @@ func (ipam *IPAMSvc) createSchema(overwrite bool) error {
 // Runs IPAM service
 func Run(rootServiceUrl string) (chan common.ServiceMessage, error) {
 	ipam := &IPAMSvc{}
-	config, err := common.GetServiceConfig(rootServiceUrl, "topology")
+	config, err := common.GetServiceConfig(rootServiceUrl, ipam)
 	if err != nil {
 		return nil, err
 	}
@@ -168,11 +185,12 @@ func Run(rootServiceUrl string) (chan common.ServiceMessage, error) {
 }
 
 func (ipam *IPAMSvc) Initialize() error {
+
+	log.Println("Entering ipam.Initialize()")
 	err := ipam.store.connect()
 	if err != nil {
 		return err
 	}
-
 	topologyURL, err := common.GetServiceUrl(ipam.config.Common.Api.RootServiceUrl, "topology")
 	if err != nil {
 		return err
@@ -203,7 +221,7 @@ func (ipam *IPAMSvc) Initialize() error {
 func CreateSchema(rootServiceUrl string, overwrite bool) error {
 	log.Println("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
 	ipamSvc := &IPAMSvc{}
-	config, err := common.GetServiceConfig(rootServiceUrl, "ipam")
+	config, err := common.GetServiceConfig(rootServiceUrl, ipamSvc)
 	if err != nil {
 		return err
 	}

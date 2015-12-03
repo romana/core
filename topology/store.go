@@ -21,9 +21,9 @@ import (
 
 type Host struct {
 	Id        uint64 `sql:"AUTO_INCREMENT"`
+	Name      string
 	Ip        string
 	RomanaIp  string
-	Name      string
 	AgentPort uint64
 	//	tor         *Tor
 }

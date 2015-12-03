@@ -92,11 +92,11 @@ type LinkResponse struct {
 // HostMessage is a structure representing information
 // about the host for the purposes of REST communications
 type HostMessage struct {
-	Ip        string `json:"ip"`
-	RomanaIp  string `json:"romana_ip"`
-	AgentPort int    `json:"agentPort"`
-	Name      string `json:"name"`
 	Id        string `json:"id"`
+	Name      string `json:"name"`
+	Ip        string `json:"ip"`
+	RomanaIp  string 
+	AgentPort int    `json:"agentPort"`
 	Links     Links  `json:"links"`
 	//    Tor string       `json:"tor"`
 }
@@ -112,6 +112,9 @@ type Service interface {
 
 	// Returns the routes that this service works with
 	Routes() Routes
+	
+	// Name returns the name of this service.
+	Name() string
 }
 
 // Client for the Romana services.
@@ -166,7 +169,7 @@ func GetServiceUrl(rootServiceUrl string, name string) (string, error) {
 	}
 	for i := range resp.Services {
 		service := resp.Services[i]
-		log.Println("Checking", service.Name, "against", name, "links:", service.Links)
+//		log.Println("Checking", service.Name, "against", name, "links:", service.Links)
 		if service.Name == name {
 			href := service.Links.FindByRel("service")
 			log.Println("href:", href)
@@ -193,6 +196,7 @@ func GetServiceUrl(rootServiceUrl string, name string) (string, error) {
 func (rc *RestClient) execMethod(method string, url string, data interface{}, result interface{}) error {
 	log.Printf("Going to %s from %s", url, rc.url)
 	err := rc.NewUrl(url)
+	log.Printf("Set rc.url to %s", rc.url)
 	if err != nil {
 		return err
 	}
@@ -200,9 +204,9 @@ func (rc *RestClient) execMethod(method string, url string, data interface{}, re
 	var reqBody []byte
 	if data != nil {
 		reqBody, err = json.Marshal(data)
-		
+
 		if err != nil {
-			
+
 			return err
 		}
 		reqBodyReader = bytes.NewReader(reqBody)
@@ -249,9 +253,9 @@ func (rc *RestClient) execMethod(method string, url string, data interface{}, re
 	if result == nil {
 		return nil
 	}
-
+//	log.Printf("Got %s", string(body))
 	err = json.Unmarshal(body, &result)
-	log.Println(">>>>>4", rc.url, string(body))
+
 	return err
 }
 
@@ -262,7 +266,7 @@ func (rc *RestClient) Post(url string, data interface{}, result interface{}) err
 
 // Get executes GET method on the specified URL,
 // putting the result into the provided interface
-func (rc RestClient) Get(url string, result interface{}) error {
+func (rc *RestClient) Get(url string, result interface{}) error {
 	return rc.execMethod("GET", url, nil, result)
 }
 
@@ -313,17 +317,15 @@ func InitializeService(service Service, config ServiceConfig) (chan ServiceMessa
 	hostPort := strings.Join([]string{config.Common.Api.Host, portStr}, ":")
 	go func() {
 		channel <- Starting
-		log.Printf("Trying to listen on %s" + hostPort)
+		log.Printf("%s: Trying to listen on %s", service.Name(), hostPort)
 		negroni.Run(hostPort)
 	}()
-	log.Printf("Listening on %s" + hostPort)
-
 	return channel, nil
 }
 
 // GetServiceConfig retrieves configuration for a given service from the root service.
 // TODO perhaps this should be a method on RestClient interface.
-func GetServiceConfig(rootServiceUrl string, name string) (*ServiceConfig, error) {
+func GetServiceConfig(rootServiceUrl string, svc Service) (*ServiceConfig, error) {
 	client, err := NewRestClient(rootServiceUrl)
 	if err != nil {
 		return nil, err
@@ -336,7 +338,7 @@ func GetServiceConfig(rootServiceUrl string, name string) (*ServiceConfig, error
 	config := &ServiceConfig{}
 	config.Common.Api.RootServiceUrl = rootServiceUrl
 
-	relName := name + "-config"
+	relName := svc.Name() + "-config"
 
 	configUrl := rootIndexResponse.Links.FindByRel(relName)
 	if configUrl == "" {

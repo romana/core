@@ -53,12 +53,11 @@ func (s *MySuite) SetUpTest(c *check.C) {
 		panic(err)
 	}
 	c.Log("Root configuration: ", s.config.Services["root"].Common.Api.GetHostPort())
-	root.Run(s.configFile)
 	s.rootUrl = "http://" + s.config.Services["root"].Common.Api.GetHostPort()
 	c.Log("Root URL:", s.rootUrl)
 
 	// Starting root service
-	fmt.Println("Starting root service...")
+	fmt.Println("STARTING ROOT SERVICE")
 	channelRoot, err := root.Run(s.configFile)
 	if err != nil {
 		c.Error(err)
@@ -88,6 +87,7 @@ func (s *MySuite) SetUpTest(c *check.C) {
 	c.Log("OK")
 
 	myLog(c, "Done with setup")
+
 }
 
 func myLog(c *check.C, args ...interface{}) {
@@ -103,8 +103,7 @@ func (s *MySuite) TestIntegration(c *check.C) {
 	myLog(c, "In", dir)
 
 	// 1. Start topology service
-	myLog(c, "Starting topology service, our root URL is", s.rootUrl)
-
+	myLog(c, "STARTING TOPOLOGY SERVICE")
 	channelTop, err := topology.Run(s.rootUrl)
 	if err != nil {
 		c.Error(err)
@@ -135,7 +134,7 @@ func (s *MySuite) TestIntegration(c *check.C) {
 	client.Get(hostsRelUrl, &hostList)
 	myLog(c, "Host list: ", hostList)
 	c.Assert(len(hostList), check.Equals, 0)
-	newHostReq := common.HostMessage{Ip: "10.10.10.10", AgentPort: 9999, Name: "host10"}
+	newHostReq := common.HostMessage{Ip: "10.10.10.10", RomanaIp: "10.64.0.0/16", AgentPort: 9999, Name: "HOST1000"}
 
 	newHostResp := common.HostMessage{}
 	client.Post(hostsRelUrl, newHostReq, &newHostResp)
@@ -143,7 +142,7 @@ func (s *MySuite) TestIntegration(c *check.C) {
 	c.Assert(newHostResp.Ip, check.Equals, "10.10.10.10")
 	//	c.Assert(newHostResp.Id, check.Equals, "1")
 
-	newHostReq = common.HostMessage{Ip: "10.10.10.11", AgentPort: 9999, Name: "host11"}
+	newHostReq = common.HostMessage{Ip: "10.10.10.11", RomanaIp: "10.65.0.0/16", AgentPort: 9999, Name: "HOST2000"}
 	newHostResp = common.HostMessage{}
 	client.Post(hostsRelUrl, newHostReq, &newHostResp)
 	myLog(c, "Response: ", newHostResp)
@@ -158,6 +157,7 @@ func (s *MySuite) TestIntegration(c *check.C) {
 	c.Assert(len(hostList2), check.Equals, 2)
 
 	// 3. Start tenant service
+	myLog(c, "STARTING TENANT SERVICE")
 	channelTen, err := tenant.Run(s.rootUrl)
 	if err != nil {
 		c.Error(err)
@@ -204,6 +204,7 @@ func (s *MySuite) TestIntegration(c *check.C) {
 	myLog(c, "Segment", sOut)
 
 	// 4. Start IPAM service
+	myLog(c, "STARTING IPAM SERVICE")
 	channelIpam, err := ipam.Run(s.rootUrl)
 	if err != nil {
 		c.Error(err)
@@ -218,12 +219,24 @@ func (s *MySuite) TestIntegration(c *check.C) {
 		c.Error(err)
 	}
 	
-	vmIn := ipam.Vm{Name: "vm1", TenantId: tOut.Id, SegmentId: sOut.Id, HostId : "2" }
+	// Get first IP
+	vmIn := ipam.Vm{Name: "vm1", TenantId: tOut.Id, SegmentId: sOut.Id, HostId: "2"}
 	vmOut := ipam.Vm{}
-	err = client.Post(tenantPath+"/segments", vmIn, &vmOut)
+	err = client.Post("/vms", vmIn, &vmOut)
 	if err != nil {
 		c.Error(err)
 	}
-	myLog(c, "Ip:", sOut)
+	myLog(c, "Received:", vmOut)
+	myLog(c, "IP:", vmOut.Ip)
+	
+	// Get second IP
+	vmIn = ipam.Vm{Name: "vm2", TenantId: tOut.Id, SegmentId: sOut.Id, HostId: "2"}
+	vmOut = ipam.Vm{}
+	err = client.Post("/vms", vmIn, &vmOut)
+	if err != nil {
+		c.Error(err)
+	}
+	myLog(c, "Received:", vmOut)
+	myLog(c, "IP:", vmOut.Ip)
 
 }

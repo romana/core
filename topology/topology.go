@@ -90,6 +90,10 @@ func (topology *TopologySvc) handleDc(input interface{}, ctx common.RestContext)
 	return topology.datacenter, nil
 }
 
+func (topology *TopologySvc) Name() string {
+	return "topology"
+}
+
 // handleHost handles request for a specific host's info
 func (topology *TopologySvc) handleHost(input interface{}, ctx common.RestContext) (interface{}, error) {
 	idStr := ctx.PathVariables["hostId"]
@@ -108,7 +112,7 @@ func (topology *TopologySvc) handleHost(input interface{}, ctx common.RestContex
 
 	links := []common.LinkResponse{agentLink, hostLink, collectionLink}
 	hostIdStr := strconv.FormatUint(host.Id, 10)
-	hostMessage := common.HostMessage{Id: hostIdStr, Ip: host.Ip, Name: host.Name, AgentPort: int(host.AgentPort), Links: links}
+	hostMessage := common.HostMessage{Id: hostIdStr, RomanaIp: host.RomanaIp, Ip: host.Ip, Name: host.Name, AgentPort: int(host.AgentPort), Links: links}
 	return hostMessage, nil
 }
 
@@ -128,7 +132,7 @@ func (topology *TopologySvc) handleHostListGet(input interface{}, ctx common.Res
 
 func (topology *TopologySvc) handleHostListPost(input interface{}, ctx common.RestContext) (interface{}, error) {
 	hostMessage := input.(*common.HostMessage)
-	host := Host{Ip: hostMessage.Ip, Name: hostMessage.Name, AgentPort: uint64(hostMessage.AgentPort)}
+	host := Host{Ip: hostMessage.Ip, Name: hostMessage.Name, RomanaIp: hostMessage.RomanaIp, AgentPort: uint64(hostMessage.AgentPort)}
 	id, err := topology.store.addHost(host)
 	if err != nil {
 		return nil, err
@@ -197,12 +201,12 @@ func (topology *TopologySvc) SetConfig(config common.ServiceConfig) error {
 
 // Runs topology service
 func Run(rootServiceUrl string) (chan common.ServiceMessage, error) {
-	topologyService := &TopologySvc{}
-	config, err := common.GetServiceConfig(rootServiceUrl, "topology")
+	topSvc := &TopologySvc{}
+	config, err := common.GetServiceConfig(rootServiceUrl, topSvc)
 	if err != nil {
 		return nil, err
 	}
-	ch, err := common.InitializeService(topologyService, *config)
+	ch, err := common.InitializeService(topSvc, *config)
 	return ch, err
 }
 
@@ -220,7 +224,7 @@ func (topology *TopologySvc) Initialize() error {
 func CreateSchema(rootServiceUrl string, overwrite bool) error {
 	log.Println("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
 	topologyService := &TopologySvc{}
-	config, err := common.GetServiceConfig(rootServiceUrl, "topology")
+	config, err := common.GetServiceConfig(rootServiceUrl, topologyService)
 	if err != nil {
 		return err
 	}

@@ -17,7 +17,6 @@
 package common
 
 import (
-//	"log"
 	"bytes"
 	"encoding/json"
 	"github.com/K-Phoen/negotiation"
@@ -25,6 +24,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/mitchellh/mapstructure"
 	"io/ioutil"
+//	"log"
 	"net/http"
 	"reflect"
 )
@@ -151,9 +151,8 @@ func wrapHandler(restHandler RestHandler, makeMessage MakeMessage) http.Handler 
 				}
 			}
 			outData, err := restHandler(inData, RestContext{mux.Vars(request)})
-//			log.Println("In here, outData:", outData, "Error", err)
+//			log.Printf("In here, outData: [%s] of type %s, error [%s] [%s]\n", outData, reflect.TypeOf(outData), err, err == nil)
 			if err == nil {
-				
 				contentType := writer.Header().Get("Content-Type")
 				// This should be ok because the middleware took care of negotiating
 				// only the content types we support
@@ -161,7 +160,6 @@ func wrapHandler(restHandler RestHandler, makeMessage MakeMessage) http.Handler 
 				if marshaller == nil {
 					writer.WriteHeader(http.StatusUnsupportedMediaType)
 					sct := supportedContentTypesMessage
-
 					marshaller := ContentTypeMarshallers["application/json"]
 					dataOut, _ := marshaller.Marshal(sct)
 					writer.Write(dataOut)
@@ -174,7 +172,7 @@ func wrapHandler(restHandler RestHandler, makeMessage MakeMessage) http.Handler 
 					return
 				}
 			}
-		
+
 			// There was an error -- that's the only way we fell through
 			// here
 			writer.WriteHeader(http.StatusInternalServerError)

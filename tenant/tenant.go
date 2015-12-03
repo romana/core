@@ -101,19 +101,25 @@ func (tsvc *TenantSvc) addSegment(input interface{}, ctx common.RestContext) (in
 	}
 	newSegment := input.(*Segment)
 	err = tsvc.store.addSegment(tenantId, newSegment)
-	
-	return newSegment, err
 
+	return newSegment, err
+}
+
+func (tenant *TenantSvc) Name() string {
+	return "tenant"
 }
 
 func (tsvc *TenantSvc) findSegment(input interface{}, ctx common.RestContext) (interface{}, error) {
 	tenantIdStr := ctx.PathVariables["tenantId"]
 	tenantId, err := strconv.ParseUint(tenantIdStr, 10, 64)
+	
 	if err != nil {
 		return nil, err
 	}
 	segmentIdStr := ctx.PathVariables["segmentId"]
+	
 	segmentId, err := strconv.ParseUint(segmentIdStr, 10, 64)
+	
 	if err != nil {
 		return nil, err
 	}
@@ -152,7 +158,7 @@ func (tsvc *TenantSvc) createSchema(overwrite bool) error {
 // Runs Tenant service
 func Run(rootServiceUrl string) (chan common.ServiceMessage, error) {
 	tsvc := &TenantSvc{}
-	config, err := common.GetServiceConfig(rootServiceUrl, "tenant")
+	config, err := common.GetServiceConfig(rootServiceUrl, tsvc)
 	if err != nil {
 		return nil, err
 	}
@@ -196,7 +202,7 @@ func (tsvc *TenantSvc) Initialize() error {
 func CreateSchema(rootServiceUrl string, overwrite bool) error {
 	log.Println("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
 	tsvc := &TenantSvc{}
-	config, err := common.GetServiceConfig(rootServiceUrl, "tenant")
+	config, err := common.GetServiceConfig(rootServiceUrl, tsvc)
 	if err != nil {
 		return err
 	}

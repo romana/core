@@ -90,6 +90,10 @@ func (root *Root) handleIndex(input interface{}, ctx common.RestContext) (interf
 	return retval, nil
 }
 
+func (root *Root) Name() string {
+	return "root"
+}
+
 // Handler for the /config
 func (root *Root) handleConfig(input interface{}, ctx common.RestContext) (interface{}, error) {
 	pathVars := ctx.PathVariables

@@ -31,37 +31,40 @@ type mysqlStore struct {
 	db      *gorm.DB
 }
 
-func (mysqlStore *mysqlStore) addVm(vm Vm) (Vm, error) {
+func (mysqlStore *mysqlStore) addVm(vm *Vm) error {
 	// TODO should be ptr
 	// This is tricky... What IPAM considers host ID is its
 	// internal host ID.
 	host := IpamHost{Id: vm.HostId}
 	mysqlStore.db.Where(host).FirstOrCreate(&host)
-	ipamVm := IpamVm{Vm: vm}
+	ipamVm := IpamVm{Vm: *vm}
 	mysqlStore.db.NewRecord(ipamVm)
 	mysqlStore.db.Create(&ipamVm)
 	err := common.MakeMultiError(mysqlStore.db.GetErrors())
 	if err != nil {
-		return vm, err
+		return err
 	}
 	myId := ipamVm.Id
 
 	// TODO better way of getting sequence
 	var vms []IpamVm
-	log.Println("In listSegments()")
+	
 	mysqlStore.db.Where("host_id = ?", vm.HostId).Find(&vms)
 	err = common.MakeMultiError(mysqlStore.db.GetErrors())
 	if err != nil {
-		return vm, err
+		return err
 	}
 	for i := range vms {
 		if vms[i].Id == myId {
-			vms[i].Seq = uint64(i)
 			log.Printf("VM with ID %s has sequence %s", myId, i)
-			return vms[i].Vm, nil
+			vm.Seq = uint64(i)
+			ipamVm.Seq = uint64(i)
+			mysqlStore.db.Save(&ipamVm)
+			return nil
 		}
 	}
-	return vm, errors.New("Not found")
+	log.Println(">>>>>>>>>>>>>>>>>>3")
+	return  errors.New("Not found")
 
 }
 
