@@ -26,9 +26,17 @@ import (
 // network interface and it's ip configuration
 // together with basic methods operating on this structure.
 type NetIf struct {
-	Name string
-	Mac  string
-	IP   net.IP
+	Name string `"form:interface_name"`
+	Mac  string `"form:mac_address"`
+	IP  net.IP `"form:ip_address"`
+}
+
+func (netif NetIf) SetIP(ip string) error {
+	netif.IP = net.ParseIP(ip)
+	if netif.IP == nil {
+		return failedToParseNetif()
+	}
+	return nil
 }
 
 // UnmarshalJSON results in having NetIf implement Unmarshaler

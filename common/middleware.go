@@ -19,14 +19,18 @@ package common
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"github.com/K-Phoen/negotiation"
 	"github.com/gorilla/context"
 	"github.com/gorilla/mux"
 	"github.com/mitchellh/mapstructure"
 	"io/ioutil"
-//	"log"
-	"net/http"
+	"log"
 	"reflect"
+	"strings"
+	//	"log"
+	"net/http"
 )
 
 // Context of the REST request other than the body data
@@ -101,6 +105,7 @@ func (romanaHandler RomanaHandler) ServeHTTP(writer http.ResponseWriter, request
 
 // For comparing to the type of Consumes field of Route struct
 var requestType = reflect.TypeOf(http.Request{})
+var stringType = reflect.TypeOf("")
 
 // wrapHandler wraps the RestHandler function, which deals
 // with application logic into an instance of http.HandlerFunc
@@ -151,12 +156,13 @@ func wrapHandler(restHandler RestHandler, makeMessage MakeMessage) http.Handler 
 				}
 			}
 			outData, err := restHandler(inData, RestContext{mux.Vars(request)})
-//			log.Printf("In here, outData: [%s] of type %s, error [%s] [%s]\n", outData, reflect.TypeOf(outData), err, err == nil)
+			//			log.Printf("In here, outData: [%s] of type %s, error [%s] [%s]\n", outData, reflect.TypeOf(outData), err, err == nil)
 			if err == nil {
 				contentType := writer.Header().Get("Content-Type")
 				// This should be ok because the middleware took care of negotiating
 				// only the content types we support
 				marshaller := ContentTypeMarshallers[contentType]
+				log.Printf("No marshaler for %s\n", contentType)
 				if marshaller == nil {
 					writer.WriteHeader(http.StatusUnsupportedMediaType)
 					sct := supportedContentTypesMessage
@@ -197,7 +203,7 @@ func newRouter(routes []Route) *mux.Router {
 	return router
 }
 
-var supportedContentTypes = []string{"text/plain", "application/vnd.romana.v1+json", "application/vnd.romana+json", "application/json"}
+var supportedContentTypes = []string{"text/plain", "application/vnd.romana.v1+json", "application/vnd.romana+json", "application/json", "application/x-www-form-urlencoded"}
 
 var supportedContentTypesMessage = struct {
 	SupportedContentTypes []string `json:"supported_content_types"`
@@ -211,6 +217,8 @@ type Marshaller interface {
 	Unmarshal(data []byte, v interface{}) error
 }
 
+// jsonMarshaller provides functionality to marshal/unmarshal
+// data to/from JSON format.
 type jsonMarshaller struct{}
 
 func (j jsonMarshaller) Marshal(v interface{}) ([]byte, error) {
@@ -221,11 +229,116 @@ func (j jsonMarshaller) Unmarshal(data []byte, v interface{}) error {
 	return json.Unmarshal(data, v)
 }
 
+// formMarshaller provides functionality to marshal/unmarshal
+// data to/from HTML form format.
+type formMarshaller struct{}
+
+func (j formMarshaller) Marshal(v interface{}) ([]byte, error) {
+	retval := ""
+	vPtr := reflect.ValueOf(v)
+	vVal := vPtr.Elem()
+	vType := reflect.TypeOf(vVal.Interface())
+	for i := 0; i < vVal.NumField(); i++ {
+		metaField := vType.Field(i)
+
+		field := vVal.Field(i)
+		formKey := metaField.Tag.Get("form")
+		if len(retval) > 0 {
+			retval += "&"
+		}
+		retval += formKey + "="
+		log.Printf("form key of %s is %s\n", metaField.Name, formKey)
+		str := ""
+		if metaField.Type == stringType {
+			str = field.Interface().(string)
+		} else {
+			toString := field.MethodByName("String")
+			log.Printf("Looking for method String on %s: %s\n", field, toString)
+			if reflect.Zero(reflect.TypeOf(toString)) != toString {
+				toStringResult := toString.Call(nil)
+				str = toStringResult[0].String()
+			} else {
+				log.Printf("Ignoring field %s of %s\n", metaField.Name, v)
+				continue
+			}
+		}
+		str = strings.TrimSpace(str)
+
+		retval += str
+	}
+	return []byte(retval), nil
+}
+
+func (f formMarshaller) Unmarshal(data []byte, v interface{}) error {
+	var err error
+	dataStr := string(data)
+	// We'll keep it simple - make a map and use mapstructure
+	vPtr := reflect.ValueOf(v)
+	vVal := vPtr.Elem()
+	vType := reflect.TypeOf(vVal.Interface())
+	kvPairs := strings.Split(dataStr, "&")
+
+	var m map[string]interface{}
+
+	if vType.Kind() == reflect.Map {
+		log.Printf("We got a map already!")
+		m2 := v.(*map[string]interface{})
+		m = *m2
+	} else {
+		m = make(map[string]interface{})
+	}
+	for i := range kvPairs {
+		kv := strings.Split(kvPairs[i], "=")
+		// Of course we have to do checking etc...
+		key := string(kv[0])
+		val := string(kv[1])
+		m[key] = val
+	}
+	if vType.Kind() == reflect.Map {
+		// We are done if we want a map output
+		return nil
+	}
+	log.Printf("Unmarshaled form %s to map %s\n", dataStr, m)
+
+	log.Printf("I want %s %s %s\n", vPtr, vVal, vType, vType.Kind())
+	for i := 0; i < vVal.NumField(); i++ {
+		metaField := vType.Field(i)
+
+		field := vVal.Field(i)
+		formKey := metaField.Tag.Get("form")
+		formValue := m[formKey]
+		log.Printf("Value of %s is %s\n", metaField.Name, formValue)
+		if metaField.Type == stringType {
+			field.SetString(formValue.(string))
+		} else {
+			setterMethodName := fmt.Sprintf("Set%s", metaField.Name)
+			m := vPtr.MethodByName(setterMethodName)
+			if reflect.Zero(reflect.TypeOf(m)) != m {
+				valueArg := reflect.ValueOf(formValue)
+				valueArgs := []reflect.Value{valueArg}
+				result := m.Call(valueArgs)
+				errIfc := result[0].Interface()
+				if errIfc != nil {
+					return errIfc.(error)
+				}
+			} else {
+				return errors.New(fmt.Sprintf("Unsupported type of field %s: %s", metaField.Name, metaField.Type))
+			}
+
+		}
+
+	}
+
+	return err
+}
+
 // ContentTypeMarshallers maps MIME type to Marshaller instances
 var ContentTypeMarshallers map[string]Marshaller = map[string]Marshaller{
-	"application/json":               jsonMarshaller{},
-	"application/vnd.romana.v1+json": jsonMarshaller{},
-	"application/vnd.romana+json":    jsonMarshaller{},
+	"application/json":                  jsonMarshaller{},
+	"application/vnd.romana.v1+json":    jsonMarshaller{},
+	"application/vnd.romana+json":       jsonMarshaller{},
+	"application/x-www-form-urlencoded": formMarshaller{},
+//	"*/*": jsonMarshaller{},
 }
 
 // Authenticator is the interface that will be used by AuthMiddleware
@@ -345,6 +458,10 @@ func NewNegotiator() *NegotiatorMiddleware {
 func (negotiator NegotiatorMiddleware) ServeHTTP(writer http.ResponseWriter, request *http.Request, next http.HandlerFunc) {
 	// TODO answer with a 406 here?
 	accept := request.Header.Get("accept")
+	if accept == "*/*" {
+		// Force json if it can take anything.
+		accept = "application/json"
+	}
 	format, err := negotiation.NegotiateAccept(accept, supportedContentTypes)
 	if err == nil {
 		writer.Header().Set("Content-Type", format.Value)
