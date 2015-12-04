@@ -287,11 +287,7 @@ func (j formMarshaller) Marshal(v interface{}) ([]byte, error) {
 			}
 		}
 		str = strings.TrimSpace(str)
-		str, err := url.QueryUnescape(str)
-		if err != nil {
-			return nil, err
-		}
-
+		
 		retval += str
 	}
 	return []byte(retval), nil
@@ -319,7 +315,12 @@ func (f formMarshaller) Unmarshal(data []byte, v interface{}) error {
 		// Of course we have to do checking etc...
 		key := string(kv[0])
 		val := string(kv[1])
-		m[key] = val
+		val2, err := url.QueryUnescape(val)
+		if err != nil {
+			return err
+		}
+		log.Printf("Unescaped %s to %s\n", val, val2)
+		m[key] = val2
 	}
 	log.Printf("Unmarshaled form %s to map %s\n", dataStr, m)
 
