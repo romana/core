@@ -124,7 +124,6 @@ func wrapHandler(restHandler RestHandler, makeMessage MakeMessage) http.Handler 
 		// Fine, then...
 		httpHandler := func(writer http.ResponseWriter, request *http.Request) {
 			respReq := UnwrappedRestHandlerInput{writer, request}
-
 			restHandler(respReq, RestContext{mux.Vars(request)})
 		}
 		return RomanaHandler{httpHandler}
@@ -148,7 +147,31 @@ func wrapHandler(restHandler RestHandler, makeMessage MakeMessage) http.Handler 
 				// benefits (auto-completion, type-checking) that come
 				// with using actual objects vs lists/dicts. See
 				// https://github.com/mitchellh/mapstructure
+
 				err = mapstructure.Decode(inDataMap, inData)
+
+				ct := request.Header.Get("content-type")
+
+				buf, err := ioutil.ReadAll(request.Body)
+				if err != nil {
+					writer.WriteHeader(http.StatusInternalServerError)
+					writer.Write([]byte(err.Error()))
+					return
+				}
+
+				log.Printf("Marshaler %s for %s\n", ContentTypeMarshallers[ct], ct)
+				if marshaller, ok := ContentTypeMarshallers[ct]; ok {
+					err = marshaller.Unmarshal(buf, inData)
+				} else {
+					sct := supportedContentTypesMessage
+					marshaller := ContentTypeMarshallers["application/json"]
+					dataOut, _ := marshaller.Marshal(sct)
+					writer.WriteHeader(http.StatusNotAcceptable)
+					writer.Write(dataOut)
+					return
+				}
+
+				log.Printf("Decoding %s to %s, error %s\n", inDataMap, inData, err)
 				if err != nil {
 					writer.WriteHeader(http.StatusInternalServerError)
 					writer.Write([]byte(err.Error()))
@@ -270,6 +293,7 @@ func (j formMarshaller) Marshal(v interface{}) ([]byte, error) {
 }
 
 func (f formMarshaller) Unmarshal(data []byte, v interface{}) error {
+	log.Printf("Entering formMarshaller.Unmarshal()\n")
 	var err error
 	dataStr := string(data)
 	// We'll keep it simple - make a map and use mapstructure
@@ -281,9 +305,7 @@ func (f formMarshaller) Unmarshal(data []byte, v interface{}) error {
 	var m map[string]interface{}
 
 	if vType.Kind() == reflect.Map {
-		log.Printf("We got a map already!")
-		m2 := v.(*map[string]interface{})
-		m = *m2
+		m = *(v.(*map[string]interface{}))
 	} else {
 		m = make(map[string]interface{})
 	}
@@ -294,13 +316,12 @@ func (f formMarshaller) Unmarshal(data []byte, v interface{}) error {
 		val := string(kv[1])
 		m[key] = val
 	}
-	if vType.Kind() == reflect.Map {
-		// We are done if we want a map output
-		return nil
-	}
 	log.Printf("Unmarshaled form %s to map %s\n", dataStr, m)
 
-	log.Printf("I want %s %s %s\n", vPtr, vVal, vType, vType.Kind())
+	if vType.Kind() == reflect.Map {
+		return nil
+	}
+
 	for i := 0; i < vVal.NumField(); i++ {
 		metaField := vType.Field(i)
 
@@ -326,7 +347,6 @@ func (f formMarshaller) Unmarshal(data []byte, v interface{}) error {
 			}
 
 		}
-
 	}
 
 	return err
@@ -338,7 +358,7 @@ var ContentTypeMarshallers map[string]Marshaller = map[string]Marshaller{
 	"application/vnd.romana.v1+json":    jsonMarshaller{},
 	"application/vnd.romana+json":       jsonMarshaller{},
 	"application/x-www-form-urlencoded": formMarshaller{},
-//	"*/*": jsonMarshaller{},
+	//	"*/*": jsonMarshaller{},
 }
 
 // Authenticator is the interface that will be used by AuthMiddleware
@@ -411,6 +431,7 @@ const (
 // request's lifecycle.
 func (m UnmarshallerMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 	ct := r.Header.Get("content-type")
+
 	buf, err := ioutil.ReadAll(r.Body)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -422,7 +443,7 @@ func (m UnmarshallerMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request
 		next(w, r)
 		return
 	}
-
+	log.Printf("Marshaler %s for %s\n", ContentTypeMarshallers[ct], ct)
 	if marshaller, ok := ContentTypeMarshallers[ct]; ok {
 		// Solution due to
 		// http://stackoverflow.com/questions/23070876/reading-body-of-http-request-without-modifying-request-state

@@ -136,5 +136,6 @@ func (a Agent) identifyCurrentHost() error {
 			}
 		}
 	}
+//	return nil
 	return wrongHostError()
 }

@@ -101,6 +101,8 @@ func (a *Agent) Name() string {
 func (a *Agent) index(input interface{}, ctx common.RestContext) (interface{}, error) {
 	// Parse out NetIf form the request
 	netif := input.(*NetIf)
+	
+	log.Printf("Got interface: Name %s, IP %s Mac %s\n", netif.Name, netif.IP, netif.Mac)
 	// Spawn new thread to process the request
 
 	// TODO don't know if fork-bombs are possible in go but if they are this
