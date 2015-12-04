@@ -27,6 +27,7 @@ import (
 	"github.com/mitchellh/mapstructure"
 	"io/ioutil"
 	"log"
+	"net/url"
 	"reflect"
 	"strings"
 	//	"log"
@@ -286,6 +287,10 @@ func (j formMarshaller) Marshal(v interface{}) ([]byte, error) {
 			}
 		}
 		str = strings.TrimSpace(str)
+		str, err := url.QueryUnescape(str)
+		if err != nil {
+			return nil, err
+		}
 
 		retval += str
 	}
