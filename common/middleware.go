@@ -324,7 +324,6 @@ func (f formMarshaller) Unmarshal(data []byte, v interface{}) error {
 
 	for i := 0; i < vVal.NumField(); i++ {
 		metaField := vType.Field(i)
-
 		field := vVal.Field(i)
 		formKey := metaField.Tag.Get("form")
 		formValue := m[formKey]
@@ -334,6 +333,7 @@ func (f formMarshaller) Unmarshal(data []byte, v interface{}) error {
 		} else {
 			setterMethodName := fmt.Sprintf("Set%s", metaField.Name)
 			m := vPtr.MethodByName(setterMethodName)
+			log.Printf("Looking for method %s on %s: %s\n", setterMethodName, vPtr, m)
 			if reflect.Zero(reflect.TypeOf(m)) != m {
 				valueArg := reflect.ValueOf(formValue)
 				valueArgs := []reflect.Value{valueArg}
