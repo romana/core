@@ -95,9 +95,9 @@ type HostMessage struct {
 	Id        string `json:"id"`
 	Name      string `json:"name"`
 	Ip        string `json:"ip"`
-	RomanaIp  string 
-	AgentPort int    `json:"agentPort"`
-	Links     Links  `json:"links"`
+	RomanaIp  string
+	AgentPort int   `json:"agentPort"`
+	Links     Links `json:"links"`
 	//    Tor string       `json:"tor"`
 }
 
@@ -112,7 +112,7 @@ type Service interface {
 
 	// Returns the routes that this service works with
 	Routes() Routes
-	
+
 	// Name returns the name of this service.
 	Name() string
 }
@@ -169,7 +169,7 @@ func GetServiceUrl(rootServiceUrl string, name string) (string, error) {
 	}
 	for i := range resp.Services {
 		service := resp.Services[i]
-//		log.Println("Checking", service.Name, "against", name, "links:", service.Links)
+		//		log.Println("Checking", service.Name, "against", name, "links:", service.Links)
 		if service.Name == name {
 			href := service.Links.FindByRel("service")
 			log.Println("href:", href)
@@ -186,17 +186,15 @@ func GetServiceUrl(rootServiceUrl string, name string) (string, error) {
 			}
 		}
 	}
-
 	return "", errors.New(fmt.Sprintf("Cannot find service %s at %s", name, resp))
-
 }
 
 // execMethod executes the specified method on the provided url (which is interpreted
 // as relative or absolute).
 func (rc *RestClient) execMethod(method string, url string, data interface{}, result interface{}) error {
-	log.Printf("Going to %s from %s", url, rc.url)
+//	log.Printf("RestClient: Going to %s from %s\n", url, rc.url)
 	err := rc.NewUrl(url)
-	log.Printf("Set rc.url to %s", rc.url)
+//	log.Printf("RestClient: Set rc.url to %s\n", rc.url)
 	if err != nil {
 		return err
 	}
@@ -204,9 +202,7 @@ func (rc *RestClient) execMethod(method string, url string, data interface{}, re
 	var reqBody []byte
 	if data != nil {
 		reqBody, err = json.Marshal(data)
-
 		if err != nil {
-
 			return err
 		}
 		reqBodyReader = bytes.NewReader(reqBody)
@@ -229,13 +225,12 @@ func (rc *RestClient) execMethod(method string, url string, data interface{}, re
 		if err != nil {
 			return err
 		}
-
 		req.Header.Set("accept", "application/json")
 		resp, err := rc.client.Do(req)
 		if err != nil {
 			return err
 		}
-
+		
 		defer resp.Body.Close()
 		body, err = ioutil.ReadAll(resp.Body)
 	} else if rc.url.Scheme == "file" {
@@ -253,7 +248,7 @@ func (rc *RestClient) execMethod(method string, url string, data interface{}, re
 	if result == nil {
 		return nil
 	}
-//	log.Printf("Got %s", string(body))
+	//	log.Printf("Got %s", string(body))
 	err = json.Unmarshal(body, &result)
 
 	return err
@@ -261,7 +256,8 @@ func (rc *RestClient) execMethod(method string, url string, data interface{}, re
 
 // Post executes POST method on the specified URL
 func (rc *RestClient) Post(url string, data interface{}, result interface{}) error {
-	return rc.execMethod("POST", url, data, result)
+	err := rc.execMethod("POST", url, data, result)
+	return err
 }
 
 // Get executes GET method on the specified URL,
@@ -364,7 +360,7 @@ type Datacenter struct {
 	TenantBits  uint `json:"tenant_bits"`
 	SegmentBits uint `json:"segment_bits"`
 	// We don't need to store this, but calculate and pass around
-	EndpointBits      uint   `json:"endpoint_bits"`
+	EndpointBits      uint  `json:"endpoint_bits"`
 	EndpointSpaceBits uint   `json:"endpoint_space_bits"`
 	Name              string `json:""`
 }

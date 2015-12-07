@@ -42,8 +42,8 @@ services:
         host_bits: 8
         tenant_bits: 4
         segment_bits: 4
-        endpoint_space_bits: 0
-        endpoint_bits: 8
+        endpoint_space_bits: 4
+        endpoint_bits: 4
   - service: agent 
     api:
       host: 0.0.0.0

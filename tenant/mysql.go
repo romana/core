@@ -107,6 +107,19 @@ func (mysqlStore *mysqlStore) listTenants() ([]Tenant, error) {
 	return tenants, nil
 }
 
+func (mysqlStore *mysqlStore) listSegments(tenantId uint64) ([]Segment, error) {
+	var segments []Segment
+	log.Println("In listTenants()", &segments)
+	mysqlStore.db.Where("tenant_id = ?", tenantId).Find(&segments)
+	err := common.MakeMultiError(mysqlStore.db.GetErrors())
+	if err != nil {
+		return nil, err
+	}
+	log.Println(segments)
+	return segments, nil
+}
+
+
 func (mysqlStore *mysqlStore) addTenant(tenant *Tenant) error {
 	mysqlStore.db.NewRecord(*tenant)
 	mysqlStore.db.Create(tenant)

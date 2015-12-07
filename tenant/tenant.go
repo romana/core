@@ -53,6 +53,12 @@ func (tsvc *TenantSvc) Routes() common.Routes {
 			nil,
 		},
 		common.Route{
+			"GET",
+			tenantsPath,
+			tsvc.listTenants,
+			nil,
+		},
+		common.Route{
 			"POST",
 			tenantsPath + "/{tenantId}" + segmentsPath,
 			tsvc.addSegment,
@@ -64,6 +70,12 @@ func (tsvc *TenantSvc) Routes() common.Routes {
 			"GET",
 			tenantsPath + "/{tenantId}" + segmentsPath + "/{segmentId}",
 			tsvc.findSegment,
+			nil,
+		},
+		common.Route{
+			"GET",
+			tenantsPath + "/{tenantId}" + segmentsPath,
+			tsvc.listSegments,
 			nil,
 		},
 	}
@@ -79,6 +91,28 @@ func (tsvc *TenantSvc) addTenant(input interface{}, ctx common.RestContext) (int
 	}
 	return newTenant, err
 }
+func (tsvc *TenantSvc) listTenants(input interface{}, ctx common.RestContext) (interface{}, error) {
+	tenants, err := tsvc.store.listTenants()
+	if err != nil {
+		return nil, err
+	}
+	return tenants, nil
+}
+
+func (tsvc *TenantSvc) listSegments(input interface{}, ctx common.RestContext) (interface{}, error) {
+	idStr := ctx.PathVariables["tenantId"]
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		return nil, err
+	}
+	segments, err := tsvc.store.listSegments(id)
+	if err != nil {
+		return nil, err
+	}
+	return segments, nil
+}
+
+
 
 func (tsvc *TenantSvc) findTenant(input interface{}, ctx common.RestContext) (interface{}, error) {
 	idStr := ctx.PathVariables["tenantId"]

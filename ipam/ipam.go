@@ -38,7 +38,7 @@ const (
 
 // Provides Routes
 func (ipam *IPAMSvc) Routes() common.Routes {
-routes := common.Routes{
+	routes := common.Routes{
 		common.Route{
 			"POST",
 			"/vms",
@@ -47,14 +47,120 @@ routes := common.Routes{
 				return &Vm{}
 			},
 		},
+		common.Route{
+			"GET",
+			"/allocateIpByName",
+			ipam.legacyAllocateIpByName,
+			nil,
+		},
 	}
 	return routes
 }
 
 // handleHost handles request for a specific host's info
+func (ipam *IPAMSvc) legacyAllocateIpByName(input interface{}, ctx common.RestContext) (interface{}, error) {
+	log.Printf("LEgacy 1\n")
+	tenantName := ctx.QueryVariables["tenantName"][0]
+	segmentName := ctx.QueryVariables["segmentName"][0]
+	hostName := ctx.QueryVariables["hostName"][0]
+	names := ctx.QueryVariables["instanceName"]
+	name := "VM"
+	if len(names) > 0 {
+		name = names[0]
+	}
+	log.Printf("LEgacy 2\n")
+	vm := Vm{}
+	vm.Name = name
+	// Get host info from topology service
+	topoUrl, err := common.GetServiceUrl(ipam.config.Common.Api.RootServiceUrl, "topology")
+	if err != nil {
+		return nil, err
+	}
+
+	client, err := common.NewRestClient(topoUrl)
+	if err != nil {
+		return nil, err
+	}
+	log.Printf("LEgacy 3\n")
+	index := common.IndexResponse{}
+	err = client.Get(topoUrl, &index)
+	if err != nil {
+		return nil, err
+	}
+
+	hostsUrl := index.Links.FindByRel("host-list")
+	var hosts []common.HostMessage
+
+	err = client.Get(hostsUrl, &hosts)
+	if err != nil {
+		return nil, err
+	}
+
+	found := false
+	for i := range hosts {
+		if hosts[i].Name == hostName {
+			found = true
+			vm.HostId = hosts[i].Id
+			break
+		}
+	}
+	if !found {
+		return nil, errors.New("Host with name " + hostName + " not found")
+	}
+	log.Printf("Host name %s has ID %s", hostName, vm.HostId)
+
+	tenantSvcUrl, err := common.GetServiceUrl(ipam.config.Common.Api.RootServiceUrl, "tenant")
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO follow links once tenant service supports it. For now...
+
+	tenantsUrl := fmt.Sprintf("%s/tenants", tenantSvcUrl)
+	var tenants []tenant.Tenant
+	err = client.Get(tenantsUrl, &tenants)
+	if err != nil {
+		return nil, err
+	}
+	found = false
+	for i := range tenants {
+		if tenants[i].Name == tenantName {
+			found = true
+			vm.TenantId = tenants[i].Id
+			break
+		}
+	}
+	if !found {
+		return nil, errors.New("Tenant with name " + tenantName + " not found")
+	}
+	log.Printf("Tenant name %s has ID %s", tenantName, vm.TenantId)
+
+	segmentsUrl := fmt.Sprintf("/tenants/%d/segments", vm.TenantId)
+	var segments []tenant.Segment
+	err = client.Get(segmentsUrl, &segments)
+	if err != nil {
+		return nil, err
+	}
+	found = false
+	for i := range segments {
+		if segments[i].Name == segmentName {
+			found = true
+			vm.SegmentId = segments[i].Id
+			break
+		}
+	}
+	if !found {
+		return nil, errors.New("Segment with name " + hostName + " not found")
+	}
+	log.Printf("Sement name %s has ID %s", segmentName, vm.SegmentId)
+
+	return ipam.addVm(&vm, ctx)
+}
+
+// handleHost handles request for a specific host's info
 func (ipam *IPAMSvc) addVm(input interface{}, ctx common.RestContext) (interface{}, error) {
 	vm := input.(*Vm)
-	err := ipam.store.addVm(vm)
+	err := ipam.store.addVm(ipam.dc.EndpointSpaceBits, vm)
 	if err != nil {
 		return nil, err
 	}
@@ -80,10 +186,9 @@ func (ipam *IPAMSvc) addVm(input interface{}, ctx common.RestContext) (interface
 
 	hostInfoUrl := fmt.Sprintf("%s/%s", hostsUrl, vm.HostId)
 
-
 	err = client.Get(hostInfoUrl, &host)
 
-	log.Printf(">>>>>>>>>>>>Calling %s, got %s\n", hostInfoUrl, host)
+//	log.Printf(">>>>>>>>>>>>Calling %s, got %s\n", hostInfoUrl, host)
 	if err != nil {
 		return nil, err
 	}
@@ -97,19 +202,18 @@ func (ipam *IPAMSvc) addVm(input interface{}, ctx common.RestContext) (interface
 
 	t := &tenant.Tenant{}
 	tenantsUrl := fmt.Sprintf("%s/tenants/%d", tenantUrl, vm.TenantId)
-	
+
 	err = client.Get(tenantsUrl, t)
 	if err != nil {
 		return nil, err
 	}
 	segmentUrl := fmt.Sprintf("/tenants/%d/segments/%d", vm.TenantId, vm.SegmentId)
-	
+
 	segment := &tenant.Segment{}
 	err = client.Get(segmentUrl, segment)
 	if err != nil {
 		return nil, err
 	}
-	
 
 	log.Printf("Constructing IP from Host IP %s, Tenant %d, Segment %d", host.RomanaIp, t.Seq, segment.Seq)
 
@@ -127,7 +231,7 @@ func (ipam *IPAMSvc) addVm(input interface{}, ctx common.RestContext) (interface
 	vmIpInt := (ipam.dc.Prefix << prefixBitShift) | hostIpInt | (t.Seq << tenantBitShift) | (segment.Seq << segmentBitShift) | vm.Seq
 	vmIpIp := common.IntToIPv4(vmIpInt)
 	vm.Ip = vmIpIp.String()
-	
+
 	return vm, nil
 
 }
@@ -144,7 +248,7 @@ type ipamStore interface {
 	createSchema(overwrite bool) error
 	setConfig(config map[string]interface{}) error
 	// TODO use ptr
-	addVm(vm *Vm) error
+	addVm(stride uint, vm *Vm) error
 }
 
 // SetConfig implements SetConfig function of the Service interface.
@@ -208,6 +312,7 @@ func (ipam *IPAMSvc) Initialize() error {
 
 	dcURL := index.Links.FindByRel("datacenter")
 	dc := common.Datacenter{}
+	log.Printf("IPAM received datacenter information from topology service: %s\n", dc)
 	err = client.Get(dcURL, &dc)
 	if err != nil {
 		return err

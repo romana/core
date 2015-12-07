@@ -24,7 +24,6 @@ import (
 	"github.com/K-Phoen/negotiation"
 	"github.com/gorilla/context"
 	"github.com/gorilla/mux"
-	"github.com/mitchellh/mapstructure"
 	"io/ioutil"
 	"log"
 	"net/url"
@@ -38,14 +37,9 @@ import (
 // that has been unmarshaled.
 type RestContext struct {
 	// Path variables as described in https://godoc.org/code.google.com/p/gorilla/mux
-	// TODO
-	//
-	PathVariables map[string]string
-	// We are passing request for now to be able to access path variables
-	// but it's not ideal to expose this to services; however, at this point
-	// we have no access to these in middleware due to
-	// https://github.com/codegangsta/negroni/issues/74
-	//	Request *http.Request
+
+	PathVariables  map[string]string
+	QueryVariables url.Values
 }
 
 // RestHandler specifies type of a function that each Route provides.
@@ -124,36 +118,26 @@ func wrapHandler(restHandler RestHandler, makeMessage MakeMessage) http.Handler 
 		// This would mean the handler actually wants access to raw request/response
 		// Fine, then...
 		httpHandler := func(writer http.ResponseWriter, request *http.Request) {
+
+			err := request.ParseForm()
+			if err != nil {
+				writer.WriteHeader(http.StatusInternalServerError)
+				writer.Write([]byte(err.Error()))
+				return
+			}
+			restContext := RestContext{PathVariables: mux.Vars(request), QueryVariables: request.Form}
+
 			respReq := UnwrappedRestHandlerInput{writer, request}
-			restHandler(respReq, RestContext{mux.Vars(request)})
+			restHandler(respReq, restContext)
 		}
 		return RomanaHandler{httpHandler}
 	} else {
 		httpHandler := func(writer http.ResponseWriter, request *http.Request) {
-			// The "context" that magically appears here is one managed
-			// by the mux -- here, Gorilla -- http://www.gorillatoolkit.org/pkg/context
-			// but this is a fairly established middleware practice. The intent is
-			// that the middleware augments the incoming request with some data
-			// and then a downstream component (middleware or a final handler)
-			// uses that data. For instance, in this case, we got the upstream
-			// middleware (see UnmarshallerMiddleware) to unmarshal the data
-			// into a consumable object, so we can use it.
-			inDataMap := context.Get(request, ContextKeyUnmarshalledMap)
-
 			var err error
 			if inData != nil {
-				// This is where we decode a generic map into
-				// actual objects that the code that deals with
-				// logic can manipulate, relying on all the attendant
-				// benefits (auto-completion, type-checking) that come
-				// with using actual objects vs lists/dicts. See
-				// https://github.com/mitchellh/mapstructure
-
-				err = mapstructure.Decode(inDataMap, inData)
-
 				ct := request.Header.Get("content-type")
-
 				buf, err := ioutil.ReadAll(request.Body)
+				log.Printf("Read %s\n", string(buf))
 				if err != nil {
 					writer.WriteHeader(http.StatusInternalServerError)
 					writer.Write([]byte(err.Error()))
@@ -172,22 +156,29 @@ func wrapHandler(restHandler RestHandler, makeMessage MakeMessage) http.Handler 
 					return
 				}
 
-				log.Printf("Decoding %s to %s, error %s\n", inDataMap, inData, err)
 				if err != nil {
 					writer.WriteHeader(http.StatusInternalServerError)
 					writer.Write([]byte(err.Error()))
 					return
 				}
 			}
-			outData, err := restHandler(inData, RestContext{mux.Vars(request)})
+			err = request.ParseForm()
+			if err != nil {
+				log.Printf("Error %s\n", err)
+				writer.WriteHeader(http.StatusInternalServerError)
+				writer.Write([]byte(err.Error()))
+				return
+			}
+			restContext := RestContext{PathVariables: mux.Vars(request), QueryVariables: request.Form}
+			outData, err := restHandler(inData, restContext)
 			//			log.Printf("In here, outData: [%s] of type %s, error [%s] [%s]\n", outData, reflect.TypeOf(outData), err, err == nil)
 			if err == nil {
 				contentType := writer.Header().Get("Content-Type")
 				// This should be ok because the middleware took care of negotiating
 				// only the content types we support
 				marshaller := ContentTypeMarshallers[contentType]
-				log.Printf("No marshaler for %s\n", contentType)
 				if marshaller == nil {
+					log.Printf("No marshaler for [%s] found in %s, %s\n", contentType, ContentTypeMarshallers, ContentTypeMarshallers["application/json"])
 					writer.WriteHeader(http.StatusUnsupportedMediaType)
 					sct := supportedContentTypesMessage
 					marshaller := ContentTypeMarshallers["application/json"]
@@ -196,6 +187,7 @@ func wrapHandler(restHandler RestHandler, makeMessage MakeMessage) http.Handler 
 					return
 				}
 				wireData, err := marshaller.Marshal(outData)
+//				log.Printf("Out data: %s, wire data: %s, error %s\n", outData, wireData, err)
 				if err == nil {
 					writer.WriteHeader(http.StatusOK)
 					writer.Write(wireData)
@@ -205,6 +197,7 @@ func wrapHandler(restHandler RestHandler, makeMessage MakeMessage) http.Handler 
 
 			// There was an error -- that's the only way we fell through
 			// here
+			log.Printf("Error %s\n", err)
 			writer.WriteHeader(http.StatusInternalServerError)
 			writer.Write([]byte(err.Error()))
 		}
@@ -287,7 +280,7 @@ func (j formMarshaller) Marshal(v interface{}) ([]byte, error) {
 			}
 		}
 		str = strings.TrimSpace(str)
-		
+
 		retval += str
 	}
 	return []byte(retval), nil
@@ -306,8 +299,10 @@ func (f formMarshaller) Unmarshal(data []byte, v interface{}) error {
 	var m map[string]interface{}
 
 	if vType.Kind() == reflect.Map {
+		// If the output wanted is a map, then just use it as a map.
 		m = *(v.(*map[string]interface{}))
 	} else {
+		// Otherwise, first mape a temporary map
 		m = make(map[string]interface{})
 	}
 	for i := range kvPairs {
@@ -426,7 +421,8 @@ const (
 	// For passing in Gorilla Mux context the unmarshalled data
 	ContextKeyUnmarshalledMap string = "UnmarshalledMap"
 	// For passing in Gorilla Mux context path variables
-	ContextKeyPathVariables string = "PathVars"
+
+	ContextKeyQueryVariables string = "QueryVars"
 	// 	 For passing in Gorilla Mux context the original body data
 	ContextKeyOriginalBody string = "OriginalBody"
 	ContextKeyMarshaller   string = "Marshaller"

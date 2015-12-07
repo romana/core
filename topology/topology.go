@@ -18,7 +18,7 @@ package topology
 import (
 	"errors"
 	"fmt"
-	"github.com/mitchellh/mapstructure"
+//	"github.com/mitchellh/mapstructure"
 	"github.com/romana/core/common"
 	"log"
 	"net"
@@ -179,10 +179,19 @@ func (topology *TopologySvc) SetConfig(config common.ServiceConfig) error {
 	topology.config = config
 	dcMap := config.ServiceSpecific["datacenter"].(map[string]interface{})
 	dc := common.Datacenter{}
-	err := mapstructure.Decode(dcMap, &dc)
-	if err != nil {
-		return err
-	}
+	dc.IpVersion = uint(dcMap["ip_version"].(float64))
+	dc.Cidr = dcMap["cidr"].(string)
+	dc.PortBits = uint(dcMap["host_bits"].(float64))
+	dc.TenantBits = uint(dcMap["tenant_bits"].(float64))
+	dc.SegmentBits =uint( dcMap["segment_bits"].(float64))
+	dc.EndpointBits = uint(dcMap["endpoint_bits"].(float64))
+	dc.EndpointSpaceBits =uint( dcMap["endpoint_space_bits"].(float64))
+	// TODO this should have worked but it doesn't...
+	//	err := mapstructure.Decode(dcMap, &dc)
+	//	if err != nil {
+	//		return err
+	//	}
+	log.Printf("Datacenter information: was %s, decoded to %s\n", dcMap, dc)
 	topology.datacenter = &dc
 	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
 	storeType := strings.ToLower(storeConfig["type"].(string))

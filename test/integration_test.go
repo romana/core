@@ -239,6 +239,20 @@ func (s *MySuite) TestIntegration(c *check.C) {
 	myLog(c, "Received:", vmOut)
 	myLog(c, "IP:", vmOut.Ip)
 
+	// Try legacy request
+	vmOut = ipam.Vm{}
+	legacyUrl := "/allocateIpByName?tenantName=t1&segmentName=s1&hostName=HOST2000&instanceName=bla"
+	myLog(c, "Calling legacy URL", legacyUrl)
+	
+	err = client.Get(legacyUrl, &vmOut)
+	
+	if err != nil {
+		myLog(c, "Error %s\n", err)
+		c.Error(err)
+	}
+	myLog(c, "Legacy received:", vmOut)
+	myLog(c, "Legacy IP:", vmOut.Ip)
+
 	// 5. Start Agent service
 	myLog(c, "STARTING Agent SERVICE")
 	channelAgent, err := agent.Run(s.rootUrl)
@@ -247,6 +261,5 @@ func (s *MySuite) TestIntegration(c *check.C) {
 	}
 	msg = <-channelAgent
 	myLog(c, "Agent service said:", msg)
-	
-	
+
 }

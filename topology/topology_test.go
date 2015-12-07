@@ -44,7 +44,7 @@ var _ = check.Suite(&MySuite{})
 func (s *MySuite) SetUpTest(c *check.C) {
 	dir, _ := os.Getwd()
 	c.Log("Entering setup in directory", dir)
-	s.configFile = "../common/testdata/pani.sample.yaml"
+	s.configFile = "../common/testdata/romana.sample.yaml"
 	var err error
 	s.config, err = common.ReadConfig(s.configFile)
 	if err != nil {
