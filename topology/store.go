@@ -21,10 +21,10 @@ import (
 
 type Host struct {
 	Id        uint64 `sql:"AUTO_INCREMENT"`
-	Name      string
-	Ip        string
-	RomanaIp  string
-	AgentPort uint64
+	Name      string `json:"name"`
+	Ip        string `json:"ip"`
+	RomanaIp  string `json:"romana_ip"`
+	AgentPort uint64 `json:"agent_port"`
 	//	tor         *Tor
 }
 

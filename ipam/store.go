@@ -17,27 +17,26 @@ package ipam
 
 import (
 //	"database/sql"
-	//	"github.com/romana/core/common"
+//	"github.com/romana/core/common"
 )
 
 type Vm struct {
-	Ip        string
-	TenantId  uint64
-	SegmentId uint64
-	HostId    string
-	Name      string
-	Seq       uint64
+	//	Id        uint64 `json:"id"`
+	Ip        string `json:"ip"`
+	TenantId  uint64 `json:"tenant_id"`
+	SegmentId uint64 `json:"segment_id"`
+	HostId    string `json:"host_id"`
+	Name      string `json:"instance"`
+	Seq       uint64 `json:"sequence"`
 }
 
 type IpamHost struct {
 	Vms []IpamVm
 	Id  string `sql:"unique_index"`
-	
-	
 }
 
 type IpamVm struct {
 	Vm
 	Id uint64 `sql:"AUTO_INCREMENT"`
-//	IpamHostId sql.NullString
+	//	IpamHostId sql.NullString
 }

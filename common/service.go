@@ -192,9 +192,9 @@ func GetServiceUrl(rootServiceUrl string, name string) (string, error) {
 // execMethod executes the specified method on the provided url (which is interpreted
 // as relative or absolute).
 func (rc *RestClient) execMethod(method string, url string, data interface{}, result interface{}) error {
-//	log.Printf("RestClient: Going to %s from %s\n", url, rc.url)
+	//	log.Printf("RestClient: Going to %s from %s\n", url, rc.url)
 	err := rc.NewUrl(url)
-//	log.Printf("RestClient: Set rc.url to %s\n", rc.url)
+	//	log.Printf("RestClient: Set rc.url to %s\n", rc.url)
 	if err != nil {
 		return err
 	}
@@ -209,7 +209,6 @@ func (rc *RestClient) execMethod(method string, url string, data interface{}, re
 	} else {
 		reqBodyReader = nil
 	}
-	log.Printf("\n\t=================================\n\t%s %s\n\t%s\n\t=================================", method, rc.url, string(reqBody))
 
 	var body []byte
 	if rc.url.Scheme == "http" || rc.url.Scheme == "https" {
@@ -230,7 +229,7 @@ func (rc *RestClient) execMethod(method string, url string, data interface{}, re
 		if err != nil {
 			return err
 		}
-		
+
 		defer resp.Body.Close()
 		body, err = ioutil.ReadAll(resp.Body)
 	} else if rc.url.Scheme == "file" {
@@ -240,6 +239,7 @@ func (rc *RestClient) execMethod(method string, url string, data interface{}, re
 	} else {
 		return errors.New(fmt.Sprintf("Unsupported scheme %s", rc.url.Scheme))
 	}
+	log.Printf("\n\t=================================\n\t%s %s\n\t%s\n\t\n\t%s\n\t%s=================================", method, rc.url, string(reqBody), string(body), err)
 
 	if err != nil {
 		return err
@@ -360,7 +360,7 @@ type Datacenter struct {
 	TenantBits  uint `json:"tenant_bits"`
 	SegmentBits uint `json:"segment_bits"`
 	// We don't need to store this, but calculate and pass around
-	EndpointBits      uint  `json:"endpoint_bits"`
+	EndpointBits      uint   `json:"endpoint_bits"`
 	EndpointSpaceBits uint   `json:"endpoint_space_bits"`
 	Name              string `json:""`
 }

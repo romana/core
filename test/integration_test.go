@@ -280,7 +280,7 @@ func (s *MySuite) TestIntegration(c *check.C) {
 	vmOut = ipam.Vm{}
 	legacyUrl := "/allocateIpByName?tenantName=t1&segmentName=s1&hostName=HOST2000&instanceName=bla"
 	myLog(c, "Calling legacy URL", legacyUrl)
-
+	
 	err = client.Get(legacyUrl, &vmOut)
 
 	if err != nil {
