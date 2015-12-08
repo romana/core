@@ -183,25 +183,62 @@ func (s *MySuite) TestIntegration(c *check.C) {
 	if err != nil {
 		c.Error(err)
 	}
+	t1Id := tOut.Id
+	myLog(c, "Tenant", tOut)
+
+	// Add second tenant
+	tIn = tenant.Tenant{Name: "t2"}
+	tOut = tenant.Tenant{}
+	err = client.Post("/tenants", tIn, &tOut)
+	if err != nil {
+		c.Error(err)
+	}
+	t2Id := tOut.Id
 	myLog(c, "Tenant", tOut)
 
 	// Find first tenant
 	tOut2 := tenant.Tenant{}
-	tenantPath := fmt.Sprintf("/tenants/%d", tOut.Id)
-	err = client.Get(tenantPath, &tOut2)
+	tenant1Path := fmt.Sprintf("/tenants/%d", t1Id)
+	err = client.Get(tenant1Path, &tOut2)
 	if err != nil {
 		c.Error(err)
 	}
 	myLog(c, "Found", tOut2)
 
-	// Add segment tenant
-	sIn := tenant.Segment{Name: "s1", TenantId: tOut.Id}
+	// Add 2 segments to tenant 1
+	sIn := tenant.Segment{Name: "s1", TenantId: t1Id}
 	sOut := tenant.Segment{}
-	err = client.Post(tenantPath+"/segments", sIn, &sOut)
+	err = client.Post(tenant1Path+"/segments", sIn, &sOut)
 	if err != nil {
 		c.Error(err)
 	}
-	myLog(c, "Segment", sOut)
+	myLog(c, "Added segment s1 to t1: ", sOut)
+	sIn = tenant.Segment{Name: "s2", TenantId: t1Id}
+	sOut = tenant.Segment{}
+	err = client.Post(tenant1Path+"/segments", sIn, &sOut)
+	if err != nil {
+		c.Error(err)
+	}
+	myLog(c, "Added segment s2 to t1: ", sOut)
+
+	// Add 2 segments to tenant 2
+	tenant2Path := fmt.Sprintf("/tenants/%d", t2Id)
+
+	sIn = tenant.Segment{Name: "s1", TenantId: t2Id}
+	sOut = tenant.Segment{}
+	err = client.Post(tenant2Path+"/segments", sIn, &sOut)
+	if err != nil {
+		c.Error(err)
+	}
+	myLog(c, "Added segment s1 to t2: ", sOut)
+
+	sIn = tenant.Segment{Name: "s2", TenantId: t2Id}
+	sOut = tenant.Segment{}
+	err = client.Post(tenant2Path+"/segments", sIn, &sOut)
+	if err != nil {
+		c.Error(err)
+	}
+	myLog(c, "Added segment s2 to t2: ", sOut)
 
 	// 4. Start IPAM service
 	myLog(c, "STARTING IPAM SERVICE")
@@ -243,9 +280,9 @@ func (s *MySuite) TestIntegration(c *check.C) {
 	vmOut = ipam.Vm{}
 	legacyUrl := "/allocateIpByName?tenantName=t1&segmentName=s1&hostName=HOST2000&instanceName=bla"
 	myLog(c, "Calling legacy URL", legacyUrl)
-	
+
 	err = client.Get(legacyUrl, &vmOut)
-	
+
 	if err != nil {
 		myLog(c, "Error %s\n", err)
 		c.Error(err)

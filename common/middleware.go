@@ -187,7 +187,7 @@ func wrapHandler(restHandler RestHandler, makeMessage MakeMessage) http.Handler 
 					return
 				}
 				wireData, err := marshaller.Marshal(outData)
-//				log.Printf("Out data: %s, wire data: %s, error %s\n", outData, wireData, err)
+				//				log.Printf("Out data: %s, wire data: %s, error %s\n", outData, wireData, err)
 				if err == nil {
 					writer.WriteHeader(http.StatusOK)
 					writer.Write(wireData)
@@ -355,6 +355,7 @@ func (f formMarshaller) Unmarshal(data []byte, v interface{}) error {
 
 // ContentTypeMarshallers maps MIME type to Marshaller instances
 var ContentTypeMarshallers map[string]Marshaller = map[string]Marshaller{
+	"":                                  jsonMarshaller{},
 	"application/json":                  jsonMarshaller{},
 	"application/vnd.romana.v1+json":    jsonMarshaller{},
 	"application/vnd.romana+json":       jsonMarshaller{},
@@ -481,7 +482,7 @@ func NewNegotiator() *NegotiatorMiddleware {
 func (negotiator NegotiatorMiddleware) ServeHTTP(writer http.ResponseWriter, request *http.Request, next http.HandlerFunc) {
 	// TODO answer with a 406 here?
 	accept := request.Header.Get("accept")
-	if accept == "*/*" {
+	if accept == "*/*" || accept == "" {
 		// Force json if it can take anything.
 		accept = "application/json"
 	}

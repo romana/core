@@ -135,7 +135,7 @@ func (tsvc *TenantSvc) addSegment(input interface{}, ctx common.RestContext) (in
 	}
 	newSegment := input.(*Segment)
 	err = tsvc.store.addSegment(tenantId, newSegment)
-
+	
 	return newSegment, err
 }
 

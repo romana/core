@@ -188,7 +188,6 @@ func (ipam *IPAMSvc) addVm(input interface{}, ctx common.RestContext) (interface
 
 	err = client.Get(hostInfoUrl, &host)
 
-//	log.Printf(">>>>>>>>>>>>Calling %s, got %s\n", hostInfoUrl, host)
 	if err != nil {
 		return nil, err
 	}

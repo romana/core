@@ -70,7 +70,7 @@ func (mysqlStore *mysqlStore) addVm(stride uint, vm *Vm) error {
 			vmSeq = 3 + vmSeq
 		}
 	}
-	log.Printf("Sequence %s (stride %s)\n", vmSeq, stride)
+	log.Printf("Sequence %d (stride %d)\n", vmSeq, stride)
 	vm.Seq = vmSeq
 	ipamVm.Seq = vmSeq
 	mysqlStore.db.Save(&ipamVm)
