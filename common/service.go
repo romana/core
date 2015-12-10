@@ -95,7 +95,7 @@ type HostMessage struct {
 	Id        string `json:"id"`
 	Name      string `json:"name"`
 	Ip        string `json:"ip"`
-	RomanaIp  string
+	RomanaIp  string`json:"romana_ip"`
 	AgentPort int   `json:"agentPort"`
 	Links     Links `json:"links"`
 	//    Tor string       `json:"tor"`
@@ -239,7 +239,20 @@ func (rc *RestClient) execMethod(method string, url string, data interface{}, re
 	} else {
 		return errors.New(fmt.Sprintf("Unsupported scheme %s", rc.url.Scheme))
 	}
-	log.Printf("\n\t=================================\n\t%s %s\n\t%s\n\t\n\t%s\n\t%s=================================", method, rc.url, string(reqBody), string(body), err)
+
+	reqBodyStr := ""
+	if reqBody != nil {
+		reqBodyStr = string(reqBody)
+	}
+	bodyStr := ""
+	if body != nil {
+		bodyStr = string(body)
+	}
+	errStr := ""
+	if err != nil {
+		errStr = err.Error()
+	}
+	log.Printf("\n\t=================================\n\t%s %s\n\t%s\n\t\n\t%s\n\t%s=================================", method, rc.url, reqBodyStr, bodyStr, errStr)
 
 	if err != nil {
 		return err
@@ -311,6 +324,7 @@ func InitializeService(service Service, config ServiceConfig) (chan ServiceMessa
 
 	portStr := strconv.FormatUint(config.Common.Api.Port, 10)
 	hostPort := strings.Join([]string{config.Common.Api.Host, portStr}, ":")
+	log.Println("About to start...")
 	go func() {
 		channel <- Starting
 		log.Printf("%s: Trying to listen on %s", service.Name(), hostPort)

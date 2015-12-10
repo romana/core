@@ -23,7 +23,6 @@ import (
 	"github.com/romana/core/common"
 	"strconv"
 	"strings"
-
 	//	"github.com/gorilla/mux"
 )
 
@@ -69,10 +68,10 @@ func (root *Root) handleIndex(input interface{}, ctx common.RestContext) (interf
 
 	retval.ServiceName = "root"
 	myUrl := strings.Join([]string{"http://", root.config.common.Api.Host, ":", strconv.FormatUint(root.config.common.Api.Port, 10)}, "")
-	
+
 	// Links has links to config URLs for now, but also self - hence plus one
 	retval.Links = make([]common.LinkResponse, len(root.config.full.Services)+1)
-	
+
 	retval.Services = make([]common.ServiceResponse, len(root.config.full.Services))
 	i := 0
 	for key, value := range root.config.full.Services {
@@ -81,12 +80,12 @@ func (root *Root) handleIndex(input interface{}, ctx common.RestContext) (interf
 		href := "http://" + value.Common.Api.GetHostPort()
 		link := common.LinkResponse{Rel: "service", Href: href}
 		retval.Services[i].Links = []common.LinkResponse{link}
-		configLink := common.LinkResponse{"/config/" + key, key +"-config"}
+		configLink := common.LinkResponse{"/config/" + key, key + "-config"}
 		retval.Links[i] = configLink
 		i++
 	}
 	retval.Links[i] = common.LinkResponse{myUrl, "self"}
-	
+
 	return retval, nil
 }
 

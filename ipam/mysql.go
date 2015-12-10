@@ -32,16 +32,11 @@ type mysqlStore struct {
 }
 
 func (mysqlStore *mysqlStore) addVm(stride uint, vm *Vm) error {
-	// TODO should be ptr
-	// This is tricky... What IPAM considers host ID is its
-	// internal host ID.
-	//	host := IpamHost{Id: vm.HostId}
-	//	mysqlStore.db.Where(host).FirstOrCreate(&host)
 	tx := mysqlStore.db.Begin()
 
 	row := tx.Model(IpamVm{}).Where("host_id = ? AND segment_id = ?", vm.HostId, vm.SegmentId).Select("IFNULL(MAX(seq),-1)+1").Row()
 	row.Scan(&vm.Seq)
-	log.Printf("New sequence is %s\n", vm.Seq)
+	log.Printf("New sequence is %d\n", vm.Seq)
 	
 	// vmSeq is the sequence number of VM in a given host
 	effectiveVmSeq := getEffectiveSeq(vm.Seq, stride)

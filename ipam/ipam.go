@@ -105,7 +105,9 @@ func (ipam *IPAMSvc) legacyAllocateIpByName(input interface{}, ctx common.RestCo
 		}
 	}
 	if !found {
-		return nil, errors.New("Host with name " + hostName + " not found")
+		msg := fmt.Sprintf("Host with name %s not found", hostName)
+		log.Printf(msg)
+		return nil, errors.New(msg)
 	}
 	log.Printf("Host name %s has ID %s", hostName, vm.HostId)
 
@@ -123,19 +125,21 @@ func (ipam *IPAMSvc) legacyAllocateIpByName(input interface{}, ctx common.RestCo
 		return nil, err
 	}
 	found = false
-	for i := range tenants {
+	var i int
+	for i = range tenants {
 		if tenants[i].Name == tenantName {
 			found = true
-			vm.TenantId = tenants[i].Id
+			vm.TenantId = fmt.Sprintf("%d", tenants[i].Id)
+			log.Printf("IPAM: Tenant name %s has ID %s, original %d\n", tenantName, vm.TenantId, tenants[i].Id)
 			break
 		}
 	}
 	if !found {
 		return nil, errors.New("Tenant with name " + tenantName + " not found")
 	}
-	log.Printf("Tenant name %s has ID %s", tenantName, vm.TenantId)
+	log.Printf("IPAM: Tenant name %s has ID %s, original %d\n", tenantName, vm.TenantId, tenants[i].Id)
 
-	segmentsUrl := fmt.Sprintf("/tenants/%d/segments", vm.TenantId)
+	segmentsUrl := fmt.Sprintf("/tenants/%s/segments", vm.TenantId)
 	var segments []tenant.Segment
 	err = client.Get(segmentsUrl, &segments)
 	if err != nil {
@@ -145,7 +149,7 @@ func (ipam *IPAMSvc) legacyAllocateIpByName(input interface{}, ctx common.RestCo
 	for i := range segments {
 		if segments[i].Name == segmentName {
 			found = true
-			vm.SegmentId = segments[i].Id
+			vm.SegmentId = fmt.Sprintf("%d", tenants[i].Id)
 			break
 		}
 	}
@@ -200,14 +204,16 @@ func (ipam *IPAMSvc) addVm(input interface{}, ctx common.RestContext) (interface
 	// TODO follow links once tenant service supports it. For now...
 
 	t := &tenant.Tenant{}
-	tenantsUrl := fmt.Sprintf("%s/tenants/%d", tenantUrl, vm.TenantId)
-
+	tenantsUrl := fmt.Sprintf("%s/tenants/%s", tenantUrl, vm.TenantId)
+	log.Printf("IPAM calling %s\n", tenantsUrl)
 	err = client.Get(tenantsUrl, t)
 	if err != nil {
 		return nil, err
 	}
-	segmentUrl := fmt.Sprintf("/tenants/%d/segments/%d", vm.TenantId, vm.SegmentId)
+	log.Printf("IPAM received tenant %s ID %d\n", t.Name, t.Id)
 
+	segmentUrl := fmt.Sprintf("/tenants/%s/segments/%s", vm.TenantId, vm.SegmentId)
+	log.Printf("IPAM calling %s\n", segmentUrl)
 	segment := &tenant.Segment{}
 	err = client.Get(segmentUrl, segment)
 	if err != nil {
@@ -221,7 +227,7 @@ func (ipam *IPAMSvc) addVm(input interface{}, ctx common.RestContext) (interface
 	prefixBitShift := 32 - ipam.dc.PrefixBits
 	tenantBitShift := segmentBitShift + ipam.dc.SegmentBits
 	//	hostBitShift := tenantBitShift + ipam.dc.TenantBits
-
+	log.Printf("Parsing Romana IP address of host %s: %s\n", host.Name, host.RomanaIp)
 	hostIp, _, err := net.ParseCIDR(host.RomanaIp)
 	if err != nil {
 		return nil, err
@@ -264,8 +270,8 @@ func (ipam *IPAMSvc) SetConfig(config common.ServiceConfig) error {
 	case "mysql":
 		ipam.store = &mysqlStore{}
 
-		//	case "mock":
-		//		ipam.store = &mockStore{}
+	case "mock":
+		ipam.store = &mockStore{}
 
 	default:
 		return errors.New("Unknown store type: " + storeType)

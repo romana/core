@@ -96,6 +96,7 @@ func (topology *TopologySvc) Name() string {
 
 // handleHost handles request for a specific host's info
 func (topology *TopologySvc) handleHost(input interface{}, ctx common.RestContext) (interface{}, error) {
+	log.Println("In handleHost()")
 	idStr := ctx.PathVariables["hostId"]
 	id, err := strconv.ParseUint(idStr, 10, 64)
 	if err != nil {
@@ -117,6 +118,7 @@ func (topology *TopologySvc) handleHost(input interface{}, ctx common.RestContex
 }
 
 func (topology *TopologySvc) handleHostListGet(input interface{}, ctx common.RestContext) (interface{}, error) {
+	log.Println("In handleHostListGet()")
 	hosts, err := topology.store.listHosts()
 	if err != nil {
 		return nil, err
@@ -133,7 +135,7 @@ func (topology *TopologySvc) handleHostListGet(input interface{}, ctx common.Res
 func (topology *TopologySvc) handleHostListPost(input interface{}, ctx common.RestContext) (interface{}, error) {
 	hostMessage := input.(*common.HostMessage)
 	host := Host{Ip: hostMessage.Ip, Name: hostMessage.Name, RomanaIp: hostMessage.RomanaIp, AgentPort: uint64(hostMessage.AgentPort)}
-	id, err := topology.store.addHost(host)
+	id, err := topology.store.addHost(&host)
 	if err != nil {
 		return nil, err
 	}
@@ -166,7 +168,7 @@ type topologyStore interface {
 	validateConnectionInformation() error
 	connect() error
 	createSchema(overwrite bool) error
-	addHost(host Host) (string, error)
+	addHost(host *Host) (string, error)
 	listHosts() ([]Host, error)
 	findHost(id uint64) (Host, error)
 	setConfig(config map[string]interface{}) error

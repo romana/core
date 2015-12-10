@@ -107,9 +107,9 @@ func (mysqlStore *mysqlStore) listHosts() ([]Host, error) {
 	return hosts, nil
 }
 
-func (mysqlStore *mysqlStore) addHost(host Host) (string, error) {
-	mysqlStore.db.NewRecord(host)
-	mysqlStore.db.Create(&host)
+func (mysqlStore *mysqlStore) addHost(host *Host) (string, error) {
+	mysqlStore.db.NewRecord(*host)
+	mysqlStore.db.Create(host)
 	err := common.MakeMultiError(mysqlStore.db.GetErrors())
 	if err != nil {
 		return "", err

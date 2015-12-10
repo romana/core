@@ -23,8 +23,8 @@ import (
 type Vm struct {
 	//	Id        uint64 `json:"id"`
 	Ip        string `json:"ip"`
-	TenantId  uint64 `json:"tenant_id"`
-	SegmentId uint64 `json:"segment_id"`
+	TenantId  string `json:"tenant_id"`
+	SegmentId string `json:"segment_id"`
 	HostId    string `json:"host_id"`
 	Name      string `json:"instance"`
 	// Ordinal number of this VM in the host/tenant combination

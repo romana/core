@@ -83,6 +83,7 @@ func (tsvc *TenantSvc) Routes() common.Routes {
 }
 
 func (tsvc *TenantSvc) addTenant(input interface{}, ctx common.RestContext) (interface{}, error) {
+	log.Println("In addTenant()")
 	newTenant := input.(*Tenant)
 	err := tsvc.store.addTenant(newTenant)
 
@@ -92,6 +93,7 @@ func (tsvc *TenantSvc) addTenant(input interface{}, ctx common.RestContext) (int
 	return newTenant, err
 }
 func (tsvc *TenantSvc) listTenants(input interface{}, ctx common.RestContext) (interface{}, error) {
+	log.Println("In listTenants()")
 	tenants, err := tsvc.store.listTenants()
 	if err != nil {
 		return nil, err
@@ -100,6 +102,7 @@ func (tsvc *TenantSvc) listTenants(input interface{}, ctx common.RestContext) (i
 }
 
 func (tsvc *TenantSvc) listSegments(input interface{}, ctx common.RestContext) (interface{}, error) {
+	log.Println("In listSegments()")
 	idStr := ctx.PathVariables["tenantId"]
 	id, err := strconv.ParseUint(idStr, 10, 64)
 	if err != nil {
@@ -112,10 +115,9 @@ func (tsvc *TenantSvc) listSegments(input interface{}, ctx common.RestContext) (
 	return segments, nil
 }
 
-
-
 func (tsvc *TenantSvc) findTenant(input interface{}, ctx common.RestContext) (interface{}, error) {
 	idStr := ctx.PathVariables["tenantId"]
+	log.Printf("In findTenant(%s)\n", idStr)
 	id, err := strconv.ParseUint(idStr, 10, 64)
 	if err != nil {
 		return nil, err
@@ -128,6 +130,7 @@ func (tsvc *TenantSvc) findTenant(input interface{}, ctx common.RestContext) (in
 }
 
 func (tsvc *TenantSvc) addSegment(input interface{}, ctx common.RestContext) (interface{}, error) {
+	log.Println("In addSegment()")
 	tenantIdStr := ctx.PathVariables["tenantId"]
 	tenantId, err := strconv.ParseUint(tenantIdStr, 10, 64)
 	if err != nil {
@@ -135,7 +138,7 @@ func (tsvc *TenantSvc) addSegment(input interface{}, ctx common.RestContext) (in
 	}
 	newSegment := input.(*Segment)
 	err = tsvc.store.addSegment(tenantId, newSegment)
-	
+
 	return newSegment, err
 }
 
@@ -144,16 +147,17 @@ func (tenant *TenantSvc) Name() string {
 }
 
 func (tsvc *TenantSvc) findSegment(input interface{}, ctx common.RestContext) (interface{}, error) {
+	log.Println("In findSegment()")
 	tenantIdStr := ctx.PathVariables["tenantId"]
 	tenantId, err := strconv.ParseUint(tenantIdStr, 10, 64)
-	
+
 	if err != nil {
 		return nil, err
 	}
 	segmentIdStr := ctx.PathVariables["segmentId"]
-	
+
 	segmentId, err := strconv.ParseUint(segmentIdStr, 10, 64)
-	
+
 	if err != nil {
 		return nil, err
 	}
@@ -175,10 +179,8 @@ func (tsvc *TenantSvc) SetConfig(config common.ServiceConfig) error {
 	switch storeType {
 	case "mysql":
 		tsvc.store = &mysqlStore{}
-
-		//	case "mock":
-		//		tsvc.store = &mockStore{}
-
+	case "mock":
+		tsvc.store = &mockStore{}
 	default:
 		return errors.New("Unknown store type: " + storeType)
 	}

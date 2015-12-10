@@ -9,7 +9,7 @@ services:
       port: 9601
     config:
       store: 
-        type: mysql
+        type: mock
         host: localhost
         username: root
         password: password
@@ -20,7 +20,7 @@ services:
       port: 9602
     config:
       store: 
-        type: mysql
+        type: mock
         host: localhost
         username: root
         password: password
@@ -31,7 +31,7 @@ services:
       port: 9603
     config:
       store: 
-        type: mysql
+        type: mock
         host: localhost
         username: root
         password: password

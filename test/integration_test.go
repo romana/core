@@ -91,8 +91,8 @@ func (s *MySuite) SetUpTest(c *check.C) {
 }
 
 func myLog(c *check.C, args ...interface{}) {
-	fmt.Println(args)
-	c.Log(args)
+	fmt.Println("IntegrationTest> ", args)
+	c.Log("IntegrationTest> ", args)
 }
 
 // Test the integration with root and topology service
@@ -136,20 +136,19 @@ func (s *MySuite) TestIntegration(c *check.C) {
 	c.Assert(len(hostList), check.Equals, 0)
 	newHostReq := common.HostMessage{Ip: "10.10.10.10", RomanaIp: "10.64.0.0/16", AgentPort: 9999, Name: "HOST1000"}
 
-	newHostResp := common.HostMessage{}
-	client.Post(hostsRelUrl, newHostReq, &newHostResp)
-	myLog(c, "Response: ", newHostResp)
-	c.Assert(newHostResp.Ip, check.Equals, "10.10.10.10")
-	//	c.Assert(newHostResp.Id, check.Equals, "1")
-
+	host1 := common.HostMessage{}
+	client.Post(hostsRelUrl, newHostReq, &host1)
+	myLog(c, "Response: ", host1)
+	c.Assert(host1.Ip, check.Equals, "10.10.10.10")
+	c.Assert(host1.Id, check.Equals, "1")
+	//
 	newHostReq = common.HostMessage{Ip: "10.10.10.11", RomanaIp: "10.65.0.0/16", AgentPort: 9999, Name: "HOST2000"}
-	newHostResp = common.HostMessage{}
-	client.Post(hostsRelUrl, newHostReq, &newHostResp)
-	myLog(c, "Response: ", newHostResp)
+	host2 := common.HostMessage{}
+	client.Post(hostsRelUrl, newHostReq, &host2)
+	myLog(c, "Response: ", host2)
 
-	c.Assert(newHostResp.Ip, check.Equals, "10.10.10.11")
-	c.Assert(newHostResp.Id, check.Equals, "2")
-
+	c.Assert(host2.Ip, check.Equals, "10.10.10.11")
+	c.Assert(host2.Id, check.Equals, "2")
 	var hostList2 []common.HostMessage
 	client.Get(hostsRelUrl, &hostList2)
 	myLog(c, "Host list: ", hostList2)
@@ -257,7 +256,7 @@ func (s *MySuite) TestIntegration(c *check.C) {
 	}
 
 	// Get first IP
-	vmIn := ipam.Vm{Name: "vm1", TenantId: tOut.Id, SegmentId: sOut.Id, HostId: "2"}
+	vmIn := ipam.Vm{Name: "vm1", TenantId: fmt.Sprintf("%d", tOut.Id), SegmentId: fmt.Sprintf("%d", sOut.Id), HostId: host2.Id}
 	vmOut := ipam.Vm{}
 	err = client.Post("/vms", vmIn, &vmOut)
 	if err != nil {
@@ -267,7 +266,7 @@ func (s *MySuite) TestIntegration(c *check.C) {
 	myLog(c, "IP:", vmOut.Ip)
 
 	// Get second IP
-	vmIn = ipam.Vm{Name: "vm2", TenantId: tOut.Id, SegmentId: sOut.Id, HostId: "2"}
+	vmIn = ipam.Vm{Name: "vm2", TenantId: fmt.Sprintf("%d", tOut.Id), SegmentId: fmt.Sprintf("%d", sOut.Id), HostId: host2.Id}
 	vmOut = ipam.Vm{}
 	err = client.Post("/vms", vmIn, &vmOut)
 	if err != nil {
@@ -280,7 +279,7 @@ func (s *MySuite) TestIntegration(c *check.C) {
 	vmOut = ipam.Vm{}
 	legacyUrl := "/allocateIpByName?tenantName=t1&segmentName=s1&hostName=HOST2000&instanceName=bla"
 	myLog(c, "Calling legacy URL", legacyUrl)
-	
+
 	err = client.Get(legacyUrl, &vmOut)
 
 	if err != nil {
