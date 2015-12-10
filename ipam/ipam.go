@@ -216,7 +216,7 @@ func (ipam *IPAMSvc) addVm(input interface{}, ctx common.RestContext) (interface
 
 	log.Printf("Constructing IP from Host IP %s, Tenant %d, Segment %d", host.RomanaIp, t.Seq, segment.Seq)
 
-	vmBits := 32 - ipam.dc.PrefixBits - ipam.dc.PortBits - ipam.dc.TenantBits - ipam.dc.SegmentBits
+	vmBits := 32 - ipam.dc.PrefixBits - ipam.dc.PortBits - ipam.dc.TenantBits - ipam.dc.SegmentBits - ipam.dc.EndpointSpaceBits
 	segmentBitShift := vmBits
 	prefixBitShift := 32 - ipam.dc.PrefixBits
 	tenantBitShift := segmentBitShift + ipam.dc.SegmentBits
@@ -227,8 +227,10 @@ func (ipam *IPAMSvc) addVm(input interface{}, ctx common.RestContext) (interface
 		return nil, err
 	}
 	hostIpInt := common.IPv4ToInt(hostIp)
-	vmIpInt := (ipam.dc.Prefix << prefixBitShift) | hostIpInt | (t.Seq << tenantBitShift) | (segment.Seq << segmentBitShift) | vm.Seq
+	vmIpInt := (ipam.dc.Prefix << prefixBitShift) | hostIpInt | (t.Seq << tenantBitShift) | (segment.Seq << segmentBitShift) | vm.EffectiveSeq
 	vmIpIp := common.IntToIPv4(vmIpInt)
+	log.Printf("Constructing (%d << %d) | %d | (%d << %d) | ( %d << %d ) | %d=%s\n", ipam.dc.Prefix, prefixBitShift, hostIpInt, t.Seq, tenantBitShift, segment.Seq, segmentBitShift, vm.EffectiveSeq, vmIpIp.String())
+
 	vm.Ip = vmIpIp.String()
 
 	return vm, nil

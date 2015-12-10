@@ -8,7 +8,7 @@
 // http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
-//  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
 // WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 // License for the specific language governing permissions and limitations
 // under the License.
@@ -37,8 +37,9 @@ import (
 // that has been unmarshaled.
 type RestContext struct {
 	// Path variables as described in https://godoc.org/code.google.com/p/gorilla/mux
-
-	PathVariables  map[string]string
+	PathVariables map[string]string
+	// QueryVariables stores key-value-list map of query variables, see url.Values
+	// for more details.
 	QueryVariables url.Values
 }
 
@@ -74,13 +75,15 @@ type MakeMessage func() interface{}
 type Route struct {
 	// REST method
 	Method string
+
 	// Pattern (see http://www.gorillatoolkit.org/pkg/mux)
 	Pattern string
+
 	// Handler (see documentation above)
 	Handler RestHandler
+
 	// This should return a POINTER to an instance which
 	// this route expects as an input.
-
 	MakeMessage MakeMessage
 }
 
@@ -98,8 +101,10 @@ func (romanaHandler RomanaHandler) ServeHTTP(writer http.ResponseWriter, request
 	romanaHandler.doServeHTTP(writer, request)
 }
 
-// For comparing to the type of Consumes field of Route struct
+// For comparing to the type of Consumes field of Route struct.
 var requestType = reflect.TypeOf(http.Request{})
+
+// For comparing to the type of string.
 var stringType = reflect.TypeOf("")
 
 // wrapHandler wraps the RestHandler function, which deals
@@ -220,8 +225,12 @@ func newRouter(routes []Route) *mux.Router {
 	return router
 }
 
+// List of supported content types to return in a
+// 406 response.
 var supportedContentTypes = []string{"text/plain", "application/vnd.romana.v1+json", "application/vnd.romana+json", "application/json", "application/x-www-form-urlencoded"}
 
+// Above list of supported content types wrapped in a
+// struct for converion to JSON.
 var supportedContentTypesMessage = struct {
 	SupportedContentTypes []string `json:"supported_content_types"`
 }{
@@ -238,10 +247,14 @@ type Marshaller interface {
 // data to/from JSON format.
 type jsonMarshaller struct{}
 
+// Marshal takes the provided interface and return []byte
+// of its JSON representation.
 func (j jsonMarshaller) Marshal(v interface{}) ([]byte, error) {
 	return json.Marshal(v)
 }
 
+// Unmarshal attempts to fill the fields of provided interface
+// from the provided JSON sructure.
 func (j jsonMarshaller) Unmarshal(data []byte, v interface{}) error {
 	return json.Unmarshal(data, v)
 }
@@ -257,7 +270,6 @@ func (j formMarshaller) Marshal(v interface{}) ([]byte, error) {
 	vType := reflect.TypeOf(vVal.Interface())
 	for i := 0; i < vVal.NumField(); i++ {
 		metaField := vType.Field(i)
-
 		field := vVal.Field(i)
 		formKey := metaField.Tag.Get("form")
 		if len(retval) > 0 {
@@ -286,6 +298,29 @@ func (j formMarshaller) Marshal(v interface{}) ([]byte, error) {
 	return []byte(retval), nil
 }
 
+// Unmarshal attempts to take a payload of an HTML form
+// (key=value pairs separated by &, application/x-www-form-urlencoded
+// MIME) and fill the v structure from it. It is not a universal method,
+// and right now is limited to this simple functionality:
+// 1. No support for multiple values for the same key (though HTML forms allow it).
+// 2. interface v must be one of:
+//    a. map[string]interface{}
+//    b. Contain string fields for every field in the form OR,
+//       implement a Set<Field> method. (Structure tag "form" can be
+//       used to map the form key to the structure field if they are
+//       different). Here is a supported example:
+//       type NetIf struct {
+//    	     Mac  string `form:"mac_address"` // Will get set because it's a string.
+//	         IP  net.IP `form:"ip_address"`   // Will get set because of SetIP() method below.
+//       }
+//
+//func (netif *NetIf) SetIP(ip string) error {
+//	netif.IP = net.ParseIP(ip)
+//	if netif.IP == nil {
+//		return failedToParseNetif()
+//	}
+//	return nil
+//}
 func (f formMarshaller) Unmarshal(data []byte, v interface{}) error {
 	log.Printf("Entering formMarshaller.Unmarshal()\n")
 	var err error
@@ -295,9 +330,7 @@ func (f formMarshaller) Unmarshal(data []byte, v interface{}) error {
 	vVal := vPtr.Elem()
 	vType := reflect.TypeOf(vVal.Interface())
 	kvPairs := strings.Split(dataStr, "&")
-
 	var m map[string]interface{}
-
 	if vType.Kind() == reflect.Map {
 		// If the output wanted is a map, then just use it as a map.
 		m = *(v.(*map[string]interface{}))
@@ -314,12 +347,13 @@ func (f formMarshaller) Unmarshal(data []byte, v interface{}) error {
 		if err != nil {
 			return err
 		}
-		log.Printf("Unescaped %s to %s\n", val, val2)
 		m[key] = val2
 	}
 	log.Printf("Unmarshaled form %s to map %s\n", dataStr, m)
 
 	if vType.Kind() == reflect.Map {
+		// At this point we already have filled in the map,
+		// and map is the type we want, so we return.
 		return nil
 	}
 
@@ -333,12 +367,12 @@ func (f formMarshaller) Unmarshal(data []byte, v interface{}) error {
 			field.SetString(formValue.(string))
 		} else {
 			setterMethodName := fmt.Sprintf("Set%s", metaField.Name)
-			m := vPtr.MethodByName(setterMethodName)
-			log.Printf("Looking for method %s on %s: %s\n", setterMethodName, vPtr, m)
-			if reflect.Zero(reflect.TypeOf(m)) != m {
+			setterMethod := vPtr.MethodByName(setterMethodName)
+			log.Printf("Looking for method %s on %s: %s\n", setterMethodName, vPtr, setterMethod)
+			if reflect.Zero(reflect.TypeOf(setterMethod)) != setterMethod {
 				valueArg := reflect.ValueOf(formValue)
 				valueArgs := []reflect.Value{valueArg}
-				result := m.Call(valueArgs)
+				result := setterMethod.Call(valueArgs)
 				errIfc := result[0].Interface()
 				if errIfc != nil {
 					return errIfc.(error)
@@ -355,6 +389,8 @@ func (f formMarshaller) Unmarshal(data []byte, v interface{}) error {
 
 // ContentTypeMarshallers maps MIME type to Marshaller instances
 var ContentTypeMarshallers map[string]Marshaller = map[string]Marshaller{
+	// If no content type is sent, we will still assume it's JSON
+	// and try.
 	"":                                  jsonMarshaller{},
 	"application/json":                  jsonMarshaller{},
 	"application/vnd.romana.v1+json":    jsonMarshaller{},

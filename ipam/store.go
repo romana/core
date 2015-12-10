@@ -27,10 +27,20 @@ type Vm struct {
 	SegmentId uint64 `json:"segment_id"`
 	HostId    string `json:"host_id"`
 	Name      string `json:"instance"`
+	// Ordinal number of this VM in the host/tenant combination
 	Seq       uint64 `json:"sequence"`
+	// Calculated effective sequence number of this VM --
+	// taking into account stride (endpoint space bits)
+	// and alignment thereof. This is used in IP calculation.
+	EffectiveSeq       uint64 `json:"effective_sequence"`
 }
 
 type IpamHost struct {
+	Vms []IpamVm
+	Id  string `sql:"unique_index"`
+}
+
+type IpamSegment struct {
 	Vms []IpamVm
 	Id  string `sql:"unique_index"`
 }

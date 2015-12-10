@@ -181,6 +181,13 @@ func (topology *TopologySvc) SetConfig(config common.ServiceConfig) error {
 	dc := common.Datacenter{}
 	dc.IpVersion = uint(dcMap["ip_version"].(float64))
 	dc.Cidr = dcMap["cidr"].(string)
+	_, ipNet, err := net.ParseCIDR(dc.Cidr)
+	if err != nil {
+		return err
+	}
+	prefixBits, _ := ipNet.Mask.Size()
+	dc.PrefixBits=uint(prefixBits)
+	
 	dc.PortBits = uint(dcMap["host_bits"].(float64))
 	dc.TenantBits = uint(dcMap["tenant_bits"].(float64))
 	dc.SegmentBits =uint( dcMap["segment_bits"].(float64))

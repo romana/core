@@ -35,50 +35,34 @@ func (mysqlStore *mysqlStore) addVm(stride uint, vm *Vm) error {
 	// TODO should be ptr
 	// This is tricky... What IPAM considers host ID is its
 	// internal host ID.
-	host := IpamHost{Id: vm.HostId}
-	mysqlStore.db.Where(host).FirstOrCreate(&host)
+	//	host := IpamHost{Id: vm.HostId}
+	//	mysqlStore.db.Where(host).FirstOrCreate(&host)
+	tx := mysqlStore.db.Begin()
+
+	row := tx.Model(IpamVm{}).Where("host_id = ? AND segment_id = ?", vm.HostId, vm.SegmentId).Select("IFNULL(MAX(seq),-1)+1").Row()
+	row.Scan(&vm.Seq)
+	log.Printf("New sequence is %s\n", vm.Seq)
+	
+	// vmSeq is the sequence number of VM in a given host
+	effectiveVmSeq := getEffectiveSeq(vm.Seq, stride)
+	log.Printf("Effective sequence for seq %d (stride %d): %d\n", vm.Seq, stride, effectiveVmSeq)
+	vm.EffectiveSeq = effectiveVmSeq
 	ipamVm := IpamVm{Vm: *vm}
-	mysqlStore.db.NewRecord(ipamVm)
-	mysqlStore.db.Create(&ipamVm)
+	tx.NewRecord(ipamVm)
+	tx.Create(&ipamVm)
 	err := common.MakeMultiError(mysqlStore.db.GetErrors())
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
-	myId := ipamVm.Id
-
-	// TODO better way of getting sequence
-	var vms []IpamVm
-
-	mysqlStore.db.Where("host_id = ?", vm.HostId).Find(&vms)
-	err = common.MakeMultiError(mysqlStore.db.GetErrors())
-	if err != nil {
-		return err
-	}
-	var vmSeq uint64
-	for i := range vms {
-		if vms[i].Id == myId {
-			vmSeq = uint64(i)
-			break
-		}
-	}
-	if vmSeq == 0 {
-		vmSeq = 3
-	} else {
-		if stride > 0 {
-			vmSeq = 3 + (1<<stride)*vmSeq
-		} else {
-			vmSeq = 3 + vmSeq
-		}
-	}
-	log.Printf("Sequence %d (stride %d)\n", vmSeq, stride)
-	vm.Seq = vmSeq
-	ipamVm.Seq = vmSeq
-	mysqlStore.db.Save(&ipamVm)
+	tx.Commit()
 	return nil
+}
 
-	log.Println(">>>>>>>>>>>>>>>>>>3")
-	return errors.New("Not found")
-
+func getEffectiveSeq(vmSeq uint64, stride uint) uint64 {
+	var effectiveVmSeq uint64
+	effectiveVmSeq = 3 + (1<<stride)*vmSeq
+	return effectiveVmSeq
 }
 
 func (mysqlStore *mysqlStore) setConfig(storeConfig map[string]interface{}) error {
@@ -88,7 +72,6 @@ func (mysqlStore *mysqlStore) setConfig(storeConfig map[string]interface{}) erro
 		return errors.New("No host specified.")
 	}
 	info.Host = storeConfig["host"].(string)
-
 	if storeConfig["port"] == nil {
 		info.Port = 3306
 	} else {
@@ -145,18 +128,6 @@ func (mysqlStore *mysqlStore) connect() error {
 	return nil
 }
 
-//func (mysqlStore *mysqlStore) listSegments() ([]Tenant, error) {
-//	var tenants []Segment
-//	log.Println("In listSegments()")
-//	mysqlStore.db.Find(&tenant)
-//	err := common.MakeMultiError(mysqlStore.db.GetErrors())
-//	if err != nil {
-//		return nil, err
-//	}
-//	log.Println(tenants)
-//	return tenants, nil
-//}
-
 func (mysqlStore *mysqlStore) createSchema(force bool) error {
 	log.Println("in createSchema(", force, ")")
 	// Connect to mysql database
@@ -196,9 +167,14 @@ func (mysqlStore *mysqlStore) createSchema(force bool) error {
 	log.Println("Creating vms table.")
 	ipamVm := IpamVm{}
 	mysqlStore.db.CreateTable(&ipamVm)
-	log.Println("Creating hosts table.")
+	// Sequence numbers are unique for VMs per host / tenant combination
+	mysqlStore.db.Model(&IpamVm{}).AddUniqueIndex("idx_segment_host_seq", "segment_id", "host_id", "seq")
 
-	mysqlStore.db.CreateTable(&IpamHost{})
+	//	log.Println("Creating hosts table.")
+	//	mysqlStore.db.CreateTable(&IpamHost{})
+	//
+	//	log.Println("Creating segments table.")
+	//	mysqlStore.db.CreateTable(&IpamHost{})
 
 	errs := mysqlStore.db.GetErrors()
 	log.Println("Errors", errs)
