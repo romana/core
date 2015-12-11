@@ -19,7 +19,7 @@ package main
 import (
 	"flag"
 	"github.com/romana/core/root"
-	"fmt"
+	"log"
 )
 
 // Main entry point for the root microservice
@@ -32,6 +32,6 @@ func main() {
 	}
 	for {
 		msg := <-channel
-		fmt.Println(msg)
+		log.Println(msg)
 	}
 }

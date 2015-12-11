@@ -13,30 +13,8 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Command for running the agent.
+/*
+Implements Tenant service. See https://github.com/romanaproject/romana/wiki/Tenant-service-API.
+*/
+package tenant
 
-package main
-
-import (
-	"flag"
-	"fmt"
-	"github.com/romana/core/agent"
-)
-
-// main function is entrypoint to everything.
-func main() {
-	var rootURL = flag.String("rootUrl", "", "URL to root service URL")
-	flag.Parse()
-	if rootURL == nil {
-		fmt.Println("Must specify rootUrl.")
-		return
-	}
-	channel, err := agent.Run(*rootURL)
-	if err != nil {
-		panic(err)
-	}
-	for {
-		msg := <-channel
-		fmt.Println(msg)
-	}
-}

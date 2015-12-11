@@ -28,7 +28,7 @@ package agent
 import (
 	"fmt"
 	"github.com/romana/core/common"
-	"github.com/romana/core/topology"
+
 	"io"
 	"log"
 	"net"
@@ -72,7 +72,7 @@ func mockAgent() Agent {
 	host1 := common.HostMessage{Ip: "192.168.0.12", RomanaIp: "10.65.0.0/16"}
 	networkConfig.hosts = []common.HostMessage{host0, host1}
 
-	dc := topology.Datacenter{}
+	dc := common.Datacenter{}
 	dc.Cidr = "10.0.0.0/8"
 	dc.PortBits = 8
 	dc.TenantBits = 4

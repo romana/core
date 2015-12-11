@@ -5,7 +5,7 @@
 // not use this file except in compliance with the License. You may obtain
 // a copy of the License at
 //
-//   http://www.apache.org/licenses/LICENSE-2.0
+// http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 //  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
@@ -17,11 +17,10 @@ package common
 
 import (
 	"errors"
-	"log"
 	"fmt"
 	"github.com/go-yaml/yaml"
 	"io/ioutil"
-
+	"log"
 )
 
 // API part of service configuration (host/port).
@@ -44,7 +43,6 @@ func (api Api) GetHostPort() string {
 // DB, etc.
 type CommonConfig struct {
 	Api Api `yaml:"api" json:"api"`
-	
 }
 
 // ServiceConfig contains common configuration
@@ -76,9 +74,8 @@ type yamlServiceConfig struct {
 	Config  map[string]interface{}
 }
 
-// cleanupMap makes sure that map[string]interface{}'s children
-// maps have strings as keys , not interfaces. YAML parses
-
+// cleanupMap ensures that map[string]interface{}'s children
+// maps have strings as keys, not interfaces. YAML parses a
 // file into a map[interface{}]interface{} structure which JSON
 // then cannot marshal.
 func cleanupMap(m map[string]interface{}) map[string]interface{} {
