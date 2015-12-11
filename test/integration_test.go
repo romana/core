@@ -18,6 +18,7 @@ package test
 
 import (
 	"fmt"
+	"time"
 	"github.com/go-check/check"
 	"github.com/romana/core/agent"
 	"github.com/romana/core/common"
@@ -64,8 +65,10 @@ func (s *MySuite) SetUpTest(c *check.C) {
 	}
 	msg := <-channelRoot
 	c.Log("Root service said:", msg)
-
+	c.Log("Waiting a bit...")
+	time.Sleep(time.Second)
 	c.Log("Creating topology schema")
+	
 	err = topology.CreateSchema(s.rootUrl, true)
 	if err != nil {
 		c.Fatal(err)
