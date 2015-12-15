@@ -9,8 +9,7 @@ services:
       port: 9601
     config:
       store: 
-        type: mysql
-
+        type: mock
         host: localhost
         username: root
         password: password
@@ -21,7 +20,7 @@ services:
       port: 9602
     config:
       store: 
-        type: mysql
+        type: mock
         host: localhost
         username: root
         password: password
@@ -44,7 +43,7 @@ services:
         tenant_bits: 4
         segment_bits: 4
         endpoint_space_bits: 0
-        endpoint_bits: 8
+        endpoint_bits: 8 
   - service: agent 
     api:
       host: 0.0.0.0

@@ -16,13 +16,15 @@ package topology
 
 import (
 	"fmt"
-	"log"
-	//	"github.com/go-sql-driver/mysql"
 	"github.com/jinzhu/gorm"
-	//	"github.com/lib/pq"
+	"log"
+
 	"errors"
+
 	_ "github.com/go-sql-driver/mysql"
+
 	"github.com/romana/core/common"
+
 	"strconv"
 )
 
@@ -101,13 +103,13 @@ func (mysqlStore *mysqlStore) listHosts() ([]Host, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Println(hosts)
+	log.Println("MySQL found hosts:", hosts)
 	return hosts, nil
 }
 
-func (mysqlStore *mysqlStore) addHost(host Host) (string, error) {
-	mysqlStore.db.NewRecord(host)
-	mysqlStore.db.Create(&host)
+func (mysqlStore *mysqlStore) addHost(host *Host) (string, error) {
+	mysqlStore.db.NewRecord(*host)
+	mysqlStore.db.Create(host)
 	err := common.MakeMultiError(mysqlStore.db.GetErrors())
 	if err != nil {
 		return "", err
@@ -120,7 +122,7 @@ func (mysqlStore *mysqlStore) connect() error {
 	if mysqlStore.connStr == "" {
 		return errors.New("No connection information.")
 	}
-	
+
 	db, err := gorm.Open("mysql", mysqlStore.connStr)
 	if err != nil {
 		return err
@@ -137,7 +139,7 @@ func (mysqlStore *mysqlStore) createSchema(force bool) error {
 	mysqlStore.setConnString()
 
 	err := mysqlStore.connect()
-	
+
 	if err != nil {
 		return err
 	}
@@ -167,7 +169,7 @@ func (mysqlStore *mysqlStore) createSchema(force bool) error {
 	if err != nil {
 		return err
 	}
-	mysqlStore.db.CreateTable(&Datacenter{})
+	mysqlStore.db.CreateTable(&common.Datacenter{})
 	mysqlStore.db.CreateTable(&Tor{})
 	mysqlStore.db.CreateTable(&Host{})
 	errs := mysqlStore.db.GetErrors()

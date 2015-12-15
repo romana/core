@@ -28,12 +28,15 @@ func TestServiceList(t *testing.T) {
 	dir, _ := os.Getwd()
 	fmt.Println("In", dir)
 
-	yamlFileName := "../common/testdata/pani.sample.yaml"
+	yamlFileName := "../common/testdata/romana.sample.yaml"
 	fmt.Println("Calling Run()")
 	channel, err := Run(yamlFileName)
 	if err != nil {
-		t.Error(err)
+		fmt.Println(err.Error())
+		t.FailNow()
 	}
+	
+	fmt.Println("Waiting for message")
 	msg := <-channel
 	fmt.Println("Root service said:", msg)
 	addr := "http://localhost:9600"

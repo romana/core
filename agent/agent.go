@@ -82,12 +82,16 @@ func Run(rootServiceURL string) (chan common.ServiceMessage, error) {
 	helper := NewAgentHelper(agent)
 	agent.Helper = &helper
 	log.Printf("Agent: Getting configuration from %s", rootServiceURL)
-	config, err := common.GetServiceConfig(rootServiceURL, "agent")
+	config, err := common.GetServiceConfig(rootServiceURL, agent)
 	if err != nil {
 		return nil, err
 	}
 	ch, err := common.InitializeService(agent, *config)
 	return ch, err
+}
+
+func (a *Agent) Name() string {
+	return "agent"	
 }
 
 // index handles HTTP requests for endpoints provisioning.
@@ -96,12 +100,14 @@ func Run(rootServiceURL string) (chan common.ServiceMessage, error) {
 // need to be renamed as interfaceHandler and need to respond on it's own url.
 func (a *Agent) index(input interface{}, ctx common.RestContext) (interface{}, error) {
 	// Parse out NetIf form the request
-	netif := input.(NetIf)
+	netif := input.(*NetIf)
+	
+	log.Printf("Got interface: Name %s, IP %s Mac %s\n", netif.Name, netif.IP, netif.Mac)
 	// Spawn new thread to process the request
 
 	// TODO don't know if fork-bombs are possible in go but if they are this
 	// need to be refactored as buffered channel with fixed pool of workers
-	go a.interfaceHandle(netif)
+	go a.interfaceHandle(*netif)
 
 	// TODO I wonder if this should actually return something like a
 	// link to a status of this request which will later get updated

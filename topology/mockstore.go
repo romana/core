@@ -5,7 +5,7 @@
 // not use this file except in compliance with the License. You may obtain
 // a copy of the License at
 //
-//   http://www.apache.org/licenses/LICENSE-2.0
+// http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 //  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
@@ -21,7 +21,7 @@ import (
 )
 
 type mockStore struct {
-	hosts map[uint64]Host
+	hosts map[uint64]*Host
 	id    uint64
 }
 
@@ -34,29 +34,33 @@ func (mockStore *mockStore) validateConnectionInformation() error {
 }
 
 func (mockStore *mockStore) findHost(id uint64) (Host, error) {
-	return mockStore.hosts[id], nil
+	return *mockStore.hosts[id], nil
 }
 
 func (mockStore *mockStore) listHosts() ([]Host, error) {
 	retval := make([]Host, len(mockStore.hosts))
 	for k, v := range mockStore.hosts {
-		log.Println(k,": ",v)
-		retval[k-1] = v
+		log.Println(k, ": ", v)
+		retval[k-1] =*v
 	}
 	log.Println("Listing hosts", retval)
 	return retval, nil
 }
 
-func (mockStore *mockStore) addHost(host Host) (string, error) {
-	mockStore.id++
+func (mockStore *mockStore) addHost(host *Host) (string, error) {
 	log.Println("ID: ", mockStore.id)
 	mockStore.hosts[mockStore.id] = host
-	return strconv.FormatUint(mockStore.id, 10), nil
+	host.Id = mockStore.id
+	log.Printf("Mock: Adding host name %s, Romana IP %s under ID %d\n", host.Name, host.RomanaIp, mockStore.id)
+	log.Println(mockStore.hosts)
+	mockStore.id++
+	return strconv.FormatUint(host.Id, 10), nil
 }
 
 func (mockStore *mockStore) connect() error {
 	log.Println("Connecting to mock store")
-	mockStore.hosts = make(map[uint64]Host)
+	mockStore.hosts = make(map[uint64]*Host)
+	mockStore.id = 1
 	return nil
 }
 

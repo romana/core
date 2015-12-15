@@ -17,7 +17,7 @@ package agent
 
 import (
 	"github.com/romana/core/common"
-	"github.com/romana/core/topology"
+//	"github.com/romana/core/topology"
 
 	"log"
 	"net"
@@ -36,7 +36,7 @@ type NetworkConfig struct {
 	// index of the current host in POC config file
 	currentHostIndex int
 	hosts            []common.HostMessage
-	dc               topology.Datacenter
+	dc               common.Datacenter
 }
 
 // EndpointNetmaskSize returns integer value (aka size) of endpoint netmask.
@@ -74,6 +74,7 @@ func (c *NetworkConfig) EndpointBits() uint {
 // If no match is found we assume we are running on host which is not
 // part of the Romana setup and spit error out.
 func (a Agent) identifyCurrentHost() error {
+	log.Printf("Agent: Entering identifyCurrentHost()\n")
 	topologyURL, err := common.GetServiceUrl(a.config.Common.Api.RootServiceUrl, "topology")
 	if err != nil {
 		return agentError(err)
@@ -89,8 +90,9 @@ func (a Agent) identifyCurrentHost() error {
 		return agentError(err)
 	}
 	dcURL := index.Links.FindByRel("datacenter")
-	dc := topology.Datacenter{}
+	dc := common.Datacenter{}
 	err = client.Get(dcURL, &dc)
+	log.Printf("Agent: Received datacenter information with CIDR: %s\n", dc.Cidr)
 	if err != nil {
 		return agentError(err)
 	}
@@ -136,5 +138,6 @@ func (a Agent) identifyCurrentHost() error {
 			}
 		}
 	}
-	return wrongHostError()
+	return nil
+//	return wrongHostError()
 }

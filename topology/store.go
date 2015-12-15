@@ -5,7 +5,7 @@
 // not use this file except in compliance with the License. You may obtain
 // a copy of the License at
 //
-//   http://www.apache.org/licenses/LICENSE-2.0
+// http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 //  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
@@ -15,24 +15,9 @@
 package topology
 
 import (
-//	"github.com/romana/core/common"
+	
+	"github.com/romana/core/common"
 )
-
-type Datacenter struct {
-	Id                uint64 `sql:"AUTO_INCREMENT"`
-	IpVersion         uint
-//	Prefix            uint64
-	Cidr              string
-	PrefixBits        uint `json:"prefix_bits"`
-	PortBits          uint `json:"port_bits"`
-	TenantBits        uint `json:"tenant_bits"`
-	SegmentBits       uint `json:"segment_bits"`
-	// We don't need to store this, but calculate and pass around
-	EndpointBits      uint `json:"endpoint_bits"`
-	EndpointSpaceBits uint `json:"endpoint_space_bits"`
-	Name              string `json:""`
-
-}
 
 type Host struct {
 	Id        uint64 `sql:"AUTO_INCREMENT" json:"id"`
@@ -40,9 +25,10 @@ type Host struct {
 	Ip        string `json:"ip"`
 	RomanaIp  string `json:"romana_ip"`
 	AgentPort uint64 `json:"agent_port"`
+	//	tor         *Tor
 }
 
 type Tor struct {
 	Id         uint64 `sql:"AUTO_INCREMENT"`
-	datacenter *Datacenter
+	datacenter *common.Datacenter
 }
