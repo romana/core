@@ -41,7 +41,7 @@ func (netif *netIf) SetIP(ip string) error {
 	return nil
 }
 
-func TestMarshaling(t *testing.T) {
+
 	form := "mac_address=aa:bb:cc:dd:ee:ff&ip_address=10.0.1.4&interface_name=eth0"
 	netIf := &netIf{}
 	m := formMarshaller{}
@@ -66,5 +66,4 @@ func TestMarshaling(t *testing.T) {
 	if formStr != "interface_name=eth0&mac_address=aa:bb:cc:dd:ee:ff&ip_address=10.0.1.4" {
 		t.Fail()
 	}
-
 }
