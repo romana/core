@@ -35,13 +35,11 @@ type Datacenter struct {
 }
 
 type Host struct {
-	Id        uint64 `sql:"AUTO_INCREMENT"`
-	Ip        string
-	RomanaIp  string
-
-	Name      string
-	AgentPort uint64
-	//	tor         *Tor
+	Id        uint64 `sql:"AUTO_INCREMENT" json:"id"`
+	Name      string `json:"name"`
+	Ip        string `json:"ip"`
+	RomanaIp  string `json:"romana_ip"`
+	AgentPort uint64 `json:"agent_port"`
 }
 
 type Tor struct {
