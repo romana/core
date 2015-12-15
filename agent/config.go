@@ -74,7 +74,6 @@ func (c *NetworkConfig) EndpointBits() uint {
 // If no match is found we assume we are running on host which is not
 // part of the Romana setup and spit error out.
 func (a Agent) identifyCurrentHost() error {
-	log.Printf("Agent: Entering identifyCurrentHost()\n")
 	topologyURL, err := common.GetServiceUrl(a.config.Common.Api.RootServiceUrl, "topology")
 	if err != nil {
 		return agentError(err)
@@ -92,7 +91,6 @@ func (a Agent) identifyCurrentHost() error {
 	dcURL := index.Links.FindByRel("datacenter")
 	dc := common.Datacenter{}
 	err = client.Get(dcURL, &dc)
-	log.Printf("Agent: Received datacenter information with CIDR: %s\n", dc.Cidr)
 	if err != nil {
 		return agentError(err)
 	}
