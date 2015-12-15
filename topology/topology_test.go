@@ -43,19 +43,20 @@ type MySuite struct {
 var _ = check.Suite(&MySuite{})
 
 func (s *MySuite) SetUpTest(c *check.C) {
+	myLog(c, "Entering SetUP, services started: ", s.servicesStarted)
 	if !s.servicesStarted {
 		dir, _ := os.Getwd()
-		c.Log("Entering setup in directory", dir)
+		myLog(c, "Entering setup in directory", dir)
 		s.configFile = "../common/testdata/romana.sample.yaml"
 		var err error
 		s.config, err = common.ReadConfig(s.configFile)
 		if err != nil {
 			panic(err)
 		}
-		c.Log("Root configuration: ", s.config.Services["root"].Common.Api.GetHostPort())
+		myLog(c, "Root configuration: ", s.config.Services["root"].Common.Api.GetHostPort())
 		root.Run(s.configFile)
 		s.rootUrl = "http://" + s.config.Services["root"].Common.Api.GetHostPort()
-		c.Log("Root URL:", s.rootUrl)
+		myLog(c, "Root URL:", s.rootUrl)
 
 		// Starting root service
 		fmt.Println("Starting root service...")
@@ -64,9 +65,9 @@ func (s *MySuite) SetUpTest(c *check.C) {
 			c.Error(err)
 		}
 		msg := <-channelRoot
-		c.Log("Root service said:", msg)
+		myLog(c, "Root service said:", msg)
 
-		c.Log("Creating topology schema")
+		myLog(c,"Creating topology schema")
 		err = CreateSchema(s.rootUrl, true)
 		myLog(c, "CreateSchema returned err: ", err, "which is of type", reflect.TypeOf(err), "let's compare it to", nil, ": err != nil: ", err != nil)
 		if err != nil {
@@ -82,7 +83,9 @@ func myLog(c *check.C, args ...interface{}) {
 	c.Log(args)
 }
 
-func (s *MySuite) TestMarshaling(c *check.C) {
+// TestHostMarshaling tests marshaling/unmarshaling of Host
+// structure to/from proper JSON.
+func (s *MySuite) TestHostMarshaling(c *check.C) {
 	host := Host{}
 	host.Id = 1
 	host.RomanaIp = "192.168.0.1/16"
@@ -108,7 +111,6 @@ func (s *MySuite) TestMarshaling(c *check.C) {
 
 // Test the topology service
 func (s *MySuite) TestTopology(c *check.C) {
-	return
 	myLog(c, "Entering TestTopology()")
 
 	dir, _ := os.Getwd()
