@@ -95,9 +95,9 @@ type HostMessage struct {
 	Id        string `json:"id"`
 	Name      string `json:"name"`
 	Ip        string `json:"ip"`
-	RomanaIp  string`json:"romana_ip"`
-	AgentPort int   `json:"agentPort"`
-	Links     Links `json:"links"`
+	RomanaIp  string `json:"romana_ip"`
+	AgentPort int    `json:"agent_port"`
+	Links     Links  `json:"links"`
 	//    Tor string       `json:"tor"`
 }
 
@@ -365,18 +365,18 @@ func GetServiceConfig(rootServiceUrl string, svc Service) (*ServiceConfig, error
 // Datacenter represents the configuration of a datacenter
 type Datacenter struct {
 	Id        uint64 `sql:"AUTO_INCREMENT"`
-	IpVersion uint
+	IpVersion uint   `json:"ip_version"`
 	// We don't need to store this, but calculate and pass around
-	Prefix      uint64
-	Cidr        string
-	PrefixBits  uint `json:"prefix_bits"`
-	PortBits    uint `json:"port_bits"`
-	TenantBits  uint `json:"tenant_bits"`
-	SegmentBits uint `json:"segment_bits"`
+	Prefix      uint64 `json:"prefix"`
+	Cidr        string 
+	PrefixBits  uint   `json:"prefix_bits"`
+	PortBits    uint   `json:"port_bits"`
+	TenantBits  uint   `json:"tenant_bits"`
+	SegmentBits uint   `json:"segment_bits"`
 	// We don't need to store this, but calculate and pass around
 	EndpointBits      uint   `json:"endpoint_bits"`
 	EndpointSpaceBits uint   `json:"endpoint_space_bits"`
-	Name              string `json:""`
+	Name              string `json:"name"`
 }
 
 // TODO move here?

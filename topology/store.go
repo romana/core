@@ -20,7 +20,7 @@ import (
 )
 
 type Host struct {
-	Id        uint64 `sql:"AUTO_INCREMENT"`
+	Id        uint64 `sql:"AUTO_INCREMENT" json:"id"`
 	Name      string `json:"name"`
 	Ip        string `json:"ip"`
 	RomanaIp  string `json:"romana_ip"`
