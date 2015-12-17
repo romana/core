@@ -227,9 +227,9 @@ func (fw *Firewall) CreateU32Rules(chain int) error {
 	return nil
 }
 
-// CreateDefaultDropRules creates iptables rules to drop all unidentified traffic
+// CreateDefaultDropRule creates iptables rules to drop all unidentified traffic
 // in the given chain
-func (fw *Firewall) CreateDefaultDropRules(chain int) error {
+func (fw *Firewall) CreateDefaultDropRule(chain int) error {
 	log.Print("Creating default drop rules for chain", chain)
 	chainName := fw.chains[chain].chainName
 	cmd := "/sbin/iptables"
@@ -385,7 +385,7 @@ func provisionFirewallRules(netif NetIf, agent *Agent) error {
 		if err := fw.CreateU32Rules(chain); err != nil {
 			return err
 		}
-		if err := fw.CreateDefaultDropRules(chain); err != nil {
+		if err := fw.CreateDefaultDropRule(chain); err != nil {
 			return err
 		}
 	}
