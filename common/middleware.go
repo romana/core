@@ -113,17 +113,10 @@ var stringType = reflect.TypeOf("")
 // is intended to transparently deal with converting data to/from
 // the wire format into internal representations.
 func wrapHandler(restHandler RestHandler, makeMessage MakeMessage) http.Handler {
-	var inData interface{}
-	if makeMessage == nil {
-		inData = nil
-	} else {
-		inData = makeMessage()
-	}
-	if reflect.TypeOf(inData) == requestType {
+	if makeMessage != nil && reflect.TypeOf(makeMessage()) == requestType {
 		// This would mean the handler actually wants access to raw request/response
 		// Fine, then...
 		httpHandler := func(writer http.ResponseWriter, request *http.Request) {
-
 			err := request.ParseForm()
 			if err != nil {
 				writer.WriteHeader(http.StatusInternalServerError)
@@ -138,8 +131,15 @@ func wrapHandler(restHandler RestHandler, makeMessage MakeMessage) http.Handler 
 		return RomanaHandler{httpHandler}
 	} else {
 		httpHandler := func(writer http.ResponseWriter, request *http.Request) {
+			var inData interface{}
+			if makeMessage == nil {
+				inData = nil
+			} else {
+				inData = makeMessage()
+			}
 			var err error
 			if inData != nil {
+				log.Printf("httpHandler: inData addr: %d\n", &inData)
 				ct := request.Header.Get("content-type")
 				buf, err := ioutil.ReadAll(request.Body)
 				log.Printf("Read %s\n", string(buf))
