@@ -227,6 +227,22 @@ func (fw *Firewall) CreateU32Rules(chain int) error {
 	return nil
 }
 
+// CreateDefaultDropRules creates iptables rules to drop all unidentified traffic
+// in the given chain
+func (fw *Firewall) CreateDefaultDropRules(chain int) error {
+	log.Print("Creating default drop rules for chain", chain)
+	chainName := fw.chains[chain].chainName
+	cmd := "/sbin/iptables"
+	args := []string{"-A", chainName, "-j", "DROP"}
+	_, err := fw.Agent.Helper.Executor.Exec(cmd, args)
+	if err != nil {
+		log.Print("Creating default drop rules failed")
+		return err
+	}
+	log.Print("Creating default drop rules failed for chain", chain)
+	return nil
+}
+
 // prepareTenantSegmentMask returns integer representation of a bitmask
 // for tenant+segment bits in pseudo network.
 func (fw *Firewall) prepareTenantSegmentMask() uint64 {
@@ -367,6 +383,9 @@ func provisionFirewallRules(netif NetIf, agent *Agent) error {
 			return err
 		}
 		if err := fw.CreateU32Rules(chain); err != nil {
+			return err
+		}
+		if err := fw.CreateDefaultDropRules(chain); err != nil {
 			return err
 		}
 	}
