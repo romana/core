@@ -45,7 +45,6 @@ type Tenant struct {
 
 type Segment struct {
 	Id       uint64 `sql:"AUTO_INCREMENT"`
-	Tenant   Tenant
 	TenantId uint64
 	Name     string
 	Seq      uint64

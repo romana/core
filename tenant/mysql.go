@@ -91,6 +91,7 @@ func (mysqlStore *mysqlStore) connect() error {
 	if err != nil {
 		return err
 	}
+	db.LogMode(true)
 	mysqlStore.db = &db
 	return nil
 }
@@ -158,7 +159,6 @@ func (mysqlStore *mysqlStore) findTenant(id uint64) (Tenant, error) {
 	}
 	for i := range tenants {
 		if tenants[i].Id == id {
-			tenants[i].Seq = uint64(i)
 			return tenants[i], nil
 		}
 	}
@@ -213,7 +213,6 @@ func (mysqlStore *mysqlStore) findSegment(tenantId uint64, id uint64) (Segment, 
 	}
 	for i := range segments {
 		if segments[i].Id == id {
-			segments[i].Seq = uint64(i)
 			return segments[i], nil
 		}
 	}
