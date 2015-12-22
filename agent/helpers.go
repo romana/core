@@ -236,6 +236,14 @@ func (h Helper) otherHosts() []common.HostMessage {
 
 // ensureInterHostRoutes ensures we have routes to every other host.
 func (h Helper) ensureInterHostRoutes() error {
+	log.Print("Acquiring mutex ensureInterhostRoutes")
+	h.ensureInterHostRoutesMutex.Lock()
+	defer func() {
+		log.Print("Releasing mutex ensureInterhostRoutes")
+		h.ensureInterHostRoutesMutex.Unlock()
+	}()
+	log.Print("Acquired mutex ensureInterhostRoutes")
+
 	otherHosts := h.otherHosts()
 	via := "via"
 	for j := range otherHosts {
@@ -249,13 +257,6 @@ func (h Helper) ensureInterHostRoutes() error {
 		dest := otherHosts[j].Ip
 
 		// wait until no one messing with routes
-		log.Print("Acquiring mutex ensureInterhostRoutes")
-		h.ensureInterHostRoutesMutex.Lock()
-		defer func() {
-			log.Print("Releasing mutex ensureInterhostRoutes")
-			h.ensureInterHostRoutesMutex.Unlock()
-		}()
-		log.Print("Acquired mutex ensureInterhostRoutes")
 		// If route doesn't exist yet
 		if err := h.isRouteExist(romanaIP, romanaMask); err != nil {
 

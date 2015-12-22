@@ -89,11 +89,12 @@ func (a Agent) identifyCurrentHost() error {
 		return agentError(err)
 	}
 	dcURL := index.Links.FindByRel("datacenter")
-	dc := common.Datacenter{}
-	err = client.Get(dcURL, &dc)
+	a.networkConfig.dc = common.Datacenter{}
+	err = client.Get(dcURL, &a.networkConfig.dc)
 	if err != nil {
 		return agentError(err)
 	}
+
 
 	hostURL := index.Links.FindByRel("host-list")
 	hosts := []common.HostMessage{}
