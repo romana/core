@@ -212,19 +212,25 @@ func (h Helper) otherHosts() []common.HostMessage {
 	//	origin := h.Agent.config.PocConfig.DC.Leaves[0].Hosts
 	// Should this keep querying the REST service every time?
 	origin := h.Agent.networkConfig.hosts
+	log.Printf("otherHosts(): Our host is %d out of %d, all hosts: %s\n", index, len(origin), origin)
 	if len(origin) == 1 {
 		// Only one host and we are it.
 		return []common.HostMessage{}
 	}
 	// Our current host is first.
 	if index == 0 {
-		return origin[1:]
-	} 
+		others := origin[1:]
+		log.Printf("otherHosts(): Other hosts: %s\n", others)
+		return others
+	}
 	// Our current host is last.
-	if index == len(origin) -1 {
-		return origin[:len(origin) -1]
+	if index == len(origin)-1 {
+		others := origin[:len(origin)-1]
+		log.Printf("otherHosts(): Other hosts: %s\n", others)
+		return others
 	}
 	others := append(origin[:index], origin[index+1:]...)
+	log.Printf("otherHosts(): Other hosts: %s\n", others)
 	return others
 }
 
