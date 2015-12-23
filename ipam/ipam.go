@@ -149,7 +149,7 @@ func (ipam *IPAMSvc) legacyAllocateIpByName(input interface{}, ctx common.RestCo
 	for _, s := range segments {
 		if s.Name == segmentName {
 			found = true
-			vm.SegmentId = fmt.Sprintf("%d", tenants[i].Id)
+			vm.SegmentId = fmt.Sprintf("%d", s.Id)
 			break
 		}
 	}
