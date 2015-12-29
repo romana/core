@@ -68,20 +68,19 @@ func (ipam *IPAMSvc) legacyAllocateIpByName(input interface{}, ctx common.RestCo
 	if len(names) > 0 {
 		name = names[0]
 	}
-	log.Printf("LEgacy 2\n")
 	vm := Vm{}
 	vm.Name = name
+
+	client, err := common.NewRestClient("", ipam.config.Common.Api.RestTimeoutMillis)
+	if err != nil {
+		return nil, err
+	}
 	// Get host info from topology service
-	topoUrl, err := common.GetServiceUrl(ipam.config.Common.Api.RootServiceUrl, "topology")
+	topoUrl, err := client.GetServiceUrl(ipam.config.Common.Api.RootServiceUrl, "topology")
 	if err != nil {
 		return nil, err
 	}
 
-	client, err := common.NewRestClient(topoUrl)
-	if err != nil {
-		return nil, err
-	}
-	log.Printf("LEgacy 3\n")
 	index := common.IndexResponse{}
 	err = client.Get(topoUrl, &index)
 	if err != nil {
@@ -111,7 +110,7 @@ func (ipam *IPAMSvc) legacyAllocateIpByName(input interface{}, ctx common.RestCo
 	}
 	log.Printf("Host name %s has ID %s", hostName, vm.HostId)
 
-	tenantSvcUrl, err := common.GetServiceUrl(ipam.config.Common.Api.RootServiceUrl, "tenant")
+	tenantSvcUrl, err := client.GetServiceUrl(ipam.config.Common.Api.RootServiceUrl, "tenant")
 	if err != nil {
 		return nil, err
 	}
@@ -168,17 +167,16 @@ func (ipam *IPAMSvc) addVm(input interface{}, ctx common.RestContext) (interface
 	if err != nil {
 		return nil, err
 	}
-
+	client, err := common.NewRestClient("", ipam.config.Common.Api.RestTimeoutMillis)
+	if err != nil {
+		return nil, err
+	}
 	// Get host info from topology service
-	topoUrl, err := common.GetServiceUrl(ipam.config.Common.Api.RootServiceUrl, "topology")
+	topoUrl, err := client.GetServiceUrl(ipam.config.Common.Api.RootServiceUrl, "topology")
 	if err != nil {
 		return nil, err
 	}
 
-	client, err := common.NewRestClient(topoUrl)
-	if err != nil {
-		return nil, err
-	}
 	index := common.IndexResponse{}
 	err = client.Get(topoUrl, &index)
 	if err != nil {
@@ -196,7 +194,7 @@ func (ipam *IPAMSvc) addVm(input interface{}, ctx common.RestContext) (interface
 		return nil, err
 	}
 
-	tenantUrl, err := common.GetServiceUrl(ipam.config.Common.Api.RootServiceUrl, "tenant")
+	tenantUrl, err := client.GetServiceUrl(ipam.config.Common.Api.RootServiceUrl, "tenant")
 	if err != nil {
 		return nil, err
 	}
@@ -285,14 +283,18 @@ func (ipam *IPAMSvc) createSchema(overwrite bool) error {
 }
 
 // Runs IPAM service
-func Run(rootServiceUrl string) (chan common.ServiceMessage, error) {
-	ipam := &IPAMSvc{}
-	config, err := common.GetServiceConfig(rootServiceUrl, ipam)
+func Run(rootServiceUrl string) (chan common.ServiceMessage, string, error) {
+	client, err := common.NewRestClient(rootServiceUrl, common.DefaultRestTimeout)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	ch, err := common.InitializeService(ipam, *config)
-	return ch, err
+	ipam := &IPAMSvc{}
+	config, err := client.GetServiceConfig(rootServiceUrl, ipam)
+	if err != nil {
+		return nil, "", err
+	}
+	return common.InitializeService(ipam, *config)
+
 }
 
 func (ipam *IPAMSvc) Initialize() error {
@@ -302,15 +304,17 @@ func (ipam *IPAMSvc) Initialize() error {
 	if err != nil {
 		return err
 	}
-	topologyURL, err := common.GetServiceUrl(ipam.config.Common.Api.RootServiceUrl, "topology")
+
+	client, err := common.NewRestClient("", common.DefaultRestTimeout)
 	if err != nil {
 		return err
 	}
 
-	client, err := common.NewRestClient(topologyURL)
+	topologyURL, err := client.GetServiceUrl(ipam.config.Common.Api.RootServiceUrl, "topology")
 	if err != nil {
 		return err
 	}
+
 	index := common.IndexResponse{}
 	err = client.Get(topologyURL, &index)
 	if err != nil {
@@ -333,7 +337,13 @@ func (ipam *IPAMSvc) Initialize() error {
 func CreateSchema(rootServiceUrl string, overwrite bool) error {
 	log.Println("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
 	ipamSvc := &IPAMSvc{}
-	config, err := common.GetServiceConfig(rootServiceUrl, ipamSvc)
+
+	client, err := common.NewRestClient("", common.DefaultRestTimeout)
+	if err != nil {
+		return err
+	}
+
+	config, err := client.GetServiceConfig(rootServiceUrl, ipamSvc)
 	if err != nil {
 		return err
 	}

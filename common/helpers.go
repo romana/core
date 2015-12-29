@@ -5,7 +5,7 @@
 // not use this file except in compliance with the License. You may obtain
 // a copy of the License at
 //
-//   http://www.apache.org/licenses/LICENSE-2.0
+// http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 //  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
@@ -13,30 +13,26 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Command for running the agent.
-
-package main
+package common
 
 import (
-	"flag"
-	"fmt"
-	"github.com/romana/core/agent"
+	"log"
 )
 
-// main function is entrypoint to everything.
-func main() {
-	var rootURL = flag.String("rootUrl", "", "URL to root service URL")
-	flag.Parse()
-	if rootURL == nil {
-		fmt.Println("Must specify rootUrl.")
-		return
-	}
-	channel, _, err := agent.Run(*rootURL)
+// MockPortsInConfig will take the config file specified
+// and replace the ports with 0 to use arbitrary ports 
+// and write it out to /tmp/romana.yaml
+func MockPortsInConfig(fname string) error {
+	config,err := ReadConfig(fname)
 	if err != nil {
-		panic(err)
+		return err
 	}
-	for {
-		msg := <-channel
-		fmt.Println(msg)
+	services := []string{"root", "topology", "ipam", "agent", "tenant"}
+	for i := range services {
+		svc := services[i]
+		config.Services[svc].Common.Api.Port = 0
+		log.Printf("Set port for %s: %d\n", svc, config.Services[svc].Common.Api.Port)
 	}
+
+	return WriteConfig(config, "/tmp/romana.yaml")
 }

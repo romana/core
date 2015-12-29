@@ -77,21 +77,28 @@ func (a *Agent) Routes() common.Routes {
 }
 
 // Run runs the agent service.
-func Run(rootServiceURL string) (chan common.ServiceMessage, error) {
+func Run(rootServiceURL string) (chan common.ServiceMessage, string, error) {
+	client, err := common.NewRestClient("", common.DefaultRestTimeout)
+	if err != nil {
+		return nil, "", err
+	}
+
 	agent := &Agent{}
 	helper := NewAgentHelper(agent)
 	agent.Helper = &helper
 	log.Printf("Agent: Getting configuration from %s", rootServiceURL)
-	config, err := common.GetServiceConfig(rootServiceURL, agent)
+
+	config, err := client.GetServiceConfig(rootServiceURL, agent)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	ch, err := common.InitializeService(agent, *config)
-	return ch, err
+	return common.InitializeService(agent, *config)
+
 }
 
+// Implements Name() method of Service interface.
 func (a *Agent) Name() string {
-	return "agent"	
+	return "agent"
 }
 
 // index handles HTTP requests for endpoints provisioning.
@@ -101,7 +108,7 @@ func (a *Agent) Name() string {
 func (a *Agent) index(input interface{}, ctx common.RestContext) (interface{}, error) {
 	// Parse out NetIf form the request
 	netif := input.(*NetIf)
-	
+
 	log.Printf("Got interface: Name %s, IP %s Mac %s\n", netif.Name, netif.IP, netif.Mac)
 	// Spawn new thread to process the request
 

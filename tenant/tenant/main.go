@@ -39,7 +39,7 @@ func main() {
 		return
 	}
 
-	channel, err := tenant.Run(*rootUrl)
+	channel, _, err := tenant.Run(*rootUrl)
 	if err != nil {
 		panic(err)
 	}

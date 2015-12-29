@@ -21,9 +21,9 @@ import (
 	"github.com/go-check/check"
 	"github.com/romana/core/common"
 	"github.com/romana/core/root"
-	"reflect"
-
+//	"log"
 	"os"
+	"reflect"
 
 	"testing"
 )
@@ -47,27 +47,30 @@ func (s *MySuite) SetUpTest(c *check.C) {
 	if !s.servicesStarted {
 		dir, _ := os.Getwd()
 		myLog(c, "Entering setup in directory", dir)
-		s.configFile = "../common/testdata/romana.sample.yaml"
+		common.MockPortsInConfig("../common/testdata/romana.sample.yaml")
+		s.configFile = "/tmp/romana.yaml"
 		var err error
 		s.config, err = common.ReadConfig(s.configFile)
 		if err != nil {
 			panic(err)
 		}
+	
 		myLog(c, "Root configuration: ", s.config.Services["root"].Common.Api.GetHostPort())
 		root.Run(s.configFile)
-		s.rootUrl = "http://" + s.config.Services["root"].Common.Api.GetHostPort()
-		myLog(c, "Root URL:", s.rootUrl)
-
+		
 		// Starting root service
-		fmt.Println("Starting root service...")
-		channelRoot, err := root.Run(s.configFile)
+		myLog(c, "Starting root service...")
+		channelRoot, addr, err := root.Run(s.configFile)
 		if err != nil {
 			c.Error(err)
 		}
+		s.rootUrl = "http://" + addr
+		myLog(c, "Root URL:", s.rootUrl)
+
 		msg := <-channelRoot
 		myLog(c, "Root service said:", msg)
 
-		myLog(c,"Creating topology schema")
+		myLog(c, "Creating topology schema")
 		err = CreateSchema(s.rootUrl, true)
 		myLog(c, "CreateSchema returned err: ", err, "which is of type", reflect.TypeOf(err), "let's compare it to", nil, ": err != nil: ", err != nil)
 		if err != nil {
@@ -117,14 +120,14 @@ func (s *MySuite) TestTopology(c *check.C) {
 	myLog(c, "In", dir)
 	myLog(c, "Starting topology service")
 
-	channelTop, err := Run(s.rootUrl)
+	channelTop, addr, err := Run(s.rootUrl)
 	if err != nil {
 		c.Error(err)
 	}
 	msg := <-channelTop
 	myLog(c, "Topology service said:", msg)
-	addr := "http://" + s.config.Services["topology"].Common.Api.GetHostPort()
-	client, err := common.NewRestClient(addr)
+	addr = "http://" + addr
+	client, err := common.NewRestClient(addr, common.DefaultRestTimeout)
 	if err != nil {
 		c.Error(err)
 	}

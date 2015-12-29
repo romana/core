@@ -18,7 +18,6 @@ package test
 
 import (
 	"fmt"
-	"time"
 	"github.com/go-check/check"
 	"github.com/romana/core/agent"
 	"github.com/romana/core/common"
@@ -27,6 +26,7 @@ import (
 	"github.com/romana/core/tenant"
 	"github.com/romana/core/topology"
 	"os"
+	"time"
 	//	"reflect"
 	"testing"
 )
@@ -47,28 +47,32 @@ var _ = check.Suite(&MySuite{})
 func (s *MySuite) SetUpTest(c *check.C) {
 	dir, _ := os.Getwd()
 	c.Log("Entering setup in directory", dir)
-	s.configFile = "../common/testdata/romana.sample.yaml"
+
+	common.MockPortsInConfig("../common/testdata/romana.sample.yaml")
+	s.configFile = "/tmp/romana.yaml"
 	var err error
 	s.config, err = common.ReadConfig(s.configFile)
 	if err != nil {
 		panic(err)
 	}
+
 	c.Log("Root configuration: ", s.config.Services["root"].Common.Api.GetHostPort())
-	s.rootUrl = "http://" + s.config.Services["root"].Common.Api.GetHostPort()
-	c.Log("Root URL:", s.rootUrl)
 
 	// Starting root service
 	fmt.Println("STARTING ROOT SERVICE")
-	channelRoot, err := root.Run(s.configFile)
+	channelRoot, addr, err := root.Run(s.configFile)
 	if err != nil {
 		c.Error(err)
 	}
+	s.rootUrl = "http://" + addr
+	c.Log("Root URL:", s.rootUrl)
+
 	msg := <-channelRoot
 	c.Log("Root service said:", msg)
 	c.Log("Waiting a bit...")
 	time.Sleep(time.Second)
-	c.Log("Creating topology schema")
-	
+	c.Log("Creating topology schema with root URL", s.rootUrl)
+
 	err = topology.CreateSchema(s.rootUrl, true)
 	if err != nil {
 		c.Fatal(err)
@@ -107,7 +111,7 @@ func (s *MySuite) TestIntegration(c *check.C) {
 
 	// 1. Start topology service
 	myLog(c, "STARTING TOPOLOGY SERVICE")
-	channelTop, err := topology.Run(s.rootUrl)
+	channelTop, topoAddr, err := topology.Run(s.rootUrl)
 	if err != nil {
 		c.Error(err)
 	}
@@ -115,8 +119,8 @@ func (s *MySuite) TestIntegration(c *check.C) {
 	myLog(c, "Topology service said:", msg)
 
 	// 2. Add some hosts to topology service and test.
-	topoAddr := "http://" + s.config.Services["topology"].Common.Api.GetHostPort()
-	client, err := common.NewRestClient(topoAddr)
+	topoAddr = "http://" + topoAddr
+	client, err := common.NewRestClient(topoAddr, common.DefaultRestTimeout)
 	if err != nil {
 		c.Error(err)
 	}
@@ -160,14 +164,14 @@ func (s *MySuite) TestIntegration(c *check.C) {
 
 	// 3. Start tenant service
 	myLog(c, "STARTING TENANT SERVICE")
-	channelTen, err := tenant.Run(s.rootUrl)
+	channelTen, tenantAddr, err := tenant.Run(s.rootUrl)
 	if err != nil {
 		c.Error(err)
 	}
+	tenantAddr = "http://" + tenantAddr
 	msg = <-channelTen
 	myLog(c, "Tenant service said:", msg)
-	tenantAddr := "http://" + s.config.Services["tenant"].Common.Api.GetHostPort()
-	client, err = common.NewRestClient(tenantAddr)
+	client, err = common.NewRestClient(tenantAddr, common.DefaultRestTimeout)
 	if err != nil {
 		c.Error(err)
 	}
@@ -244,16 +248,14 @@ func (s *MySuite) TestIntegration(c *check.C) {
 
 	// 4. Start IPAM service
 	myLog(c, "STARTING IPAM SERVICE")
-	channelIpam, err := ipam.Run(s.rootUrl)
+	channelIpam, ipamAddr, err := ipam.Run(s.rootUrl)
 	if err != nil {
 		c.Error(err)
 	}
+	ipamAddr = fmt.Sprintf("http://%s", ipamAddr)
 	msg = <-channelIpam
-	myLog(c, "IPAM service said:", msg)
-
-	// Try to get an address
-	ipamAddr := "http://" + s.config.Services["ipam"].Common.Api.GetHostPort()
-	client, err = common.NewRestClient(ipamAddr)
+	myLog(c, "IPAM service said: ", msg)
+	client, err = common.NewRestClient(ipamAddr, common.DefaultRestTimeout)
 	if err != nil {
 		c.Error(err)
 	}
@@ -294,7 +296,7 @@ func (s *MySuite) TestIntegration(c *check.C) {
 
 	// 5. Start Agent service
 	myLog(c, "STARTING Agent SERVICE")
-	channelAgent, err := agent.Run(s.rootUrl)
+	channelAgent, _, err := agent.Run(s.rootUrl)
 	if err != nil {
 		c.Error(err)
 	}
