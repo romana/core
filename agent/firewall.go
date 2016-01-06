@@ -63,13 +63,13 @@ type Firewall struct {
 // FirewallChain describes state of the particular firewall chain.
 type FirewallChain struct {
 	baseChain string
-	direction string
+	direction []string
 	rules     []string
 	chainName string
 }
 
 // NewFirewallChain initializes a new firewall chain.
-func NewFirewallChain(baseChain string, direction string, rules []string, chainName string) *FirewallChain {
+func NewFirewallChain(baseChain string, direction []string, rules []string, chainName string) *FirewallChain {
 	return &FirewallChain{baseChain, direction, rules, chainName}
 }
 
@@ -123,9 +123,9 @@ func (fw *Firewall) Init(netif NetIf) error {
 
 	forwardRules := new(firewallRules)
 
-	c1 := NewFirewallChain("INPUT", "i", *inputRules, fw.prepareChainName("INPUT"))
-	c2 := NewFirewallChain("OUTPUT", "o", *outputRules, fw.prepareChainName("OUTPUT"))
-	c3 := NewFirewallChain("FORWARD", "i", *forwardRules, fw.prepareChainName("FORWARD"))
+	c1 := NewFirewallChain("INPUT", []string{"i"}, *inputRules, fw.prepareChainName("INPUT"))
+	c2 := NewFirewallChain("OUTPUT", []string{"o"}, *outputRules, fw.prepareChainName("OUTPUT"))
+	c3 := NewFirewallChain("FORWARD", []string{"i", "o"}, *forwardRules, fw.prepareChainName("FORWARD"))
 	chains := [numberOfDefaultChains]FirewallChain{*c1, *c2, *c3}
 	fw.chains = chains
 	return nil
@@ -178,14 +178,16 @@ func (fw *Firewall) DivertTrafficToPaniIptablesChain(chain int) error {
 	// iptables -A INPUT -i tap1234 -j PANI-T0S1-INPUT
 	log.Print("Diverting traffic in", chain)
 	baseChain := fw.chains[chain].baseChain
-	direction := fmt.Sprintf("-%s", fw.chains[chain].direction)
-	chainName := fw.chains[chain].chainName
-	cmd := "/sbin/iptables"
-	args := []string{"-A", baseChain, direction, fw.interfaceName, "-j", chainName}
-	_, err := fw.Agent.Helper.Executor.Exec(cmd, args)
-	if err != nil {
-		log.Print("Diverting traffic failed", chain)
-		return err
+	for _, directionLiteral := range fw.chains[chain].direction {
+		direction := fmt.Sprintf("-%s", directionLiteral)
+		chainName := fw.chains[chain].chainName
+		cmd := "/sbin/iptables"
+		args := []string{"-A", baseChain, direction, fw.interfaceName, "-j", chainName}
+		_, err := fw.Agent.Helper.Executor.Exec(cmd, args)
+		if err != nil {
+			log.Print("Diverting traffic failed", chain)
+			return err
+		}
 	}
 	log.Print("Diverting traffic success", chain)
 	return nil
