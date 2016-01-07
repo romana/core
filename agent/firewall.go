@@ -62,10 +62,10 @@ type Firewall struct {
 
 // FirewallChain describes state of the particular firewall chain.
 type FirewallChain struct {
-	baseChain string
-	direction []string
-	rules     []string
-	chainName string
+	baseChain  string
+	directions []string
+	rules      []string
+	chainName  string
 }
 
 // NewFirewallChain initializes a new firewall chain.
@@ -176,9 +176,9 @@ func (fw *Firewall) CreateChains(newChains []int) error {
 func (fw *Firewall) DivertTrafficToPaniIptablesChain(chain int) error {
 	// Should be like that
 	// iptables -A INPUT -i tap1234 -j PANI-T0S1-INPUT
-	log.Print("Diverting traffic in", chain)
+	log.Print("Diverting traffic into chaing number ", chain)
 	baseChain := fw.chains[chain].baseChain
-	for _, directionLiteral := range fw.chains[chain].direction {
+	for _, directionLiteral := range fw.chains[chain].directions {
 		direction := fmt.Sprintf("-%s", directionLiteral)
 		chainName := fw.chains[chain].chainName
 		cmd := "/sbin/iptables"
