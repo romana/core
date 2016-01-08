@@ -143,6 +143,19 @@ func (fw *Firewall) isChainExist(chain int) bool {
 	return true
 }
 
+// isRuleExist verifies if given iptables rule exists.
+// Returns true rule exists.
+func (fw *Firewall) isRuleExist(ruleSpec []string) bool {
+	cmd := "/sbin/iptables"
+	args := []string{"-C"}
+	args = append(args, ruleSpec...)
+	_, err := fw.Agent.Helper.Executor.Exec(cmd, args)
+	if err != nil {
+		return false
+	}
+	return true
+}
+
 // detectMissingChains checks which Firewall chains haven't been created yet.
 // Because we do not want to create chains that already exist.
 func (fw *Firewall) detectMissingChains() []int {
@@ -171,20 +184,35 @@ func (fw *Firewall) CreateChains(newChains []int) error {
 	return nil
 }
 
+// ensure verifies if given iptables rule exists and creates if it's not.
+func (fw *Firewall) ensureIptablesRule(ruleSpec []string) error {
+	if !fw.isRuleExist(ruleSpec) {
+		cmd := "/sbin/iptables"
+		args := []string{"-A"}
+		args = append(args, ruleSpec...)
+		_, err := fw.Agent.Helper.Executor.Exec(cmd, args)
+		if err != nil {
+			log.Print("Creating iptables rule failed ", ruleSpec)
+			return err
+		}
+		log.Print("Rule created ", ruleSpec)
+	}
+	log.Print("Rule already exist ", ruleSpec)
+	return nil
+}
+
 // DivertTrafficToPaniIptablesChain injects iptables rules to send traffic into the PANI chain.
 // We need to do this for each tenant/segment pair as each pair will have different chain name.
 func (fw *Firewall) DivertTrafficToPaniIptablesChain(chain int) error {
 	// Should be like that
 	// iptables -A INPUT -i tap1234 -j PANI-T0S1-INPUT
-	log.Print("Diverting traffic into chaing number ", chain)
+	log.Print("Diverting traffic into chain number ", chain)
 	baseChain := fw.chains[chain].baseChain
 	for _, directionLiteral := range fw.chains[chain].directions {
 		direction := fmt.Sprintf("-%s", directionLiteral)
 		chainName := fw.chains[chain].chainName
-		cmd := "/sbin/iptables"
-		args := []string{"-A", baseChain, direction, fw.interfaceName, "-j", chainName}
-		_, err := fw.Agent.Helper.Executor.Exec(cmd, args)
-		if err != nil {
+		ruleSpec := []string{baseChain, direction, fw.interfaceName, "-j", chainName}
+		if err := fw.ensureIptablesRule(ruleSpec); err != nil {
 			log.Print("Diverting traffic failed", chain)
 			return err
 		}
