@@ -81,8 +81,12 @@ func TestDivertTraffic(t *testing.T) {
 	agent := mockAgent()
 	// when
 
-	// we only care for recorded commands, no need for fake output or errors
-	E := &FakeExecutor{nil, nil, nil}
+	// We need to simulate failure on response from os.exec
+	// so isRuleExist would fail and trigger ensureIptablesRule.
+	// But because ensureIptablesRule will use same object as
+	// response from os.exec we will see error in test logs,
+	// it's ok as long as function generates expected set of commands.
+	E := &FakeExecutor{nil, errors.New("Rule not found"), nil}
 	agent.Helper.Executor = E
 	ip := net.ParseIP("127.0.0.1")
 	fw, _ := NewFirewall(NetIf{"eth0", "A", ip}, &agent)
@@ -91,11 +95,12 @@ func TestDivertTraffic(t *testing.T) {
 	fw.DivertTrafficToPaniIptablesChain(0)
 
 	// expect
-	expect := "/sbin/iptables -A INPUT -i eth0 -j pani-T0S0-INPUT"
+	expect := "/sbin/iptables -C INPUT -i eth0 -j pani-T0S0-INPUT\n/sbin/iptables -A INPUT -i eth0 -j pani-T0S0-INPUT"
 
 	if *E.Commands != expect {
 		t.Errorf("Unexpected input from TestDivertTraffic, expect\n%s, got\n%s", expect, *E.Commands)
 	}
+	t.Log("All good here, don't be afraid if 'Diverting traffic failed' message")
 }
 
 // TestCreateRules is checking that CreateRules generates correct commands to create
