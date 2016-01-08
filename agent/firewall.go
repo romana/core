@@ -184,7 +184,7 @@ func (fw *Firewall) CreateChains(newChains []int) error {
 	return nil
 }
 
-// ensure verifies if given iptables rule exists and creates if it's not.
+// ensureIptablesRule verifies if given iptables rule exists and creates if it's not.
 func (fw *Firewall) ensureIptablesRule(ruleSpec []string) error {
 	if !fw.isRuleExist(ruleSpec) {
 		cmd := "/sbin/iptables"
@@ -406,9 +406,6 @@ func provisionFirewallRules(netif NetIf, agent *Agent) error {
 		return err
 	}
 	for chain := range missingChains {
-		if err := fw.DivertTrafficToPaniIptablesChain(chain); err != nil {
-			return err
-		}
 		if err := fw.CreateRules(chain); err != nil {
 			return err
 		}
@@ -419,5 +416,12 @@ func provisionFirewallRules(netif NetIf, agent *Agent) error {
 			return err
 		}
 	}
+
+	for chain := range fw.chains {
+		if err := fw.DivertTrafficToPaniIptablesChain(chain); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
