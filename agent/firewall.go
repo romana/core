@@ -196,8 +196,9 @@ func (fw *Firewall) ensureIptablesRule(ruleSpec []string) error {
 			return err
 		}
 		log.Print("Rule created ", ruleSpec)
+	} else {
+		log.Print("Rule already exist ", ruleSpec)
 	}
-	log.Print("Rule already exist ", ruleSpec)
 	return nil
 }
 
