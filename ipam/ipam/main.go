@@ -39,7 +39,7 @@ func main() {
 		return
 	}
 
-	channel, err := ipam.Run(*rootUrl)
+	channel, _, err := ipam.Run(*rootUrl)
 	if err != nil {
 		panic(err)
 	}

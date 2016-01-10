@@ -5,10 +5,10 @@
 // not use this file except in compliance with the License. You may obtain
 // a copy of the License at
 //
-//   http://www.apache.org/licenses/LICENSE-2.0
+// http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
-//  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
 // WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 // License for the specific language governing permissions and limitations
 // under the License.
@@ -17,7 +17,7 @@ package agent
 
 import (
 	"github.com/romana/core/common"
-//	"github.com/romana/core/topology"
+	//	"github.com/romana/core/topology"
 
 	"log"
 	"net"
@@ -74,20 +74,22 @@ func (c *NetworkConfig) EndpointBits() uint {
 // If no match is found we assume we are running on host which is not
 // part of the Romana setup and spit error out.
 func (a Agent) identifyCurrentHost() error {
-	topologyURL, err := common.GetServiceUrl(a.config.Common.Api.RootServiceUrl, "topology")
+	client, err := common.NewRestClient("", a.config.Common.Api.RestTimeoutMillis)
+	
 	if err != nil {
 		return agentError(err)
 	}
-
-	client, err := common.NewRestClient(topologyURL)
+	topologyURL, err := client.GetServiceUrl(a.config.Common.Api.RootServiceUrl, "topology")
 	if err != nil {
 		return agentError(err)
 	}
+log.Println("3")
 	index := common.IndexResponse{}
 	err = client.Get(topologyURL, &index)
 	if err != nil {
 		return agentError(err)
 	}
+	log.Println("4")
 	dcURL := index.Links.FindByRel("datacenter")
 	a.networkConfig.dc = common.Datacenter{}
 	err = client.Get(dcURL, &a.networkConfig.dc)
@@ -95,13 +97,14 @@ func (a Agent) identifyCurrentHost() error {
 		return agentError(err)
 	}
 
-
 	hostURL := index.Links.FindByRel("host-list")
 	hosts := []common.HostMessage{}
+	log.Println("5")
 	err = client.Get(hostURL, &hosts)
 	if err != nil {
 		return agentError(err)
 	}
+	log.Println("6")
 
 	// Walking through all interfaces on a host and looking for a
 	// matching interface address in configuration.
@@ -138,5 +141,5 @@ func (a Agent) identifyCurrentHost() error {
 		}
 	}
 	return nil
-//	return wrongHostError()
+	//	return wrongHostError()
 }

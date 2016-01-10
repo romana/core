@@ -8,7 +8,7 @@
 // http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
-//  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
 // WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 // License for the specific language governing permissions and limitations
 // under the License.
@@ -30,7 +30,9 @@ type Api struct {
 	// Port to listen on.
 	Port uint64 `yaml:"port" json:"port"`
 	// Root service URL
-	RootServiceUrl string `json:"root_service_url,omitempty"`
+	RootServiceUrl string `json:"root_service_url,omitempty" yaml:"root_service_url,omitempty"`
+	// Rest timeout in milliseconds (if omitted, defaults to DefaultRestTimeout)
+	RestTimeoutMillis int64 `yaml:"rest_timeout_millis,omitempty" json:"rest_timeout_millis,omitempty"`
 }
 
 func (api Api) GetHostPort() string {
@@ -42,7 +44,7 @@ func (api Api) GetHostPort() string {
 // For things such as API information (host/port),
 // DB, etc.
 type CommonConfig struct {
-	Api Api `yaml:"api" json:"api"`
+	Api *Api `yaml:"api" json:"api"`
 }
 
 // ServiceConfig contains common configuration
@@ -56,7 +58,7 @@ type ServiceConfig struct {
 	// should be some common part that's applicable
 	// to all services, and something service-specific
 	// that we in common do not need to know about.
-	ServiceSpecific map[string]interface{} `json:"config" yaml:"config"`
+	ServiceSpecific map[string]interface{} `json:"config" yaml:"config,omitempty"`
 }
 
 // Main configuration object
@@ -71,7 +73,7 @@ type yamlConfig struct {
 type yamlServiceConfig struct {
 	Service string
 	Api     *Api
-	Config  map[string]interface{}
+	Config  map[string]interface{} `yaml:"config,omitempty"`
 }
 
 // cleanupMap ensures that map[string]interface{}'s children
@@ -109,7 +111,7 @@ func cleanupMap2(ifcIfc map[interface{}]interface{}) map[string]interface{} {
 }
 
 // ReadConfig parses the configuration file provided and returns
-// Config structure
+// ReadConfig reads config from file to structure
 func ReadConfig(fname string) (Config, error) {
 	// Created new...
 	config := &Config{}
@@ -131,7 +133,7 @@ func ReadConfig(fname string) (Config, error) {
 			api := Api{Host: c.Api.Host, Port: c.Api.Port}
 
 			cleanedConfig := cleanupMap(c.Config)
-			config.Services[c.Service] = ServiceConfig{CommonConfig{api}, cleanedConfig}
+			config.Services[c.Service] = ServiceConfig{CommonConfig{&api}, cleanedConfig}
 
 		}
 		log.Println("Read configuration from", fname)
@@ -139,6 +141,27 @@ func ReadConfig(fname string) (Config, error) {
 	} else {
 		return *config, errors.New("Empty filename.")
 	}
+}
+
+// WriteConfig writes config from file to structure
+func WriteConfig(config Config, fname string) error {
+	yamlConfig := &yamlConfig{}
+	yamlConfig.Services = make([]yamlServiceConfig, len(config.Services))
+	i := 0
+	for k,v := range config.Services {
+		ysc := &yamlServiceConfig{}
+		ysc.Service = k
+		ysc.Api = v.Common.Api
+		ysc.Config = v.ServiceSpecific
+		yamlConfig.Services[i] = *ysc
+		i++
+	}
+	
+	b, err := yaml.Marshal(yamlConfig)
+	if err != nil {
+		return err
+	}
+	return ioutil.WriteFile(fname, b, 0777)
 }
 
 // Stores information needed for a MySQL connection.

@@ -39,7 +39,7 @@ func main() {
 		return
 	}
 
-	channel, err := topology.Run(*rootUrl)
+	channel, _, err := topology.Run(*rootUrl)
 	if err != nil {
 		panic(err)
 	}
