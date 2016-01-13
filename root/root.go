@@ -21,8 +21,8 @@ package root
 import (
 	//	"fmt"
 	"github.com/romana/core/common"
-	"strconv"
 	"log"
+	"strconv"
 	"strings"
 	//	"github.com/gorilla/mux"
 )
@@ -115,7 +115,6 @@ func (root *Root) handleConfig(input interface{}, ctx common.RestContext) (inter
 	return retval, nil
 }
 
-
 // Provides Routes
 func (root Root) Routes() common.Routes {
 	routes := common.Routes{
@@ -144,10 +143,10 @@ func (root Root) Routes() common.Routes {
 }
 
 // Runs root service
-func Run(configFileName string) (chan common.ServiceMessage, string, error) {
+func Run(configFileName string) (*common.RestServiceInfo, error) {
 	fullConfig, err := common.ReadConfig(configFileName)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 
 	rootService := &Root{}

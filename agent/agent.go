@@ -77,10 +77,9 @@ func (a *Agent) Routes() common.Routes {
 }
 
 // Run runs the agent service.
-func Run(rootServiceURL string) (chan common.ServiceMessage, string, error) {
 	client, err := common.NewRestClient("", common.GetDefaultRestClientConfig())
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 
 	agent := &Agent{}
@@ -90,7 +89,7 @@ func Run(rootServiceURL string) (chan common.ServiceMessage, string, error) {
 
 	config, err := client.GetServiceConfig(rootServiceURL, agent)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	return common.InitializeService(agent, *config)
 
