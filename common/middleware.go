@@ -24,6 +24,7 @@ import (
 	"github.com/K-Phoen/negotiation"
 	"github.com/gorilla/context"
 	"github.com/gorilla/mux"
+	"github.com/pborman/uuid"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -40,6 +41,8 @@ type RestContext struct {
 	// QueryVariables stores key-value-list map of query variables, see url.Values
 	// for more details.
 	QueryVariables url.Values
+
+	RequestToken string
 }
 
 // RestHandler specifies type of a function that each Route provides.
@@ -84,6 +87,9 @@ type Route struct {
 	// This should return a POINTER to an instance which
 	// this route expects as an input.
 	MakeMessage MakeMessage
+
+	//
+	UseRequestToken bool
 }
 
 // Each service defines routes
@@ -118,7 +124,7 @@ func write500(writer http.ResponseWriter, m Marshaller, err error) {
 // write400 writes out a 400 error based on provided err
 func write400(writer http.ResponseWriter, m Marshaller, request string, err error) {
 	writer.WriteHeader(http.StatusInternalServerError)
-	httpErr := NewError400(err, request)
+	httpErr := NewError400(err.Error(), request)
 	// Should never error out - it's a struct we know.
 	outData, _ := m.Marshal(httpErr)
 	writer.Write(outData)
@@ -129,7 +135,11 @@ func write400(writer http.ResponseWriter, m Marshaller, request string, err erro
 // which deals with raw HTTP request and response. The wrapper
 // is intended to transparently deal with converting data to/from
 // the wire format into internal representations.
-func wrapHandler(restHandler RestHandler, makeMessage MakeMessage) http.Handler {
+func wrapHandler(restHandler RestHandler, route Route) http.Handler {
+// TODO 
+// This function is very long. Could we please break it up into a few smaller functions 
+// (with self-documenting names), which are called from within this function?
+	makeMessage := route.MakeMessage
 	if makeMessage != nil && reflect.TypeOf(makeMessage()) == requestType {
 		// This would mean the handler actually wants access to raw request/response
 		// Fine, then...
@@ -202,7 +212,26 @@ func wrapHandler(restHandler RestHandler, makeMessage MakeMessage) http.Handler 
 				write400(writer, marshaller, request.RequestURI, err)
 				return
 			}
-			restContext := RestContext{PathVariables: mux.Vars(request), QueryVariables: request.Form}
+			var token string
+			if route.UseRequestToken {
+				if inData != nil {
+					v := reflect.Indirect(reflect.ValueOf(inData)).FieldByName(RequestTokenQueryParameter)
+					if v.IsValid() {
+						token = v.String()
+						log.Printf("Token from payload %s\n", token)
+					} else {
+						tokens := request.Form[RequestTokenQueryParameter]
+						if len(tokens) != 1 {
+							token = uuid.New()
+							log.Printf("Token created %s\n", token)
+						} else {
+							log.Printf("Token from query string %s\n", token)
+						}
+						token = tokens[0]
+					}
+				}
+			}
+			restContext := RestContext{PathVariables: mux.Vars(request), QueryVariables: request.Form, RequestToken: token}
 			outData, err := restHandler(inData, restContext)
 			//			log.Printf("In here, outData: [%s] of type %s, error [%s] [%s]\n", outData, reflect.TypeOf(outData), err, err == nil)
 			if err == nil {
@@ -213,11 +242,11 @@ func wrapHandler(restHandler RestHandler, makeMessage MakeMessage) http.Handler 
 					writer.Write(wireData)
 					return
 				} else {
-					writer.WriteHeader(http.StatusInternalServerError)
-					writer.Write([]byte(err.Error()))
+					write500(writer, marshaller, err)
 					return
 				}
 			} else {
+				log.Printf("HEYHEYHEY %v\n", err)
 				switch err := err.(type) {
 				case HttpError:
 					writer.WriteHeader(err.StatusCode)
@@ -245,7 +274,7 @@ func newRouter(routes []Route) *mux.Router {
 		router.
 			Methods(route.Method).
 			Path(route.Pattern).
-			Handler(wrapHandler(handler, route.MakeMessage))
+			Handler(wrapHandler(handler, route))
 	}
 	return router
 }

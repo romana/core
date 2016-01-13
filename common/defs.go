@@ -27,8 +27,12 @@ const (
 	ContextKeyOriginalBody string = "OriginalBody"
 	ContextKeyMarshaller   string = "Marshaller"
 	// DefaultRestTimeout, in milliseconds.
-	DefaultRestTimeout    = 10 * 1000
+	DefaultRestTimeout    = 5 * 1000
+	DefaultRestRetries    = 3
 	ReadWriteTimeoutDelta = 50
+
+	// Name of the query parameter used for request token
+	RequestTokenQueryParameter = "RequestToken"
 
 	HeaderContentType = "content-type"
 
@@ -41,6 +45,7 @@ const (
 	// but there is an error so no point in returning any
 	// value.
 	ErrorNoValue = ""
+	
 )
 
 // Type definitions

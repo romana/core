@@ -17,22 +17,22 @@ package ipam
 
 import (
 //	"database/sql"
-//	"github.com/romana/core/common"
 )
 
 type Vm struct {
 	//	Id        uint64 `json:"id"`
-	Ip        string `json:"ip"`
-	TenantId  string `json:"tenant_id"`
-	SegmentId string `json:"segment_id"`
-	HostId    string `json:"host_id"`
-	Name      string `json:"instance"`
+	Ip           string `json:"ip"`
+	TenantId     string `json:"tenant_id"`
+	SegmentId    string `json:"segment_id"`
+	HostId       string `json:"host_id"`
+	Name         string `json:"instance"`
+	RequestToken string `json:"request_token" sql:"unique"`
 	// Ordinal number of this VM in the host/tenant combination
-	Seq       uint64 `json:"sequence"`
+	Seq uint64 `json:"sequence"`
 	// Calculated effective sequence number of this VM --
 	// taking into account stride (endpoint space bits)
 	// and alignment thereof. This is used in IP calculation.
-	EffectiveSeq       uint64 `json:"effective_sequence"`
+	EffectiveSeq uint64 `json:"effective_sequence"`
 }
 
 type IpamHost struct {
@@ -47,6 +47,7 @@ type IpamSegment struct {
 
 type IpamVm struct {
 	Vm
+
 	Id uint64 `sql:"AUTO_INCREMENT"`
 	//	IpamHostId sql.NullString
 }

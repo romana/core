@@ -123,12 +123,14 @@ func (root Root) Routes() common.Routes {
 			"/",
 			root.handleIndex,
 			nil,
+			false,
 		},
 		common.Route{
 			"GET",
 			"/config/{serviceName}",
 			root.handleConfig,
 			nil,
+			false,
 		},
 		common.Route{
 			"POST",
@@ -137,6 +139,7 @@ func (root Root) Routes() common.Routes {
 			func() interface{} {
 				return &common.PortUpdateMessage{}
 			},
+			false,
 		},
 	}
 	return routes

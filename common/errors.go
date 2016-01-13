@@ -15,12 +15,14 @@
 
 package common
 
+// Various errors.
+
 import (
 	"fmt"
 	"net/http"
 )
 
-// Error is a structure that represents an error.
+// HttpError is a structure that represents, well, an Http error.
 type HttpError struct {
 	StatusCode int    `json:"status_code"`
 	StatusText string `json:"status_text"`
@@ -31,8 +33,8 @@ func NewError500(err error) HttpError {
 	return NewError(http.StatusInternalServerError, err.Error())
 }
 
-func NewError400(err error, request string) HttpError {
-	msg := fmt.Sprintf("Error parsing request \"%s\": %s", request, err.Error())
+func NewError400(message string, request string) HttpError {
+	msg := fmt.Sprintf("Error parsing request \"%s\": %s", request, message)
 	return NewError(http.StatusBadRequest, msg)
 }
 

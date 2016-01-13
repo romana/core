@@ -19,13 +19,13 @@ package common
 // interfaces.
 
 import (
-	"errors"
+//	"errors"
 	"fmt"
 	"github.com/codegangsta/negroni"
 	"log"
 	"net"
 	"net/http"
-	"net/url"
+//	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -95,75 +95,6 @@ type Service interface {
 
 	// Name returns the name of this service.
 	Name() string
-}
-
-// Client for the Romana services.
-type RestClient struct {
-	url    *url.URL
-	client *http.Client
-	config *RestClientConfig
-}
-
-type RestClientConfig struct {
-	TimeoutMillis int64
-	Retries       int
-}
-
-func GetDefaultRestClientConfig() RestClientConfig {
-	return RestClientConfig{TimeoutMillis: DefaultRestTimeout, Retries: DefaultRestRetries}
-}
-
-// GetRestClientConfig returns a RestClientConfig based on a ServiceConfig
-func GetRestClientConfig(config ServiceConfig) RestClientConfig {
-	return RestClientConfig{TimeoutMillis: config.Common.Api.RestTimeoutMillis, Retries: config.Common.Api.RestRetries}
-}
-
-// NewRestClient creates a new Rest client.
-func NewRestClient(url string, config RestClientConfig) (*RestClient, error) {
-	rc := &RestClient{client: &http.Client{}, config: &config}
-	timeoutMillis := config.TimeoutMillis
-
-	if timeoutMillis <= 0 {
-		log.Printf("Invalid timeout %d, defaulting to %d\n", timeoutMillis, DefaultRestTimeout)
-		rc.client.Timeout = DefaultRestTimeout * time.Millisecond
-	} else {
-		timeoutStr := fmt.Sprintf("%dms", timeoutMillis)
-		dur, _ := time.ParseDuration(timeoutStr)
-		log.Printf("Setting timeout to %v\n", dur)
-		rc.client.Timeout = dur
-	}
-	if url == "" {
-		// If we keep this empty, NewUrl wouldn't work properly when
-		// trying to resolve things.
-		url = "http://localhost"
-	}
-	err := rc.NewUrl(url)
-	if err != nil {
-		return nil, err
-	}
-	return rc, nil
-}
-
-// NewUrl sets the client's new URL (yes, it mutates).
-// If NewUrl is a relative URL then it will be based
-// on the previous value of the URL that the RestClient had.
-func (rc *RestClient) NewUrl(dest string) error {
-	url, err := url.Parse(dest)
-	if err != nil {
-		return err
-	}
-	if rc.url == nil {
-		if !url.IsAbs() {
-			return errors.New("Expected absolute URL.")
-		} else {
-			rc.url = url
-		}
-	} else {
-		NewUrl := rc.url.ResolveReference(url)
-		log.Printf("Getting %s, resolved reference from %s to %s: %s\n", dest, rc.url, url, NewUrl)
-		rc.url = NewUrl
-	}
-	return nil
 }
 
 // InitializeService initializes the service with the

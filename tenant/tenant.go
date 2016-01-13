@@ -45,18 +45,21 @@ func (tsvc *TenantSvc) Routes() common.Routes {
 			func() interface{} {
 				return &Tenant{}
 			},
+			false,
 		},
 		common.Route{
 			"GET",
 			tenantsPath + "/{tenantId}",
 			tsvc.findTenant,
 			nil,
+			false,
 		},
 		common.Route{
 			"GET",
 			tenantsPath,
 			tsvc.listTenants,
 			nil,
+			false,
 		},
 		common.Route{
 			"POST",
@@ -65,18 +68,21 @@ func (tsvc *TenantSvc) Routes() common.Routes {
 			func() interface{} {
 				return &Segment{}
 			},
+			false,
 		},
 		common.Route{
 			"GET",
 			tenantsPath + "/{tenantId}" + segmentsPath + "/{segmentId}",
 			tsvc.findSegment,
 			nil,
+			false,
 		},
 		common.Route{
 			"GET",
 			tenantsPath + "/{tenantId}" + segmentsPath,
 			tsvc.listSegments,
 			nil,
+			false,
 		},
 	}
 	return routes

@@ -262,14 +262,25 @@ func (s *MySuite) TestIntegration(c *check.C) {
 	}
 
 	// Get first IP
-	vmIn := ipam.Vm{Name: "vm1", TenantId: fmt.Sprintf("%d", tOut.Id), SegmentId: fmt.Sprintf("%d", sOut.Id), HostId: host2.Id}
+	myLog(c, "Get first IP")
+
+	vmIn := ipam.Vm{Name: "vm1", TenantId: fmt.Sprintf("%d", tOut.Id), SegmentId: fmt.Sprintf("%d", sOut.Id), HostId: host2.Id, RequestToken: "ttt"}
 	vmOut := ipam.Vm{}
 	err = client.Post("/vms", vmIn, &vmOut)
 	if err != nil {
 		c.Error(err)
 	}
-	myLog(c, "Received:", vmOut)
-	myLog(c, "IP:", vmOut.Ip)
+	myLog(c, "Response from IPAM for ", vmIn, "is", vmOut)
+
+	// TODO waiting for
+	// https://github.com/jinzhu/gorm/issues/819
+	//	myLog(c, "Try same request, watch it result in 409")
+	//	vmOut = ipam.Vm{}
+	//	err = client.Post("/vms", vmIn, &vmOut)
+	//	if err != nil {
+	//		c.Error(err)
+	//	}
+	//	myLog(c, "Response from IPAM for ", vmIn, "is", vmOut)
 
 	// Get second IP
 	vmIn = ipam.Vm{Name: "vm2", TenantId: fmt.Sprintf("%d", tOut.Id), SegmentId: fmt.Sprintf("%d", sOut.Id), HostId: host2.Id}
@@ -278,7 +289,7 @@ func (s *MySuite) TestIntegration(c *check.C) {
 	if err != nil {
 		c.Error(err)
 	}
-	myLog(c, "Received:", vmOut)
+	myLog(c, "Response from IPAM for ", vmIn, "is", vmOut)
 	myLog(c, "IP:", vmOut.Ip)
 
 	// Try legacy request

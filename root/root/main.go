@@ -26,12 +26,12 @@ import (
 func main() {
 	configFileName := flag.String("c", "", "Configuration file")
 	flag.Parse()
-	channel, _,  err := root.Run(*configFileName)
+	svcInfo,  err := root.Run(*configFileName)
 	if err != nil {
 		panic(err)
 	}
 	for {
-		msg := <-channel
+		msg := <-svcInfo.Channel
 		log.Println(msg)
 	}
 }

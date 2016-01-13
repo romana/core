@@ -39,12 +39,12 @@ func main() {
 		return
 	}
 
-	channel, _, err := topology.Run(*rootUrl)
+	svcInfo, err := topology.Run(*rootUrl)
 	if err != nil {
 		panic(err)
 	}
 	for {
-		msg := <-channel
+		msg := <-svcInfo.Channel
 		fmt.Println(msg)
 	}
 }

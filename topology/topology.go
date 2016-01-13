@@ -5,7 +5,7 @@
 // not use this file except in compliance with the License. You may obtain
 // a copy of the License at
 //
-//   http://www.apache.org/licenses/LICENSE-2.0
+// http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
@@ -51,12 +51,14 @@ func (topology *TopologySvc) Routes() common.Routes {
 			"/",
 			topology.handleIndex,
 			nil,
+			false,
 		},
 		common.Route{
 			"GET",
 			hostListPath,
 			topology.handleHostListGet,
 			nil,
+			false,
 		},
 		common.Route{
 			"POST",
@@ -65,18 +67,21 @@ func (topology *TopologySvc) Routes() common.Routes {
 			func() interface{} {
 				return &common.HostMessage{}
 			},
+			false,
 		},
 		common.Route{
 			"GET",
 			hostListPath + "/{hostId}",
 			topology.handleHost,
 			nil,
+			false,
 		},
 		common.Route{
 			"GET",
 			dcPath,
 			topology.handleDc,
 			nil,
+			false,
 		},
 	}
 	return routes
@@ -221,7 +226,7 @@ func (topology *TopologySvc) SetConfig(config common.ServiceConfig) error {
 
 // Runs topology service
 func Run(rootServiceUrl string) (*common.RestServiceInfo, error) {
-	client, err := common.NewRestClient(rootServiceUrl, common.DefaultRestTimeout)
+	client, err := common.NewRestClient(rootServiceUrl, common.GetDefaultRestClientConfig())
 	if err != nil {
 		return nil, err
 	}

@@ -31,14 +31,14 @@ func TestServiceList(t *testing.T) {
 	yamlFileName := "../common/testdata/romana.sample.yaml"
 	common.MockPortsInConfig(yamlFileName)
 	fmt.Println("Calling Run()")
-	channel, addr, err := Run("/tmp/romana.yaml")
+	svcInfo, err := Run("/tmp/romana.yaml")
 	if err != nil {
 		fmt.Println(err.Error())
 		t.FailNow()
 	}
 
 	fmt.Println("Waiting for message")
-	msg := <-channel
+	msg := <-svcInfo.Channel
 	fmt.Println("Root service said:", msg)
 
 	_, err = common.ReadConfig("/tmp/romana.yaml")
@@ -46,7 +46,7 @@ func TestServiceList(t *testing.T) {
 		t.Error(err)
 		t.FailNow()
 	}
-	addr = fmt.Sprintf("http://%s", addr)
+	addr := fmt.Sprintf("http://%s", svcInfo.Address)
 	client, err := common.NewRestClient(addr, common.GetDefaultRestClientConfig())
 	if err != nil {
 		t.Error(err)

@@ -39,12 +39,12 @@ func main() {
 		return
 	}
 
-	channel, _, err := tenant.Run(*rootUrl)
+	svcInfo, err := tenant.Run(*rootUrl)
 	if err != nil {
 		panic(err)
 	}
 	for {
-		msg := <-channel
+		msg := <-svcInfo.Channel
 		fmt.Println(msg)
 	}
 }

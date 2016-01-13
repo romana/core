@@ -21,7 +21,7 @@ import (
 	"github.com/go-check/check"
 	"github.com/romana/core/common"
 	"github.com/romana/core/root"
-//	"log"
+	//	"log"
 	"os"
 	"reflect"
 
@@ -54,20 +54,20 @@ func (s *MySuite) SetUpTest(c *check.C) {
 		if err != nil {
 			panic(err)
 		}
-	
+
 		myLog(c, "Root configuration: ", s.config.Services["root"].Common.Api.GetHostPort())
 		root.Run(s.configFile)
-		
+
 		// Starting root service
 		myLog(c, "Starting root service...")
-		channelRoot, addr, err := root.Run(s.configFile)
+		svcInfo, err := root.Run(s.configFile)
 		if err != nil {
 			c.Error(err)
 		}
-		s.rootUrl = "http://" + addr
+		s.rootUrl = "http://" + svcInfo.Address
 		myLog(c, "Root URL:", s.rootUrl)
 
-		msg := <-channelRoot
+		msg := <-svcInfo.Channel
 		myLog(c, "Root service said:", msg)
 
 		myLog(c, "Creating topology schema")
@@ -120,13 +120,13 @@ func (s *MySuite) TestTopology(c *check.C) {
 	myLog(c, "In", dir)
 	myLog(c, "Starting topology service")
 
-	channelTop, addr, err := Run(s.rootUrl)
+	svcInfo, err := Run(s.rootUrl)
 	if err != nil {
 		c.Error(err)
 	}
-	msg := <-channelTop
+	msg := <-svcInfo.Channel
 	myLog(c, "Topology service said:", msg)
-	addr = "http://" + addr
+	addr := "http://" + svcInfo.Address
 	client, err := common.NewRestClient(addr, common.GetDefaultRestClientConfig())
 	if err != nil {
 		c.Error(err)

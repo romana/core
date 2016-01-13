@@ -37,7 +37,7 @@ func (mysqlStore *mysqlStore) addVm(stride uint, vm *Vm) error {
 	row := tx.Model(IpamVm{}).Where("host_id = ? AND segment_id = ?", vm.HostId, vm.SegmentId).Select("IFNULL(MAX(seq),-1)+1").Row()
 	row.Scan(&vm.Seq)
 	log.Printf("New sequence is %d\n", vm.Seq)
-	
+
 	// vmSeq is the sequence number of VM in a given host
 	effectiveVmSeq := getEffectiveSeq(vm.Seq, stride)
 	log.Printf("Effective sequence for seq %d (stride %d): %d\n", vm.Seq, stride, effectiveVmSeq)
@@ -45,12 +45,14 @@ func (mysqlStore *mysqlStore) addVm(stride uint, vm *Vm) error {
 	ipamVm := IpamVm{Vm: *vm}
 	tx.NewRecord(ipamVm)
 	tx.Create(&ipamVm)
-	err := common.MakeMultiError(mysqlStore.db.GetErrors())
+	log.Printf("YOYO TX: [%v] mysqlstore.db [%v] errors [%v]\n", tx, mysqlStore.db, tx.GetErrors())
+	err := common.MakeMultiError(tx.GetErrors())
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
 	tx.Commit()
+
 	return nil
 }
 
