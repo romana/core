@@ -74,8 +74,8 @@ func (c *NetworkConfig) EndpointBits() uint {
 // If no match is found we assume we are running on host which is not
 // part of the Romana setup and spit error out.
 func (a Agent) identifyCurrentHost() error {
-	client, err := common.NewRestClient("", a.config.Common.Api.RestTimeoutMillis)
-	
+	client, err := common.NewRestClient("", common.GetRestClientConfig(a.config))
+
 	if err != nil {
 		return agentError(err)
 	}

@@ -78,7 +78,7 @@ func (a *Agent) Routes() common.Routes {
 
 // Run runs the agent service.
 func Run(rootServiceURL string) (chan common.ServiceMessage, string, error) {
-	client, err := common.NewRestClient("", common.DefaultRestTimeout)
+	client, err := common.NewRestClient("", common.GetDefaultRestClientConfig())
 	if err != nil {
 		return nil, "", err
 	}

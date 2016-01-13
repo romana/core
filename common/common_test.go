@@ -73,7 +73,7 @@ func refute2(t *testing.T, msg string, a interface{}, b interface{}) {
 // TestClientNoHost just tests that we don't hang forever
 // when there is no host.
 func TestClientNoHost(t *testing.T) {
-	client, err := NewRestClient("http://no.such.host", DefaultRestTimeout)
+	client, err := NewRestClient("http://no.such.host", GetDefaultRestClientConfig())
 	if err != nil {
 		t.Error(err)
 	}
@@ -291,7 +291,7 @@ func TestClientTimeout(t *testing.T) {
 	}
 	url := fmt.Sprintf("http://%s", addr)
 	log.Printf("Listening on %s\n", url)
-	client, err := NewRestClient(url, DefaultRestTimeout)
+	client, err := NewRestClient(url, GetDefaultRestClientConfig())
 	if err != nil {
 		t.Error(err)
 	}

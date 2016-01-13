@@ -120,7 +120,7 @@ func (s *MySuite) TestIntegration(c *check.C) {
 
 	// 2. Add some hosts to topology service and test.
 	topoAddr = "http://" + topoAddr
-	client, err := common.NewRestClient(topoAddr, common.DefaultRestTimeout)
+	client, err := common.NewRestClient(topoAddr, common.GetDefaultRestClientConfig())
 	if err != nil {
 		c.Error(err)
 	}
@@ -171,7 +171,7 @@ func (s *MySuite) TestIntegration(c *check.C) {
 	tenantAddr = "http://" + tenantAddr
 	msg = <-channelTen
 	myLog(c, "Tenant service said:", msg)
-	client, err = common.NewRestClient(tenantAddr, common.DefaultRestTimeout)
+	client, err = common.NewRestClient(tenantAddr, common.GetDefaultRestClientConfig())
 	if err != nil {
 		c.Error(err)
 	}
@@ -255,7 +255,7 @@ func (s *MySuite) TestIntegration(c *check.C) {
 	ipamAddr = fmt.Sprintf("http://%s", ipamAddr)
 	msg = <-channelIpam
 	myLog(c, "IPAM service said: ", msg)
-	client, err = common.NewRestClient(ipamAddr, common.DefaultRestTimeout)
+	client, err = common.NewRestClient(ipamAddr, common.GetDefaultRestClientConfig())
 	if err != nil {
 		c.Error(err)
 	}

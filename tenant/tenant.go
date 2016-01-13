@@ -194,7 +194,7 @@ func (tsvc *TenantSvc) createSchema(overwrite bool) error {
 // Runs Tenant service
 func Run(rootServiceUrl string) (chan common.ServiceMessage, string, error) {
 	tsvc := &TenantSvc{}
-	client, err := common.NewRestClient(rootServiceUrl, common.DefaultRestTimeout)
+	client, err := common.NewRestClient(rootServiceUrl, common.GetDefaultRestClientConfig())
 	if err != nil {
 		return nil, "", err
 	}
@@ -212,7 +212,7 @@ func (tsvc *TenantSvc) Initialize() error {
 		return err
 	}
 
-	client, err := common.NewRestClient("", tsvc.config.Common.Api.RestTimeoutMillis)
+	client, err := common.NewRestClient("", common.GetRestClientConfig(tsvc.config))
 	if err != nil {
 		return err
 	}
@@ -244,7 +244,7 @@ func CreateSchema(rootServiceUrl string, overwrite bool) error {
 	log.Println("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
 	tsvc := &TenantSvc{}
 
-	client, err := common.NewRestClient("", common.DefaultRestTimeout)
+	client, err := common.NewRestClient("", common.GetDefaultRestClientConfig())
 	if err != nil {
 		return err
 	}

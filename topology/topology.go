@@ -221,7 +221,7 @@ func (topology *TopologySvc) SetConfig(config common.ServiceConfig) error {
 
 // Runs topology service
 func Run(rootServiceUrl string) (chan common.ServiceMessage, string, error) {
-	client, err := common.NewRestClient(rootServiceUrl, common.DefaultRestTimeout)
+	client, err := common.NewRestClient(rootServiceUrl, common.GetDefaultRestClientConfig())
 	if err != nil {
 		return nil, "", err
 	}
@@ -249,7 +249,7 @@ func (topology *TopologySvc) Initialize() error {
 func CreateSchema(rootServiceUrl string, overwrite bool) error {
 	log.Println("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
 	
-	client, err := common.NewRestClient("", common.DefaultRestTimeout)
+	client, err := common.NewRestClient("", common.GetDefaultRestClientConfig())
 	if err != nil {
 		return err
 	}

@@ -125,15 +125,35 @@ type Service interface {
 const DefaultRestTimeout = 10 * 1000
 const ReadWriteTimeoutDelta = 50
 
+// Retry count
+const DefaultRestRetries = 3
+
 // Client for the Romana services.
 type RestClient struct {
 	url    *url.URL
 	client *http.Client
+	config *RestClientConfig
+}
+
+type RestClientConfig struct {
+	TimeoutMillis int64
+	Retries       int
+}
+
+func GetDefaultRestClientConfig() RestClientConfig {
+	return RestClientConfig{TimeoutMillis: DefaultRestTimeout, Retries: DefaultRestRetries}
+}
+
+// GetRestClientConfig returns a RestClientConfig based on a ServiceConfig
+func GetRestClientConfig(config ServiceConfig) RestClientConfig {
+	return RestClientConfig{TimeoutMillis: config.Common.Api.RestTimeoutMillis, Retries: config.Common.Api.RestRetries}
 }
 
 // NewRestClient creates a new Rest client.
-func NewRestClient(url string, timeoutMillis int64) (*RestClient, error) {
-	rc := &RestClient{client: &http.Client{}}
+func NewRestClient(url string, config RestClientConfig) (*RestClient, error) {
+	rc := &RestClient{client: &http.Client{}, config: &config}
+	timeoutMillis := config.TimeoutMillis
+
 	if timeoutMillis <= 0 {
 		log.Printf("Invalid timeout %d, defaulting to %d\n", timeoutMillis, DefaultRestTimeout)
 		rc.client.Timeout = DefaultRestTimeout * time.Millisecond
@@ -405,7 +425,12 @@ func InitializeService(service Service, config ServiceConfig) (chan ServiceMessa
 			url := fmt.Sprintf("%s/config/%s/port", config.Common.Api.RootServiceUrl, service.Name())
 			result := make(map[string]interface{})
 			portMsg := PortUpdateMessage{Port: port64}
-			client, err := NewRestClient("", timeoutMillis)
+			retries := config.Common.Api.RestRetries
+			if retries <= 0 {
+				retries = DefaultRestRetries
+			}
+			config := RestClientConfig{TimeoutMillis: timeoutMillis, Retries: retries}
+			client, err := NewRestClient("", config)
 			if err != nil {
 				return ch, addr, err
 			}

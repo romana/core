@@ -47,7 +47,7 @@ func TestServiceList(t *testing.T) {
 		t.FailNow()
 	}
 	addr = fmt.Sprintf("http://%s", addr)
-	client, err := common.NewRestClient(addr, common.DefaultRestTimeout)
+	client, err := common.NewRestClient(addr, common.GetDefaultRestClientConfig())
 	if err != nil {
 		t.Error(err)
 		t.FailNow()

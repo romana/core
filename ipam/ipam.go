@@ -71,7 +71,7 @@ func (ipam *IPAMSvc) legacyAllocateIpByName(input interface{}, ctx common.RestCo
 	vm := Vm{}
 	vm.Name = name
 
-	client, err := common.NewRestClient("", ipam.config.Common.Api.RestTimeoutMillis)
+	client, err := common.NewRestClient("", common.GetRestClientConfig(ipam.config))
 	if err != nil {
 		return nil, err
 	}
@@ -167,7 +167,7 @@ func (ipam *IPAMSvc) addVm(input interface{}, ctx common.RestContext) (interface
 	if err != nil {
 		return nil, err
 	}
-	client, err := common.NewRestClient("", ipam.config.Common.Api.RestTimeoutMillis)
+	client, err := common.NewRestClient("", common.GetRestClientConfig(ipam.config))
 	if err != nil {
 		return nil, err
 	}
@@ -284,7 +284,7 @@ func (ipam *IPAMSvc) createSchema(overwrite bool) error {
 
 // Runs IPAM service
 func Run(rootServiceUrl string) (chan common.ServiceMessage, string, error) {
-	client, err := common.NewRestClient(rootServiceUrl, common.DefaultRestTimeout)
+	client, err := common.NewRestClient(rootServiceUrl, common.GetDefaultRestClientConfig())
 	if err != nil {
 		return nil, "", err
 	}
@@ -305,7 +305,7 @@ func (ipam *IPAMSvc) Initialize() error {
 		return err
 	}
 
-	client, err := common.NewRestClient("", common.DefaultRestTimeout)
+	client, err := common.NewRestClient("", common.GetDefaultRestClientConfig())
 	if err != nil {
 		return err
 	}
@@ -338,7 +338,7 @@ func CreateSchema(rootServiceUrl string, overwrite bool) error {
 	log.Println("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
 	ipamSvc := &IPAMSvc{}
 
-	client, err := common.NewRestClient("", common.DefaultRestTimeout)
+	client, err := common.NewRestClient("", common.GetDefaultRestClientConfig())
 	if err != nil {
 		return err
 	}
