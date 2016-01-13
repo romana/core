@@ -18,7 +18,7 @@ package topology
 import (
 	"errors"
 	"fmt"
-//	"github.com/mitchellh/mapstructure"
+	//	"github.com/mitchellh/mapstructure"
 	"github.com/romana/core/common"
 	"log"
 	"net"
@@ -190,13 +190,13 @@ func (topology *TopologySvc) SetConfig(config common.ServiceConfig) error {
 		return err
 	}
 	prefixBits, _ := ipNet.Mask.Size()
-	dc.PrefixBits=uint(prefixBits)
-	
+	dc.PrefixBits = uint(prefixBits)
+
 	dc.PortBits = uint(dcMap["host_bits"].(float64))
 	dc.TenantBits = uint(dcMap["tenant_bits"].(float64))
-	dc.SegmentBits =uint( dcMap["segment_bits"].(float64))
+	dc.SegmentBits = uint(dcMap["segment_bits"].(float64))
 	dc.EndpointBits = uint(dcMap["endpoint_bits"].(float64))
-	dc.EndpointSpaceBits =uint( dcMap["endpoint_space_bits"].(float64))
+	dc.EndpointSpaceBits = uint(dcMap["endpoint_space_bits"].(float64))
 	// TODO this should have worked but it doesn't...
 	//	err := mapstructure.Decode(dcMap, &dc)
 	//	if err != nil {
@@ -220,18 +220,18 @@ func (topology *TopologySvc) SetConfig(config common.ServiceConfig) error {
 }
 
 // Runs topology service
-func Run(rootServiceUrl string) (chan common.ServiceMessage, string, error) {
+func Run(rootServiceUrl string) (*common.RestServiceInfo, error) {
 	client, err := common.NewRestClient(rootServiceUrl, common.DefaultRestTimeout)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	topSvc := &TopologySvc{}
 	config, err := client.GetServiceConfig(rootServiceUrl, topSvc)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	return common.InitializeService(topSvc, *config)
-	
+
 }
 
 // Initializes topology service
@@ -248,12 +248,12 @@ func (topology *TopologySvc) Initialize() error {
 // Runs topology service
 func CreateSchema(rootServiceUrl string, overwrite bool) error {
 	log.Println("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
-	
+
 	client, err := common.NewRestClient("", common.DefaultRestTimeout)
 	if err != nil {
 		return err
 	}
-	
+
 	topologyService := &TopologySvc{}
 	config, err := client.GetServiceConfig(rootServiceUrl, topologyService)
 	if err != nil {

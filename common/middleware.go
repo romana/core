@@ -4,7 +4,7 @@
 // Licensed under the Apache License, Version 2.0 (the "License"); you may
 // not use this file except in compliance with the License. You may obtain
 // a copy of the License at
-//`
+//
 // http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
@@ -26,12 +26,10 @@ import (
 	"github.com/gorilla/mux"
 	"io/ioutil"
 	"log"
+	"net/http"
 	"net/url"
 	"reflect"
-	"time"
 	"strings"
-	//	"log"
-	"net/http"
 )
 
 // Context of the REST request other than the body data
@@ -118,7 +116,6 @@ func wrapHandler(restHandler RestHandler, makeMessage MakeMessage) http.Handler 
 		// This would mean the handler actually wants access to raw request/response
 		// Fine, then...
 		httpHandler := func(writer http.ResponseWriter, request *http.Request) {
-			log.Printf("Entering at %v\n", time.Now())
 			err := request.ParseForm()
 			if err != nil {
 				writer.WriteHeader(http.StatusInternalServerError)
@@ -216,7 +213,7 @@ func wrapHandler(restHandler RestHandler, makeMessage MakeMessage) http.Handler 
 // NewRouter creates router for a new service.
 func newRouter(routes []Route) *mux.Router {
 	router := mux.NewRouter().StrictSlash(true)
-	
+
 	for _, route := range routes {
 		handler := route.Handler
 		router.
@@ -337,7 +334,7 @@ func (f formMarshaller) Unmarshal(data []byte, v interface{}) error {
 		// If the output wanted is a map, then just use it as a map.
 		m = *(v.(*map[string]interface{}))
 	} else {
-		// Otherwise, first mape a temporary map
+		// Otherwise, first make a temporary map
 		m = make(map[string]interface{})
 	}
 	for i := range kvPairs {
@@ -456,22 +453,11 @@ type myReader struct{ *bytes.Buffer }
 
 func (r myReader) Close() error { return nil }
 
-const (
-	// For passing in Gorilla Mux context the unmarshalled data
-	ContextKeyUnmarshalledMap string = "UnmarshalledMap"
-	// For passing in Gorilla Mux context path variables
-
-	ContextKeyQueryVariables string = "QueryVars"
-	// 	 For passing in Gorilla Mux context the original body data
-	ContextKeyOriginalBody string = "OriginalBody"
-	ContextKeyMarshaller   string = "Marshaller"
-)
-
 // Unmarshals request body if needed. If not acceptable,
 // returns an http.StatusNotAcceptable and this ends this
 // request's lifecycle.
 func (m UnmarshallerMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
-	ct := r.Header.Get("content-type")
+	ct := r.Header.Get(HeaderContentType)
 
 	buf, err := ioutil.ReadAll(r.Body)
 	if err != nil {

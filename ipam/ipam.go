@@ -283,15 +283,15 @@ func (ipam *IPAMSvc) createSchema(overwrite bool) error {
 }
 
 // Runs IPAM service
-func Run(rootServiceUrl string) (chan common.ServiceMessage, string, error) {
+func Run(rootServiceUrl string) (*common.RestServiceInfo, error) {
 	client, err := common.NewRestClient(rootServiceUrl, common.DefaultRestTimeout)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	ipam := &IPAMSvc{}
 	config, err := client.GetServiceConfig(rootServiceUrl, ipam)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	return common.InitializeService(ipam, *config)
 

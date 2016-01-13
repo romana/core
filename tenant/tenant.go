@@ -192,15 +192,15 @@ func (tsvc *TenantSvc) createSchema(overwrite bool) error {
 }
 
 // Runs Tenant service
-func Run(rootServiceUrl string) (chan common.ServiceMessage, string, error) {
+func Run(rootServiceUrl string) (*common.RestServiceInfo, error) {
 	tsvc := &TenantSvc{}
 	client, err := common.NewRestClient(rootServiceUrl, common.DefaultRestTimeout)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	config, err := client.GetServiceConfig(rootServiceUrl, tsvc)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	return common.InitializeService(tsvc, *config)
 
