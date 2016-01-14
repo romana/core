@@ -1,6 +1,27 @@
-# Core
+# Romana Core Components
+  		  
+Romana is a new Software Defined Network (SDN) solution specifically designed
+for the Cloud Native architectural style. The result of this focus is that
+Romana cloud networks are less expensive to build, easier to operate and
+deliver higher performance than cloud networks built using alternative SDN
+designs.
 
-Core components of the Romana system.
+## What's in this repository
+
+This repository contains the core components of the Romana system: A series of
+cooperating micro services written in Go. These services currently are:
+
+* *Root*: Used as the starting point for services to discover each other. Also
+holds the configuration and serves relevant parts to the other services.
+* *Tenant*: Manages tenants in the Romana system, interfaces with environments
+such as OpenStack, to map their tenants to Romana tenants.
+* *Topology*: Understands the network topology in which we are deployed, knows
+about hosts, racks, spines, etc.
+* *IPAM*: Generates and manages the IP addresses Romana assigns to network
+endpoints.
+* *Agent*: Lives on hosts and there performs actions on behalf of Romana, such
+as creating interfaces, setting routes or iptables rules.
+* *Auth*: Serves authentication tokens to tenants and services.
 
 ## Getting started
 
