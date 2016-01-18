@@ -4,7 +4,7 @@
 // Licensed under the Apache License, Version 2.0 (the "License"); you may
 // not use this file except in compliance with the License. You may obtain
 // a copy of the License at
-//
+//`
 // http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
@@ -28,6 +28,7 @@ import (
 	"log"
 	"net/url"
 	"reflect"
+	"time"
 	"strings"
 	//	"log"
 	"net/http"
@@ -117,6 +118,7 @@ func wrapHandler(restHandler RestHandler, makeMessage MakeMessage) http.Handler 
 		// This would mean the handler actually wants access to raw request/response
 		// Fine, then...
 		httpHandler := func(writer http.ResponseWriter, request *http.Request) {
+			log.Printf("Entering at %v\n", time.Now())
 			err := request.ParseForm()
 			if err != nil {
 				writer.WriteHeader(http.StatusInternalServerError)
@@ -149,7 +151,7 @@ func wrapHandler(restHandler RestHandler, makeMessage MakeMessage) http.Handler 
 					return
 				}
 
-				log.Printf("Marshaler %s for %s\n", ContentTypeMarshallers[ct], ct)
+				log.Printf("Marshaler %v for %s\n", ContentTypeMarshallers[ct], ct)
 				if marshaller, ok := ContentTypeMarshallers[ct]; ok {
 					err = marshaller.Unmarshal(buf, inData)
 				} else {
@@ -214,9 +216,9 @@ func wrapHandler(restHandler RestHandler, makeMessage MakeMessage) http.Handler 
 // NewRouter creates router for a new service.
 func newRouter(routes []Route) *mux.Router {
 	router := mux.NewRouter().StrictSlash(true)
+	
 	for _, route := range routes {
-		var handler RestHandler
-		handler = route.Handler
+		handler := route.Handler
 		router.
 			Methods(route.Method).
 			Path(route.Pattern).

@@ -192,14 +192,18 @@ func (tsvc *TenantSvc) createSchema(overwrite bool) error {
 }
 
 // Runs Tenant service
-func Run(rootServiceUrl string) (chan common.ServiceMessage, error) {
+func Run(rootServiceUrl string) (chan common.ServiceMessage, string, error) {
 	tsvc := &TenantSvc{}
-	config, err := common.GetServiceConfig(rootServiceUrl, tsvc)
+	client, err := common.NewRestClient(rootServiceUrl, common.DefaultRestTimeout)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	ch, err := common.InitializeService(tsvc, *config)
-	return ch, err
+	config, err := client.GetServiceConfig(rootServiceUrl, tsvc)
+	if err != nil {
+		return nil, "", err
+	}
+	return common.InitializeService(tsvc, *config)
+
 }
 
 func (tsvc *TenantSvc) Initialize() error {
@@ -208,15 +212,16 @@ func (tsvc *TenantSvc) Initialize() error {
 		return err
 	}
 
-	topologyURL, err := common.GetServiceUrl(tsvc.config.Common.Api.RootServiceUrl, "topology")
+	client, err := common.NewRestClient("", tsvc.config.Common.Api.RestTimeoutMillis)
 	if err != nil {
 		return err
 	}
 
-	client, err := common.NewRestClient(topologyURL)
+	topologyURL, err := client.GetServiceUrl(tsvc.config.Common.Api.RootServiceUrl, "topology")
 	if err != nil {
 		return err
 	}
+
 	index := common.IndexResponse{}
 	err = client.Get(topologyURL, &index)
 	if err != nil {
@@ -238,7 +243,13 @@ func (tsvc *TenantSvc) Initialize() error {
 func CreateSchema(rootServiceUrl string, overwrite bool) error {
 	log.Println("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
 	tsvc := &TenantSvc{}
-	config, err := common.GetServiceConfig(rootServiceUrl, tsvc)
+
+	client, err := common.NewRestClient("", common.DefaultRestTimeout)
+	if err != nil {
+		return err
+	}
+
+	config, err := client.GetServiceConfig(rootServiceUrl, tsvc)
 	if err != nil {
 		return err
 	}

@@ -26,7 +26,7 @@ import (
 func main() {
 	configFileName := flag.String("c", "", "Configuration file")
 	flag.Parse()
-	channel, err := root.Run(*configFileName)
+	channel, _,  err := root.Run(*configFileName)
 	if err != nil {
 		panic(err)
 	}

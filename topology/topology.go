@@ -82,6 +82,7 @@ func (topology *TopologySvc) Routes() common.Routes {
 	return routes
 }
 
+// HostListMessage is just a list of common.HostMessage
 type HostListMessage []common.HostMessage
 
 // handleHost handles request for a specific host's info
@@ -90,6 +91,7 @@ func (topology *TopologySvc) handleDc(input interface{}, ctx common.RestContext)
 	return topology.datacenter, nil
 }
 
+// Implements Name() of Service interface.
 func (topology *TopologySvc) Name() string {
 	return "topology"
 }
@@ -218,16 +220,21 @@ func (topology *TopologySvc) SetConfig(config common.ServiceConfig) error {
 }
 
 // Runs topology service
-func Run(rootServiceUrl string) (chan common.ServiceMessage, error) {
-	topSvc := &TopologySvc{}
-	config, err := common.GetServiceConfig(rootServiceUrl, topSvc)
+func Run(rootServiceUrl string) (chan common.ServiceMessage, string, error) {
+	client, err := common.NewRestClient(rootServiceUrl, common.DefaultRestTimeout)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
-	ch, err := common.InitializeService(topSvc, *config)
-	return ch, err
+	topSvc := &TopologySvc{}
+	config, err := client.GetServiceConfig(rootServiceUrl, topSvc)
+	if err != nil {
+		return nil, "", err
+	}
+	return common.InitializeService(topSvc, *config)
+	
 }
 
+// Initializes topology service
 func (topology *TopologySvc) Initialize() error {
 	log.Println("Parsing", topology.datacenter)
 	ip, _, err := net.ParseCIDR(topology.datacenter.Cidr)
@@ -241,8 +248,14 @@ func (topology *TopologySvc) Initialize() error {
 // Runs topology service
 func CreateSchema(rootServiceUrl string, overwrite bool) error {
 	log.Println("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
+	
+	client, err := common.NewRestClient("", common.DefaultRestTimeout)
+	if err != nil {
+		return err
+	}
+	
 	topologyService := &TopologySvc{}
-	config, err := common.GetServiceConfig(rootServiceUrl, topologyService)
+	config, err := client.GetServiceConfig(rootServiceUrl, topologyService)
 	if err != nil {
 		return err
 	}

@@ -26,10 +26,14 @@ import (
 	"github.com/codegangsta/negroni"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"net/url"
+	"os"
+	"reflect"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type Links []LinkResponse
@@ -73,7 +77,7 @@ type ServiceResponse struct {
 
 // Structure representing the commonly occurring
 // {
-//          "href" : "https://<own-addr>",
+//        "href" : "https://<own-addr>",
 //        "rel"  : "self"
 //  }
 // part of the response
@@ -117,6 +121,10 @@ type Service interface {
 	Name() string
 }
 
+// DefaultRestTimeout, in milliseconds.
+const DefaultRestTimeout = 10 * 1000
+const ReadWriteTimeoutDelta = 50
+
 // Client for the Romana services.
 type RestClient struct {
 	url    *url.URL
@@ -124,8 +132,20 @@ type RestClient struct {
 }
 
 // NewRestClient creates a new Rest client.
-func NewRestClient(url string) (*RestClient, error) {
+func NewRestClient(url string, timeoutMillis int64) (*RestClient, error) {
 	rc := &RestClient{client: &http.Client{}}
+	if timeoutMillis <= 0 {
+		log.Printf("Invalid timeout %d, defaulting to %d\n", timeoutMillis, DefaultRestTimeout)
+		rc.client.Timeout = DefaultRestTimeout * time.Millisecond
+	} else {
+		timeoutStr := fmt.Sprintf("%dms", timeoutMillis)
+		dur, _ := time.ParseDuration(timeoutStr)
+		log.Printf("Setting timeout to %v\n", dur)
+		rc.client.Timeout = dur
+	}
+	if url == "" {
+		url = "http://localhost"
+	}
 	err := rc.NewUrl(url)
 	if err != nil {
 		return nil, err
@@ -149,6 +169,7 @@ func (rc *RestClient) NewUrl(dest string) error {
 		}
 	} else {
 		NewUrl := rc.url.ResolveReference(url)
+		log.Printf("Getting %s, resolved reference from %s to %s: %s\n", dest, rc.url, url, NewUrl)
 		rc.url = NewUrl
 	}
 	return nil
@@ -156,14 +177,10 @@ func (rc *RestClient) NewUrl(dest string) error {
 
 // GetServiceUrl is a convenience function, which, given the root
 // service URL and name of desired service, returns the URL of that service.
-func GetServiceUrl(rootServiceUrl string, name string) (string, error) {
+func (rc *RestClient) GetServiceUrl(rootServiceUrl string, name string) (string, error) {
 	log.Printf("Entering GetServiceUrl(%s, %s)", rootServiceUrl, name)
-	client, err := NewRestClient(rootServiceUrl)
-	if err != nil {
-		return "", err
-	}
 	resp := RootIndexResponse{}
-	err = client.Get("", &resp)
+	err := rc.Get(rootServiceUrl, &resp)
 	if err != nil {
 		return "", err
 	}
@@ -178,11 +195,11 @@ func GetServiceUrl(rootServiceUrl string, name string) (string, error) {
 			} else {
 				// Now for a bit of a trick - this href could be relative...
 				// Need to normalize.
-				err = client.NewUrl(href)
+				err = rc.NewUrl(href)
 				if err != nil {
 					return "", err
 				}
-				return client.url.String(), nil
+				return rc.url.String(), nil
 			}
 		}
 	}
@@ -225,6 +242,7 @@ func (rc *RestClient) execMethod(method string, url string, data interface{}, re
 			return err
 		}
 		req.Header.Set("accept", "application/json")
+
 		resp, err := rc.client.Do(req)
 		if err != nil {
 			return err
@@ -261,10 +279,12 @@ func (rc *RestClient) execMethod(method string, url string, data interface{}, re
 	if result == nil {
 		return nil
 	}
-	//	log.Printf("Got %s", string(body))
-	err = json.Unmarshal(body, &result)
 
-	return err
+	err = json.Unmarshal(body, &result)
+	if err != nil {
+		return errors.New(fmt.Sprintf("Error %s (%s) when parsing %s", err.Error(), reflect.TypeOf(err), body))
+	}
+	return nil
 }
 
 // Post executes POST method on the specified URL
@@ -279,26 +299,55 @@ func (rc *RestClient) Get(url string, result interface{}) error {
 	return rc.execMethod("GET", url, nil, result)
 }
 
+// GetServiceConfig retrieves configuration for a given service from the root service.
+func (rc *RestClient) GetServiceConfig(rootServiceUrl string, svc Service) (*ServiceConfig, error) {
+	rootIndexResponse := &RootIndexResponse{}
+	err := rc.Get(rootServiceUrl, rootIndexResponse)
+	if err != nil {
+		return nil, err
+	}
+	config := &ServiceConfig{}
+	config.Common.Api = &Api{RootServiceUrl: rootServiceUrl}
+
+	relName := svc.Name() + "-config"
+
+	configUrl := rootIndexResponse.Links.FindByRel(relName)
+	if configUrl == "" {
+		return nil, errors.New(fmt.Sprintf("Cold not find %s at %s", relName, rootServiceUrl))
+	}
+	log.Printf("GetServiceConfig(): Found config url %s in %s from %s", configUrl, rootIndexResponse, relName)
+	err = rc.Get(configUrl, config)
+	if err != nil {
+		return nil, err
+	}
+	return config, nil
+}
+
 type ServiceMessage string
 
 const (
 	Starting ServiceMessage = "Starting."
 )
 
+type PortUpdateMessage struct {
+	Port uint64 `json:"port"`
+}
+
+const TimeoutMessage = "{ \"error\" : \"Timed out\" }"
+
 // InitializeService initializes the service with the
 // provided config and starts it. The channel returned
 // allows the calller to wait for a message from the running
 // service. Messages are of type ServiceMessage above.
 // It can be used for launching service from tests, etc.
-func InitializeService(service Service, config ServiceConfig) (chan ServiceMessage, error) {
-	channel := make(chan ServiceMessage)
+func InitializeService(service Service, config ServiceConfig) (chan ServiceMessage, string, error) {
 	err := service.SetConfig(config)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	err = service.Initialize()
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	// Create negroni
 	negroni := negroni.New()
@@ -320,46 +369,102 @@ func InitializeService(service Service, config ServiceConfig) (chan ServiceMessa
 
 	routes := service.Routes()
 	router := newRouter(routes)
-	negroni.UseHandler(router)
 
-	portStr := strconv.FormatUint(config.Common.Api.Port, 10)
-	hostPort := strings.Join([]string{config.Common.Api.Host, portStr}, ":")
+	timeoutMillis := config.Common.Api.RestTimeoutMillis
+	var dur time.Duration
+	var readWriteDur time.Duration
+	if timeoutMillis <= 0 {
+		timeoutMillis = DefaultRestTimeout
+		dur = DefaultRestTimeout * time.Millisecond
+		readWriteDur = (DefaultRestTimeout + ReadWriteTimeoutDelta) * time.Millisecond
+		log.Printf("%s: Invalid timeout %d, defaulting to %d\n", service.Name(), timeoutMillis, dur)
+	} else {
+		timeoutStr := fmt.Sprintf("%dms", timeoutMillis)
+		dur, _ = time.ParseDuration(timeoutStr)
+		timeoutStr = fmt.Sprintf("%dms", timeoutMillis+ReadWriteTimeoutDelta)
+		readWriteDur, _ = time.ParseDuration(timeoutStr)
+	}
+
+	log.Printf("%s: Creating TimeoutHandler with %v\n", service.Name(), dur)
+	timeoutHandler := http.TimeoutHandler(router, dur, TimeoutMessage)
+	negroni.UseHandler(timeoutHandler)
+
+	hostPort := config.Common.Api.GetHostPort()
 	log.Println("About to start...")
-	go func() {
-		channel <- Starting
-		log.Printf("%s: Trying to listen on %s", service.Name(), hostPort)
-		negroni.Run(hostPort)
-	}()
-	return channel, nil
+	ch, addr, err := RunNegroni(negroni, hostPort, readWriteDur)
+
+	if err == nil {
+		if addr != hostPort {
+			log.Printf("Requested address %s, real %s\n", hostPort, addr)
+			idx := strings.LastIndex(addr, ":")
+			config.Common.Api.Host = addr[0:idx]
+			port, _ := strconv.Atoi(addr[idx+1:])
+			port64 := uint64(port)
+			config.Common.Api.Port = port64
+			// Also register this with root service
+			url := fmt.Sprintf("%s/config/%s/port", config.Common.Api.RootServiceUrl, service.Name())
+			result := make(map[string]interface{})
+			portMsg := PortUpdateMessage{Port: port64}
+			client, err := NewRestClient("", timeoutMillis)
+			if err != nil {
+				return ch, addr, err
+			}
+			err = client.Post(url, portMsg, &result)
+		}
+	}
+	return ch, addr, err
+
 }
 
-// GetServiceConfig retrieves configuration for a given service from the root service.
-// TODO perhaps this should be a method on RestClient interface.
-func GetServiceConfig(rootServiceUrl string, svc Service) (*ServiceConfig, error) {
-	client, err := NewRestClient(rootServiceUrl)
-	if err != nil {
-		return nil, err
-	}
-	rootIndexResponse := &RootIndexResponse{}
-	err = client.Get("", rootIndexResponse)
-	if err != nil {
-		return nil, err
-	}
-	config := &ServiceConfig{}
-	config.Common.Api.RootServiceUrl = rootServiceUrl
+// RunWithOptions is a convenience function that runs the negroni stack as a
+// provided HTTP server, with the following caveats:
+// 1. the Handler field of the provided serverConfig should be nil,
+//    because the Handler used will be the n Negroni object.
+func RunNegroni(n *negroni.Negroni, addr string, timeout time.Duration) (chan ServiceMessage, string, error) {
+	svr := &http.Server{Addr: addr, ReadTimeout: timeout, WriteTimeout: timeout}
+	l := log.New(os.Stdout, "[negroni] ", 0)
+	svr.Handler = n
+	svr.ErrorLog = l
+	return ListenAndServe(svr)
+}
 
-	relName := svc.Name() + "-config"
+type tcpKeepAliveListener struct {
+	*net.TCPListener
+}
 
-	configUrl := rootIndexResponse.Links.FindByRel(relName)
-	if configUrl == "" {
-		return nil, errors.New(fmt.Sprintf("Cold not find %s at %s", relName, rootServiceUrl))
-	}
-	log.Printf("GetServiceConfig(): Found config url %s in %s from %s", configUrl, rootIndexResponse, relName)
-	err = client.Get(configUrl, config)
+func (ln tcpKeepAliveListener) Accept() (c net.Conn, err error) {
+	tc, err := ln.AcceptTCP()
 	if err != nil {
-		return nil, err
+		return
 	}
-	return config, nil
+	tc.SetKeepAlive(true)
+	tc.SetKeepAlivePeriod(3 * time.Minute)
+	return tc, nil
+}
+
+// ListenAndServe is same as http.ListenAndServe except it returns
+// the address that will be listened on (which is useful when using
+// arbitrary ports)
+func ListenAndServe(svr *http.Server) (chan ServiceMessage, string, error) {
+	if svr.Addr == "" {
+		svr.Addr = ":0"
+	}
+	ln, err := net.Listen("tcp", svr.Addr)
+	if err != nil {
+		return nil, "", err
+	}
+	realAddr := ln.Addr().String()
+	channel := make(chan ServiceMessage)
+	l := svr.ErrorLog
+	if l == nil {
+		l = log.New(os.Stdout, "", 0)
+	}
+	go func() {
+		channel <- Starting
+		l.Printf("listening on %s (asked for %s) with configuration %v\n", realAddr, svr.Addr, svr)
+		l.Fatal(svr.Serve(tcpKeepAliveListener{ln.(*net.TCPListener)}))
+	}()
+	return channel, realAddr, nil
 }
 
 // Datacenter represents the configuration of a datacenter
@@ -368,11 +473,11 @@ type Datacenter struct {
 	IpVersion uint   `json:"ip_version"`
 	// We don't need to store this, but calculate and pass around
 	Prefix      uint64 `json:"prefix"`
-	Cidr        string 
-	PrefixBits  uint   `json:"prefix_bits"`
-	PortBits    uint   `json:"port_bits"`
-	TenantBits  uint   `json:"tenant_bits"`
-	SegmentBits uint   `json:"segment_bits"`
+	Cidr        string
+	PrefixBits  uint `json:"prefix_bits"`
+	PortBits    uint `json:"port_bits"`
+	TenantBits  uint `json:"tenant_bits"`
+	SegmentBits uint `json:"segment_bits"`
 	// We don't need to store this, but calculate and pass around
 	EndpointBits      uint   `json:"endpoint_bits"`
 	EndpointSpaceBits uint   `json:"endpoint_space_bits"`

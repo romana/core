@@ -22,6 +22,7 @@ import (
 	//	"fmt"
 	"github.com/romana/core/common"
 	"strconv"
+	"log"
 	"strings"
 	//	"github.com/gorilla/mux"
 )
@@ -59,6 +60,19 @@ func (root *Root) SetConfig(config common.ServiceConfig) error {
 
 func (root *Root) Initialize() error {
 	return nil
+}
+
+// Handler for the / URL
+// See https://github.com/romanaproject/romana/wiki/Root-service-API
+func (root *Root) handlePortUpdate(input interface{}, ctx common.RestContext) (interface{}, error) {
+	portUpdateMsg := input.(*common.PortUpdateMessage)
+	pathVars := ctx.PathVariables
+	serviceName := pathVars["serviceName"]
+	serviceConfig := root.config.full.Services[serviceName]
+	oldPort := serviceConfig.Common.Api.Port
+	serviceConfig.Common.Api.Port = portUpdateMsg.Port
+	log.Printf("Root service: registering port %d for service %s (was %d)\n", serviceConfig.Common.Api.Port, serviceName, oldPort)
+	return nil, nil
 }
 
 // Handler for the / URL
@@ -101,6 +115,7 @@ func (root *Root) handleConfig(input interface{}, ctx common.RestContext) (inter
 	return retval, nil
 }
 
+
 // Provides Routes
 func (root Root) Routes() common.Routes {
 	routes := common.Routes{
@@ -116,20 +131,27 @@ func (root Root) Routes() common.Routes {
 			root.handleConfig,
 			nil,
 		},
+		common.Route{
+			"POST",
+			"/config/{serviceName}/port",
+			root.handlePortUpdate,
+			func() interface{} {
+				return &common.PortUpdateMessage{}
+			},
+		},
 	}
 	return routes
 }
 
 // Runs root service
-func Run(configFileName string) (chan common.ServiceMessage, error) {
+func Run(configFileName string) (chan common.ServiceMessage, string, error) {
 	fullConfig, err := common.ReadConfig(configFileName)
 	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	rootService := &Root{}
 	rootServiceConfig := common.ServiceConfig{fullConfig.Services["root"].Common, make(map[string]interface{})}
 	rootServiceConfig.ServiceSpecific[fullConfigKey] = fullConfig
-	ch, err := common.InitializeService(rootService, rootServiceConfig)
-	return ch, err
+	return common.InitializeService(rootService, rootServiceConfig)
 }
