@@ -3,6 +3,14 @@ services:
     api:
       host: localhost
       port: 9600
+    config:
+      auth:
+        store: 
+           type: mock
+           host: localhost
+           username: root
+           password: password
+           database: auth
   - service: ipam
     api:
       host: localhost

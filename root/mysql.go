@@ -8,11 +8,11 @@
 //   http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
-// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+//  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
 // WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 // License for the specific language governing permissions and limitations
 // under the License.
-package topology
+package root
 
 import (
 	"fmt"
@@ -28,8 +28,14 @@ import (
 	"strconv"
 )
 
-type topoStore struct {
-	common.Store
+
+func (mysqlStore *mysqlStore) validateConnectionInformation() error {
+	return mysqlStore.connect()
+}
+
+func (mysqlStore *mysqlStore) setConnString() {
+	info := mysqlStore.info
+	mysqlStore.connStr = fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", info.Username, info.Password, info.Host, info.Port, info.Database)
 }
 
 func (mysqlStore *mysqlStore) findHost(id uint64) (Host, error) {
@@ -64,6 +70,19 @@ func (mysqlStore *mysqlStore) addHost(host *Host) (string, error) {
 	return strconv.FormatUint(host.Id, 10), nil
 }
 
+func (mysqlStore *mysqlStore) connect() error {
+	log.Println("in connect(", mysqlStore.connStr, ")")
+	if mysqlStore.connStr == "" {
+		return errors.New("No connection information.")
+	}
+
+	db, err := gorm.Open("mysql", mysqlStore.connStr)
+	if err != nil {
+		return err
+	}
+	mysqlStore.db = &db
+	return nil
+}
 
 func (mysqlStore *mysqlStore) createSchema(force bool) error {
 	log.Println("in createSchema(", force, ")")

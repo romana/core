@@ -25,14 +25,6 @@ type mockStore struct {
 	id    uint64
 }
 
-func (mockStore *mockStore) setConfig(storeConfig map[string]interface{}) error {
-	return nil
-}
-
-func (mockStore *mockStore) validateConnectionInformation() error {
-	return nil
-}
-
 func (mockStore *mockStore) findHost(id uint64) (Host, error) {
 	return *mockStore.hosts[id], nil
 }
