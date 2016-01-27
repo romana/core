@@ -48,8 +48,6 @@ const fullConfigKey = "fullConfig"
 
 // SetConfig implements SetConfig function of the Service interface
 func (root *Root) SetConfig(config common.ServiceConfig) error {
-	//	RootConfig{fullConfig.ServiceConfigs["root"], fullConfig}
-
 	root.config = Config{}
 	root.config.common = &config.Common
 	f := config.ServiceSpecific[fullConfigKey].(common.Config)

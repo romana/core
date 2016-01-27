@@ -15,6 +15,11 @@
 
 package common
 
+import (
+	"github.com/jinzhu/gorm"
+	"log"
+)
+
 // MultiError adapts GORM (ORM - see https://github.com/jinzhu/gorm) array of errors found in GetErrors()
 // to a single error interface.
 // GORMdoes not return errors at every turn. It accumulates them and returns
@@ -48,3 +53,43 @@ func (m *MultiError) Error() string {
 	}
 	return s
 }
+
+// Stores information needed for a DB connection.
+type StoreConfig struct {
+	Host     string
+	Port     uint64
+	Username string
+	Password string
+	Database string
+}
+
+func MakeStoreConfig(configMap map[string]interface{}) StoreConfig {
+	storeConfig := StoreConfig{}
+	storeConfig.Host = configMap["host"].(string)
+
+	if storeConfig["port"] != nil {
+		portStr := storeConfig["port"].(string)
+		port, err := strconv.ParseUint(portStr, 10, 64)
+		if err != nil {
+			log.Printf("Error parsing %s", portStr)
+		} else {
+			info.Port = port
+		}
+	}
+	storeConfig.Username = storeConfig["username"].(string)
+	storeConfig.Password = storeConfig["password"].(string)
+	storeConfig.Database = storeConfig["database"].(string)
+	return storeConfig
+}
+
+// Defines generic store interface that can be used
+// by any service for persistence.
+type Store interface {
+	SetConfig(config StoreConfig) error
+	Connect() error
+}
+
+type GormStore interface {
+	DB() *gorm.DB
+}
+
