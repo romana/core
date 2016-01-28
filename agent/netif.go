@@ -23,7 +23,7 @@ import (
 )
 
 // NetIf is a structure that represents
-// network interface and it's ip configuration
+// network interface and its ip configuration
 // together with basic methods operating on this structure.
 type NetIf struct {
 	Name string `form:"interface_name" json:"interface_name"`

@@ -158,7 +158,7 @@ func (a *Agent) k8sPodUpHandle(netif NetIf) error {
 	log.Print("Agent: processing request to provision new interface")
 	if !a.Helper.waitForIface(netif.Name) {
 		// TODO should we resubmit failed interface in queue for later
-		// retry ? ... considering oenstack will give up as well after
+		// retry ? ... considering openstack will give up as well after
 		// timeout
 		return agentErrorString(fmt.Sprintf("Requested interface not available in time - %s", netif.Name))
 	}
