@@ -56,8 +56,7 @@ Once you have your Go environment, follow these steps to download, build and
 test the Romana core components:
 
  1. Prepare a Go workspace.
- 2. Ensure your `PATH` and possibly `GOROOT` are set to find your Go
-    installation and binaries.
+ 2. Ensure your `PATH` is set to find your Go installation and binaries.
  3. Ensure the `GOPATH` environment variable is set to point at the root of your
     workspace.
  4. Define and export `GO15VENDOREXPERIMENT=1`
@@ -65,9 +64,7 @@ test the Romana core components:
     (the three dots at the end are part of the command).
  6. You may see an error at this point, complaining about `No submodule mapping found in .gitmodules...`. This is due to a known bug in "go get". You can fix that by running `cd $GOPATH/src/github.com/romana/core ; git submodule update --init --recursive`.
  7. If you wish to work with a specific branch or tag you need to run: `git checkout <branchname> ; git submodule update --init --recursive`.
- 8. To run unit test for a specific Romana service, go to the
-    `github.com/romana/core` directory and run: `go test -v github.com/romana/core/<name>`, where `<name>` might be `agent`, `root`,
-    `ipam`, `tenant` or `topology`.
+ 8. To run unit test for a specific Romana service run: `go test -v github.com/romana/core/<name>`, where `<name>` might be `agent`, `root`, `ipam`, `tenant` or `topology`.
 
 ### Update a running cluster with your modified code
 
@@ -83,7 +80,9 @@ the cluster and how to restart the services:
     in `$GOPATH/bin` as `agent`, `root`, `ipam`, `tenant` and `topology`.
  2. Upload these binaries to every host in the cluster (every EC2 instance)
     with this command: `rsync -e 'ssh -i <absolute path to your SSH key .ssh/ec2_id_rsa>' -azu --existing "$GOPATH/bin/" ubuntu@<ec2-ip-address>:~/romana/bin/`. This command needs to be executed for every EC2 instance in the cluster. Please remember to specify the correct IP address of the EC2 instance and the absolute path to your SSH key where indicated.
- 3. Log into the controller host and restart the services with these commands:
+ 3. Log into the controller host and restart the services with these commands
+    (note that only root and agent need to be re-started manually, other
+    services will re-start on their own):
 
     ```
     for i in ipam tenant topology root agent; do
