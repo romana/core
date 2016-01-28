@@ -14,7 +14,6 @@
 // under the License.
 
 /*
-Package common contains various things common to all Pani services.
+Package common contains various things common to all Romana services.
 */
 package common
-

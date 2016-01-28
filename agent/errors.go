@@ -93,7 +93,7 @@ func noSuchRouteError() error {
 }
 
 func wrongHostError() error {
-	return NewError(EcodeDefault, fmt.Sprintf("ERROR: Can't resolve internal IP's. It looks like we're running on the host outside of pani config"))
+	return NewError(EcodeDefault, fmt.Sprintf("ERROR: Can't resolve internal IPs. It looks like we're running on the host outside of Romana config"))
 }
 
 func failedToParseOtherHosts(s string) error {

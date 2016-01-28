@@ -68,14 +68,14 @@ func (c *NetworkConfig) EndpointBits() uint {
 
 // identifyCurrentHost discovers network configuration
 // of the host we are running on.
-// We need to know public IP and pani gateway IP of the current host.
+// We need to know public IP and Romana gateway IP of the current host.
 // This is done by matching current host IP addresses against what topology
 // service thinks the host address is.
 // If no match is found we assume we are running on host which is not
 // part of the Romana setup and spit error out.
 func (a Agent) identifyCurrentHost() error {
 	client, err := common.NewRestClient("", a.config.Common.Api.RestTimeoutMillis)
-	
+
 	if err != nil {
 		return agentError(err)
 	}
@@ -83,7 +83,6 @@ func (a Agent) identifyCurrentHost() error {
 	if err != nil {
 		return agentError(err)
 	}
-log.Println("3")
 	index := common.IndexResponse{}
 	err = client.Get(topologyURL, &index)
 	if err != nil {
