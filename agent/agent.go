@@ -95,7 +95,7 @@ func (a *Agent) Name() string {
 }
 
 // index handles HTTP requests for endpoints provisioning.
-// Currently tested with pani ML2 driver.
+// Currently tested with Romana ML2 driver.
 // TODO index should be reserved for an actuall index, while this function
 // need to be renamed as interfaceHandler and need to respond on it's own url.
 func (a *Agent) index(input interface{}, ctx common.RestContext) (interface{}, error) {
