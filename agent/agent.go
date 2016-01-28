@@ -112,6 +112,9 @@ func (a *Agent) Name() string {
 // k8sPodUpHandler handles HTTP requests for endpoints provisioning.
 func (a *Agent) k8sPodUpHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
 	// Parse out NetIf form the request
+	// TODO netif struct has mac address field that is not needed for k8s
+	// right now its required to pass any valid mac address to statisfy unmarshaller
+	// this will confuse API users and needs to be fixed.
 	netif := input.(*NetIf)
 
 	log.Printf("Got interface: Name %s, IP %s Mac %s\n", netif.Name, netif.IP, netif.Mac)
