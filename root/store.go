@@ -22,7 +22,7 @@ import (
 type User struct {
 	Id        	  uint64 `sql:"AUTO_INCREMENT" json:"id"`
 	Username      string `json:"username"`
-	Password      string `json:"ip"`
+	Password      string `json:"password"`
 }
 
 type Tor struct {

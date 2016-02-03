@@ -30,7 +30,6 @@ type RdbmsStore struct {
 }
 
 
-
 func (store *RdbmsStore) Connect() error {
 	if mysqlStore.connStr == "" {
 		return errors.New("No connection information.")

@@ -25,7 +25,5 @@ type TopoMockStore struct {
 	id    uint64
 }
 
-func (mockStore *TopoMockStore) findHost(id uint64) (Host, error) {
-	return *mockStore.hosts[id], nil
-}
+
 
