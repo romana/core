@@ -106,14 +106,15 @@ func (a Agent) identifyCurrentHost() error {
 	if err != nil {
 		return err
 	}
+
 	log.Println("Searching", len(addrs), "interfaces for a matching host configuration")
 
-	matched := false
-	romanaCIDR := &net.IPNet{}
-FindHost:
+	// now find an interface that matches a Romana CIDR
+	// and use that interface's IP address for 
 	for i, host := range hosts {
-		hostIP := net.ParseIP(host.Ip)
-		if hostIP == nil {
+		_, romanaCIDR, err := net.ParseCIDR(host.RomanaIp)
+		if err != nil {
+			log.Printf("Unable to parse '%s' (%s). Skipping.", host.RomanaIp, err)
 			continue
 		}
 		for _, addr := range addrs {
@@ -121,49 +122,21 @@ FindHost:
 			if !ok {
 				continue
 			}
-			if !ipnet.IP.Equal(hostIP) {
-				continue
+			if romanaCIDR.Contains(ipnet.IP) {
+				// check that it's the same subnet size
+				s1, _ := romanaCIDR.Mask.Size()
+				s2, _ := ipnet.Mask.Size()
+				if s1 != s2 {
+					continue
+				}
+				// OK, we're happy with this result
+				a.networkConfig.romanaIP = ipnet.IP
+				a.networkConfig.otherHosts = append(a.networkConfig.otherHosts, hosts[0:i]...)
+				a.networkConfig.otherHosts = append(a.networkConfig.otherHosts, hosts[i+1:]...)
+				log.Println("Found match for CIDR", romanaCIDR, "using address", ipnet.IP)
+				return nil
 			}
-			log.Println("Found matching host and IP:", hostIP, "==", ipnet)
-			// match has been found
-			_, romanaCIDR, err = net.ParseCIDR(host.RomanaIp)
-			if err != nil {
-				// this would mean a problem with the data itself
-				continue
-			}
-			matched = true
-			// update otherHosts list
-			a.networkConfig.otherHosts = append(a.networkConfig.otherHosts, hosts[0:i]...)
-			a.networkConfig.otherHosts = append(a.networkConfig.otherHosts, hosts[i+1:]...)
-
-			break FindHost
 		}
 	}
-	if !matched {
-		log.Println("Host configuration not found")
-		return agentErrorString("Unable to find host configuration")
-	}
-
-	log.Println("Found host configuration using address")
-
-	// now find the interface address that matches it
-	for _, addr := range addrs {
-		ipnet, ok := addr.(*net.IPNet)
-		if !ok {
-			continue
-		}
-		if romanaCIDR.Contains(ipnet.IP) {
-			// check that it's the same subnet size
-			s1, _ := romanaCIDR.Mask.Size()
-			s2, _ := ipnet.Mask.Size()
-			if s1 != s2 {
-				continue
-			}
-			// OK, we're happy with this result
-			a.networkConfig.romanaIP = ipnet.IP
-			return nil
-		}
-	}
-	log.Println("Unable to find interface matching the Romana CIDR", romanaCIDR)
-	return agentErrorString("Unable to find interface matching Romana CIDR")
+	return agentErrorString("Unable to find interface matching any Romana CIDR")
 }
