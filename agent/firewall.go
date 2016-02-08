@@ -121,6 +121,7 @@ func (fw *Firewall) Init(netif NetIf) error {
        outputRules := []string{
 	       fmt.Sprintf("-s %s/32 -p icmp -m icmp --icmp-type 8 -m state --state NEW,RELATED,ESTABLISHED", hostAddr),
 	       fmt.Sprintf("-s %s/32 -p icmp -m icmp --icmp-type 11", hostAddr),
+	       fmt.Sprintf("-s %s/32 -p udp -m udp --sport 67 --dport 68", hostAddr),
 	       fmt.Sprintf("-s %s/32 -p tcp -m tcp --dport 22", hostAddr),
        }
 
