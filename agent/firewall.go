@@ -113,15 +113,15 @@ func (fw *Firewall) Init(netif NetIf) error {
        // Allow ICMP and SSH between host and instances.
        hostAddr := fw.Agent.networkConfig.romanaIP
        inputRules := []string{
-	       fmt.Sprintf("-d %s/32 -p icmp -m icmp --icmp-type 0 -m state --state RELATED,ESTABLISHED -j ACCEPT", hostAddr),
-	       fmt.Sprintf("-d %s/32 -p tcp -m tcp --sport 22 -j ACCEPT", hostAddr),
-	       "-d 255.255.255.255/32 -p udp -m udp --sport 68 --dport 67 -j ACCEPT",
+	       fmt.Sprintf("-d %s/32 -p icmp -m icmp --icmp-type 0 -m state --state RELATED,ESTABLISHED", hostAddr),
+	       fmt.Sprintf("-d %s/32 -p tcp -m tcp --sport 22", hostAddr),
+	       "-d 255.255.255.255/32 -p udp -m udp --sport 68 --dport 67",
        }
 
        outputRules := []string{
-	       fmt.Sprintf("-s %s/32 -p icmp -m icmp --icmp-type 8 -m state --state NEW,RELATED,ESTABLISHED -j ACCEPT", hostAddr),
-	       fmt.Sprintf("-s %s/32 -p icmp -m icmp --icmp-type 11 -j ACCEPT", hostAddr),
-	       fmt.Sprintf("-s %s/32 -p tcp -m tcp --dport 22 -j ACCEPT", hostAddr),
+	       fmt.Sprintf("-s %s/32 -p icmp -m icmp --icmp-type 8 -m state --state NEW,RELATED,ESTABLISHED", hostAddr),
+	       fmt.Sprintf("-s %s/32 -p icmp -m icmp --icmp-type 11", hostAddr),
+	       fmt.Sprintf("-s %s/32 -p tcp -m tcp --dport 22", hostAddr),
        }
 
        forwardRules := []string{
