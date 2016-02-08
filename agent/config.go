@@ -98,7 +98,7 @@ func (a Agent) identifyCurrentHost() error {
 	if err != nil {
 		return agentError(err)
 	}
-	log.Println("Retrieived hosts list, found", len(hosts))
+	log.Println("Retrieived hosts list, found", len(hosts), "hosts")
 
 	// find our host in the list of hosts
 	// checking for a matching IP address
@@ -107,7 +107,7 @@ func (a Agent) identifyCurrentHost() error {
 	if err != nil {
 		return err
 	}
-	log.Println("Searching", len(addrs), "for a matching host configuration")
+	log.Println("Searching", len(addrs), "interfaces for a matching host configuration")
 
 	matched := false
 	romanaCIDR := &net.IPNet{}
