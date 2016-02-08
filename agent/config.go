@@ -108,8 +108,9 @@ func (a Agent) identifyCurrentHost() error {
 
 	log.Println("Searching", len(addrs), "interfaces for a matching host configuration")
 
-	// now find an interface that matches a Romana CIDR
-	// and use that interface's IP address for 
+	// Now find an interface that matches a Romana CIDR
+	// and store that interface's IP address.
+	// It will be used when configuring iptables and routes to tap interfaces.
 	for i, host := range hosts {
 		_, romanaCIDR, err := net.ParseCIDR(host.RomanaIp)
 		if err != nil {
@@ -122,7 +123,7 @@ func (a Agent) identifyCurrentHost() error {
 				continue
 			}
 			if romanaCIDR.Contains(ipnet.IP) {
-				// check that it's the same subnet size
+				// Check that it's the same subnet size
 				s1, _ := romanaCIDR.Mask.Size()
 				s2, _ := ipnet.Mask.Size()
 				if s1 != s2 {
@@ -130,6 +131,8 @@ func (a Agent) identifyCurrentHost() error {
 				}
 				// OK, we're happy with this result
 				a.networkConfig.romanaGW = ipnet.IP
+				// Retain the other hosts that were listed.
+				// This will be used for creating inter-host routes.
 				a.networkConfig.otherHosts = append(a.networkConfig.otherHosts, hosts[0:i]...)
 				a.networkConfig.otherHosts = append(a.networkConfig.otherHosts, hosts[i+1:]...)
 				log.Println("Found match for CIDR", romanaCIDR, "using address", ipnet.IP)
