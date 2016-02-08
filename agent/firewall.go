@@ -110,25 +110,28 @@ func (fw *Firewall) Init(netif NetIf) error {
 	// Default permissive rules to allow ssh/ICMP
 	// from the Host to the Endpoint. Normally wildcard U32 filter would
 	// block all the Host to Endpoint traffic.
-	inputRules := new(firewallRules)
-	inputRules.Add(fmt.Sprintf("-d %s", fw.Agent.networkConfig.currentHostIP))
-	inputRules.Add(fmt.Sprintf("-d %s/%d", fw.Agent.networkConfig.currentHostGW, fw.Agent.networkConfig.currentHostGWNetSize))
-	inputRules.Add("-p udp --sport 68 --dport 67 -d 255.255.255.255")
-	inputRules.Add(fmt.Sprintf("-p tcp -m tcp --sport 22 -d %s", fw.Agent.networkConfig.currentHostIP))
+       // Allow ICMP and SSH between host and instances.
+       hostAddr := fw.Agent.networkConfig.romanaIP
+       inputRules := []string{
+	       fmt.Sprintf("-d %s/32 -p icmp -m icmp --icmp-type 0 -m state --state RELATED,ESTABLISHED -j ACCEPT", hostAddr),
+	       fmt.Sprintf("-d %s/32 -p tcp -m tcp --sport 22 -j ACCEPT", hostAddr),
+	       "-d 255.255.255.255/32 -p udp -m udp --sport 68 --dport 67 -j ACCEPT",
+       }
 
-	outputRules := new(firewallRules)
-	outputRules.Add(fmt.Sprintf("-d %s", fw.Agent.networkConfig.currentHostIP))
-	outputRules.Add(fmt.Sprintf("-d %s/%d", fw.Agent.networkConfig.currentHostGW, fw.Agent.networkConfig.currentHostGWNetSize))
-	outputRules.Add(fmt.Sprintf("-p tcp -m tcp --sport 22 -d %s", fw.Agent.networkConfig.currentHostIP))
+       outputRules := []string{
+	       fmt.Sprintf("-s %s/32 -p icmp -m icmp --icmp-type 8 -m state --state NEW,RELATED,ESTABLISHED -j ACCEPT", hostAddr),
+	       fmt.Sprintf("-s %s/32 -p icmp -m icmp --icmp-type 11 -j ACCEPT", hostAddr),
+	       fmt.Sprintf("-s %s/32 -p tcp -m tcp --dport 22 -j ACCEPT", hostAddr),
+       }
 
-	forwardRules := new(firewallRules)
+       forwardRules := []string{
+       }
 
-	c1 := NewFirewallChain("INPUT", []string{"i"}, *inputRules, fw.prepareChainName("INPUT"))
-	c2 := NewFirewallChain("OUTPUT", []string{"o"}, *outputRules, fw.prepareChainName("OUTPUT"))
-	c3 := NewFirewallChain("FORWARD", []string{"i", "o"}, *forwardRules, fw.prepareChainName("FORWARD"))
-	chains := [numberOfDefaultChains]FirewallChain{*c1, *c2, *c3}
-	fw.chains = chains
-	return nil
+       fw.chains[inputChainIndex] = FirewallChain{"INPUT", []string{"i"}, inputRules, fw.prepareChainName("INPUT")}
+       fw.chains[outputChainIndex] = FirewallChain{"OUTPUT", []string{"o"}, outputRules, fw.prepareChainName("OUTPUT")}
+       fw.chains[forwardChainIndex] = FirewallChain{"FORWARD", []string{"i", "o"}, forwardRules, fw.prepareChainName("FORWARD")}
+
+       return nil
 }
 
 // isChainExist verifies if given iptables chain exists.
