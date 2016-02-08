@@ -258,7 +258,7 @@ func (fw *Firewall) CreateU32Rules(chain int) error {
 		log.Print("Creating U32 firewall rules failed")
 		return err
 	}
-	log.Print("Creating U32 firewall rules failed for chain", chain)
+	log.Print("Creating U32 firewall rules success")
 	return nil
 }
 
@@ -274,7 +274,7 @@ func (fw *Firewall) CreateDefaultDropRule(chain int) error {
 		log.Print("Creating default drop rules failed")
 		return err
 	}
-	log.Print("Creating default drop rules failed for chain", chain)
+	log.Print("Creating default drop rules success")
 	return nil
 }
 
