@@ -97,11 +97,12 @@ func (h Helper) isRouteExist(ip net.IP, netmask string) error {
 }
 
 // createRoute creates IP route, returns nil if success and error otherwise.
-func (h Helper) createRoute(ip net.IP, netmask string, via string, dest string) error {
+func (h Helper) createRoute(ip net.IP, netmask string, via string, dest string, extraArgs ...string) error {
 	log.Print("Helper: creating route")
 	cmd := "/sbin/ip"
 	targetIP := fmt.Sprintf("%s/%v", ip, netmask)
 	args := []string{"ro", "add", targetIP, via, dest}
+	args = append(args, extraArgs...)
 	if _, err := h.Executor.Exec(cmd, args); err != nil {
 		return shelloutError(err, cmd, args)
 	}
@@ -127,10 +128,8 @@ func (h Helper) ensureRouteToEndpoint(netif *NetIf) error {
 		via := "dev"
 		dest := netif.Name
 
-		if err := h.createRoute(netif.IP,
-			mask, via, dest); err != nil {
-
-			// Or report error
+		err := h.createRoute(netif.IP, mask, via, dest, "src", h.Agent.networkConfig.romanaIP.String())
+		if err != nil {
 			return netIfRouteCreateError(err, *netif)
 		}
 	}
@@ -230,9 +229,8 @@ func (h Helper) ensureInterHostRoutes() error {
 		if err := h.isRouteExist(romanaIP, romanaMask); err != nil {
 
 			// Create it
-			if err := h.createRoute(romanaIP, romanaMask, via, dest); err != nil {
-
-				// Or report error
+			err := h.createRoute(romanaIP, romanaMask, via, dest)
+			if err != nil {
 				return routeCreateError(err, romanaIP.String(), romanaMask, dest)
 			}
 		}
