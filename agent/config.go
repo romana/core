@@ -135,7 +135,7 @@ func (a Agent) identifyCurrentHost() error {
 			matched = true
 			// update otherHosts list
 			a.networkConfig.otherHosts = append(a.networkConfig.otherHosts, hosts[0:i]...)
-			a.networkConfig.otherHosts = append(a.networkConfig.otherHosts, hosts[1+1:]...)
+			a.networkConfig.otherHosts = append(a.networkConfig.otherHosts, hosts[i+1:]...)
 
 			break FindHost
 		}
