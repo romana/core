@@ -98,7 +98,7 @@ func (a Agent) identifyCurrentHost() error {
 	if err != nil {
 		return agentError(err)
 	}
-	log.Println("Retrieived hosts list, found", len(hosts), "hosts")
+	log.Println("Retrieved hosts list, found", len(hosts), "hosts")
 
 	// find our host in the list of hosts
 	// checking for a matching IP address
