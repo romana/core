@@ -64,7 +64,7 @@ func mockAgent() Agent {
 	// romanaIP, romanaNet, _ := net.ParseCIDR(host0.RomanaIp)
 
 	networkConfig := &NetworkConfig{}
-	networkConfig.romanaIP = net.ParseIP(host0.Ip)
+	networkConfig.romanaGW = net.ParseIP(host0.Ip)
 
 	host1 := common.HostMessage{Ip: "192.168.0.12", RomanaIp: "10.65.0.0/16"}
 	networkConfig.otherHosts = []common.HostMessage{host1}

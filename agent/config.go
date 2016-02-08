@@ -29,8 +29,7 @@ import (
 // config of the current host.
 type NetworkConfig struct {
 	// Current host network configuration
-	hostIP     net.IP
-	romanaIP   net.IP
+	romanaGW   net.IP
 	otherHosts []common.HostMessage
 	dc         common.Datacenter
 }
@@ -130,7 +129,7 @@ func (a Agent) identifyCurrentHost() error {
 					continue
 				}
 				// OK, we're happy with this result
-				a.networkConfig.romanaIP = ipnet.IP
+				a.networkConfig.romanaGW = ipnet.IP
 				a.networkConfig.otherHosts = append(a.networkConfig.otherHosts, hosts[0:i]...)
 				a.networkConfig.otherHosts = append(a.networkConfig.otherHosts, hosts[i+1:]...)
 				log.Println("Found match for CIDR", romanaCIDR, "using address", ipnet.IP)

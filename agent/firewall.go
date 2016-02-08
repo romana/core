@@ -111,7 +111,7 @@ func (fw *Firewall) Init(netif NetIf) error {
 	// from the Host to the Endpoint. Normally wildcard U32 filter would
 	// block all the Host to Endpoint traffic.
 	// Allow ICMP, DHCP and SSH between host and instances.
-	hostAddr := fw.Agent.networkConfig.romanaIP
+	hostAddr := fw.Agent.networkConfig.romanaGW
 	inputRules := []string{
 		fmt.Sprintf("-d %s/32 -p icmp -m icmp --icmp-type 0 -m state --state RELATED,ESTABLISHED", hostAddr),
 		fmt.Sprintf("-d %s/32 -p tcp -m tcp --sport 22", hostAddr),

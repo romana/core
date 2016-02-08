@@ -128,7 +128,7 @@ func (h Helper) ensureRouteToEndpoint(netif *NetIf) error {
 		via := "dev"
 		dest := netif.Name
 
-		err := h.createRoute(netif.IP, mask, via, dest, "src", h.Agent.networkConfig.romanaIP.String())
+		err := h.createRoute(netif.IP, mask, via, dest, "src", h.Agent.networkConfig.romanaGW.String())
 		if err != nil {
 			return netIfRouteCreateError(err, *netif)
 		}
