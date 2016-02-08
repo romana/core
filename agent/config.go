@@ -17,7 +17,7 @@ package agent
 
 import (
 	"github.com/romana/core/common"
-//	"github.com/romana/core/topology"
+	//	"github.com/romana/core/topology"
 
 	"log"
 	"net"
@@ -29,10 +29,10 @@ import (
 // config of the current host.
 type NetworkConfig struct {
 	// Current host network configuration
-	hostIP net.IP
-	romanaIP net.IP
+	hostIP     net.IP
+	romanaIP   net.IP
 	otherHosts []common.HostMessage
-	dc               common.Datacenter
+	dc         common.Datacenter
 }
 
 // EndpointNetmaskSize returns integer value (aka size) of endpoint netmask.
@@ -91,7 +91,6 @@ func (a Agent) identifyCurrentHost() error {
 		return agentError(err)
 	}
 
-
 	hostURL := index.Links.FindByRel("host-list")
 	hosts := []common.HostMessage{}
 	err = client.Get(hostURL, &hosts)
@@ -111,7 +110,7 @@ func (a Agent) identifyCurrentHost() error {
 
 	matched := false
 	romanaCIDR := &net.IPNet{}
-	FindHost:
+FindHost:
 	for i, host := range hosts {
 		hostIP := net.ParseIP(host.Ip)
 		if hostIP == nil {
@@ -122,7 +121,7 @@ func (a Agent) identifyCurrentHost() error {
 			if !ok {
 				continue
 			}
-			if ! ipnet.IP.Equal(hostIP) {
+			if !ipnet.IP.Equal(hostIP) {
 				continue
 			}
 			log.Println("Found matching host and IP:", hostIP, "==", ipnet)
@@ -140,7 +139,7 @@ func (a Agent) identifyCurrentHost() error {
 			break FindHost
 		}
 	}
-	if ! matched {
+	if !matched {
 		log.Println("Host configuration not found")
 		return agentErrorString("Unable to find host configuration")
 	}
