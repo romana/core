@@ -29,13 +29,9 @@ import (
 // config of the current host.
 type NetworkConfig struct {
 	// Current host network configuration
-	currentHostIP        net.IP
-	currentHostGW        net.IP
-	currentHostGWNet     net.IPNet
-	currentHostGWNetSize int
-	// index of the current host in POC config file
-	currentHostIndex int
-	hosts            []common.HostMessage
+	hostIP net.IP
+	romanaIP net.IP
+	otherHosts []common.HostMessage
 	dc               common.Datacenter
 }
 
@@ -102,41 +98,73 @@ func (a Agent) identifyCurrentHost() error {
 	if err != nil {
 		return agentError(err)
 	}
+	log.Println("Retrieived hosts list, found", len(hosts))
 
-	// Walking through all interfaces on a host and looking for a
-	// matching interface address in configuration.
-	addrs, _ := net.InterfaceAddrs()
-	for i := range addrs {
-		romanaIP, _, err := net.ParseCIDR(addrs[i].String())
-		if err != nil {
-			log.Printf("Failed to parse %s", addrs[i].String())
-			return err
+	// find our host in the list of hosts
+	// checking for a matching IP address
+	// to get the romana CIDR
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return err
+	}
+	log.Println("Searching", len(addrs), "for a matching host configuration")
+
+	matched := false
+	romanaCIDR := &net.IPNet{}
+	FindHost:
+	for i, host := range hosts {
+		hostIP := net.ParseIP(host.Ip)
+		if hostIP == nil {
+			continue
 		}
-		// Walking through host addresses in our config and looking
-		// for a match to current interface address
-		for j := range hosts {
-			_, romanaNet, err := net.ParseCIDR(hosts[j].RomanaIp)
+		for _, addr := range addrs {
+			ipnet, ok := addr.(*net.IPNet)
+			if !ok {
+				continue
+			}
+			if ! ipnet.IP.Equal(hostIP) {
+				continue
+			}
+			log.Println("Found matching host and IP:", hostIP, "==", ipnet)
+			// match has been found
+			_, romanaCIDR, err = net.ParseCIDR(host.RomanaIp)
 			if err != nil {
-				log.Printf("Failed to parse %s", hosts[j].RomanaIp)
-				return err
+				// this would mean a problem with the data itself
+				continue
 			}
-			log.Printf("Init:IdentifyCurrentHost %s belongs to %s %s",
-				romanaNet,
-				romanaIP,
-				romanaNet.Contains(romanaIP))
+			matched = true
+			// update otherHosts list
+			a.networkConfig.otherHosts = append(a.networkConfig.otherHosts, hosts[0:i]...)
+			a.networkConfig.otherHosts = append(a.networkConfig.otherHosts, hosts[1+1:]...)
 
-			// Found it
-			if romanaNet.Contains(romanaIP) {
-				a.networkConfig.currentHostIP = net.ParseIP(hosts[j].Ip)
-				a.networkConfig.currentHostGW = romanaIP
-				a.networkConfig.currentHostGWNet = *romanaNet
-				a.networkConfig.currentHostGWNetSize, _ = romanaNet.Mask.Size()
-				a.networkConfig.currentHostIndex = j
-				a.networkConfig.hosts = hosts
-				return nil
-			}
+			break FindHost
 		}
 	}
-	return nil
-//	return wrongHostError()
+	if ! matched {
+		log.Println("Host configuration not found")
+		return agentErrorString("Unable to find host configuration")
+	}
+
+	log.Println("Found host configuration using address")
+
+	// now find the interface address that matches it
+	for _, addr := range addrs {
+		ipnet, ok := addr.(*net.IPNet)
+		if !ok {
+			continue
+		}
+		if romanaCIDR.Contains(ipnet.IP) {
+			// check that it's the same subnet size
+			s1, _ := romanaCIDR.Mask.Size()
+			s2, _ := ipnet.Mask.Size()
+			if s1 != s2 {
+				continue
+			}
+			// OK, we're happy with this result
+			a.networkConfig.romanaIP = ipnet.IP
+			return nil
+		}
+	}
+	log.Println("Unable to find interface matching the Romana CIDR", romanaCIDR)
+	return agentErrorString("Unable to find interface matching Romana CIDR")
 }
