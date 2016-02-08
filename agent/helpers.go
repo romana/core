@@ -20,7 +20,6 @@ package agent
 import (
 	"bufio"
 	"fmt"
-	"github.com/romana/core/common"
 	"log"
 	"net"
 	"os"
@@ -205,23 +204,6 @@ func (h Helper) ensureLine(path string, token string) error {
 	return nil
 }
 
-// otherHosts builds array of hosts in the Romana setup other then
-// ourselves, for the purposes of routing mainly.
-func (h Helper) otherHosts() []common.HostMessage {
-	index := h.Agent.networkConfig.currentHostIndex
-	//	origin := h.Agent.config.PocConfig.DC.Leaves[0].Hosts
-	// Should this keep querying the REST service every time?
-	origin := h.Agent.networkConfig.hosts
-	if len(origin) == 1 {
-		return nil
-	}
-	others := make([]common.HostMessage, 0, len(origin)-1)
-	others = append(others, origin[:index]...)
-	others = append(others, origin[index+1:]...)
-	log.Printf("otherHosts(): Our host is %d out of %d, all hosts: %s\n", index, len(origin), origin)
-	return others
-}
-
 // ensureInterHostRoutes ensures we have routes to every other host.
 func (h Helper) ensureInterHostRoutes() error {
 	log.Print("Acquiring mutex ensureInterhostRoutes")
@@ -232,17 +214,16 @@ func (h Helper) ensureInterHostRoutes() error {
 	}()
 	log.Print("Acquired mutex ensureInterhostRoutes")
 
-	otherHosts := h.otherHosts()
 	via := "via"
-	for j := range otherHosts {
-		romanaIP, romanaCidr, err := net.ParseCIDR(otherHosts[j].RomanaIp)
+	for _, host := range h.Agent.networkConfig.otherHosts {
+		romanaIP, romanaCidr, err := net.ParseCIDR(host.RomanaIp)
 		if err != nil {
-			return failedToParseOtherHosts(otherHosts[j].RomanaIp)
+			return failedToParseOtherHosts(host.RomanaIp)
 		}
 		//		romanaIP := romanaIP
 		romanaMaskInt, _ := romanaCidr.Mask.Size()
 		romanaMask := fmt.Sprintf("%d", romanaMaskInt)
-		dest := otherHosts[j].Ip
+		dest := host.Ip
 
 		// wait until no one messing with routes
 		// If route doesn't exist yet
