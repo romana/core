@@ -107,27 +107,27 @@ func (fw *Firewall) Init(netif NetIf) error {
 	}
 	fw.interfaceName = netif.Name
 
-	// Default permissive rules to allow ssh/ICMP
-	// from the Host to the Endpoint. Normally wildcard U32 filter would
-	// block all the Host to Endpoint traffic.
-	inputRules := new(firewallRules)
-	inputRules.Add(fmt.Sprintf("-d %s", fw.Agent.networkConfig.currentHostIP))
-	inputRules.Add(fmt.Sprintf("-d %s/%d", fw.Agent.networkConfig.currentHostGW, fw.Agent.networkConfig.currentHostGWNetSize))
-	inputRules.Add("-p udp --sport 68 --dport 67 -d 255.255.255.255")
-	inputRules.Add(fmt.Sprintf("-p tcp -m tcp --sport 22 -d %s", fw.Agent.networkConfig.currentHostIP))
+	// Allow ICMP, DHCP and SSH between host and instances.
+	hostAddr := fw.Agent.networkConfig.romanaGW
+	inputRules := []string{
+		fmt.Sprintf("-d %s/32 -p icmp -m icmp --icmp-type 0 -m state --state RELATED,ESTABLISHED", hostAddr),
+		fmt.Sprintf("-d %s/32 -p tcp -m tcp --sport 22", hostAddr),
+		"-d 255.255.255.255/32 -p udp -m udp --sport 68 --dport 67",
+	}
 
-	outputRules := new(firewallRules)
-	outputRules.Add(fmt.Sprintf("-d %s", fw.Agent.networkConfig.currentHostIP))
-	outputRules.Add(fmt.Sprintf("-d %s/%d", fw.Agent.networkConfig.currentHostGW, fw.Agent.networkConfig.currentHostGWNetSize))
-	outputRules.Add(fmt.Sprintf("-p tcp -m tcp --sport 22 -d %s", fw.Agent.networkConfig.currentHostIP))
+	outputRules := []string{
+		fmt.Sprintf("-s %s/32 -p icmp -m icmp --icmp-type 8 -m state --state NEW,RELATED,ESTABLISHED", hostAddr),
+		fmt.Sprintf("-s %s/32 -p icmp -m icmp --icmp-type 11", hostAddr),
+		fmt.Sprintf("-s %s/32 -p udp -m udp --sport 67 --dport 68", hostAddr),
+		fmt.Sprintf("-s %s/32 -p tcp -m tcp --dport 22", hostAddr),
+	}
 
-	forwardRules := new(firewallRules)
+	forwardRules := []string{}
 
-	c1 := NewFirewallChain("INPUT", []string{"i"}, *inputRules, fw.prepareChainName("INPUT"))
-	c2 := NewFirewallChain("OUTPUT", []string{"o"}, *outputRules, fw.prepareChainName("OUTPUT"))
-	c3 := NewFirewallChain("FORWARD", []string{"i", "o"}, *forwardRules, fw.prepareChainName("FORWARD"))
-	chains := [numberOfDefaultChains]FirewallChain{*c1, *c2, *c3}
-	fw.chains = chains
+	fw.chains[inputChainIndex] = FirewallChain{"INPUT", []string{"i"}, inputRules, fw.prepareChainName("INPUT")}
+	fw.chains[outputChainIndex] = FirewallChain{"OUTPUT", []string{"o"}, outputRules, fw.prepareChainName("OUTPUT")}
+	fw.chains[forwardChainIndex] = FirewallChain{"FORWARD", []string{"i", "o"}, forwardRules, fw.prepareChainName("FORWARD")}
+
 	return nil
 }
 
@@ -255,7 +255,7 @@ func (fw *Firewall) CreateU32Rules(chain int) error {
 		log.Print("Creating U32 firewall rules failed")
 		return err
 	}
-	log.Print("Creating U32 firewall rules failed for chain", chain)
+	log.Print("Creating U32 firewall rules success")
 	return nil
 }
 
@@ -271,7 +271,7 @@ func (fw *Firewall) CreateDefaultDropRule(chain int) error {
 		log.Print("Creating default drop rules failed")
 		return err
 	}
-	log.Print("Creating default drop rules failed for chain", chain)
+	log.Print("Creating default drop rules success")
 	return nil
 }
 
@@ -407,12 +407,14 @@ func provisionFirewallRules(netif NetIf, agent *Agent) error {
 	if err != nil {
 		return err
 	}
-	for chain := range missingChains {
+	for _, chain := range missingChains {
 		if err := fw.CreateRules(chain); err != nil {
 			return err
 		}
-		if err := fw.CreateU32Rules(chain); err != nil {
-			return err
+		if chain == forwardChainIndex {
+			if err := fw.CreateU32Rules(chain); err != nil {
+				return err
+			}
 		}
 		if err := fw.CreateDefaultDropRule(chain); err != nil {
 			return err

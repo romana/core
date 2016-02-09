@@ -91,7 +91,7 @@ func Run(rootServiceURL string) (chan common.ServiceMessage, error) {
 }
 
 func (a *Agent) Name() string {
-	return "agent"	
+	return "agent"
 }
 
 // index handles HTTP requests for endpoints provisioning.
@@ -101,7 +101,7 @@ func (a *Agent) Name() string {
 func (a *Agent) index(input interface{}, ctx common.RestContext) (interface{}, error) {
 	// Parse out NetIf form the request
 	netif := input.(*NetIf)
-	
+
 	log.Printf("Got interface: Name %s, IP %s Mac %s\n", netif.Name, netif.IP, netif.Mac)
 	// Spawn new thread to process the request
 
