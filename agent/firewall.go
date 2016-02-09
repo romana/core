@@ -107,9 +107,6 @@ func (fw *Firewall) Init(netif NetIf) error {
 	}
 	fw.interfaceName = netif.Name
 
-	// Default permissive rules to allow ssh/ICMP
-	// from the Host to the Endpoint. Normally wildcard U32 filter would
-	// block all the Host to Endpoint traffic.
 	// Allow ICMP, DHCP and SSH between host and instances.
 	hostAddr := fw.Agent.networkConfig.romanaGW
 	inputRules := []string{
