@@ -18,15 +18,37 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"github.com/romana/core/root"
 	"log"
 )
 
+// Build Information and Timestamp.
+// Pass build information to the executable using go run as below:
+//
+// go run  -ldflags "-X main.buildInfo=`git describe --always`" \
+// -X main.buildTimeStamp=`date -u '+%Y-%m-%d_%I:%M:%S%p'` main.go \
+// -version
+//
+// or using go build as below:
+//
+// go build -ldflags "-X main.buildInfo=`git describe --always` \
+// -X main.buildTimeStamp=`date -u '+%Y-%m-%d_%I:%M:%S%p'`" main.go
+//
+var buildInfo = "No Build Information Provided"
+var buildTimeStamp = "No Build Time Provided"
+
 // Main entry point for the root microservice
 func main() {
 	configFileName := flag.String("c", "", "Configuration file")
+	version := flag.Bool("version", false, "Build Information.")
 	flag.Parse()
-	channel, _,  err := root.Run(*configFileName)
+
+	if *version {
+		fmt.Println("Build Revision: ", buildInfo)
+		fmt.Println("Build Time: ", buildTimeStamp)
+	}
+	channel, _, err := root.Run(*configFileName)
 	if err != nil {
 		panic(err)
 	}

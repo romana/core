@@ -23,13 +23,33 @@ import (
 	"github.com/romana/core/topology"
 )
 
+// Build Information and Timestamp.
+// Pass build information to the executable using go run as below:
+//
+// go run  -ldflags "-X main.buildInfo=`git describe --always`" \
+// -X main.buildTimeStamp=`date -u '+%Y-%m-%d_%I:%M:%S%p'` main.go \
+// -version
+//
+// or using go build as below:
+//
+// go build -ldflags "-X main.buildInfo=`git describe --always` \
+// -X main.buildTimeStamp=`date -u '+%Y-%m-%d_%I:%M:%S%p'`" main.go
+//
+var buildInfo = "No Build Information Provided"
+var buildTimeStamp = "No Build Time Provided"
+
 // Main entry point for the topology microservice
 func main() {
 	createSchema := flag.Bool("createSchema", false, "Create schema")
 	overwriteSchema := flag.Bool("overwriteSchema", false, "Overwrite schema")
 	rootUrl := flag.String("rootUrl", "", "Root service URL")
+	version := flag.Bool("version", false, "Build Information.")
 	flag.Parse()
 
+	if *version {
+		fmt.Println("Build Revision: ", buildInfo)
+		fmt.Println("Build Time: ", buildTimeStamp)
+	}
 	if *createSchema || *overwriteSchema {
 		err := topology.CreateSchema(*rootUrl, *overwriteSchema)
 		if err != nil {
