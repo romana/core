@@ -410,12 +410,14 @@ func provisionFirewallRules(netif NetIf, agent *Agent) error {
 	if err != nil {
 		return err
 	}
-	for chain := range missingChains {
+	for _, chain := range missingChains {
 		if err := fw.CreateRules(chain); err != nil {
 			return err
 		}
-		if err := fw.CreateU32Rules(chain); err != nil {
-			return err
+		if chain == forwardChainIndex {
+			if err := fw.CreateU32Rules(chain); err != nil {
+				return err
+			}
 		}
 		if err := fw.CreateDefaultDropRule(chain); err != nil {
 			return err
