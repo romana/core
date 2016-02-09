@@ -119,11 +119,11 @@ func TestCreateRules(t *testing.T) {
 	fw.CreateRules(0)
 
 	// expect
-	expect := strings.Join([]string{"/sbin/iptables -A ROMANA-T0S0-INPUT -d 172.17.0.1 -j ACCEPT",
-		"/sbin/iptables -A ROMANA-T0S0-INPUT -d 127.0.0.1/8 -j ACCEPT",
-		"/sbin/iptables -A ROMANA-T0S0-INPUT -p udp --sport 68 --dport 67 -d 255.255.255.255 -j ACCEPT",
-		"/sbin/iptables -A ROMANA-T0S0-INPUT -p tcp -m tcp --sport 22 -d 172.17.0.1 -j ACCEPT"},
-		"\n")
+	expect := strings.Join([]string{
+		"/sbin/iptables -A ROMANA-T0S0-INPUT -d 172.17.0.1/32 -p icmp -m icmp --icmp-type 0 -m state --state RELATED,ESTABLISHED -j ACCEPT",
+		"/sbin/iptables -A ROMANA-T0S0-INPUT -d 172.17.0.1/32 -p tcp -m tcp --sport 22 -j ACCEPT",
+		"/sbin/iptables -A ROMANA-T0S0-INPUT -d 255.255.255.255/32 -p udp -m udp --sport 68 --dport 67 -j ACCEPT",
+	}, "\n")
 
 	if *E.Commands != expect {
 		t.Errorf("Unexpected input from TestCreateRules, expect\n%s, got\n%s", expect, *E.Commands)
