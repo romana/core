@@ -100,9 +100,6 @@ func (a Agent) identifyCurrentHost() error {
 	}
 	log.Println("Retrieved hosts list, found", len(hosts), "hosts")
 
-	// find our host in the list of hosts
-	// checking for a matching IP address
-	// to get the romana CIDR
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
 		return err
@@ -110,7 +107,7 @@ func (a Agent) identifyCurrentHost() error {
 
 	log.Println("Searching", len(addrs), "interfaces for a matching host configuration")
 
-	// Now find an interface that matches a Romana CIDR
+	// Find an interface that matches a Romana CIDR
 	// and store that interface's IP address.
 	// It will be used when configuring iptables and routes to tap interfaces.
 	for i, host := range hosts {
