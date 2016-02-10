@@ -18,7 +18,7 @@ package topology
 import (
 	"errors"
 	"fmt"
-//	"github.com/mitchellh/mapstructure"
+	//	"github.com/mitchellh/mapstructure"
 	"github.com/romana/core/common"
 	"log"
 	"net"
@@ -47,36 +47,36 @@ const (
 func (topology *TopologySvc) Routes() common.Routes {
 	routes := common.Routes{
 		common.Route{
-			"GET",
-			"/",
-			topology.handleIndex,
-			nil,
+			Method:      "GET",
+			Pattern:     "/",
+			Handler:     topology.handleIndex,
+			MakeMessage: nil,
 		},
 		common.Route{
-			"GET",
-			hostListPath,
-			topology.handleHostListGet,
-			nil,
+			Method:      "GET",
+			Pattern:     hostListPath,
+			Handler:     topology.handleHostListGet,
+			MakeMessage: nil,
 		},
 		common.Route{
-			"POST",
-			hostListPath,
-			topology.handleHostListPost,
-			func() interface{} {
+			Method:  "POST",
+			Pattern: hostListPath,
+			Handler: topology.handleHostListPost,
+			MakeMessage: func() interface{} {
 				return &common.HostMessage{}
 			},
 		},
 		common.Route{
-			"GET",
-			hostListPath + "/{hostId}",
-			topology.handleHost,
-			nil,
+			Method:      "GET",
+			Pattern:     hostListPath + "/{hostId}",
+			Handler:     topology.handleHost,
+			MakeMessage: nil,
 		},
 		common.Route{
-			"GET",
-			dcPath,
-			topology.handleDc,
-			nil,
+			Method:      "GET",
+			Pattern:     dcPath,
+			Handler:     topology.handleDc,
+			MakeMessage: nil,
 		},
 	}
 	return routes
@@ -190,13 +190,13 @@ func (topology *TopologySvc) SetConfig(config common.ServiceConfig) error {
 		return err
 	}
 	prefixBits, _ := ipNet.Mask.Size()
-	dc.PrefixBits=uint(prefixBits)
-	
+	dc.PrefixBits = uint(prefixBits)
+
 	dc.PortBits = uint(dcMap["host_bits"].(float64))
 	dc.TenantBits = uint(dcMap["tenant_bits"].(float64))
-	dc.SegmentBits =uint( dcMap["segment_bits"].(float64))
+	dc.SegmentBits = uint(dcMap["segment_bits"].(float64))
 	dc.EndpointBits = uint(dcMap["endpoint_bits"].(float64))
-	dc.EndpointSpaceBits =uint( dcMap["endpoint_space_bits"].(float64))
+	dc.EndpointSpaceBits = uint(dcMap["endpoint_space_bits"].(float64))
 	// TODO this should have worked but it doesn't...
 	//	err := mapstructure.Decode(dcMap, &dc)
 	//	if err != nil {
@@ -231,7 +231,7 @@ func Run(rootServiceUrl string) (chan common.ServiceMessage, string, error) {
 		return nil, "", err
 	}
 	return common.InitializeService(topSvc, *config)
-	
+
 }
 
 // Initializes topology service
@@ -248,12 +248,12 @@ func (topology *TopologySvc) Initialize() error {
 // Runs topology service
 func CreateSchema(rootServiceUrl string, overwrite bool) error {
 	log.Println("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
-	
+
 	client, err := common.NewRestClient("", common.DefaultRestTimeout)
 	if err != nil {
 		return err
 	}
-	
+
 	topologyService := &TopologySvc{}
 	config, err := client.GetServiceConfig(rootServiceUrl, topologyService)
 	if err != nil {

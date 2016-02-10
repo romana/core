@@ -21,8 +21,8 @@ package root
 import (
 	//	"fmt"
 	"github.com/romana/core/common"
-	"strconv"
 	"log"
+	"strconv"
 	"strings"
 	//	"github.com/gorilla/mux"
 )
@@ -115,27 +115,26 @@ func (root *Root) handleConfig(input interface{}, ctx common.RestContext) (inter
 	return retval, nil
 }
 
-
 // Provides Routes
 func (root Root) Routes() common.Routes {
 	routes := common.Routes{
 		common.Route{
-			"GET",
-			"/",
-			root.handleIndex,
-			nil,
+			Method:      "GET",
+			Pattern:     "/",
+			Handler:     root.handleIndex,
+			MakeMessage: nil,
 		},
 		common.Route{
-			"GET",
-			"/config/{serviceName}",
-			root.handleConfig,
-			nil,
+			Method:      "GET",
+			Pattern:     "/config/{serviceName}",
+			Handler:     root.handleConfig,
+			MakeMessage: nil,
 		},
 		common.Route{
-			"POST",
-			"/config/{serviceName}/port",
-			root.handlePortUpdate,
-			func() interface{} {
+			Method:  "POST",
+			Pattern: "/config/{serviceName}/port",
+			Handler: root.handlePortUpdate,
+			MakeMessage: func() interface{} {
 				return &common.PortUpdateMessage{}
 			},
 		},

@@ -65,10 +65,10 @@ func (a *Agent) SetConfig(config common.ServiceConfig) error {
 func (a *Agent) Routes() common.Routes {
 	routes := common.Routes{
 		common.Route{
-			"POST",
-			"/",
-			a.index,
-			func() interface{} {
+			Method:  "POST",
+			Pattern: "/",
+			Handler: a.index,
+			MakeMessage: func() interface{} {
 				return &NetIf{}
 			},
 		},
@@ -96,7 +96,7 @@ func Run(rootServiceURL string) (chan common.ServiceMessage, string, error) {
 
 }
 
-// Implements Name() method of Service interface.
+// Name Implements method of Service interface.
 func (a *Agent) Name() string {
 	return "agent"
 }

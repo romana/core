@@ -39,44 +39,44 @@ const (
 func (tsvc *TenantSvc) Routes() common.Routes {
 	routes := common.Routes{
 		common.Route{
-			"POST",
-			tenantsPath,
-			tsvc.addTenant,
-			func() interface{} {
+			Method:  "POST",
+			Pattern: tenantsPath,
+			Handler: tsvc.addTenant,
+			MakeMessage: func() interface{} {
 				return &Tenant{}
 			},
 		},
 		common.Route{
-			"GET",
-			tenantsPath + "/{tenantId}",
-			tsvc.findTenant,
-			nil,
+			Method:      "GET",
+			Pattern:     tenantsPath + "/{tenantId}",
+			Handler:     tsvc.findTenant,
+			MakeMessage: nil,
 		},
 		common.Route{
-			"GET",
-			tenantsPath,
-			tsvc.listTenants,
-			nil,
+			Method:      "GET",
+			Pattern:     tenantsPath,
+			Handler:     tsvc.listTenants,
+			MakeMessage: nil,
 		},
 		common.Route{
-			"POST",
-			tenantsPath + "/{tenantId}" + segmentsPath,
-			tsvc.addSegment,
-			func() interface{} {
+			Method:  "POST",
+			Pattern: tenantsPath + "/{tenantId}" + segmentsPath,
+			Handler: tsvc.addSegment,
+			MakeMessage: func() interface{} {
 				return &Segment{}
 			},
 		},
 		common.Route{
-			"GET",
-			tenantsPath + "/{tenantId}" + segmentsPath + "/{segmentId}",
-			tsvc.findSegment,
-			nil,
+			Method:      "GET",
+			Pattern:     tenantsPath + "/{tenantId}" + segmentsPath + "/{segmentId}",
+			Handler:     tsvc.findSegment,
+			MakeMessage: nil,
 		},
 		common.Route{
-			"GET",
-			tenantsPath + "/{tenantId}" + segmentsPath,
-			tsvc.listSegments,
-			nil,
+			Method:      "GET",
+			Pattern:     tenantsPath + "/{tenantId}" + segmentsPath,
+			Handler:     tsvc.listSegments,
+			MakeMessage: nil,
 		},
 	}
 	return routes
