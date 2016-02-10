@@ -1,5 +1,7 @@
 # Romana Core Components
-  		  
+
+[![License][License-Image]][License-Url] [![ReportCard][ReportCard-Image]][ReportCard-Url] [![Release][Release-Image]][Release-Url]
+
 Romana is a new Software Defined Network (SDN) solution specifically designed
 for the Cloud Native architectural style. The result of this focus is that
 Romana cloud networks are less expensive to build, easier to operate and
@@ -99,4 +101,13 @@ the cluster and how to restart the services:
     sudo service romana-agent start
     ```    
 
+### Previous Releases
+Previous Releases can be found [here][github-release]
 
+[License-Url]: LICENSE
+[License-Image]: https://img.shields.io/badge/license-Apache--2-blue.svg
+[Release-Url]: https://github.com/romana/core/releases/tag/v0.6.4
+[Release-image]: https://img.shields.io/badge/release-0.6.4-blue.svg
+[ReportCard-Url]: https://goreportcard.com/report/romana/core
+[ReportCard-Image]: https://goreportcard.com/badge/romana/core
+[github-release]: https://github.com/romana/core/releases/
