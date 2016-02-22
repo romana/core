@@ -43,3 +43,6 @@
 [submodule "vendor/github.com/dgrijalva/jwt-go"]
 	path = vendor/github.com/dgrijalva/jwt-go
 	url = git@github.com:dgrijalva/jwt-go.git
+[submodule "vendor/github.com/mattn/go-sqlite3"]
+	path = vendor/github.com/mattn/go-sqlite3
+	url = git@github.com:mattn/go-sqlite3.git
