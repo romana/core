@@ -1,6 +1,6 @@
 # Romana Core Components
 
-[![License][License-Image]][License-Url] [![ReportCard][ReportCard-Image]][ReportCard-Url] [![Release][Release-Image]][Release-Url]
+[![License][License-Image]][License-Url] [![ReportCard][ReportCard-Image]][ReportCard-Url] [![Release][Release-Image]][Release-Url] [![GoDoc][GoDoc-Image]][GoDoc-Url]
 
 Romana is a new Software Defined Network (SDN) solution specifically designed
 for the Cloud Native architectural style. The result of this focus is that
@@ -13,17 +13,17 @@ designs.
 This repository contains the core components of the Romana system: A series of
 cooperating microservices written in Go. These services currently are:
 
-* *Root*: Used as the starting point for services to discover each other. Also
+* *[Root](https://godoc.org/github.com/romana/core/root)*: Used as the starting point for services to discover each other. Also
 holds the configuration and serves relevant parts to the other services.
-* *Tenant*: Manages tenants in the Romana system, interfaces with environments
+* *[Tenant](https://godoc.org/github.com/romana/core/tenant)*: Manages tenants in the Romana system, interfaces with environments
 such as OpenStack, to map their tenants to Romana tenants.
-* *Topology*: Keeps track of the network topology in which we are deployed,
+* *[Topology](https://godoc.org/github.com/romana/core/topology)*: Keeps track of the network topology in which we are deployed,
 knows about hosts, racks, spines, etc. This information is the used by the IPAM
 service.
-* *IPAM*: Generates and manages the IP addresses Romana assigns to network
+* *[IPAM](https://godoc.org/github.com/romana/core/ipam)*: Generates and manages the IP addresses Romana assigns to network
 endpoints. Uses the topology service to be able to create topology aware
 addresses.
-* *Agent*: Lives on hosts and there performs actions on behalf of Romana, such
+* *[Agent](https://godoc.org/github.com/romana/core/agent)*: Lives on hosts and there performs actions on behalf of Romana, such
 as creating interfaces, setting routes or iptables rules.
 * *Auth*: Serves authentication tokens to tenants and services.
 
@@ -111,3 +111,5 @@ Previous Releases can be found [here][github-release]
 [ReportCard-Url]: https://goreportcard.com/report/romana/core
 [ReportCard-Image]: https://goreportcard.com/badge/romana/core
 [github-release]: https://github.com/romana/core/releases/
+[GoDoc-Image]: https://godoc.org/github.com/romana/core?status.png
+[GoDoc-Url]: https://godoc.org/github.com/romana/core
