@@ -20,23 +20,9 @@ import (
 	"flag"
 	"fmt"
 
+	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
 )
-
-// Build Information and Timestamp.
-// Pass build information to the executable using go run as below:
-//
-// go run  -ldflags "-X main.buildInfo=`git describe --always`" \
-// -X main.buildTimeStamp=`date -u '+%Y-%m-%d_%I:%M:%S%p'` main.go \
-// -version
-//
-// or using go build as below:
-//
-// go build -ldflags "-X main.buildInfo=`git describe --always` \
-// -X main.buildTimeStamp=`date -u '+%Y-%m-%d_%I:%M:%S%p'`" main.go
-//
-var buildInfo = "No Build Information Provided"
-var buildTimeStamp = "No Build Time Provided"
 
 // Main entry point for the tenant microservice
 func main() {
@@ -47,8 +33,8 @@ func main() {
 	flag.Parse()
 
 	if *version {
-		fmt.Println("Build Revision: ", buildInfo)
-		fmt.Println("Build Time: ", buildTimeStamp)
+		fmt.Println(common.BuildInfo())
+		return
 	}
 	if *createSchema || *overwriteSchema {
 		err := tenant.CreateSchema(*rootUrl, *overwriteSchema)

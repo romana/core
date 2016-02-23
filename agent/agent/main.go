@@ -21,22 +21,8 @@ import (
 	"flag"
 	"fmt"
 	"github.com/romana/core/agent"
+	"github.com/romana/core/common"
 )
-
-// Build Information and Timestamp.
-// Pass build information to the executable using go run as below:
-//
-// go run  -ldflags "-X main.buildInfo=`git describe --always`" \
-// -X main.buildTimeStamp=`date -u '+%Y-%m-%d_%I:%M:%S%p'` main.go \
-// -version
-//
-// or using go build as below:
-//
-// go build -ldflags "-X main.buildInfo=`git describe --always` \
-// -X main.buildTimeStamp=`date -u '+%Y-%m-%d_%I:%M:%S%p'`" main.go
-//
-var buildInfo = "No Build Information Provided"
-var buildTimeStamp = "No Build Time Provided"
 
 // main function is entrypoint to everything.
 func main() {
@@ -45,8 +31,8 @@ func main() {
 	flag.Parse()
 
 	if *version {
-		fmt.Println("Build Revision: ", buildInfo)
-		fmt.Println("Build Time: ", buildTimeStamp)
+		fmt.Println(common.BuildInfo())
+		return
 	}
 	if rootURL == nil {
 		fmt.Println("Must specify rootUrl.")
