@@ -13,9 +13,7 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-/*
-Implements root service
-*/
+// Package root implements root service.
 package root
 
 import (
@@ -27,7 +25,7 @@ import (
 	//	"github.com/gorilla/mux"
 )
 
-// Root-specific configuration. This may seem a bit
+// Config provides Root-specific configuration. This may seem a bit
 // convoluted, but it is convoluted only for root - for this
 // cost we are buying simplicity/uniformity for other services.
 // See SetConfig() func.
@@ -94,11 +92,11 @@ func (root *Root) handleIndex(input interface{}, ctx common.RestContext) (interf
 		href := "http://" + value.Common.Api.GetHostPort()
 		link := common.LinkResponse{Rel: "service", Href: href}
 		retval.Services[i].Links = []common.LinkResponse{link}
-		configLink := common.LinkResponse{"/config/" + key, key + "-config"}
+		configLink := common.LinkResponse{Href: "/config/" + key, Rel: key + "-config"}
 		retval.Links[i] = configLink
 		i++
 	}
-	retval.Links[i] = common.LinkResponse{myUrl, "self"}
+	retval.Links[i] = common.LinkResponse{Href: myUrl, Rel: "self"}
 
 	return retval, nil
 }
@@ -115,7 +113,7 @@ func (root *Root) handleConfig(input interface{}, ctx common.RestContext) (inter
 	return retval, nil
 }
 
-// Provides Routes
+// Routes provided by root service.
 func (root Root) Routes() common.Routes {
 	routes := common.Routes{
 		common.Route{
@@ -131,18 +129,16 @@ func (root Root) Routes() common.Routes {
 			MakeMessage: nil,
 		},
 		common.Route{
-			Method:  "POST",
-			Pattern: "/config/{serviceName}/port",
-			Handler: root.handlePortUpdate,
-			MakeMessage: func() interface{} {
-				return &common.PortUpdateMessage{}
-			},
+			Method:      "POST",
+			Pattern:     "/config/{serviceName}/port",
+			Handler:     root.handlePortUpdate,
+			MakeMessage: func() interface{} { return &common.PortUpdateMessage{} },
 		},
 	}
 	return routes
 }
 
-// Runs root service
+// Run configures and starts root service.
 func Run(configFileName string) (chan common.ServiceMessage, string, error) {
 	fullConfig, err := common.ReadConfig(configFileName)
 	if err != nil {
@@ -150,7 +146,9 @@ func Run(configFileName string) (chan common.ServiceMessage, string, error) {
 	}
 
 	rootService := &Root{}
-	rootServiceConfig := common.ServiceConfig{fullConfig.Services["root"].Common, make(map[string]interface{})}
+	rootServiceConfig := common.ServiceConfig{
+		Common:          fullConfig.Services["root"].Common,
+		ServiceSpecific: make(map[string]interface{})}
 	rootServiceConfig.ServiceSpecific[fullConfigKey] = fullConfig
 	return common.InitializeService(rootService, rootServiceConfig)
 }

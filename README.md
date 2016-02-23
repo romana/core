@@ -102,7 +102,7 @@ the cluster and how to restart the services:
     ```    
 
 ### Previous Releases
-Previous Releases can be found [here][github-release]
+Previous Releases can be found [here][github-release].
 
 [License-Url]: LICENSE
 [License-Image]: https://img.shields.io/badge/license-Apache--2-blue.svg

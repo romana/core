@@ -96,7 +96,7 @@ func Run(rootServiceURL string) (chan common.ServiceMessage, string, error) {
 
 }
 
-// Name Implements method of Service interface.
+// Name implements method of Service interface.
 func (a *Agent) Name() string {
 	return "agent"
 }

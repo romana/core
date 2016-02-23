@@ -17,7 +17,7 @@ package tenant
 
 import (
 //	"database/sql"
-	//	"github.com/romana/core/common"
+//	"github.com/romana/core/common"
 )
 
 // Backing store
@@ -31,7 +31,7 @@ type tenantStore interface {
 	findTenant(id uint64) (Tenant, error)
 	addSegment(tenantId uint64, segment *Segment) error
 	findSegment(tenantId uint64, id uint64) (Segment, error)
-	
+
 	listTenants() ([]Tenant, error)
 	listSegments(tenantId uint64) ([]Segment, error)
 }

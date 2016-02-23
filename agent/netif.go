@@ -31,7 +31,7 @@ type NetIf struct {
 	IP   net.IP `form:"ip_address" mapstructure:"ip_address"`
 }
 
-// SetIP Parse and set IP.
+// SetIP parses and sets the IP address of the interface.
 func (netif *NetIf) SetIP(ip string) error {
 	netif.IP = net.ParseIP(ip)
 	if netif.IP == nil {

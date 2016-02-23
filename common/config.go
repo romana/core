@@ -23,7 +23,7 @@ import (
 	"log"
 )
 
-// API part of service configuration (host/port).
+// Api part of service configuration (host/port).
 type Api struct {
 	// Host to listen on.
 	Host string `yaml:"host" json:"host"`
@@ -40,7 +40,7 @@ func (api Api) GetHostPort() string {
 
 }
 
-// Configuration that is common to all services.
+// CommonConfig stores configuration that is common to all services.
 // For things such as API information (host/port),
 // DB, etc.
 type CommonConfig struct {
@@ -61,7 +61,7 @@ type ServiceConfig struct {
 	ServiceSpecific map[string]interface{} `json:"config" yaml:"config,omitempty"`
 }
 
-// Main configuration object
+// Config provides the main configuration object
 type Config struct {
 	Services map[string]ServiceConfig
 }
@@ -148,7 +148,7 @@ func WriteConfig(config Config, fname string) error {
 	yamlConfig := &yamlConfig{}
 	yamlConfig.Services = make([]yamlServiceConfig, len(config.Services))
 	i := 0
-	for k,v := range config.Services {
+	for k, v := range config.Services {
 		ysc := &yamlServiceConfig{}
 		ysc.Service = k
 		ysc.Api = v.Common.Api
@@ -156,7 +156,7 @@ func WriteConfig(config Config, fname string) error {
 		yamlConfig.Services[i] = *ysc
 		i++
 	}
-	
+
 	b, err := yaml.Marshal(yamlConfig)
 	if err != nil {
 		return err
@@ -164,7 +164,7 @@ func WriteConfig(config Config, fname string) error {
 	return ioutil.WriteFile(fname, b, 0777)
 }
 
-// Stores information needed for a MySQL connection.
+// MysqlStoreInfo stores information needed for a MySQL connection.
 type MysqlStoreInfo struct {
 	Host     string
 	Port     uint64

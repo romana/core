@@ -13,8 +13,5 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-/*
-Implements Tenant service. See https://github.com/romanaproject/romana/wiki/Tenant-service-API.
-*/
+// Package tenant implements Tenant service.
 package tenant
-

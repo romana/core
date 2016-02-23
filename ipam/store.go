@@ -28,11 +28,11 @@ type Vm struct {
 	HostId    string `json:"host_id"`
 	Name      string `json:"instance"`
 	// Ordinal number of this VM in the host/tenant combination
-	Seq       uint64 `json:"sequence"`
+	Seq uint64 `json:"sequence"`
 	// Calculated effective sequence number of this VM --
 	// taking into account stride (endpoint space bits)
 	// and alignment thereof. This is used in IP calculation.
-	EffectiveSeq       uint64 `json:"effective_sequence"`
+	EffectiveSeq uint64 `json:"effective_sequence"`
 }
 
 type IpamHost struct {
