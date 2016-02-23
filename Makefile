@@ -7,7 +7,10 @@
 services = $$GOPATH/bin/root $$GOPATH/bin/agent $$GOPATH/bin/tenant $$GOPATH/bin/ipam $$GOPATH/bin/topology
 
 install:
-	go install -ldflags "-X main.buildInfo=`git describe --always` -X main.buildTimeStamp=`date -u '+%Y-%m-%d_%I:%M:%S%p'`" "./..."
+	go install -ldflags \
+		"-X github.com/romana/core/common.buildInfo=`git describe --always` \
+		-X github.com/romana/core/common.buildTimeStamp=`date -u '+%Y-%m-%d_%I:%M:%S%p'`" \
+		"./..."
 
 all: install fmt test lint vet
 
