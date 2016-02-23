@@ -16,11 +16,9 @@
 package tenant
 
 import (
-	"errors"
 	"github.com/romana/core/common"
 	"log"
 	"strconv"
-	"strings"
 )
 
 // IPAM service
@@ -175,20 +173,13 @@ func (tsvc *TenantSvc) SetConfig(config common.ServiceConfig) error {
 	log.Println(config)
 	tsvc.config = config
 	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
-	storeType := strings.ToLower(storeConfig["type"].(string))
-	switch storeType {
-	case "mysql":
-		tsvc.store = &mysqlStore{}
-	case "mock":
-		tsvc.store = &mockStore{}
-	default:
-		return errors.New("Unknown store type: " + storeType)
-	}
-	return tsvc.store.setConfig(storeConfig)
+	tsvc.store = tenantStore{}
+	tsvc.store.ServiceStore = tsvc.store
+	return tsvc.store.SetConfig(storeConfig)
 }
 
 func (tsvc *TenantSvc) createSchema(overwrite bool) error {
-	return tsvc.store.createSchema(overwrite)
+	return tsvc.store.CreateSchema(overwrite)
 }
 
 // Runs Tenant service
@@ -207,7 +198,7 @@ func Run(rootServiceUrl string) (chan common.ServiceMessage, string, error) {
 }
 
 func (tsvc *TenantSvc) Initialize() error {
-	err := tsvc.store.connect()
+	err := tsvc.store.Connect()
 	if err != nil {
 		return err
 	}
@@ -258,5 +249,5 @@ func CreateSchema(rootServiceUrl string, overwrite bool) error {
 	if err != nil {
 		return err
 	}
-	return tsvc.store.createSchema(overwrite)
+	return tsvc.store.CreateSchema(overwrite)
 }

@@ -22,7 +22,6 @@ import (
 	"github.com/romana/core/tenant"
 	"log"
 	"net"
-	"strings"
 )
 
 // IPAM service
@@ -246,16 +245,6 @@ func (ipam *IPAMSvc) Name() string {
 	return "ipam"
 }
 
-// Backing store
-type ipamStore interface {
-	validateConnectionInformation() error
-	connect() error
-	createSchema(overwrite bool) error
-	setConfig(config map[string]interface{}) error
-	// TODO use ptr
-	addVm(stride uint, vm *Vm) error
-}
-
 // SetConfig implements SetConfig function of the Service interface.
 // Returns an error if cannot connect to the data store
 func (ipam *IPAMSvc) SetConfig(config common.ServiceConfig) error {
@@ -263,23 +252,14 @@ func (ipam *IPAMSvc) SetConfig(config common.ServiceConfig) error {
 	log.Println(config)
 	ipam.config = config
 	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
-	storeType := strings.ToLower(storeConfig["type"].(string))
-	switch storeType {
-	case "mysql":
-		ipam.store = &mysqlStore{}
-
-	case "mock":
-		ipam.store = &mockStore{}
-
-	default:
-		return errors.New("Unknown store type: " + storeType)
-	}
 	log.Printf("IPAM port: %s", config.Common.Api.Port)
-	return ipam.store.setConfig(storeConfig)
+	ipam.store = ipamStore{}
+	ipam.store.ServiceStore = ipam.store
+	return ipam.store.SetConfig(storeConfig)
 }
 
 func (ipam *IPAMSvc) createSchema(overwrite bool) error {
-	return ipam.store.createSchema(overwrite)
+	return ipam.store.CreateSchema(overwrite)
 }
 
 // Runs IPAM service
@@ -300,7 +280,7 @@ func Run(rootServiceUrl string) (chan common.ServiceMessage, string, error) {
 func (ipam *IPAMSvc) Initialize() error {
 
 	log.Println("Entering ipam.Initialize()")
-	err := ipam.store.connect()
+	err := ipam.store.Connect()
 	if err != nil {
 		return err
 	}
@@ -352,5 +332,5 @@ func CreateSchema(rootServiceUrl string, overwrite bool) error {
 	if err != nil {
 		return err
 	}
-	return ipamSvc.store.createSchema(overwrite)
+	return ipamSvc.store.CreateSchema(overwrite)
 }
