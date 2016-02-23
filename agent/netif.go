@@ -28,9 +28,10 @@ import (
 type NetIf struct {
 	Name string `form:"interface_name" mapstructure:"interface_name"`
 	Mac  string `form:"mac_address" mapstructure:"interface_name"`
-	IP  net.IP `form:"ip_address" mapstructure:"ip_address"`
+	IP   net.IP `form:"ip_address" mapstructure:"ip_address"`
 }
 
+// SetIP parses and sets the IP address of the interface.
 func (netif *NetIf) SetIP(ip string) error {
 	netif.IP = net.ParseIP(ip)
 	if netif.IP == nil {

@@ -12,6 +12,8 @@
 // WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 // License for the specific language governing permissions and limitations
 // under the License.
+
+// Package topology mockstore definitions.
 package topology
 
 import (
@@ -41,7 +43,7 @@ func (mockStore *mockStore) listHosts() ([]Host, error) {
 	retval := make([]Host, len(mockStore.hosts))
 	for k, v := range mockStore.hosts {
 		log.Println(k, ": ", v)
-		retval[k-1] =*v
+		retval[k-1] = *v
 	}
 	log.Println("Listing hosts", retval)
 	return retval, nil

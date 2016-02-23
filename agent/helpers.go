@@ -218,7 +218,7 @@ func (h Helper) otherHosts() []common.HostMessage {
 	others := make([]common.HostMessage, 0, len(origin)-1)
 	others = append(others, origin[:index]...)
 	others = append(others, origin[index+1:]...)
-	log.Printf("otherHosts(): Our host is %d out of %d, all hosts: %s\n", index, len(origin), origin)
+	log.Printf("otherHosts(): Our host is %d out of %d, all hosts: %#v\n", index, len(origin), origin)
 	return others
 }
 

@@ -122,7 +122,7 @@ func (a Agent) identifyCurrentHost() error {
 				log.Printf("Failed to parse %s", hosts[j].RomanaIp)
 				return err
 			}
-			log.Printf("Init:IdentifyCurrentHost %s belongs to %s %s",
+			log.Printf("Init:IdentifyCurrentHost %s belongs to %s %t",
 				romanaNet,
 				romanaIP,
 				romanaNet.Contains(romanaIP))

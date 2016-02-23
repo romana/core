@@ -25,7 +25,7 @@ import (
 	"strings"
 )
 
-// IPAM service
+// IPAMSvc provides ipam service.
 type IPAMSvc struct {
 	config common.ServiceConfig
 	store  ipamStore
@@ -36,22 +36,20 @@ const (
 	infoListPath = "/info"
 )
 
-// Provides Routes
+// Routes provided by ipam.
 func (ipam *IPAMSvc) Routes() common.Routes {
 	routes := common.Routes{
 		common.Route{
-			"POST",
-			"/vms",
-			ipam.addVm,
-			func() interface{} {
-				return &Vm{}
-			},
+			Method:      "POST",
+			Pattern:     "/vms",
+			Handler:     ipam.addVm,
+			MakeMessage: func() interface{} { return &Vm{} },
 		},
 		common.Route{
-			"GET",
-			"/allocateIpByName",
-			ipam.legacyAllocateIpByName,
-			nil,
+			Method:      "GET",
+			Pattern:     "/allocateIpByName",
+			Handler:     ipam.legacyAllocateIpByName,
+			MakeMessage: nil,
 		},
 	}
 	return routes
@@ -274,7 +272,7 @@ func (ipam *IPAMSvc) SetConfig(config common.ServiceConfig) error {
 	default:
 		return errors.New("Unknown store type: " + storeType)
 	}
-	log.Printf("IPAM port: %s", config.Common.Api.Port)
+	log.Printf("IPAM port: %d\n", config.Common.Api.Port)
 	return ipam.store.setConfig(storeConfig)
 }
 
@@ -282,7 +280,7 @@ func (ipam *IPAMSvc) createSchema(overwrite bool) error {
 	return ipam.store.createSchema(overwrite)
 }
 
-// Runs IPAM service
+// Run mainly runs IPAM service.
 func Run(rootServiceUrl string) (chan common.ServiceMessage, string, error) {
 	client, err := common.NewRestClient(rootServiceUrl, common.DefaultRestTimeout)
 	if err != nil {
@@ -323,7 +321,7 @@ func (ipam *IPAMSvc) Initialize() error {
 
 	dcURL := index.Links.FindByRel("datacenter")
 	dc := common.Datacenter{}
-	log.Printf("IPAM received datacenter information from topology service: %s\n", dc)
+	log.Printf("IPAM received datacenter information from topology service: %#v\n", dc)
 	err = client.Get(dcURL, &dc)
 	if err != nil {
 		return err
@@ -333,7 +331,7 @@ func (ipam *IPAMSvc) Initialize() error {
 	return nil
 }
 
-// Runs topology service
+// CreateSchema runs topology service.
 func CreateSchema(rootServiceUrl string, overwrite bool) error {
 	log.Println("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
 	ipamSvc := &IPAMSvc{}

@@ -23,7 +23,7 @@ import (
 	"strings"
 )
 
-// IPAM service
+// TenantSvc provides tenant service.
 type TenantSvc struct {
 	config common.ServiceConfig
 	store  tenantStore
@@ -35,48 +35,44 @@ const (
 	segmentsPath = "/segments"
 )
 
-// Provides Routes
+// Routes provides route for tenant service.
 func (tsvc *TenantSvc) Routes() common.Routes {
 	routes := common.Routes{
 		common.Route{
-			"POST",
-			tenantsPath,
-			tsvc.addTenant,
-			func() interface{} {
-				return &Tenant{}
-			},
+			Method:      "POST",
+			Pattern:     tenantsPath,
+			Handler:     tsvc.addTenant,
+			MakeMessage: func() interface{} { return &Tenant{} },
 		},
 		common.Route{
-			"GET",
-			tenantsPath + "/{tenantId}",
-			tsvc.findTenant,
-			nil,
+			Method:      "GET",
+			Pattern:     tenantsPath + "/{tenantId}",
+			Handler:     tsvc.findTenant,
+			MakeMessage: nil,
 		},
 		common.Route{
-			"GET",
-			tenantsPath,
-			tsvc.listTenants,
-			nil,
+			Method:      "GET",
+			Pattern:     tenantsPath,
+			Handler:     tsvc.listTenants,
+			MakeMessage: nil,
 		},
 		common.Route{
-			"POST",
-			tenantsPath + "/{tenantId}" + segmentsPath,
-			tsvc.addSegment,
-			func() interface{} {
-				return &Segment{}
-			},
+			Method:      "POST",
+			Pattern:     tenantsPath + "/{tenantId}" + segmentsPath,
+			Handler:     tsvc.addSegment,
+			MakeMessage: func() interface{} { return &Segment{} },
 		},
 		common.Route{
-			"GET",
-			tenantsPath + "/{tenantId}" + segmentsPath + "/{segmentId}",
-			tsvc.findSegment,
-			nil,
+			Method:      "GET",
+			Pattern:     tenantsPath + "/{tenantId}" + segmentsPath + "/{segmentId}",
+			Handler:     tsvc.findSegment,
+			MakeMessage: nil,
 		},
 		common.Route{
-			"GET",
-			tenantsPath + "/{tenantId}" + segmentsPath,
-			tsvc.listSegments,
-			nil,
+			Method:      "GET",
+			Pattern:     tenantsPath + "/{tenantId}" + segmentsPath,
+			Handler:     tsvc.listSegments,
+			MakeMessage: nil,
 		},
 	}
 	return routes
@@ -191,7 +187,7 @@ func (tsvc *TenantSvc) createSchema(overwrite bool) error {
 	return tsvc.store.createSchema(overwrite)
 }
 
-// Runs Tenant service
+// Run configures and runs tenant service.
 func Run(rootServiceUrl string) (chan common.ServiceMessage, string, error) {
 	tsvc := &TenantSvc{}
 	client, err := common.NewRestClient(rootServiceUrl, common.DefaultRestTimeout)
@@ -239,7 +235,7 @@ func (tsvc *TenantSvc) Initialize() error {
 	return nil
 }
 
-// Runs topology service
+// CreateSchema runs topology service.
 func CreateSchema(rootServiceUrl string, overwrite bool) error {
 	log.Println("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
 	tsvc := &TenantSvc{}

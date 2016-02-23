@@ -55,7 +55,7 @@ func (links Links) FindByRel(rel string) string {
 
 }
 
-// Response to /
+// IndexResponse returns response to /.
 type IndexResponse struct {
 	ServiceName string `json:"serviceName"`
 	Links       Links
@@ -69,18 +69,18 @@ type RootIndexResponse struct {
 	Services    []ServiceResponse
 }
 
-// Service information
+// ServiceResponse represents the service information.
 type ServiceResponse struct {
 	Name  string
 	Links Links
 }
 
-// Structure representing the commonly occurring
+// LinkResponse structure represents the commonly occurring
 // {
 //        "href" : "https://<own-addr>",
 //        "rel"  : "self"
 //  }
-// part of the response
+// part of the response.
 type LinkResponse struct {
 	Href string
 	Rel  string
@@ -121,11 +121,11 @@ type Service interface {
 	Name() string
 }
 
-// DefaultRestTimeout, in milliseconds.
+// DefaultRestTimeout in milliseconds.
 const DefaultRestTimeout = 10 * 1000
 const ReadWriteTimeoutDelta = 50
 
-// Client for the Romana services.
+// RestClient represents the client for the Romana services.
 type RestClient struct {
 	url    *url.URL
 	client *http.Client
@@ -191,7 +191,7 @@ func (rc *RestClient) GetServiceUrl(rootServiceUrl string, name string) (string,
 			href := service.Links.FindByRel("service")
 			log.Println("href:", href)
 			if href == "" {
-				return "", errors.New(fmt.Sprintf("Cannot find service %s at %s", name, resp))
+				return "", fmt.Errorf("Cannot find service %s at %s", name, resp)
 			} else {
 				// Now for a bit of a trick - this href could be relative...
 				// Need to normalize.
@@ -203,7 +203,7 @@ func (rc *RestClient) GetServiceUrl(rootServiceUrl string, name string) (string,
 			}
 		}
 	}
-	return "", errors.New(fmt.Sprintf("Cannot find service %s at %s", name, resp))
+	return "", fmt.Errorf("Cannot find service %s at %s", name, resp)
 }
 
 // execMethod executes the specified method on the provided url (which is interpreted
@@ -255,7 +255,7 @@ func (rc *RestClient) execMethod(method string, url string, data interface{}, re
 		body, err = ioutil.ReadFile(rc.url.Path)
 
 	} else {
-		return errors.New(fmt.Sprintf("Unsupported scheme %s", rc.url.Scheme))
+		return fmt.Errorf("Unsupported scheme %s", rc.url.Scheme)
 	}
 
 	reqBodyStr := ""
@@ -282,7 +282,7 @@ func (rc *RestClient) execMethod(method string, url string, data interface{}, re
 
 	err = json.Unmarshal(body, &result)
 	if err != nil {
-		return errors.New(fmt.Sprintf("Error %s (%s) when parsing %s", err.Error(), reflect.TypeOf(err), body))
+		return fmt.Errorf("Error %s (%s) when parsing %s", err.Error(), reflect.TypeOf(err), body)
 	}
 	return nil
 }
@@ -313,7 +313,7 @@ func (rc *RestClient) GetServiceConfig(rootServiceUrl string, svc Service) (*Ser
 
 	configUrl := rootIndexResponse.Links.FindByRel(relName)
 	if configUrl == "" {
-		return nil, errors.New(fmt.Sprintf("Cold not find %s at %s", relName, rootServiceUrl))
+		return nil, fmt.Errorf("Cold not find %s at %s", relName, rootServiceUrl)
 	}
 	log.Printf("GetServiceConfig(): Found config url %s in %s from %s", configUrl, rootIndexResponse, relName)
 	err = rc.Get(configUrl, config)
@@ -416,7 +416,7 @@ func InitializeService(service Service, config ServiceConfig) (chan ServiceMessa
 
 }
 
-// RunWithOptions is a convenience function that runs the negroni stack as a
+// RunNegroni is a convenience function that runs the negroni stack as a
 // provided HTTP server, with the following caveats:
 // 1. the Handler field of the provided serverConfig should be nil,
 //    because the Handler used will be the n Negroni object.

@@ -13,8 +13,5 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-/*
-Implements Topology service. See https://github.com/romanaproject/romana/wiki/Topology-service-API.
-*/
+// Package topology implements Topology service.
 package topology
-

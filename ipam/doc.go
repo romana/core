@@ -13,8 +13,5 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-/*
-Implements IPAM service. See https://github.com/romanaproject/romana/wiki/IPAM-service-API.
-*/
+// Package ipam implements IPAM service.
 package ipam
-

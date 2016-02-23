@@ -21,7 +21,7 @@ import (
 	"github.com/go-check/check"
 	"github.com/romana/core/common"
 	"github.com/romana/core/root"
-//	"log"
+	//	"log"
 	"os"
 	"reflect"
 
@@ -54,10 +54,10 @@ func (s *MySuite) SetUpTest(c *check.C) {
 		if err != nil {
 			panic(err)
 		}
-	
+
 		myLog(c, "Root configuration: ", s.config.Services["root"].Common.Api.GetHostPort())
 		root.Run(s.configFile)
-		
+
 		// Starting root service
 		myLog(c, "Starting root service...")
 		channelRoot, addr, err := root.Run(s.configFile)

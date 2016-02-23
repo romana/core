@@ -20,19 +20,18 @@ import (
 )
 
 type IP struct {
-	ip net.IP
+	ip   net.IP
 	ipv6 bool
 }
 
 func MakeIPv4(a, b, c, d byte) IP {
-	ip := IP{net.IPv4(a,b,c,d), false}
+	ip := IP{net.IPv4(a, b, c, d), false}
 	return ip
 }
 
 func IPv4ToInt(ip net.IP) uint64 {
 	return uint64(ip[12])<<24 | uint64(ip[13])<<16 | uint64(ip[14])<<8 | uint64(ip[15])
 }
-
 
 func IntToIPv4(ipInt uint64) net.IP {
 	return net.IPv4(byte(ipInt>>24), byte(ipInt>>16), byte(ipInt>>8), byte(ipInt))

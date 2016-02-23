@@ -182,7 +182,7 @@ func (mysqlStore *mysqlStore) addSegment(tenantId uint64, segment *Segment) erro
 	mysqlStore.db.NewRecord(*segment)
 	segment.TenantId = tenantId
 	mysqlStore.db.Create(segment)
-//	myId := segment.Id
+	//	myId := segment.Id
 
 	//	var segmentSeq uint64
 	//
