@@ -74,7 +74,7 @@ func (c *NetworkConfig) EndpointBits() uint {
 // If no match is found we assume we are running on host which is not
 // part of the Romana setup and spit error out.
 func (a Agent) identifyCurrentHost() error {
-	client, err := common.NewRestClient("", a.config.Common.Api.RestTimeoutMillis)
+	client, err := common.NewRestClient("", common.GetRestClientConfig(a.config))
 
 	if err != nil {
 		return agentError(err)
@@ -88,7 +88,6 @@ func (a Agent) identifyCurrentHost() error {
 	if err != nil {
 		return agentError(err)
 	}
-	log.Println("4")
 	dcURL := index.Links.FindByRel("datacenter")
 	a.networkConfig.dc = common.Datacenter{}
 	err = client.Get(dcURL, &a.networkConfig.dc)
@@ -98,12 +97,10 @@ func (a Agent) identifyCurrentHost() error {
 
 	hostURL := index.Links.FindByRel("host-list")
 	hosts := []common.HostMessage{}
-	log.Println("5")
 	err = client.Get(hostURL, &hosts)
 	if err != nil {
 		return agentError(err)
 	}
-	log.Println("6")
 
 	// Walking through all interfaces on a host and looking for a
 	// matching interface address in configuration.

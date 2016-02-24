@@ -39,40 +39,46 @@ const (
 func (tsvc *TenantSvc) Routes() common.Routes {
 	routes := common.Routes{
 		common.Route{
-			Method:      "POST",
-			Pattern:     tenantsPath,
-			Handler:     tsvc.addTenant,
-			MakeMessage: func() interface{} { return &Tenant{} },
+			Method:          "POST",
+			Pattern:         tenantsPath,
+			Handler:         tsvc.addTenant,
+			MakeMessage:     func() interface{} { return &Tenant{} },
+			UseRequestToken: false,
 		},
 		common.Route{
-			Method:      "GET",
-			Pattern:     tenantsPath + "/{tenantId}",
-			Handler:     tsvc.findTenant,
-			MakeMessage: nil,
+			Method:          "GET",
+			Pattern:         tenantsPath + "/{tenantId}",
+			Handler:         tsvc.findTenant,
+			MakeMessage:     nil,
+			UseRequestToken: false,
 		},
 		common.Route{
-			Method:      "GET",
-			Pattern:     tenantsPath,
-			Handler:     tsvc.listTenants,
-			MakeMessage: nil,
+			Method:          "GET",
+			Pattern:         tenantsPath,
+			Handler:         tsvc.listTenants,
+			MakeMessage:     nil,
+			UseRequestToken: false,
 		},
 		common.Route{
-			Method:      "POST",
-			Pattern:     tenantsPath + "/{tenantId}" + segmentsPath,
-			Handler:     tsvc.addSegment,
-			MakeMessage: func() interface{} { return &Segment{} },
+			Method:          "POST",
+			Pattern:         tenantsPath + "/{tenantId}" + segmentsPath,
+			Handler:         tsvc.addSegment,
+			MakeMessage:     func() interface{} { return &Segment{} },
+			UseRequestToken: false,
 		},
 		common.Route{
-			Method:      "GET",
-			Pattern:     tenantsPath + "/{tenantId}" + segmentsPath + "/{segmentId}",
-			Handler:     tsvc.findSegment,
-			MakeMessage: nil,
+			Method:          "GET",
+			Pattern:         tenantsPath + "/{tenantId}" + segmentsPath + "/{segmentId}",
+			Handler:         tsvc.findSegment,
+			MakeMessage:     nil,
+			UseRequestToken: false,
 		},
 		common.Route{
-			Method:      "GET",
-			Pattern:     tenantsPath + "/{tenantId}" + segmentsPath,
-			Handler:     tsvc.listSegments,
-			MakeMessage: nil,
+			Method:          "GET",
+			Pattern:         tenantsPath + "/{tenantId}" + segmentsPath,
+			Handler:         tsvc.listSegments,
+			MakeMessage:     nil,
+			UseRequestToken: false,
 		},
 	}
 	return routes
@@ -134,7 +140,6 @@ func (tsvc *TenantSvc) addSegment(input interface{}, ctx common.RestContext) (in
 	}
 	newSegment := input.(*Segment)
 	err = tsvc.store.addSegment(tenantId, newSegment)
-
 	return newSegment, err
 }
 
@@ -188,15 +193,15 @@ func (tsvc *TenantSvc) createSchema(overwrite bool) error {
 }
 
 // Run configures and runs tenant service.
-func Run(rootServiceUrl string) (chan common.ServiceMessage, string, error) {
+func Run(rootServiceUrl string) (*common.RestServiceInfo, error) {
 	tsvc := &TenantSvc{}
-	client, err := common.NewRestClient(rootServiceUrl, common.DefaultRestTimeout)
+	client, err := common.NewRestClient(rootServiceUrl, common.GetDefaultRestClientConfig())
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	config, err := client.GetServiceConfig(rootServiceUrl, tsvc)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	return common.InitializeService(tsvc, *config)
 
@@ -208,7 +213,7 @@ func (tsvc *TenantSvc) Initialize() error {
 		return err
 	}
 
-	client, err := common.NewRestClient("", tsvc.config.Common.Api.RestTimeoutMillis)
+	client, err := common.NewRestClient("", common.GetRestClientConfig(tsvc.config))
 	if err != nil {
 		return err
 	}
@@ -240,7 +245,7 @@ func CreateSchema(rootServiceUrl string, overwrite bool) error {
 	log.Println("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
 	tsvc := &TenantSvc{}
 
-	client, err := common.NewRestClient("", common.DefaultRestTimeout)
+	client, err := common.NewRestClient("", common.GetDefaultRestClientConfig())
 	if err != nil {
 		return err
 	}
