@@ -14,7 +14,6 @@
 // under the License.
 
 // This file contains the implementation of HttpClient and related utilities.
-// HttpClient is client with specific functionality to 
 package common
 
 import (
@@ -33,7 +32,7 @@ import (
 )
 
 // Rest Client for the Romana services. Incorporates facilities to deal with
-// various REST requests. 
+// various REST requests.
 type RestClient struct {
 	url    *url.URL
 	client *http.Client
@@ -146,7 +145,7 @@ func (rc *RestClient) modifyUrl(dest string, queryMod url.Values) error {
 	}
 
 	if queryMod != nil {
-		// If the queryMod (url.Values) object is provided, then the 
+		// If the queryMod (url.Values) object is provided, then the
 		// query values in the current URL that match keys
 		// from that queryMod object are replaced with those from queryMod.
 		origUrl := rc.url
@@ -240,7 +239,7 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 
 		var resp *http.Response
 		for i := 0; i < rc.config.Retries; i++ {
-			log.Printf("Try %d for %s", (i+1), rc.url)
+			log.Printf("Try %d for %s", (i + 1), rc.url)
 			if i > 0 {
 				sleepTime, _ := time.ParseDuration(fmt.Sprintf("%ds", int(math.Pow(2, (float64(i-1))))))
 				log.Printf("Sleeping for %v before retrying %d time\n", sleepTime, i)

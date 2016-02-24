@@ -136,9 +136,9 @@ func write400(writer http.ResponseWriter, m Marshaller, request string, err erro
 // is intended to transparently deal with converting data to/from
 // the wire format into internal representations.
 func wrapHandler(restHandler RestHandler, route Route) http.Handler {
-// TODO 
-// This function is very long. Could we please break it up into a few smaller functions 
-// (with self-documenting names), which are called from within this function?
+	// TODO
+	// This function is very long. Could we please break it up into a few smaller functions
+	// (with self-documenting names), which are called from within this function?
 	makeMessage := route.MakeMessage
 	if makeMessage != nil && reflect.TypeOf(makeMessage()) == requestType {
 		// This would mean the handler actually wants access to raw request/response

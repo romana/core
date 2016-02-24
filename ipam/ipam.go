@@ -40,19 +40,18 @@ const (
 func (ipam *IPAMSvc) Routes() common.Routes {
 	routes := common.Routes{
 		common.Route{
-			Method:      "POST",
-			Pattern:     "/vms",
-			Handler:     ipam.addVm,
-			MakeMessage: func() interface{} { return &Vm{} },
+			Method:          "POST",
+			Pattern:         "/vms",
+			Handler:         ipam.addVm,
+			MakeMessage:     func() interface{} { return &Vm{} },
 			UseRequestToken: true,
 		},
 		common.Route{
-			Method:      "GET",
-			Pattern:     "/allocateIpByName",
-			Handler:     ipam.legacyAllocateIpByName,
-			MakeMessage: nil,
+			Method:          "GET",
+			Pattern:         "/allocateIpByName",
+			Handler:         ipam.legacyAllocateIpByName,
+			MakeMessage:     nil,
 			UseRequestToken: false,
-
 		},
 	}
 	return routes
