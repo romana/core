@@ -318,7 +318,7 @@ func doTestTimeout(timeout int, t *testing.T) {
 	url = fmt.Sprintf("/?t=%dms", timeout)
 	resp := make(map[string]string)
 	start := time.Now()
-	log.Printf("Calling URL sleeping %d msec: %s\n", start, timeout, url)
+	log.Printf("%v: Calling URL sleeping %d msec: %s\n", start, timeout, url)
 	log.Printf("Time before: %v", start)
 	err = client.Get(url, &resp)
 	log.Printf("Time before: %v", start)
