@@ -1,4 +1,4 @@
-// Copyright (c) 2015 Pani Networks
+// Copyright (c) 2016 Pani Networks
 // All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -14,7 +14,6 @@
 // under the License.
 
 /*
-Package common contains various things common to all Pani services.
+Package common contains various things common to all Romana services.
 */
 package common
-

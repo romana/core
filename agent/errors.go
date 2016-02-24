@@ -1,4 +1,4 @@
-// Copyright (c) 2015 Pani Networks
+// Copyright (c) 2016 Pani Networks
 // All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -93,7 +93,7 @@ func noSuchRouteError() error {
 }
 
 func wrongHostError() error {
-	return NewError(EcodeDefault, fmt.Sprintf("ERROR: Can't resolve internal IP's. It looks like we're running on the host outside of pani config"))
+	return NewError(EcodeDefault, fmt.Sprintf("ERROR: Can't resolve internal IPs. It looks like we're running on the host outside of Romana config"))
 }
 
 func failedToParseOtherHosts(s string) error {

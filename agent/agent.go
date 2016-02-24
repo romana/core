@@ -1,4 +1,4 @@
-// Copyright (c) 2015 Pani Networks
+// Copyright (c) 2016 Pani Networks
 // All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -65,13 +65,13 @@ func (a *Agent) SetConfig(config common.ServiceConfig) error {
 func (a *Agent) Routes() common.Routes {
 	routes := common.Routes{
 		common.Route{
-			"POST",
-			"/",
-			a.index,
-			func() interface{} {
+			Method: "POST",
+			Pattern: "/",
+			Handler: a.index,
+			MakeMessage: func() interface{} {
 				return &NetIf{}
 			},
-			false,
+			UseRequestToken: false,
 		},
 	}
 	return routes

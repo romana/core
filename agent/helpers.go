@@ -1,4 +1,4 @@
-// Copyright (c) 2015 Pani Networks
+// Copyright (c) 2016 Pani Networks
 // All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -205,7 +205,7 @@ func (h Helper) ensureLine(path string, token string) error {
 	return nil
 }
 
-// otherHosts builds array of hosts in pani setup other then
+// otherHosts builds array of hosts in the Romana setup other then
 // ourselves, for the purposes of routing mainly.
 func (h Helper) otherHosts() []common.HostMessage {
 	index := h.Agent.networkConfig.currentHostIndex

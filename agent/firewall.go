@@ -1,4 +1,4 @@
-// Copyright (c) 2015 Pani Networks
+// Copyright (c) 2016 Pani Networks
 // All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -27,7 +27,7 @@
 //
 // There are 4 public function available
 // - Firewall.CreateChains() - creates managed Firewall chains
-// - Firewall.DivertTrafficToPaniIptablesChain() - diverts traffic to/from/via interface
+// - Firewall.DivertTrafficToRomanaIptablesChain() - diverts traffic to/from/via interface
 // - Firewall.CreateRules() - installs basic permissive rules
 // - Firewall.CreateU32Rules() - installs u32 rules
 
@@ -62,14 +62,14 @@ type Firewall struct {
 
 // FirewallChain describes state of the particular firewall chain.
 type FirewallChain struct {
-	baseChain string
-	direction string
-	rules     []string
-	chainName string
+	baseChain  string
+	directions []string
+	rules      []string
+	chainName  string
 }
 
 // NewFirewallChain initializes a new firewall chain.
-func NewFirewallChain(baseChain string, direction string, rules []string, chainName string) *FirewallChain {
+func NewFirewallChain(baseChain string, direction []string, rules []string, chainName string) *FirewallChain {
 	return &FirewallChain{baseChain, direction, rules, chainName}
 }
 
@@ -123,9 +123,9 @@ func (fw *Firewall) Init(netif NetIf) error {
 
 	forwardRules := new(firewallRules)
 
-	c1 := NewFirewallChain("INPUT", "i", *inputRules, fw.prepareChainName("INPUT"))
-	c2 := NewFirewallChain("OUTPUT", "o", *outputRules, fw.prepareChainName("OUTPUT"))
-	c3 := NewFirewallChain("FORWARD", "i", *forwardRules, fw.prepareChainName("FORWARD"))
+	c1 := NewFirewallChain("INPUT", []string{"i"}, *inputRules, fw.prepareChainName("INPUT"))
+	c2 := NewFirewallChain("OUTPUT", []string{"o"}, *outputRules, fw.prepareChainName("OUTPUT"))
+	c3 := NewFirewallChain("FORWARD", []string{"i", "o"}, *forwardRules, fw.prepareChainName("FORWARD"))
 	chains := [numberOfDefaultChains]FirewallChain{*c1, *c2, *c3}
 	fw.chains = chains
 	return nil
@@ -136,6 +136,19 @@ func (fw *Firewall) Init(netif NetIf) error {
 func (fw *Firewall) isChainExist(chain int) bool {
 	cmd := "/sbin/iptables"
 	args := []string{"-L", fw.chains[chain].chainName}
+	_, err := fw.Agent.Helper.Executor.Exec(cmd, args)
+	if err != nil {
+		return false
+	}
+	return true
+}
+
+// isRuleExist verifies if given iptables rule exists.
+// Returns true rule exists.
+func (fw *Firewall) isRuleExist(ruleSpec []string) bool {
+	cmd := "/sbin/iptables"
+	args := []string{"-C"}
+	args = append(args, ruleSpec...)
 	_, err := fw.Agent.Helper.Executor.Exec(cmd, args)
 	if err != nil {
 		return false
@@ -158,7 +171,7 @@ func (fw *Firewall) detectMissingChains() []int {
 }
 
 // CreateChains creates Firewall chains such as
-// pani-T0S0-OUTPUT, pani-T0S0-FORWARD, pani-T0S0-INPUT.
+// ROMANA-T0S0-OUTPUT, ROMANA-T0S0-FORWARD, ROMANA-T0S0-INPUT.
 func (fw *Firewall) CreateChains(newChains []int) error {
 	for chain := range newChains {
 		cmd := "/sbin/iptables"
@@ -171,21 +184,40 @@ func (fw *Firewall) CreateChains(newChains []int) error {
 	return nil
 }
 
-// DivertTrafficToPaniIptablesChain injects iptables rules to send traffic into the PANI chain.
+// ensureIptablesRule verifies if given iptables rule exists and creates if it's not.
+func (fw *Firewall) ensureIptablesRule(ruleSpec []string) error {
+	if !fw.isRuleExist(ruleSpec) {
+		cmd := "/sbin/iptables"
+		args := []string{"-A"}
+		args = append(args, ruleSpec...)
+		_, err := fw.Agent.Helper.Executor.Exec(cmd, args)
+		if err != nil {
+			log.Print("Creating iptables rule failed ", ruleSpec)
+			return err
+		}
+		log.Print("Rule created ", ruleSpec)
+	} else {
+		log.Print("Rule already exist ", ruleSpec)
+	}
+	return nil
+}
+
+// DivertTrafficToRomanaIptablesChain injects iptables rules to send traffic
+// into the ROMANA chain.
 // We need to do this for each tenant/segment pair as each pair will have different chain name.
-func (fw *Firewall) DivertTrafficToPaniIptablesChain(chain int) error {
+func (fw *Firewall) DivertTrafficToRomanaIptablesChain(chain int) error {
 	// Should be like that
-	// iptables -A INPUT -i tap1234 -j PANI-T0S1-INPUT
-	log.Print("Diverting traffic in", chain)
+	// iptables -A INPUT -i tap1234 -j ROMANA-T0S1-INPUT
+	log.Print("Diverting traffic into chain number ", chain)
 	baseChain := fw.chains[chain].baseChain
-	direction := fmt.Sprintf("-%s", fw.chains[chain].direction)
-	chainName := fw.chains[chain].chainName
-	cmd := "/sbin/iptables"
-	args := []string{"-A", baseChain, direction, fw.interfaceName, "-j", chainName}
-	_, err := fw.Agent.Helper.Executor.Exec(cmd, args)
-	if err != nil {
-		log.Print("Diverting traffic failed", chain)
-		return err
+	for _, directionLiteral := range fw.chains[chain].directions {
+		direction := fmt.Sprintf("-%s", directionLiteral)
+		chainName := fw.chains[chain].chainName
+		ruleSpec := []string{baseChain, direction, fw.interfaceName, "-j", chainName}
+		if err := fw.ensureIptablesRule(ruleSpec); err != nil {
+			log.Print("Diverting traffic failed", chain)
+			return err
+		}
 	}
 	log.Print("Diverting traffic success", chain)
 	return nil
@@ -211,7 +243,7 @@ func (fw *Firewall) CreateRules(chain int) error {
 	return nil
 }
 
-// CreateU32Rules creates wildcard iptables rules for the given PANI chain.
+// CreateU32Rules creates wildcard iptables rules for the given Romana chain.
 // These rules serve to restrict traffic between segments and tenants.
 func (fw *Firewall) CreateU32Rules(chain int) error {
 	log.Print("Creating U32 firewall rules for chain", chain)
@@ -287,7 +319,7 @@ func MaskToInt(mask net.IPMask) (uint64, error) {
 }
 
 // prepareU32Rules generates Firewall rules for U32 iptables module.
-// This rules implemet PANI tenant/segment filtering
+// This rules implemet Romana tenant/segment filtering
 //   Return the filter rules for the iptables u32 module.
 //   Goal: Filter out any traffic that does not have the same tenant and segment
 //   bits in the destination address as the interface itself.
@@ -300,14 +332,14 @@ func MaskToInt(mask net.IPMask) (uint64, error) {
 //
 //      Return:
 //      filter = '12&0xFF00FF00=0xA000100 && 16&0xFF00FF00=0xA000100'
-//      chainPrefix = 'pani-T0S1-'
+//      chainPrefix = 'ROMANA-T0S1-'
 //
 //   TODO Refactor chain-prefix routine into separate function (prepareChainPrefix).
 //   Also return the chain-prefix we'll use for this interface. This is
 //   typically a string such as:
-//       pani-T<tenant-id>S<segment-id>-
+//       ROMANA-T<tenant-id>S<segment-id>-
 //   For example, with tenant 1 and segment 2, this would be:
-//       pani-T1S2-
+//       ROMANA-T1S2-
 func (fw *Firewall) prepareU32Rules(ipAddr net.IP) (string, string, error) {
 	fullMask, err := fw.prepareNetmaskBits()
 	if err != nil {
@@ -321,7 +353,7 @@ func (fw *Firewall) prepareU32Rules(ipAddr net.IP) (string, string, error) {
 	filter := fmt.Sprintf("12&%s && 16&%s", filter1, filter1)
 	tenantID := fw.extractTenantID(addr)
 	segmentID := fw.extractSegmentID(addr)
-	chainPrefix := fmt.Sprintf("pani-T%dS%d-", tenantID, segmentID)
+	chainPrefix := fmt.Sprintf("ROMANA-T%dS%d-", tenantID, segmentID)
 	return filter, chainPrefix, nil
 }
 
@@ -361,7 +393,7 @@ func (fw *Firewall) extractTenantID(addr uint64) uint64 {
 // to provision new endpoint.
 // Creates per-tenant, per-segment iptables chains, diverts
 // all traffic to/from/through netif.name interface to a proper chains.
-// Currently tested with pani ML2 driver.
+// Currently tested with Romana ML2 driver.
 func provisionFirewallRules(netif NetIf, agent *Agent) error {
 	log.Print("Firewall: Initializing")
 	fw, err := NewFirewall(netif, agent)
@@ -376,9 +408,6 @@ func provisionFirewallRules(netif NetIf, agent *Agent) error {
 		return err
 	}
 	for chain := range missingChains {
-		if err := fw.DivertTrafficToPaniIptablesChain(chain); err != nil {
-			return err
-		}
 		if err := fw.CreateRules(chain); err != nil {
 			return err
 		}
@@ -389,5 +418,12 @@ func provisionFirewallRules(netif NetIf, agent *Agent) error {
 			return err
 		}
 	}
+
+	for chain := range fw.chains {
+		if err := fw.DivertTrafficToRomanaIptablesChain(chain); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
