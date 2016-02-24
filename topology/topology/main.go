@@ -20,6 +20,7 @@ import (
 	"flag"
 	"fmt"
 
+	"github.com/romana/core/common"
 	"github.com/romana/core/topology"
 )
 
@@ -28,8 +29,13 @@ func main() {
 	createSchema := flag.Bool("createSchema", false, "Create schema")
 	overwriteSchema := flag.Bool("overwriteSchema", false, "Overwrite schema")
 	rootUrl := flag.String("rootUrl", "", "Root service URL")
+	version := flag.Bool("version", false, "Build Information.")
 	flag.Parse()
 
+	if *version {
+		fmt.Println(common.BuildInfo())
+		return
+	}
 	if *createSchema || *overwriteSchema {
 		err := topology.CreateSchema(*rootUrl, *overwriteSchema)
 		if err != nil {

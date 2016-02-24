@@ -45,8 +45,18 @@ const (
 	// but there is an error so no point in returning any
 	// value.
 	ErrorNoValue = ""
-	
 )
+
+// LinkResponse structure represents the commonly occurring
+// {
+//        "href" : "https://<own-addr>",
+//        "rel"  : "self"
+//  }
+// part of the response.
+type LinkResponse struct {
+	Href string
+	Rel  string
+}
 
 // Type definitions
 type ServiceMessage string

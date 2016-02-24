@@ -64,7 +64,7 @@ func (mockStore *mockStore) listSegments(tenantId uint64) ([]Segment, error) {
 
 func (mockStore *mockStore) addTenant(tenant *Tenant) error {
 	tenant.Id = mockStore.id
-	tenant.Seq = mockStore.id-1
+	tenant.Seq = mockStore.id - 1
 	mockStore.tenants[mockStore.id] = *tenant
 	mockStore.id++
 	return nil
@@ -83,7 +83,7 @@ func (mockStore *mockStore) addSegment(tenantId uint64, segment *Segment) error 
 	}
 
 	segment.Id = uint64(mockStore.segmentsId[tenantId])
-	segment.Seq = uint64(mockStore.segmentsId[tenantId])-1
+	segment.Seq = uint64(mockStore.segmentsId[tenantId]) - 1
 	mockStore.segments[tenantId][mockStore.segmentsId[tenantId]] = *segment
 	mockStore.segmentsId[tenantId]++
 	log.Println("Mock: Segments now", mockStore.segments)

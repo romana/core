@@ -21,12 +21,19 @@ import (
 	"flag"
 	"fmt"
 	"github.com/romana/core/agent"
+	"github.com/romana/core/common"
 )
 
 // main function is entrypoint to everything.
 func main() {
 	var rootURL = flag.String("rootUrl", "", "URL to root service URL")
+	var version = flag.Bool("version", false, "Build Information.")
 	flag.Parse()
+
+	if *version {
+		fmt.Println(common.BuildInfo())
+		return
+	}
 	if rootURL == nil {
 		fmt.Println("Must specify rootUrl.")
 		return

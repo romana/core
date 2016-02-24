@@ -51,16 +51,6 @@ func (links Links) FindByRel(rel string) string {
 
 }
 
-// Structure representing the commonly occurring
-// {
-//        "href" : "https://<own-addr>",
-//        "rel"  : "self"
-//  }
-// part of the response
-type LinkResponse struct {
-	Href string
-	Rel  string
-}
 
 //type HostInfo struct {
 //	Ip        string `json:"ip"`
@@ -183,7 +173,7 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 	return svcInfo, err
 }
 
-// RunWithOptions is a convenience function that runs the negroni stack as a
+// RunNegroni is a convenience function that runs the negroni stack as a
 // provided HTTP server, with the following caveats:
 // 1. the Handler field of the provided serverConfig should be nil,
 //    because the Handler used will be the n Negroni object.

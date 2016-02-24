@@ -13,13 +13,12 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// This file contains things related to the REST framework.
+// Package common contains things related to the REST framework.
 package common
 
 import (
 	"bytes"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"github.com/K-Phoen/negotiation"
 	"github.com/gorilla/context"
@@ -27,14 +26,15 @@ import (
 	"github.com/pborman/uuid"
 	"io/ioutil"
 	"log"
-	"net/http"
 	"net/url"
 	"reflect"
 	"strings"
+	//	"log"
+	"net/http"
 )
 
-// Context of the REST request other than the body data
-// that has been unmarshaled.
+// RestContext contains the context of the REST request other
+// than the body data that has been unmarshaled.
 type RestContext struct {
 	// Path variables as described in https://godoc.org/code.google.com/p/gorilla/mux
 	PathVariables map[string]string
@@ -66,7 +66,7 @@ type UnwrappedRestHandlerInput struct {
 	Request        *http.Request
 }
 
-// A factory function, which should return a pointer to
+// MakeMessage is a factory function, which should return a pointer to
 // an instance into which we will unmarshal wire data.
 type MakeMessage func() interface{}
 
@@ -92,7 +92,7 @@ type Route struct {
 	UseRequestToken bool
 }
 
-// Each service defines routes
+// Routes provided by each service.
 type Routes []Route
 
 // RomanaHandler interface to comply with http.Handler
@@ -432,7 +432,7 @@ func (f formMarshaller) Unmarshal(data []byte, v interface{}) error {
 					return errIfc.(error)
 				}
 			} else {
-				return errors.New(fmt.Sprintf("Unsupported type of field %s: %s", metaField.Name, metaField.Type))
+				return fmt.Errorf("Unsupported type of field %s: %s", metaField.Name, metaField.Type)
 			}
 
 		}
@@ -477,7 +477,7 @@ type Principal struct {
 	Rights []string
 }
 
-// Wrapper for auth
+// AuthMiddleware wrapper for auth.
 type AuthMiddleware struct {
 	Authenticator Authenticator
 }

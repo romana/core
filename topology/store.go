@@ -12,10 +12,11 @@
 // WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 // License for the specific language governing permissions and limitations
 // under the License.
+
+// Package topology host, TOR definitions.
 package topology
 
 import (
-	
 	"github.com/romana/core/common"
 )
 

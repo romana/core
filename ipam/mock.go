@@ -38,7 +38,7 @@ func (mockStore *mockStore) addVm(stride uint, vm *Vm) error {
 		segmentToVm[vm.SegmentId] = vms
 		mockStore.vmId[vm.HostId][vm.SegmentId] = 1
 	}
-	vm.Seq = mockStore.vmId[vm.HostId][vm.SegmentId]-1
+	vm.Seq = mockStore.vmId[vm.HostId][vm.SegmentId] - 1
 	mockStore.vmId[vm.HostId][vm.SegmentId]++
 	log.Printf("New sequence is %d\n", vm.Seq)
 
@@ -58,7 +58,7 @@ func (mockStore *mockStore) validateConnectionInformation() error {
 }
 
 func (mockStore *mockStore) setConnString() {
-	
+
 }
 
 func (mockStore *mockStore) connect() error {
