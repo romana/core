@@ -404,7 +404,7 @@ def process(s):
     logging.info("Discovered tenant_id = %s" % tenant_id)
     segments = get_segments(tenant_id)
     if not segments:
-        logging.warning("Failed to resolve segments for tenant %s - skipping event %s" % (rule['src_tenant'], obj)
+        logging.warning("Failed to resolve segments for tenant %s - skipping event %s" % (rule['src_tenant'], obj))
         return
     logging.info("Discovered segments = %s" % segments)
     src_segment_id = get_segment_id_by_name(rule['src_segment'], segments)
