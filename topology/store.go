@@ -12,6 +12,8 @@
 // WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 // License for the specific language governing permissions and limitations
 // under the License.
+
+// Package topology host, TOR definitions.
 package topology
 
 import (
@@ -37,7 +39,6 @@ type Tor struct {
 	Id         uint64 `sql:"AUTO_INCREMENT"`
 	datacenter *common.Datacenter
 }
-
 
 // Backing store
 type topoStore struct {
@@ -86,4 +87,3 @@ func (topoStore *topoStore) addHost(host *Host) (string, error) {
 	}
 	return strconv.FormatUint(host.Id, 10), nil
 }
-
