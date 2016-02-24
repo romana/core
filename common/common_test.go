@@ -192,7 +192,7 @@ const helloWorld = "hello world"
 // TestSleepyServerTimeout will test server that sleeps --
 // and either TimeoutHandler or read/write timeout would kick in.
 func TestSleepyServerTimeout(t *testing.T) {
-	cfg := &ServiceConfig{Common: CommonConfig{Api: &Api{Port: 0, RestTimeoutMillis: 1000}}}
+	cfg := &ServiceConfig{Common: CommonConfig{Api: &Api{Port: 0, RestTimeoutMillis: 100}}}
 	log.Printf("Mock config: %v\n", cfg)
 	svc := &timeoutService{}
 	svcInfo, err := InitializeService(svc, *cfg)
@@ -202,7 +202,7 @@ func TestSleepyServerTimeout(t *testing.T) {
 	msg := <-svcInfo.Channel
 	log.Printf("Service says %s\n", msg)
 
-	times := []int{800, 900, 1100, 1200}
+	times := []int{80, 90, 110, 120}
 	for i := range times {
 		millis := times[i]
 		client := http.Client{}
@@ -211,14 +211,14 @@ func TestSleepyServerTimeout(t *testing.T) {
 		req, _ := http.NewRequest("GET", url, nil)
 		resp, err := client.Do(req)
 		var body []byte
-		if millis < 1000 {
+		if millis < 100 {
 			expect2(t, fmt.Sprintf("Expected no error for timeout %d", millis), err, nil)
 			body, err = ioutil.ReadAll(resp.Body)
 			expect2(t, fmt.Sprintf("Expected no error for timeout %d", millis), err, nil)
 			resp.Body.Close()
 		}
 		log.Printf("%v: Got %s\n", time.Now(), string(body))
-		if millis < 1000 {
+		if millis < 100 {
 			expect(t, string(body), helloWorld)
 		} else {
 			bodyStr := string(body)
@@ -231,7 +231,7 @@ func TestSleepyServerTimeout(t *testing.T) {
 
 // This tests purely read/write timeout.
 func TestNormalServerTimeout(t *testing.T) {
-	cfg := &ServiceConfig{Common: CommonConfig{Api: &Api{Port: 0, RestTimeoutMillis: 1000}}}
+	cfg := &ServiceConfig{Common: CommonConfig{Api: &Api{Port: 0, RestTimeoutMillis: 100}}}
 	log.Printf("Mock config: %v\n", cfg)
 	svc := &timeoutService{}
 	svcInfo, err := InitializeService(svc, *cfg)
@@ -241,7 +241,7 @@ func TestNormalServerTimeout(t *testing.T) {
 	msg := <-svcInfo.Channel
 	log.Printf("Service says %s\n", msg)
 
-	times := []int{900, 950, 1050, 1100, 1500}
+	times := []int{90, 95, 120, 150}
 	for i := range times {
 		millis := times[i]
 		timeout, _ := time.ParseDuration(fmt.Sprintf("%dms", millis))
@@ -254,7 +254,7 @@ func TestNormalServerTimeout(t *testing.T) {
 		rdr := bufio.NewReader(conn)
 		status, err := rdr.ReadString('\n')
 		status = strings.TrimSpace(status)
-		if millis < 1000 {
+		if millis < 100 {
 			expect2(t, "Expected status 200", "HTTP/1.0 200 OK", status)
 			expect2(t, fmt.Sprintf("Expected no error for timeout %s", timeout), err, nil)
 			resp := make([]byte, 1024)
@@ -280,14 +280,12 @@ func TestNormalServerTimeout(t *testing.T) {
 }
 
 // This function tests that RestClient's timeout behavior works correctly.
-func TestClientTimeout800(t *testing.T) {
-	doTestTimeout(800, t)
+func TestClientTimeout80(t *testing.T) {
+	doTestTimeout(80, t)
 }
-func TestClientTimeout900(t *testing.T) {
-	doTestTimeout(900, t)
-}
-func TestClientTimeout905(t *testing.T) {
-	doTestTimeout(905, t)
+
+func TestClientTimeout90(t *testing.T) {
+	doTestTimeout(90, t)
 }
 
 func TestClientTimeoutHour(t *testing.T) {
@@ -301,8 +299,8 @@ func doTestTimeout(timeout int, t *testing.T) {
 		// Arbitrary post
 		Addr:         ":0",
 		Handler:      timeoutingHttpServer{},
-		ReadTimeout:  time.Second,
-		WriteTimeout: time.Second,
+		ReadTimeout:  100 * time.Millisecond,
+		WriteTimeout: 100 * time.Millisecond,
 	}
 	svcInfo, err := ListenAndServe(s)
 	msg := <-svcInfo.Channel
@@ -330,9 +328,9 @@ func doTestTimeout(timeout int, t *testing.T) {
 		if resp["error"] != "" {
 			t.Error(errors.New(resp["error"]))
 		} else {
-			// Less than a second -- see above -- we specified timeout on the
-			// server side as a second.
-			if timeout < 1000 {
+			// Less than a hundred millis -- see above -- we specified timeout on the
+			// server side as 100 millis.
+			if timeout < 100 {
 				log.Printf("Ok for %d: %s\n", timeout, resp)
 			} else {
 				errMsg := fmt.Sprintf("Expected error, got %s", resp)
@@ -342,9 +340,9 @@ func doTestTimeout(timeout int, t *testing.T) {
 		}
 	} else {
 		log.Printf("Got error: %s (%s)\n", err.Error(), reflect.TypeOf(err))
-		// Less than a second -- see above -- we specified timeout on the
-		// server side as a second.
-		if timeout < 1000 {
+		// Less than a hundred millis -- see above -- we specified timeout on the
+		// server side as 100 millis.
+		if timeout < 100 {
 			t.Error(err)
 		} else {
 			log.Printf("Ok for %d: %s\n", timeout, resp)

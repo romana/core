@@ -77,7 +77,7 @@ func (a *Agent) Routes() common.Routes {
 	return routes
 }
 
-// Run runs the agent service.
+// Run starts the agent service.
 func Run(rootServiceURL string) (*common.RestServiceInfo, error) {
 	client, err := common.NewRestClient("", common.GetDefaultRestClientConfig())
 	if err != nil {
@@ -103,7 +103,7 @@ func (a *Agent) Name() string {
 }
 
 // index handles HTTP requests for endpoints provisioning.
-// Currently tested with pani ML2 driver.
+// Currently tested with Romana ML2 driver.
 // TODO index should be reserved for an actual index, while this function
 // need to be renamed as interfaceHandler and need to respond on it's own url.
 func (a *Agent) index(input interface{}, ctx common.RestContext) (interface{}, error) {

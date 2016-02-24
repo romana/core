@@ -13,6 +13,8 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
+// This file contains the implementation of HttpClient and related utilities.
+// HttpClient is client with specific functionality to 
 package common
 
 import (
@@ -38,6 +40,7 @@ type RestClient struct {
 	config *RestClientConfig
 }
 
+// RestClientConfig holds configuration for restful client.
 type RestClientConfig struct {
 	TimeoutMillis int64
 	Retries       int
