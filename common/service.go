@@ -19,13 +19,13 @@ package common
 // interfaces.
 
 import (
-//	"errors"
+	//	"errors"
 	"fmt"
 	"github.com/codegangsta/negroni"
 	"log"
 	"net"
 	"net/http"
-//	"net/url"
+	//	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -50,7 +50,6 @@ func (links Links) FindByRel(rel string) string {
 	return retval
 
 }
-
 
 //type HostInfo struct {
 //	Ip        string `json:"ip"`
