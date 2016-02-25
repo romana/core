@@ -226,11 +226,11 @@ func (ipam *IPAMSvc) addVm(input interface{}, ctx common.RestContext) (interface
 	tenantBitShift := segmentBitShift + ipam.dc.SegmentBits
 	//	hostBitShift := tenantBitShift + ipam.dc.TenantBits
 	log.Printf("Parsing Romana IP address of host %s: %s\n", host.Name, host.RomanaIp)
-	hostIp, _, err := net.ParseCIDR(host.RomanaIp)
+	_, network, err := net.ParseCIDR(host.RomanaIp)
 	if err != nil {
 		return nil, err
 	}
-	hostIpInt := common.IPv4ToInt(hostIp)
+	hostIpInt := common.IPv4ToInt(network.IP)
 	vmIpInt := (ipam.dc.Prefix << prefixBitShift) | hostIpInt | (t.Seq << tenantBitShift) | (segment.Seq << segmentBitShift) | vm.EffectiveSeq
 	vmIpIp := common.IntToIPv4(vmIpInt)
 	log.Printf("Constructing (%d << %d) | %d | (%d << %d) | ( %d << %d ) | %d=%s\n", ipam.dc.Prefix, prefixBitShift, hostIpInt, t.Seq, tenantBitShift, segment.Seq, segmentBitShift, vm.EffectiveSeq, vmIpIp.String())
