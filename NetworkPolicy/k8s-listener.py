@@ -67,7 +67,7 @@ def _make_u32_match(addr_scheme,
         { "mask" : mask, "src" : src, "dst" : dst }
 
 
-def make_rules(addr_scheme, policy_def):
+def make_rules(addr_scheme, policy_def, policy_id):
     """
     Return dictionary with rules that should be pre-pended to given chains.
 
@@ -114,7 +114,7 @@ def make_rules(addr_scheme, policy_def):
                                            (u32_in_match, in_chain_name)),
         _make_rule(policy_chain_name, '-m u32 --u32 "%s" -j %s' %
                                            (u32_out_match, out_chain_name)),
-        _make_rule(policy_chain_name, '-j RETURN')
+        _make_rule(policy_chain_name, '-m comment --comment PolicyId=%s -j RETURN' % policy_id)
     ]
 
     # Assemble the rules for the port/protocol portion of the policy.
@@ -258,9 +258,12 @@ def policy_update(romana_address_scheme, policy_definition, delete_policy=False)
 
     """
 
+    # PolicyId is a uniq tag that we are going to use to check if rule is applied already
+    policy_id      = "%s/%s" % ( policy_definition['policy_name'], policy_definition['policy_namespace'] )
+
     # Create the new rules, based on the Romana addressing scheme and the
     # policy definition.
-    new_rules = make_rules(romana_address_scheme, policy_definition)
+    new_rules = make_rules(romana_address_scheme, policy_definition, policy_id)
     """
     pp = pprint.PrettyPrinter(indent=4)
     pp.pprint(new_rules)
@@ -269,6 +272,12 @@ def policy_update(romana_address_scheme, policy_definition, delete_policy=False)
     # LOCK SECTION SHOULD START HERE...
     # Get what iptables currently has
     iptables_rules = get_current_iptables()
+
+    for rule in iptables_rules:
+        if '"PolicyId=%s"' % policy_id in rule.split(" ") and not delete_policy:
+            logging.info("Skipping policy %s - already applied" % policy_id)
+            return
+
 
     # Remove ALL rules relating in any way to a policy of the specified name.
     clean_rules = \
@@ -415,6 +424,7 @@ def process(s):
     # That should be a romana policy object.
     policy_definition = {
         "policy_name" : obj['object']['metadata']['name'],
+        "policy_namespace" : obj['object']['metadata']['namespace'],
         "owner_tenant_id" : tenant_id,
         "target_segment_id" : dst_segment_id,
         "allowFrom" : {
@@ -443,10 +453,8 @@ def dispatch_orders(method, policy_definition):
         except Exception, e:
             logging.info("Cannot sontact host %s: %s" % (host, e))
 
-# Watch kubernetes events, they come as chunks
-# so we need to process them chunk by chink
-def main():
-    r = requests.get(url, stream=True)
+def listen_to_kube_api():
+    r = requests.get(url, stream=True, timeout=300)
     iter = r.iter_content(1)
     while True:
         len_buf = ""
@@ -470,6 +478,17 @@ def main():
         if c != '\r' or c2 != '\n':
             raise "Expected CRLF, got %c%c" % (c, c2)
 
+
+# Watch kubernetes events, they come as chunks
+# so we need to process them chunk by chink
+def main():
+    while True:
+        try:
+            listen_to_kube_api()
+        except Exception, e:
+            logging.info("Kube api listener terminated with: %s " % str(e))
+             
+       
 def get_romana_hosts():
     """
     returns a list of romana host IPs
