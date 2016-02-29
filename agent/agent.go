@@ -74,12 +74,13 @@ func (a *Agent) Routes() common.Routes {
 			UseRequestToken: false,
 		},
 		common.Route{
-			"POST",
-			"/kubernetes-pod-up",
-			a.k8sPodUpHandler,
-			func() interface{} {
+			Method:  "POST",
+			Pattern: "/kubernetes-pod-up",
+			Handler: a.k8sPodUpHandler,
+			MakeMessage: func() interface{} {
 				return &NetIf{}
 			},
+			UseRequestToken: false,
 		},
 	}
 	return routes
