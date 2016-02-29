@@ -4,7 +4,12 @@
 # lint: run golint.
 #
 
-services = $$GOPATH/bin/root $$GOPATH/bin/agent $$GOPATH/bin/tenant $$GOPATH/bin/ipam $$GOPATH/bin/topology
+services = $$GOPATH/bin/root\
+		   $$GOPATH/bin/agent\
+		   $$GOPATH/bin/tenant\
+		   $$GOPATH/bin/ipam\
+		   $$GOPATH/bin/romana\
+		   $$GOPATH/bin/topology
 
 install:
 	go install -ldflags \

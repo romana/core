@@ -1,0 +1,6 @@
+{
+    "RootURL": "http://localhost",
+    "LogFile": "/var/tmp/romana.log",
+    "Format": "table", # options are table/json 
+    "Platform": "openstack", # options are openstack/kubernetes 
+}

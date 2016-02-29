@@ -47,3 +47,12 @@
 	path = vendor/github.com/pborman/uuid
 	url = https://github.com/pborman/uuid.git
 
+[submodule "vendor/github.com/spf13/cobra"]
+	path = vendor/github.com/spf13/cobra
+	url = https://github.com/spf13/cobra
+[submodule "vendor/github.com/spf13/viper"]
+	path = vendor/github.com/spf13/viper
+	url = https://github.com/spf13/viper
+[submodule "vendor/github.com/rackspace/gophercloud"]
+	path = vendor/github.com/rackspace/gophercloud
+	url = https://github.com/rackspace/gophercloud
