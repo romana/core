@@ -119,6 +119,12 @@ type Service interface {
 
 	// Name returns the name of this service.
 	Name() string
+	
+	// Middlewares returns an array of middleware handlers to add
+	// in addition to the default set. 
+	Middlewares() []http.Handler
+	
+
 }
 
 // DefaultRestTimeout in milliseconds.

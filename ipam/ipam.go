@@ -243,6 +243,10 @@ func (ipam *IPAMSvc) Name() string {
 	return "ipam"
 }
 
+func (ipam *IPAMSvc) Middlewares() {
+	return nil
+}
+
 // SetConfig implements SetConfig function of the Service interface.
 // Returns an error if cannot connect to the data store
 func (ipam *IPAMSvc) SetConfig(config common.ServiceConfig) error {

@@ -38,6 +38,7 @@ func main() {
 		fmt.Println("Must specify rootUrl.")
 		return
 	}
+	cred := MakeCredentialFromArgs(username, password)
 	channel, _, err := agent.Run(*rootURL)
 	if err != nil {
 		panic(err)

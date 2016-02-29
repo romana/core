@@ -93,6 +93,10 @@ func (topology *TopologySvc) Name() string {
 	return "topology"
 }
 
+func (tsvc *TenantSvc) Middlewares() {
+	return nil
+}
+
 // handleHost handles request for a specific host's info
 func (topology *TopologySvc) handleHost(input interface{}, ctx common.RestContext) (interface{}, error) {
 	log.Println("In handleHost()")
@@ -197,7 +201,7 @@ func (topology *TopologySvc) SetConfig(config common.ServiceConfig) error {
 }
 
 // Run configures and runs topology service.
-func Run(rootServiceUrl string) (chan common.ServiceMessage, string, error) {
+func Run(rootServiceUrl string, creds common.Credentials) (chan common.ServiceMessage, string, error) {
 	client, err := common.NewRestClient(rootServiceUrl, common.DefaultRestTimeout)
 	if err != nil {
 		return nil, "", err

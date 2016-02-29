@@ -38,11 +38,9 @@ type MultiError struct {
 
 func MakeMultiError(errors []error) error {
 	if errors == nil {
-
 		return nil
 	}
 	if len(errors) == 0 {
-
 		return nil
 	}
 

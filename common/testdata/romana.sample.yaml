@@ -6,7 +6,7 @@ services:
     config:
       store: 
         type: sqlite3
-        database: ./auth.sqlite3
+        database: /tmp/auth.sqlite3
   - service: ipam
     api:
       host: localhost
@@ -14,7 +14,7 @@ services:
     config:
       store: 
         type: sqlite3
-        database: ./ipam.sqlite3
+        database: /tmp/ipam.sqlite3
   - service: tenant
     api:
       host: localhost
@@ -23,7 +23,7 @@ services:
       store: 
         type: sqlite3
         host: localhost
-        database: ./tenant.sqlite3
+        database: /tmp/tenant.sqlite3
   - service: topology
     api:
       host: localhost
@@ -31,7 +31,7 @@ services:
     config:
       store: 
         type: sqlite3
-        database: ./topology.sqlite3
+        database: /tmp/topology.sqlite3
       datacenter: 
         ip_version: 4
         cidr: 10.0.0.0/8
@@ -45,5 +45,5 @@ services:
       host: 0.0.0.0
       port: 9604
     config:
-      lease_file : "/etc/ethers"
+      lease_file : /etc/ethers"
       wait_for_iface_try : 6

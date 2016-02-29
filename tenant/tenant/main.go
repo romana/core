@@ -45,7 +45,8 @@ func main() {
 		return
 	}
 
-	channel, _, err := tenant.Run(*rootUrl)
+	cred := MakeCredentialFromArgs(username, password)
+	channel, _, err := tenant.Run(*rootUrl, cred)
 	if err != nil {
 		panic(err)
 	}

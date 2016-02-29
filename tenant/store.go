@@ -28,21 +28,11 @@ type tenantStore struct {
 	common.DbStore
 }
 
-<<<<<<< HEAD
 func (tenantStore tenantStore) Entities() []interface{} {
 	retval := make([]interface{}, 2)
 	retval[0] = Tenant{}
 	retval[1] = Segment{}
 	return retval
-=======
-	addTenant(tenant *Tenant) error
-	findTenant(id uint64) (Tenant, error)
-	addSegment(tenantId uint64, segment *Segment) error
-	findSegment(tenantId uint64, id uint64) (Segment, error)
-
-	listTenants() ([]Tenant, error)
-	listSegments(tenantId uint64) ([]Segment, error)
->>>>>>> master
 }
 
 type Tenant struct {

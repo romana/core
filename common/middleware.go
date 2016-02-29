@@ -400,20 +400,20 @@ var ContentTypeMarshallers map[string]Marshaller = map[string]Marshaller{
 	//	"*/*": jsonMarshaller{},
 }
 
-// Authenticator is the interface that will be used by AuthMiddleware
-// to provide authentication. Details to be worked out later.
-type Authenticator interface {
-	// As this is a placeholder, we are not dealing with
-	// details yet, tokens vs credentials, principals vs roles, etc.
-	Authenticate() Principal
-}
-
-type PlaceholderAuth struct {
-}
-
-func (p PlaceholderAuth) Authenticate() Principal {
-	return Principal{"asdf", []string{"read", "write", "execute"}}
-}
+//// Authenticator is the interface that will be used by AuthMiddleware
+//// to provide authentication. Details to be worked out later.
+//type Authenticator interface {
+//	// As this is a placeholder, we are not dealing with
+//	// details yet, tokens vs credentials, principals vs roles, etc.
+//	Authenticate() Principal
+//}
+//
+//type PlaceholderAuth struct {
+//}
+//
+//func (p PlaceholderAuth) Authenticate() Principal {
+//	return Principal{"asdf", []string{"read", "write", "execute"}}
+//}
 
 // Principal is a placeholder for a Principal structure
 // for authentication. We'll leave roles and
@@ -426,14 +426,7 @@ type Principal struct {
 
 // AuthMiddleware wrapper for auth.
 type AuthMiddleware struct {
-	Authenticator Authenticator
-}
-
-// NewAuth creates AuthMiddleware
-func NewAuth() *AuthMiddleware {
-	// Should we keep this global?
-	auth := PlaceholderAuth{}
-	return &AuthMiddleware{auth}
+	Authenticator: Authenticator
 }
 
 func (am AuthMiddleware) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {

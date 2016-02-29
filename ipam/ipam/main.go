@@ -44,8 +44,9 @@ func main() {
 		fmt.Println("Schema created.")
 		return
 	}
-
-	channel, _, err := ipam.Run(*rootUrl)
+	
+	cred := MakeCredentialFromArgs(username, password)
+	channel, _, err := ipam.Run(*rootUrl, cred)
 	if err != nil {
 		panic(err)
 	}

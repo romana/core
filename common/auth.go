@@ -15,6 +15,61 @@
 
 package common
 
-type AuthBackend interface {
+type Role interface {
+	Name() string
+}
+
+type role struct {
+	name string
+}
+
+type Authenticator interface {
+	Authenticate(user string, password string)  (Role, error)
+}
+
+type TokenAuthenticator struct {
 	
+}
+
+// Represents the type of credential (e.g., certificate, 
+// username-password, etc.
+type CredentialType string
+
+const (
+	CredentialUsernamePassword = "userPass"
+	CredentialNone = "none"
+)
+
+// Container for various credentials. Currently containing Username/Password
+// but keys, certificates, etc. can be used in the future. 
+type Credential struct {
+	Type CredentialType
+	Username string
+	Password string
+}
+
+// MakeCredentialFromCliArgs takes all possible CLI
+// arguments that can be provided and constructs appropriate
+// Credential structure. This is just keeping in one
+// method a common functionality that will be in every
+// command.
+func MakeCredentialFromCliArgs(username string, password string) Credential {
+	if username == nil {
+		return Credential{CredentialType:CredentialNone}, nil
+	} else {
+		return Credential{CredentialType: CredentialUsernamePassword, Username: username, Password: password}
+	}
+}
+
+// Authenticate method here fulfills the Authenticate() method of common.AuthDb interface.
+func (ta *TokenAuthenticator) Authenticate(user string, password string) ([]common.Role, error) {
+	gormDb := rootStore.DbStore.Db
+	whereClause = fmt.Sprintf("username = ? AND password = %s", rootStore.DbStore.GetPasswordFunction())
+	var roles []Role
+	gormDb.Table("role").Select("role.name").Joins("JOIN user_roles ON role.id = user_roles.role_id JOIN users ON users.id = user_roles.user_id").Where(whereClause, username, password).Find(roles)
+	err := common.MakeMultiError(tenantStore.DbStore.Db.GetErrors())
+	if err != nil {
+		return nil, err
+	}
+	return roles, nil
 }

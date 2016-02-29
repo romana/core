@@ -33,17 +33,45 @@ func (rootStore rootStore) CreateSchemaPostProcess() error {
 	}
 	sql := fmt.Sprintf("INSERT INTO users (username, password) VALUES (?, %s)", passwd)
 	rootStore.DbStore.Db.Exec(sql, "admin", "password")
+	rootStore.DbStore.Db.Exec("INSERT INTO roles (name) VALUES (admin)")
+//	rootStore.DbStore.Db.Exec("INSERT INTO roles (name) VALUES (admin)")
 	return common.MakeMultiError(rootStore.DbStore.Db.GetErrors())
 }
 
 func (rootStore *rootStore) Entities() []interface{} {
-	retval := make([]interface{}, 1)
+	retval := make([]interface{}, 2)
 	retval[0] = User{}
+	retval[1] = Role{}
 	return retval
 }
 
 type User struct {
 	Id       uint64 `sql:"AUTO_INCREMENT" json:"id"`
 	Username string `json:"username"`
+	Roles []Role  `gorm:"many2many:user_roles;"` 
 	Password string `json:"password"`
 }
+
+type Role struct {
+	Id       uint64 `sql:"AUTO_INCREMENT" json:"id"`
+	Name string `json:"naame"`
+}
+
+
+// Authenticate method here fulfills the Authenticate() method of common.AuthDb interface.
+// When this rootStore is passed to common.AuthMiddleware middleware, this method will be
+// called as a request comes in.
+func (rootStore *rootStore) Authenticate(user string, password string) ([]common.Role, error) {
+	gormDb := rootStore.DbStore.Db
+	whereClause = fmt.Sprintf("username = ? AND password = %s", rootStore.DbStore.GetPasswordFunction())
+	var roles []Role
+	gormDb.Table("role").Select("role.name").Joins("JOIN user_roles ON role.id = user_roles.role_id JOIN users ON users.id = user_roles.user_id").Where(whereClause, username, password).Find(roles)
+	err := common.MakeMultiError(tenantStore.DbStore.Db.GetErrors())
+	if err != nil {
+		return nil, err
+	}
+	return roles, nil
+}
+
+
+db.Joins("JOIN user_roles ON users.id = user_roles.user_id JOIN roleusers on users.id = emails.user_id").Where("users.name = ?", "jinzhu").Find(&emails)

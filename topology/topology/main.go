@@ -30,8 +30,12 @@ func main() {
 	overwriteSchema := flag.Bool("overwriteSchema", false, "Overwrite schema")
 	rootUrl := flag.String("rootUrl", "", "Root service URL")
 	version := flag.Bool("version", false, "Build Information.")
+	username := flag.String("username", "", "Username")
+	password := flag.String("password", "", "Password")
+	
 	flag.Parse()
-
+	
+	
 	if *version {
 		fmt.Println(common.BuildInfo())
 		return
@@ -45,10 +49,12 @@ func main() {
 		return
 	}
 
-	channel, _, err := topology.Run(*rootUrl)
+	cred := MakeCredentialFromArgs(username, password)
+	channel, _, err := topology.Run(*rootUrl, cred)
 	if err != nil {
 		panic(err)
 	}
+	
 	for {
 		msg := <-channel
 		fmt.Println(msg)

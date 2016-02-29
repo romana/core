@@ -51,7 +51,18 @@ func (root *Root) SetConfig(config common.ServiceConfig) error {
 	f := config.ServiceSpecific[fullConfigKey].(common.Config)
 	root.config.full = &f
 
-	return nil
+	root.store = rootStore{}
+	root.store.ServiceStore = root.store
+	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
+	return root.store.SetConfig(storeConfig)
+}
+
+// Middlewares satisfies the Middlewares method of common.Service interface.
+// Root service adds a common.AuthMiddleware to the set of middlewares a request
+// passes through. rootStore serves as the common.AuthDb interface that AuthMiddleware
+// requires, as it implements root.Authenticate() method.  
+func (root *Root) Middlewares() {
+	retval := []http.Handler{common.AuthMiddleware{AuthDb: root.store}}
 }
 
 func (root *Root) Initialize() error {
@@ -117,6 +128,12 @@ func (root Root) Routes() common.Routes {
 		common.Route{
 			Method:      "GET",
 			Pattern:     "/",
+			Handler:     root.handleIndex,
+			MakeMessage: nil,
+		},
+		common.Route{
+			Method:      "GET",
+			Pattern:     "/auth",
 			Handler:     root.handleIndex,
 			MakeMessage: nil,
 		},
