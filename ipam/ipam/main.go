@@ -45,12 +45,12 @@ func main() {
 		return
 	}
 
-	channel, _, err := ipam.Run(*rootUrl)
+	svcInfo, err := ipam.Run(*rootUrl)
 	if err != nil {
 		panic(err)
 	}
 	for {
-		msg := <-channel
+		msg := <-svcInfo.Channel
 		fmt.Println(msg)
 	}
 }

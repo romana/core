@@ -33,11 +33,11 @@ type Api struct {
 	RootServiceUrl string `json:"root_service_url,omitempty" yaml:"root_service_url,omitempty"`
 	// Rest timeout in milliseconds (if omitted, defaults to DefaultRestTimeout)
 	RestTimeoutMillis int64 `yaml:"rest_timeout_millis,omitempty" json:"rest_timeout_millis,omitempty"`
+	RestRetries       int   `yaml:"rest_retries,omitempty" json:"rest_retries,omitempty"`
 }
 
 func (api Api) GetHostPort() string {
 	return fmt.Sprintf("%s:%d", api.Host, api.Port)
-
 }
 
 // CommonConfig stores configuration that is common to all services.

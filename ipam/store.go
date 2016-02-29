@@ -16,18 +16,19 @@
 package ipam
 
 import (
-//	"database/sql"
-"log"
+	//	"database/sql"
 	"github.com/romana/core/common"
+	"log"
 )
 
 type Vm struct {
 	//	Id        uint64 `json:"id"`
-	Ip        string `json:"ip"`
-	TenantId  string `json:"tenant_id"`
-	SegmentId string `json:"segment_id"`
-	HostId    string `json:"host_id"`
-	Name      string `json:"instance"`
+	Ip           string `json:"ip"`
+	TenantId     string `json:"tenant_id"`
+	SegmentId    string `json:"segment_id"`
+	HostId       string `json:"host_id"`
+	Name         string `json:"instance"`
+	RequestToken string `json:"request_token" sql:"unique"`
 	// Ordinal number of this VM in the host/tenant combination
 	Seq uint64 `json:"sequence"`
 	// Calculated effective sequence number of this VM --
@@ -48,6 +49,7 @@ type IpamSegment struct {
 
 type IpamVm struct {
 	Vm
+
 	Id uint64 `sql:"AUTO_INCREMENT"`
 	//	IpamHostId sql.NullString
 }

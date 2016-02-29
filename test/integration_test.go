@@ -60,14 +60,14 @@ func (s *MySuite) SetUpTest(c *check.C) {
 
 	// Starting root service
 	fmt.Println("STARTING ROOT SERVICE")
-	channelRoot, addr, err := root.Run(s.configFile)
+	rootInfo, err := root.Run(s.configFile)
 	if err != nil {
 		c.Error(err)
 	}
-	s.rootUrl = "http://" + addr
+	s.rootUrl = "http://" + rootInfo.Address
 	c.Log("Root URL:", s.rootUrl)
 
-	msg := <-channelRoot
+	msg := <-rootInfo.Channel
 	c.Log("Root service said:", msg)
 	c.Log("Waiting a bit...")
 	time.Sleep(time.Second)
@@ -111,16 +111,17 @@ func (s *MySuite) TestIntegration(c *check.C) {
 
 	// 1. Start topology service
 	myLog(c, "STARTING TOPOLOGY SERVICE")
-	channelTop, topoAddr, err := topology.Run(s.rootUrl)
+	topoInfo, err := topology.Run(s.rootUrl)
 	if err != nil {
 		c.Error(err)
 	}
-	msg := <-channelTop
+	msg := <-topoInfo.Channel
 	myLog(c, "Topology service said:", msg)
 
 	// 2. Add some hosts to topology service and test.
+	topoAddr := topoInfo.Address
 	topoAddr = "http://" + topoAddr
-	client, err := common.NewRestClient(topoAddr, common.DefaultRestTimeout)
+	client, err := common.NewRestClient(topoAddr, common.GetDefaultRestClientConfig())
 	if err != nil {
 		c.Error(err)
 	}
@@ -164,14 +165,14 @@ func (s *MySuite) TestIntegration(c *check.C) {
 
 	// 3. Start tenant service
 	myLog(c, "STARTING TENANT SERVICE")
-	channelTen, tenantAddr, err := tenant.Run(s.rootUrl)
+	tenantInfo, err := tenant.Run(s.rootUrl)
 	if err != nil {
 		c.Error(err)
 	}
-	tenantAddr = "http://" + tenantAddr
-	msg = <-channelTen
+	tenantAddr := "http://" + tenantInfo.Address
+	msg = <-tenantInfo.Channel
 	myLog(c, "Tenant service said:", msg)
-	client, err = common.NewRestClient(tenantAddr, common.DefaultRestTimeout)
+	client, err = common.NewRestClient(tenantAddr, common.GetDefaultRestClientConfig())
 	if err != nil {
 		c.Error(err)
 	}
@@ -248,27 +249,38 @@ func (s *MySuite) TestIntegration(c *check.C) {
 
 	// 4. Start IPAM service
 	myLog(c, "STARTING IPAM SERVICE")
-	channelIpam, ipamAddr, err := ipam.Run(s.rootUrl)
+	ipamInfo, err := ipam.Run(s.rootUrl)
 	if err != nil {
 		c.Error(err)
 	}
-	ipamAddr = fmt.Sprintf("http://%s", ipamAddr)
-	msg = <-channelIpam
+	ipamAddr := fmt.Sprintf("http://%s", ipamInfo.Address)
+	msg = <-ipamInfo.Channel
 	myLog(c, "IPAM service said: ", msg)
-	client, err = common.NewRestClient(ipamAddr, common.DefaultRestTimeout)
+	client, err = common.NewRestClient(ipamAddr, common.GetDefaultRestClientConfig())
 	if err != nil {
 		c.Error(err)
 	}
 
 	// Get first IP
-	vmIn := ipam.Vm{Name: "vm1", TenantId: fmt.Sprintf("%d", tOut.Id), SegmentId: fmt.Sprintf("%d", sOut.Id), HostId: host2.Id}
+	myLog(c, "Get first IP")
+
+	vmIn := ipam.Vm{Name: "vm1", TenantId: fmt.Sprintf("%d", tOut.Id), SegmentId: fmt.Sprintf("%d", sOut.Id), HostId: host2.Id, RequestToken: "ttt"}
 	vmOut := ipam.Vm{}
 	err = client.Post("/vms", vmIn, &vmOut)
 	if err != nil {
 		c.Error(err)
 	}
-	myLog(c, "Received:", vmOut)
-	myLog(c, "IP:", vmOut.Ip)
+	myLog(c, "Response from IPAM for ", vmIn, "is", vmOut)
+
+	// TODO waiting for
+	// https://github.com/jinzhu/gorm/issues/819
+	//	myLog(c, "Try same request, watch it result in 409")
+	//	vmOut = ipam.Vm{}
+	//	err = client.Post("/vms", vmIn, &vmOut)
+	//	if err != nil {
+	//		c.Error(err)
+	//	}
+	//	myLog(c, "Response from IPAM for ", vmIn, "is", vmOut)
 
 	// Get second IP
 	vmIn = ipam.Vm{Name: "vm2", TenantId: fmt.Sprintf("%d", tOut.Id), SegmentId: fmt.Sprintf("%d", sOut.Id), HostId: host2.Id}
@@ -277,7 +289,7 @@ func (s *MySuite) TestIntegration(c *check.C) {
 	if err != nil {
 		c.Error(err)
 	}
-	myLog(c, "Received:", vmOut)
+	myLog(c, "Response from IPAM for ", vmIn, "is", vmOut)
 	myLog(c, "IP:", vmOut.Ip)
 
 	// Try legacy request
@@ -296,11 +308,11 @@ func (s *MySuite) TestIntegration(c *check.C) {
 
 	// 5. Start Agent service
 	myLog(c, "STARTING Agent SERVICE")
-	channelAgent, _, err := agent.Run(s.rootUrl)
+	agentInfo, err := agent.Run(s.rootUrl)
 	if err != nil {
 		c.Error(err)
 	}
-	msg = <-channelAgent
+	msg = <-agentInfo.Channel
 	myLog(c, "Agent service said:", msg)
 
 }

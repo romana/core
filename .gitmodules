@@ -46,3 +46,7 @@
 [submodule "vendor/github.com/mattn/go-sqlite3"]
 	path = vendor/github.com/mattn/go-sqlite3
 	url = git@github.com:mattn/go-sqlite3.git
+[submodule "vendor/github.com/pborman/uuid"]
+	path = vendor/github.com/pborman/uuid
+	url = git@github.com:pborman/uuid.git
+

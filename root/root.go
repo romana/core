@@ -115,32 +115,35 @@ func (root *Root) handleConfig(input interface{}, ctx common.RestContext) (inter
 func (root Root) Routes() common.Routes {
 	routes := common.Routes{
 		common.Route{
-			Method:      "GET",
-			Pattern:     "/",
-			Handler:     root.handleIndex,
-			MakeMessage: nil,
+			Method:          "GET",
+			Pattern:         "/",
+			Handler:         root.handleIndex,
+			MakeMessage:     nil,
+			UseRequestToken: false,
 		},
 		common.Route{
-			Method:      "GET",
-			Pattern:     "/config/{serviceName}",
-			Handler:     root.handleConfig,
-			MakeMessage: nil,
+			Method:          "GET",
+			Pattern:         "/config/{serviceName}",
+			Handler:         root.handleConfig,
+			MakeMessage:     nil,
+			UseRequestToken: false,
 		},
 		common.Route{
-			Method:      "POST",
-			Pattern:     "/config/{serviceName}/port",
-			Handler:     root.handlePortUpdate,
-			MakeMessage: func() interface{} { return &common.PortUpdateMessage{} },
+			Method:          "POST",
+			Pattern:         "/config/{serviceName}/port",
+			Handler:         root.handlePortUpdate,
+			MakeMessage:     func() interface{} { return &common.PortUpdateMessage{} },
+			UseRequestToken: false,
 		},
 	}
 	return routes
 }
 
 // Run configures and starts root service.
-func Run(configFileName string) (chan common.ServiceMessage, string, error) {
+func Run(configFileName string) (*common.RestServiceInfo, error) {
 	fullConfig, err := common.ReadConfig(configFileName)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 
 	rootService := &Root{}
