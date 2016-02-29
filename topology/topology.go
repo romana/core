@@ -5,7 +5,7 @@
 // not use this file except in compliance with the License. You may obtain
 // a copy of the License at
 //
-//   http://www.apache.org/licenses/LICENSE-2.0
+// http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
@@ -46,34 +46,39 @@ const (
 func (topology *TopologySvc) Routes() common.Routes {
 	routes := common.Routes{
 		common.Route{
-			Method:      "GET",
-			Pattern:     "/",
-			Handler:     topology.handleIndex,
-			MakeMessage: nil,
+			Method:          "GET",
+			Pattern:         "/",
+			Handler:         topology.handleIndex,
+			MakeMessage:     nil,
+			UseRequestToken: false,
 		},
 		common.Route{
-			Method:      "GET",
-			Pattern:     hostListPath,
-			Handler:     topology.handleHostListGet,
-			MakeMessage: nil,
+			Method:          "GET",
+			Pattern:         hostListPath,
+			Handler:         topology.handleHostListGet,
+			MakeMessage:     nil,
+			UseRequestToken: false,
 		},
 		common.Route{
-			Method:      "POST",
-			Pattern:     hostListPath,
-			Handler:     topology.handleHostListPost,
-			MakeMessage: func() interface{} { return &common.HostMessage{} },
+			Method:          "POST",
+			Pattern:         hostListPath,
+			Handler:         topology.handleHostListPost,
+			MakeMessage:     func() interface{} { return &common.HostMessage{} },
+			UseRequestToken: false,
 		},
 		common.Route{
-			Method:      "GET",
-			Pattern:     hostListPath + "/{hostId}",
-			Handler:     topology.handleHost,
-			MakeMessage: nil,
+			Method:          "GET",
+			Pattern:         hostListPath + "/{hostId}",
+			Handler:         topology.handleHost,
+			MakeMessage:     nil,
+			UseRequestToken: false,
 		},
 		common.Route{
-			Method:      "GET",
-			Pattern:     dcPath,
-			Handler:     topology.handleDc,
-			MakeMessage: nil,
+			Method:          "GET",
+			Pattern:         dcPath,
+			Handler:         topology.handleDc,
+			MakeMessage:     nil,
+			UseRequestToken: false,
 		},
 	}
 	return routes
@@ -201,15 +206,20 @@ func (topology *TopologySvc) SetConfig(config common.ServiceConfig) error {
 }
 
 // Run configures and runs topology service.
+<<<<<<< HEAD
 func Run(rootServiceUrl string, creds common.Credentials) (chan common.ServiceMessage, string, error) {
 	client, err := common.NewRestClient(rootServiceUrl, common.DefaultRestTimeout)
+=======
+func Run(rootServiceUrl string) (*common.RestServiceInfo, error) {
+	client, err := common.NewRestClient(rootServiceUrl, common.GetDefaultRestClientConfig())
+>>>>>>> feature/gg-auth
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	topSvc := &TopologySvc{}
 	config, err := client.GetServiceConfig(rootServiceUrl, topSvc)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	return common.InitializeService(topSvc, *config)
 
@@ -229,8 +239,7 @@ func (topology *TopologySvc) Initialize() error {
 // CreateSchema runs topology service
 func CreateSchema(rootServiceUrl string, overwrite bool) error {
 	log.Println("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
-
-	client, err := common.NewRestClient("", common.DefaultRestTimeout)
+	client, err := common.NewRestClient("", common.GetDefaultRestClientConfig())
 	if err != nil {
 		return err
 	}

@@ -49,3 +49,7 @@
 [submodule "vendor/github.com/nabeken/negroni-auth"]
 	path = vendor/github.com/nabeken/negroni-auth
 	url = git@github.com:nabeken/negroni-auth.git
+[submodule "vendor/github.com/pborman/uuid"]
+	path = vendor/github.com/pborman/uuid
+	url = git@github.com:pborman/uuid.git
+

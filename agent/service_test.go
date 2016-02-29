@@ -30,11 +30,11 @@ func TestService(t *testing.T) {
 		panic(err)
 	}
 	rootURL := fmt.Sprintf("file://%s/testdata/root.json", cwd)
-	channelRoot, _, err := Run(rootURL)
+	svcInfo, err := Run(rootURL)
 	if err != nil {
 		t.Fatal(err)
 	}
-	msg := <-channelRoot
+	msg := <-svcInfo.Channel
 	t.Log("Service says", msg)
 	fmt.Println(msg)
 }

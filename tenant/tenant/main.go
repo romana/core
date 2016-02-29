@@ -45,13 +45,14 @@ func main() {
 		return
 	}
 
-	cred := MakeCredentialFromArgs(username, password)
-	channel, _, err := tenant.Run(*rootUrl, cred)
+	cred := common.MakeCredentialFromArgs(username, password)
+	svcInfo, err := tenant.Run(*rootUrl)
+
 	if err != nil {
 		panic(err)
 	}
 	for {
-		msg := <-channel
+		msg := <-svcInfo.Channel
 		fmt.Println(msg)
 	}
 }

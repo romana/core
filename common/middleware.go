@@ -4,7 +4,7 @@
 // Licensed under the Apache License, Version 2.0 (the "License"); you may
 // not use this file except in compliance with the License. You may obtain
 // a copy of the License at
-//`
+//
 // http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
@@ -23,12 +23,12 @@ import (
 	"github.com/K-Phoen/negotiation"
 	"github.com/gorilla/context"
 	"github.com/gorilla/mux"
+	"github.com/pborman/uuid"
 	"io/ioutil"
 	"log"
 	"net/url"
 	"reflect"
 	"strings"
-	"time"
 	//	"log"
 	"net/http"
 )
@@ -41,6 +41,8 @@ type RestContext struct {
 	// QueryVariables stores key-value-list map of query variables, see url.Values
 	// for more details.
 	QueryVariables url.Values
+
+	RequestToken string
 }
 
 // RestHandler specifies type of a function that each Route provides.
@@ -85,6 +87,9 @@ type Route struct {
 	// This should return a POINTER to an instance which
 	// this route expects as an input.
 	MakeMessage MakeMessage
+
+	//
+	UseRequestToken bool
 }
 
 // Routes provided by each service.
@@ -107,25 +112,45 @@ var requestType = reflect.TypeOf(http.Request{})
 // For comparing to the type of string.
 var stringType = reflect.TypeOf("")
 
+// write500 writes out a 500 error based on provided err
+func write500(writer http.ResponseWriter, m Marshaller, err error) {
+	writer.WriteHeader(http.StatusInternalServerError)
+	httpErr := NewError500(err)
+	// Should never error out - it's a struct we know.
+	outData, _ := m.Marshal(httpErr)
+	writer.Write(outData)
+}
+
+// write400 writes out a 400 error based on provided err
+func write400(writer http.ResponseWriter, m Marshaller, request string, err error) {
+	writer.WriteHeader(http.StatusInternalServerError)
+	httpErr := NewError400(err.Error(), request)
+	// Should never error out - it's a struct we know.
+	outData, _ := m.Marshal(httpErr)
+	writer.Write(outData)
+}
+
 // wrapHandler wraps the RestHandler function, which deals
 // with application logic into an instance of http.HandlerFunc
 // which deals with raw HTTP request and response. The wrapper
 // is intended to transparently deal with converting data to/from
 // the wire format into internal representations.
-func wrapHandler(restHandler RestHandler, makeMessage MakeMessage) http.Handler {
+func wrapHandler(restHandler RestHandler, route Route) http.Handler {
+	// TODO
+	// This function is very long. Could we please break it up into a few smaller functions
+	// (with self-documenting names), which are called from within this function?
+	makeMessage := route.MakeMessage
 	if makeMessage != nil && reflect.TypeOf(makeMessage()) == requestType {
 		// This would mean the handler actually wants access to raw request/response
 		// Fine, then...
 		httpHandler := func(writer http.ResponseWriter, request *http.Request) {
-			log.Printf("Entering at %v\n", time.Now())
 			err := request.ParseForm()
 			if err != nil {
-				writer.WriteHeader(http.StatusInternalServerError)
+				writer.WriteHeader(http.StatusBadRequest)
 				writer.Write([]byte(err.Error()))
 				return
 			}
 			restContext := RestContext{PathVariables: mux.Vars(request), QueryVariables: request.Form}
-
 			respReq := UnwrappedRestHandlerInput{writer, request}
 			restHandler(respReq, restContext)
 		}
@@ -139,73 +164,101 @@ func wrapHandler(restHandler RestHandler, makeMessage MakeMessage) http.Handler 
 				inData = makeMessage()
 			}
 			var err error
+			contentType := writer.Header().Get("Content-Type")
+			// This should be ok because the middleware took care of negotiating
+			// only the content types we support
+			marshaller := ContentTypeMarshallers[contentType]
+			defaultMarshaller := ContentTypeMarshallers["application/json"]
+
+			if marshaller == nil {
+				// This should never happen... Just in case...
+				log.Printf("No marshaler for [%s] found in %s, %s\n", contentType, ContentTypeMarshallers, ContentTypeMarshallers["application/json"])
+				writer.WriteHeader(http.StatusUnsupportedMediaType)
+				sct := supportedContentTypesMessage
+				dataOut, _ := defaultMarshaller.Marshal(sct)
+				writer.Write(dataOut)
+				return
+			}
+
 			if inData != nil {
 				log.Printf("httpHandler: inData addr: %d\n", &inData)
 				ct := request.Header.Get("content-type")
 				buf, err := ioutil.ReadAll(request.Body)
 				log.Printf("Read %s\n", string(buf))
 				if err != nil {
-					writer.WriteHeader(http.StatusInternalServerError)
-					writer.Write([]byte(err.Error()))
-					return
+					// Error reading...
+					write500(writer, marshaller, err)
 				}
 
-				log.Printf("Marshaler %v for %s\n", ContentTypeMarshallers[ct], ct)
-				if marshaller, ok := ContentTypeMarshallers[ct]; ok {
-					err = marshaller.Unmarshal(buf, inData)
+				if unmarshaller, ok := ContentTypeMarshallers[ct]; ok {
+					err = unmarshaller.Unmarshal(buf, inData)
+					if err != nil {
+						// Error unmarshalling...
+						write400(writer, marshaller, string(buf), err)
+						return
+					}
 				} else {
-					sct := supportedContentTypesMessage
-					marshaller := ContentTypeMarshallers["application/json"]
-					dataOut, _ := marshaller.Marshal(sct)
+					// Cannot unmarshal
+					dataOut, _ := marshaller.Marshal(supportedContentTypesMessage)
 					writer.WriteHeader(http.StatusNotAcceptable)
 					writer.Write(dataOut)
 					return
 				}
-
-				if err != nil {
-					writer.WriteHeader(http.StatusInternalServerError)
-					writer.Write([]byte(err.Error()))
-					return
-				}
 			}
+
 			err = request.ParseForm()
 			if err != nil {
-				log.Printf("Error %s\n", err)
-				writer.WriteHeader(http.StatusInternalServerError)
-				writer.Write([]byte(err.Error()))
+				// Cannot parse form...
+				write400(writer, marshaller, request.RequestURI, err)
 				return
 			}
-			restContext := RestContext{PathVariables: mux.Vars(request), QueryVariables: request.Form}
+			var token string
+			if route.UseRequestToken {
+				if inData != nil {
+					v := reflect.Indirect(reflect.ValueOf(inData)).FieldByName(RequestTokenQueryParameter)
+					if v.IsValid() {
+						token = v.String()
+						log.Printf("Token from payload %s\n", token)
+					} else {
+						tokens := request.Form[RequestTokenQueryParameter]
+						if len(tokens) != 1 {
+							token = uuid.New()
+							log.Printf("Token created %s\n", token)
+						} else {
+							log.Printf("Token from query string %s\n", token)
+						}
+						token = tokens[0]
+					}
+				}
+			}
+			restContext := RestContext{PathVariables: mux.Vars(request), QueryVariables: request.Form, RequestToken: token}
 			outData, err := restHandler(inData, restContext)
 			//			log.Printf("In here, outData: [%s] of type %s, error [%s] [%s]\n", outData, reflect.TypeOf(outData), err, err == nil)
 			if err == nil {
-				contentType := writer.Header().Get("Content-Type")
-				// This should be ok because the middleware took care of negotiating
-				// only the content types we support
-				marshaller := ContentTypeMarshallers[contentType]
-				if marshaller == nil {
-					log.Printf("No marshaler for [%s] found in %s, %s\n", contentType, ContentTypeMarshallers, ContentTypeMarshallers["application/json"])
-					writer.WriteHeader(http.StatusUnsupportedMediaType)
-					sct := supportedContentTypesMessage
-					marshaller := ContentTypeMarshallers["application/json"]
-					dataOut, _ := marshaller.Marshal(sct)
-					writer.Write(dataOut)
-					return
-				}
 				wireData, err := marshaller.Marshal(outData)
 				//				log.Printf("Out data: %s, wire data: %s, error %s\n", outData, wireData, err)
 				if err == nil {
 					writer.WriteHeader(http.StatusOK)
 					writer.Write(wireData)
 					return
+				} else {
+					write500(writer, marshaller, err)
+					return
 				}
+			} else {
+				log.Printf("HEYHEYHEY %v\n", err)
+				switch err := err.(type) {
+				case HttpError:
+					writer.WriteHeader(err.StatusCode)
+					// Should never error out - it's a struct we know.
+					outData, _ := marshaller.Marshal(err)
+					writer.Write(outData)
+				default:
+					// Error reading...
+					write500(writer, marshaller, err)
+				}
+				return
 			}
-
-			// There was an error -- that's the only way we fell through
-			// here
-			log.Printf("Error %s\n", err)
-			writer.WriteHeader(http.StatusInternalServerError)
-			writer.Write([]byte(err.Error()))
 		}
 		return RomanaHandler{httpHandler}
 	}
@@ -221,7 +274,7 @@ func newRouter(routes []Route) *mux.Router {
 		router.
 			Methods(route.Method).
 			Path(route.Pattern).
-			Handler(wrapHandler(handler, route.MakeMessage))
+			Handler(wrapHandler(handler, route))
 	}
 	return router
 }
@@ -336,7 +389,7 @@ func (f formMarshaller) Unmarshal(data []byte, v interface{}) error {
 		// If the output wanted is a map, then just use it as a map.
 		m = *(v.(*map[string]interface{}))
 	} else {
-		// Otherwise, first mape a temporary map
+		// Otherwise, first make a temporary map
 		m = make(map[string]interface{})
 	}
 	for i := range kvPairs {
@@ -448,27 +501,11 @@ type myReader struct{ *bytes.Buffer }
 
 func (r myReader) Close() error { return nil }
 
-const (
-	// ContextKeyUnmarshalledMap is for passing in Gorilla Mux
-	// context the unmarshalled data.
-	ContextKeyUnmarshalledMap string = "UnmarshalledMap"
-
-	// ContextKeyQueryVariables is for passing in Gorilla Mux
-	// context path variables
-	ContextKeyQueryVariables string = "QueryVars"
-
-	// ContextKeyOriginalBody is for passing in Gorilla Mux
-	// context the original body data
-	ContextKeyOriginalBody string = "OriginalBody"
-
-	ContextKeyMarshaller string = "Marshaller"
-)
-
 // Unmarshals request body if needed. If not acceptable,
 // returns an http.StatusNotAcceptable and this ends this
 // request's lifecycle.
 func (m UnmarshallerMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
-	ct := r.Header.Get("content-type")
+	ct := r.Header.Get(HeaderContentType)
 
 	buf, err := ioutil.ReadAll(r.Body)
 	if err != nil {

@@ -35,7 +35,6 @@ func main() {
 	
 	flag.Parse()
 	
-	
 	if *version {
 		fmt.Println(common.BuildInfo())
 		return
@@ -49,14 +48,14 @@ func main() {
 		return
 	}
 
-	cred := MakeCredentialFromArgs(username, password)
-	channel, _, err := topology.Run(*rootUrl, cred)
+	cred := common.MakeCredentialFromArgs(username, password)
+	svcInfo, err := topology.Run(*rootUrl, cred)
 	if err != nil {
 		panic(err)
 	}
 	
 	for {
-		msg := <-channel
+		msg := <-svcInfo.Channel
 		fmt.Println(msg)
 	}
 }

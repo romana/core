@@ -8,7 +8,7 @@
 //   http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
-//  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
 // WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 // License for the specific language governing permissions and limitations
 // under the License.
@@ -44,14 +44,13 @@ func main() {
 		fmt.Println("Schema created.")
 		return
 	}
-	
-	cred := MakeCredentialFromArgs(username, password)
-	channel, _, err := ipam.Run(*rootUrl, cred)
+	cred := common.MakeCredentialFromArgs(username, password)
+	svcInfo, err := ipam.Run(*rootUrl)
 	if err != nil {
 		panic(err)
 	}
 	for {
-		msg := <-channel
+		msg := <-svcInfo.Channel
 		fmt.Println(msg)
 	}
 }
