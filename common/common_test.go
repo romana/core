@@ -72,8 +72,12 @@ func refute2(t *testing.T, msg string, a interface{}, b interface{}) {
 
 // TestClientNoHost just tests that we don't hang forever
 // when there is no host.
+// TODO
+// How about if this is an IP address, which is behind a firewall, so
+// that all attempts to send a packet there fails, no RST or anything
+// ever comes back? Do we wait the full TCP timeout?
 func TestClientNoHost(t *testing.T) {
-	client, err := NewRestClient("http://no.such.host", DefaultRestTimeout)
+	client, err := NewRestClient("http://no.such.host", GetDefaultRestClientConfig())
 	if err != nil {
 		t.Error(err)
 	}
@@ -153,6 +157,7 @@ func (s timeoutService) Routes() Routes {
 			func() interface{} {
 				return http.Request{}
 			},
+			false,
 		},
 		Route{
 			"GET",
@@ -172,6 +177,7 @@ func (s timeoutService) Routes() Routes {
 			func() interface{} {
 				return http.Request{}
 			},
+			false,
 		},
 	}
 	return routes
@@ -186,33 +192,33 @@ const helloWorld = "hello world"
 // TestSleepyServerTimeout will test server that sleeps --
 // and either TimeoutHandler or read/write timeout would kick in.
 func TestSleepyServerTimeout(t *testing.T) {
-	cfg := &ServiceConfig{Common: CommonConfig{Api: &Api{Port: 0, RestTimeoutMillis: 1000}}}
+	cfg := &ServiceConfig{Common: CommonConfig{Api: &Api{Port: 0, RestTimeoutMillis: 100}}}
 	log.Printf("Mock config: %v\n", cfg)
 	svc := &timeoutService{}
-	ch, addr, err := InitializeService(svc, *cfg)
+	svcInfo, err := InitializeService(svc, *cfg)
 	if err != nil {
 		t.Error(err)
 	}
-	msg := <-ch
+	msg := <-svcInfo.Channel
 	log.Printf("Service says %s\n", msg)
 
-	times := []int{800, 900, 1100, 1200}
+	times := []int{80, 90, 110, 120}
 	for i := range times {
 		millis := times[i]
 		client := http.Client{}
-		url := fmt.Sprintf("http://%s/sleepy?t=%dms", addr, millis)
+		url := fmt.Sprintf("http://%s/sleepy?t=%dms", svcInfo.Address, millis)
 		log.Printf("Calling %s\n", url)
 		req, _ := http.NewRequest("GET", url, nil)
 		resp, err := client.Do(req)
 		var body []byte
-		if millis < 1000 {
+		if millis < 100 {
 			expect2(t, fmt.Sprintf("Expected no error for timeout %d", millis), err, nil)
 			body, err = ioutil.ReadAll(resp.Body)
 			expect2(t, fmt.Sprintf("Expected no error for timeout %d", millis), err, nil)
 			resp.Body.Close()
 		}
 		log.Printf("%v: Got %s\n", time.Now(), string(body))
-		if millis < 1000 {
+		if millis < 100 {
 			expect(t, string(body), helloWorld)
 		} else {
 			bodyStr := string(body)
@@ -225,21 +231,21 @@ func TestSleepyServerTimeout(t *testing.T) {
 
 // This tests purely read/write timeout.
 func TestNormalServerTimeout(t *testing.T) {
-	cfg := &ServiceConfig{Common: CommonConfig{Api: &Api{Port: 0, RestTimeoutMillis: 1000}}}
+	cfg := &ServiceConfig{Common: CommonConfig{Api: &Api{Port: 0, RestTimeoutMillis: 100}}}
 	log.Printf("Mock config: %v\n", cfg)
 	svc := &timeoutService{}
-	ch, addr, err := InitializeService(svc, *cfg)
+	svcInfo, err := InitializeService(svc, *cfg)
 	if err != nil {
 		t.Error(err)
 	}
-	msg := <-ch
+	msg := <-svcInfo.Channel
 	log.Printf("Service says %s\n", msg)
 
-	times := []int{900, 950, 1050, 1100, 1500}
+	times := []int{90, 95, 120, 150}
 	for i := range times {
 		millis := times[i]
 		timeout, _ := time.ParseDuration(fmt.Sprintf("%dms", millis))
-		conn, err := net.Dial("tcp", addr)
+		conn, err := net.Dial("tcp", svcInfo.Address)
 		if err != nil {
 			t.Error(err)
 		}
@@ -248,7 +254,7 @@ func TestNormalServerTimeout(t *testing.T) {
 		rdr := bufio.NewReader(conn)
 		status, err := rdr.ReadString('\n')
 		status = strings.TrimSpace(status)
-		if millis < 1000 {
+		if millis < 100 {
 			expect2(t, "Expected status 200", "HTTP/1.0 200 OK", status)
 			expect2(t, fmt.Sprintf("Expected no error for timeout %s", timeout), err, nil)
 			resp := make([]byte, 1024)
@@ -274,64 +280,74 @@ func TestNormalServerTimeout(t *testing.T) {
 }
 
 // This function tests that RestClient's timeout behavior works correctly.
-func TestClientTimeout(t *testing.T) {
+func TestClientTimeout80(t *testing.T) {
+	doTestTimeout(80, t)
+}
+
+func TestClientTimeout90(t *testing.T) {
+	doTestTimeout(90, t)
+}
+
+func TestClientTimeoutHour(t *testing.T) {
+	// Nobody is going to actually sleep for an hour, this is the test --
+	// we are going to *try* to sleep for an hour, but it'll get interrupted.
+	doTestTimeout(60*60*1000, t)
+}
+
+func doTestTimeout(timeout int, t *testing.T) {
 	s := &http.Server{
 		// Arbitrary post
 		Addr:         ":0",
 		Handler:      timeoutingHttpServer{},
-		ReadTimeout:  time.Second,
-		WriteTimeout: time.Second,
+		ReadTimeout:  100 * time.Millisecond,
+		WriteTimeout: 100 * time.Millisecond,
 	}
-	ch, addr, err := ListenAndServe(s)
-	msg := <-ch
+	svcInfo, err := ListenAndServe(s)
+	msg := <-svcInfo.Channel
 	log.Println(msg)
 	time.Sleep(time.Second)
 	if err != nil {
 		t.Error(err)
 	}
-	url := fmt.Sprintf("http://%s", addr)
+	url := fmt.Sprintf("http://%s", svcInfo.Address)
 	log.Printf("Listening on %s\n", url)
-	client, err := NewRestClient(url, DefaultRestTimeout)
+	client, err := NewRestClient(url, GetDefaultRestClientConfig())
 	if err != nil {
 		t.Error(err)
 	}
-
-	// Nobody is going to actually sleep for an hour, this is the test --
-	// we are going to *try* to sleep for an hour, but it'll get interrupted.
-	hour := 60 * 60 * 1000
-	times := []int{800, 900, 1005, hour}
-	for i := range times {
-		timeout := times[i]
-		url := fmt.Sprintf("/?t=%dms", timeout)
-		log.Printf("Calling URL sleeping %d msec: %s\n", timeout, url)
-		resp := make(map[string]string)
-		err = client.Get(url, &resp)
-		if err == nil {
-
-			if resp["error"] != "" {
-				t.Error(errors.New(resp["error"]))
-			} else {
-				// Less than a second -- see above -- we specified timeout on the
-				// server side as a second.
-				if timeout < 1000 {
-					log.Printf("Ok for %d: %s\n", timeout, resp)
-				} else {
-					errMsg := fmt.Sprintf("Expected error, got %s", resp)
-					log.Println(errMsg)
-					t.Error(errors.New(errMsg))
-				}
-			}
+	url = fmt.Sprintf("/?t=%dms", timeout)
+	resp := make(map[string]string)
+	start := time.Now()
+	log.Printf("%v: Calling URL sleeping %d msec: %s\n", start, timeout, url)
+	log.Printf("Time before: %v", start)
+	err = client.Get(url, &resp)
+	log.Printf("Time before: %v", start)
+	log.Printf("Time after: %v", time.Now())
+	log.Printf("Time elapsed in %v\n", time.Since(start))
+	if err == nil {
+		if resp["error"] != "" {
+			t.Error(errors.New(resp["error"]))
 		} else {
-			log.Printf("Got error: %s (%s)\n", err.Error(), reflect.TypeOf(err))
-			// Less than a second -- see above -- we specified timeout on the
-			// server side as a second.
-			if timeout < 1000 {
-				t.Error(err)
-			} else {
+			// Less than a hundred millis -- see above -- we specified timeout on the
+			// server side as 100 millis.
+			if timeout < 100 {
 				log.Printf("Ok for %d: %s\n", timeout, resp)
+			} else {
+				errMsg := fmt.Sprintf("Expected error, got %s", resp)
+				log.Println(errMsg)
+				t.Error(errors.New(errMsg))
 			}
-
 		}
+	} else {
+		log.Printf("Got error: %s (%s)\n", err.Error(), reflect.TypeOf(err))
+		// Less than a hundred millis -- see above -- we specified timeout on the
+		// server side as 100 millis.
+		if timeout < 100 {
+			t.Error(err)
+		} else {
+			log.Printf("Ok for %d: %s\n", timeout, resp)
+		}
+
 	}
 
 	log.Println("OK!")

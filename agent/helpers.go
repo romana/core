@@ -8,7 +8,7 @@
 // http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
-//  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
 // WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 // License for the specific language governing permissions and limitations
 // under the License.
@@ -205,7 +205,7 @@ func (h Helper) ensureLine(path string, token string) error {
 	return nil
 }
 
-// otherHosts builds array of hosts in pani setup other then
+// otherHosts builds array of hosts in the Romana setup other then
 // ourselves, for the purposes of routing mainly.
 func (h Helper) otherHosts() []common.HostMessage {
 	index := h.Agent.networkConfig.currentHostIndex
@@ -218,7 +218,7 @@ func (h Helper) otherHosts() []common.HostMessage {
 	others := make([]common.HostMessage, 0, len(origin)-1)
 	others = append(others, origin[:index]...)
 	others = append(others, origin[index+1:]...)
-	log.Printf("otherHosts(): Our host is %d out of %d, all hosts: %s\n", index, len(origin), origin)
+	log.Printf("otherHosts(): Our host is %d out of %d, all hosts: %#v\n", index, len(origin), origin)
 	return others
 }
 

@@ -5,10 +5,10 @@
 // not use this file except in compliance with the License. You may obtain
 // a copy of the License at
 //
-//   http://www.apache.org/licenses/LICENSE-2.0
+// http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
-//  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
 // WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 // License for the specific language governing permissions and limitations
 // under the License.
@@ -18,7 +18,7 @@ package topology
 import (
 	"errors"
 	"fmt"
-//	"github.com/mitchellh/mapstructure"
+	//	"github.com/mitchellh/mapstructure"
 	"github.com/romana/core/common"
 	"log"
 	"net"
@@ -43,40 +43,43 @@ const (
 	dcPath        = "/datacenter"
 )
 
-// Provides Routes
+// Routes returns various routes used in the service.
 func (topology *TopologySvc) Routes() common.Routes {
 	routes := common.Routes{
 		common.Route{
-			"GET",
-			"/",
-			topology.handleIndex,
-			nil,
+			Method:          "GET",
+			Pattern:         "/",
+			Handler:         topology.handleIndex,
+			MakeMessage:     nil,
+			UseRequestToken: false,
 		},
 		common.Route{
-			"GET",
-			hostListPath,
-			topology.handleHostListGet,
-			nil,
+			Method:          "GET",
+			Pattern:         hostListPath,
+			Handler:         topology.handleHostListGet,
+			MakeMessage:     nil,
+			UseRequestToken: false,
 		},
 		common.Route{
-			"POST",
-			hostListPath,
-			topology.handleHostListPost,
-			func() interface{} {
-				return &common.HostMessage{}
-			},
+			Method:          "POST",
+			Pattern:         hostListPath,
+			Handler:         topology.handleHostListPost,
+			MakeMessage:     func() interface{} { return &common.HostMessage{} },
+			UseRequestToken: false,
 		},
 		common.Route{
-			"GET",
-			hostListPath + "/{hostId}",
-			topology.handleHost,
-			nil,
+			Method:          "GET",
+			Pattern:         hostListPath + "/{hostId}",
+			Handler:         topology.handleHost,
+			MakeMessage:     nil,
+			UseRequestToken: false,
 		},
 		common.Route{
-			"GET",
-			dcPath,
-			topology.handleDc,
-			nil,
+			Method:          "GET",
+			Pattern:         dcPath,
+			Handler:         topology.handleDc,
+			MakeMessage:     nil,
+			UseRequestToken: false,
 		},
 	}
 	return routes
@@ -91,7 +94,7 @@ func (topology *TopologySvc) handleDc(input interface{}, ctx common.RestContext)
 	return topology.datacenter, nil
 }
 
-// Implements Name() of Service interface.
+// Name implements method of Service interface.
 func (topology *TopologySvc) Name() string {
 	return "topology"
 }
@@ -109,9 +112,9 @@ func (topology *TopologySvc) handleHost(input interface{}, ctx common.RestContex
 		return nil, err
 	}
 	agentUrl := fmt.Sprintf("http://%s:%d", host.Ip, host.AgentPort)
-	agentLink := common.LinkResponse{agentUrl, "agent"}
-	hostLink := common.LinkResponse{hostListPath + "/" + idStr, "self"}
-	collectionLink := common.LinkResponse{hostListPath, "self"}
+	agentLink := common.LinkResponse{Href: agentUrl, Rel: "agent"}
+	hostLink := common.LinkResponse{Href: hostListPath + "/" + idStr, Rel: "self"}
+	collectionLink := common.LinkResponse{Href: hostListPath, Rel: "self"}
 
 	links := []common.LinkResponse{agentLink, hostLink, collectionLink}
 	hostIdStr := strconv.FormatUint(host.Id, 10)
@@ -153,13 +156,13 @@ func (topology *TopologySvc) handleIndex(input interface{}, ctx common.RestConte
 	retval.ServiceName = "topology"
 	myUrl := strings.Join([]string{"http://", topology.config.Common.Api.Host, ":", strconv.FormatUint(topology.config.Common.Api.Port, 10)}, "")
 
-	selfLink := common.LinkResponse{myUrl, "self"}
-	aboutLink := common.LinkResponse{infoListPath, "about"}
-	agentsLink := common.LinkResponse{agentListPath, "agent-list"}
-	hostsLink := common.LinkResponse{hostListPath, "host-list"}
-	torsLink := common.LinkResponse{torListPath, "tor-list"}
-	spinesLink := common.LinkResponse{spineListPath, "spine-list"}
-	dcLink := common.LinkResponse{dcPath, "datacenter"}
+	selfLink := common.LinkResponse{Href: myUrl, Rel: "self"}
+	aboutLink := common.LinkResponse{Href: infoListPath, Rel: "about"}
+	agentsLink := common.LinkResponse{Href: agentListPath, Rel: "agent-list"}
+	hostsLink := common.LinkResponse{Href: hostListPath, Rel: "host-list"}
+	torsLink := common.LinkResponse{Href: torListPath, Rel: "tor-list"}
+	spinesLink := common.LinkResponse{Href: spineListPath, Rel: "spine-list"}
+	dcLink := common.LinkResponse{Href: dcPath, Rel: "datacenter"}
 
 	retval.Links = []common.LinkResponse{selfLink, aboutLink, agentsLink, hostsLink, torsLink, spinesLink, dcLink}
 	return retval, nil
@@ -190,19 +193,19 @@ func (topology *TopologySvc) SetConfig(config common.ServiceConfig) error {
 		return err
 	}
 	prefixBits, _ := ipNet.Mask.Size()
-	dc.PrefixBits=uint(prefixBits)
-	
+	dc.PrefixBits = uint(prefixBits)
+
 	dc.PortBits = uint(dcMap["host_bits"].(float64))
 	dc.TenantBits = uint(dcMap["tenant_bits"].(float64))
-	dc.SegmentBits =uint( dcMap["segment_bits"].(float64))
+	dc.SegmentBits = uint(dcMap["segment_bits"].(float64))
 	dc.EndpointBits = uint(dcMap["endpoint_bits"].(float64))
-	dc.EndpointSpaceBits =uint( dcMap["endpoint_space_bits"].(float64))
+	dc.EndpointSpaceBits = uint(dcMap["endpoint_space_bits"].(float64))
 	// TODO this should have worked but it doesn't...
 	//	err := mapstructure.Decode(dcMap, &dc)
 	//	if err != nil {
 	//		return err
 	//	}
-	log.Printf("Datacenter information: was %s, decoded to %s\n", dcMap, dc)
+	log.Printf("Datacenter information: was %s, decoded to %#v\n", dcMap, dc)
 	topology.datacenter = &dc
 	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
 	storeType := strings.ToLower(storeConfig["type"].(string))
@@ -219,22 +222,22 @@ func (topology *TopologySvc) SetConfig(config common.ServiceConfig) error {
 	return topology.store.setConfig(storeConfig)
 }
 
-// Runs topology service
-func Run(rootServiceUrl string) (chan common.ServiceMessage, string, error) {
-	client, err := common.NewRestClient(rootServiceUrl, common.DefaultRestTimeout)
+// Run configures and runs topology service.
+func Run(rootServiceUrl string) (*common.RestServiceInfo, error) {
+	client, err := common.NewRestClient(rootServiceUrl, common.GetDefaultRestClientConfig())
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	topSvc := &TopologySvc{}
 	config, err := client.GetServiceConfig(rootServiceUrl, topSvc)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	return common.InitializeService(topSvc, *config)
-	
+
 }
 
-// Initializes topology service
+// Initialize the topology service
 func (topology *TopologySvc) Initialize() error {
 	log.Println("Parsing", topology.datacenter)
 	ip, _, err := net.ParseCIDR(topology.datacenter.Cidr)
@@ -245,15 +248,14 @@ func (topology *TopologySvc) Initialize() error {
 	return topology.store.connect()
 }
 
-// Runs topology service
+// CreateSchema runs topology service
 func CreateSchema(rootServiceUrl string, overwrite bool) error {
 	log.Println("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
-	
-	client, err := common.NewRestClient("", common.DefaultRestTimeout)
+	client, err := common.NewRestClient("", common.GetDefaultRestClientConfig())
 	if err != nil {
 		return err
 	}
-	
+
 	topologyService := &TopologySvc{}
 	config, err := client.GetServiceConfig(rootServiceUrl, topologyService)
 	if err != nil {

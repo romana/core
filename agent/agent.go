@@ -8,7 +8,7 @@
 // http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
-//  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
 // WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 // License for the specific language governing permissions and limitations
 // under the License.
@@ -65,12 +65,13 @@ func (a *Agent) SetConfig(config common.ServiceConfig) error {
 func (a *Agent) Routes() common.Routes {
 	routes := common.Routes{
 		common.Route{
-			"POST",
-			"/",
-			a.index,
-			func() interface{} {
+			Method:  "POST",
+			Pattern: "/",
+			Handler: a.index,
+			MakeMessage: func() interface{} {
 				return &NetIf{}
 			},
+			UseRequestToken: false,
 		},
 		common.Route{
 			"POST",
@@ -84,11 +85,11 @@ func (a *Agent) Routes() common.Routes {
 	return routes
 }
 
-// Run runs the agent service.
-func Run(rootServiceURL string) (chan common.ServiceMessage, string, error) {
-	client, err := common.NewRestClient("", common.DefaultRestTimeout)
+// Run starts the agent service.
+func Run(rootServiceURL string) (*common.RestServiceInfo, error) {
+	client, err := common.NewRestClient("", common.GetDefaultRestClientConfig())
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 
 	agent := &Agent{}
@@ -98,13 +99,13 @@ func Run(rootServiceURL string) (chan common.ServiceMessage, string, error) {
 
 	config, err := client.GetServiceConfig(rootServiceURL, agent)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 	return common.InitializeService(agent, *config)
 
 }
 
-// Implements Name() method of Service interface.
+// Name implements method of Service interface.
 func (a *Agent) Name() string {
 	return "agent"
 }
@@ -131,8 +132,8 @@ func (a *Agent) k8sPodUpHandler(input interface{}, ctx common.RestContext) (inte
 }
 
 // index handles HTTP requests for endpoints provisioning.
-// Currently tested with pani ML2 driver.
-// TODO index should be reserved for an actuall index, while this function
+// Currently tested with Romana ML2 driver.
+// TODO index should be reserved for an actual index, while this function
 // need to be renamed as interfaceHandler and need to respond on it's own url.
 func (a *Agent) index(input interface{}, ctx common.RestContext) (interface{}, error) {
 	// Parse out NetIf form the request
