@@ -34,6 +34,8 @@ type Api struct {
 	// Rest timeout in milliseconds (if omitted, defaults to DefaultRestTimeout)
 	RestTimeoutMillis int64 `yaml:"rest_timeout_millis,omitempty" json:"rest_timeout_millis,omitempty"`
 	RestRetries       int   `yaml:"rest_retries,omitempty" json:"rest_retries,omitempty"`
+	// Location of the public key.
+	AuthPublic        string `yaml:"auth_public"`
 }
 
 func (api Api) GetHostPort() string {
@@ -45,6 +47,10 @@ func (api Api) GetHostPort() string {
 // DB, etc.
 type CommonConfig struct {
 	Api *Api `yaml:"api" json:"api"`
+	// Credential is convenient to store here but it is not part of the
+	// configuration that is passed around in JSON.
+	Credential Credential `yaml:"-" json:"-"`
+	PublicKey []byte `yaml:"-" json:"-"`
 }
 
 // ServiceConfig contains common configuration
@@ -131,10 +137,8 @@ func ReadConfig(fname string) (Config, error) {
 		for i := range serviceConfigs {
 			c := serviceConfigs[i]
 			api := Api{Host: c.Api.Host, Port: c.Api.Port}
-
 			cleanedConfig := cleanupMap(c.Config)
-			config.Services[c.Service] = ServiceConfig{CommonConfig{&api}, cleanedConfig}
-
+			config.Services[c.Service] = ServiceConfig{CommonConfig{Api: &api}, cleanedConfig}
 		}
 		log.Println("Read configuration from", fname)
 		return *config, nil

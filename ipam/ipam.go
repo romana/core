@@ -245,10 +245,6 @@ func (ipam *IPAMSvc) Name() string {
 	return "ipam"
 }
 
-func (ipam *IPAMSvc) Middlewares() {
-	return nil
-}
-
 // SetConfig implements SetConfig function of the Service interface.
 // Returns an error if cannot connect to the data store
 func (ipam *IPAMSvc) SetConfig(config common.ServiceConfig) error {
@@ -268,8 +264,10 @@ func (ipam *IPAMSvc) createSchema(overwrite bool) error {
 }
 
 // Run mainly runs IPAM service.
-func Run(rootServiceUrl string) (*common.RestServiceInfo, error) {
-	client, err := common.NewRestClient(rootServiceUrl, common.GetDefaultRestClientConfig())
+func Run(rootServiceUrl string, cred common.Credential) (*common.RestServiceInfo, error) {
+	clientConfig := common.GetDefaultRestClientConfig()
+	clientConfig.Credential = cred
+	client, err := common.NewRestClient(rootServiceUrl, clientConfig)
 	if err != nil {
 		return nil, err
 	}

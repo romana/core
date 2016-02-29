@@ -98,10 +98,6 @@ func (topology *TopologySvc) Name() string {
 	return "topology"
 }
 
-func (tsvc *TenantSvc) Middlewares() {
-	return nil
-}
-
 // handleHost handles request for a specific host's info
 func (topology *TopologySvc) handleHost(input interface{}, ctx common.RestContext) (interface{}, error) {
 	log.Println("In handleHost()")
@@ -206,13 +202,10 @@ func (topology *TopologySvc) SetConfig(config common.ServiceConfig) error {
 }
 
 // Run configures and runs topology service.
-<<<<<<< HEAD
-func Run(rootServiceUrl string, creds common.Credentials) (chan common.ServiceMessage, string, error) {
-	client, err := common.NewRestClient(rootServiceUrl, common.DefaultRestTimeout)
-=======
-func Run(rootServiceUrl string) (*common.RestServiceInfo, error) {
-	client, err := common.NewRestClient(rootServiceUrl, common.GetDefaultRestClientConfig())
->>>>>>> feature/gg-auth
+func Run(rootServiceUrl string, cred common.Credential) (*common.RestServiceInfo, error) {
+	clientConfig := common.GetDefaultRestClientConfig()
+	clientConfig.Credential = cred
+	client, err := common.NewRestClient(rootServiceUrl, clientConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -221,6 +214,7 @@ func Run(rootServiceUrl string) (*common.RestServiceInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+	
 	return common.InitializeService(topSvc, *config)
 
 }

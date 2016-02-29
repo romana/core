@@ -82,9 +82,6 @@ func (tsvc *TenantSvc) Routes() common.Routes {
 	return routes
 }
 
-func (tsvc *TenantSvc) Middlewares() {
-	return nil
-}
 
 func (tsvc *TenantSvc) addTenant(input interface{}, ctx common.RestContext) (interface{}, error) {
 	log.Println("In addTenant()")
@@ -188,9 +185,11 @@ func (tsvc *TenantSvc) createSchema(overwrite bool) error {
 }
 
 // Run configures and runs tenant service.
-func Run(rootServiceUrl string) (*common.RestServiceInfo, error) {
+func Run(rootServiceUrl string, cred common.Credential) (*common.RestServiceInfo, error) {
 	tsvc := &TenantSvc{}
-	client, err := common.NewRestClient(rootServiceUrl, common.GetDefaultRestClientConfig())
+	clientConfig := common.GetDefaultRestClientConfig()
+	clientConfig.Credential = cred
+	client, err := common.NewRestClient(rootServiceUrl, clientConfig)
 	if err != nil {
 		return nil, err
 	}

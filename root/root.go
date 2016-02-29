@@ -21,7 +21,9 @@ import (
 	"github.com/romana/core/common"
 	"log"
 	"strconv"
+	"io/ioutil"
 	"strings"
+	"github.com/dgrijalva/jwt-go"
 	//	"github.com/gorilla/mux"
 )
 
@@ -40,6 +42,7 @@ type Config struct {
 type Root struct {
 	config Config
 	routes common.Route
+	privateKey []byte
 }
 
 const fullConfigKey = "fullConfig"
@@ -51,18 +54,18 @@ func (root *Root) SetConfig(config common.ServiceConfig) error {
 	f := config.ServiceSpecific[fullConfigKey].(common.Config)
 	root.config.full = &f
 
-	root.store = rootStore{}
+	root.store = rootStore{root: root}
 	root.store.ServiceStore = root.store
+	if config.ServiceSpecific["auth"] == "yes" {
+		privateKeyLocation := config.ServiceSpecific["authPrivate"].(string)
+		log.Printf("Reading private key from %s", privateKeyLocation)
+		root.privateKey, err = ioutil.ReadFile(privateKeyLocation)
+		if err != nil {
+			return err
+		}
+	}
 	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
 	return root.store.SetConfig(storeConfig)
-}
-
-// Middlewares satisfies the Middlewares method of common.Service interface.
-// Root service adds a common.AuthMiddleware to the set of middlewares a request
-// passes through. rootStore serves as the common.AuthDb interface that AuthMiddleware
-// requires, as it implements root.Authenticate() method.  
-func (root *Root) Middlewares() {
-	retval := []http.Handler{common.AuthMiddleware{AuthDb: root.store}}
 }
 
 func (root *Root) Initialize() error {
@@ -82,6 +85,28 @@ func (root *Root) handlePortUpdate(input interface{}, ctx common.RestContext) (i
 	return nil, nil
 }
 
+// Handler for the /auth URL
+func (root *Root) handleAuth(input interface{}, ctx common.RestContext) (interface{}, error) {
+	cred := input.(*common.Credential)
+	// We assume just username/password for now
+	roles, err := root.store.Authenticate(cred)
+	if err != nil {
+		return nil, err
+	}
+	token := jwt.New(jwt.SigningMethodHS256)
+	rolesStr := make([]string, len(roles))
+	for i in range roles {
+		rolesStr[i] = roles[i].Name
+	}
+	token.Claims["roles"] = rolesStr
+	token.Claims["iat"] = time.Now().Unix()
+	// TODO make this configurable?
+	token.Claims["exp"] = time.Now().Add(time.Second * 3600 * 24).Unix()
+	jwtString, err := token.SignedString(root.privateKey)
+	log.Printf("Signed token %v as %s", token, jwtString)
+	return common.TokenMessage{Token: jwtString}, err
+}
+
 // Handler for the / URL
 // See https://github.com/romanaproject/romana/wiki/Root-service-API
 func (root *Root) handleIndex(input interface{}, ctx common.RestContext) (interface{}, error) {
@@ -91,7 +116,7 @@ func (root *Root) handleIndex(input interface{}, ctx common.RestContext) (interf
 	myUrl := strings.Join([]string{"http://", root.config.common.Api.Host, ":", strconv.FormatUint(root.config.common.Api.Port, 10)}, "")
 
 	// Links has links to config URLs for now, but also self - hence plus one
-	retval.Links = make([]common.LinkResponse, len(root.config.full.Services)+1)
+	retval.Links = make([]common.LinkResponse, len(root.config.full.Services)+2)
 
 	retval.Services = make([]common.ServiceResponse, len(root.config.full.Services))
 	i := 0
@@ -105,8 +130,8 @@ func (root *Root) handleIndex(input interface{}, ctx common.RestContext) (interf
 		retval.Links[i] = configLink
 		i++
 	}
-	retval.Links[i] = common.LinkResponse{Href: myUrl, Rel: "self"}
-
+	retval.Links[i++] = common.LinkResponse{Href: myUrl, Rel: "self"}
+	retval.Links[i++] = common.LinkResponse{Href: "/auth", Rel: "auth"}
 	return retval, nil
 }
 
@@ -128,34 +153,28 @@ func (root Root) Routes() common.Routes {
 		common.Route{
 			Method:          "GET",
 			Pattern:         "/",
-			Handler:         root.handleIndex,
+			Handler:         handleIndex,
 			MakeMessage:     nil,
 			UseRequestToken: false,
 		},
 		common.Route{
-<<<<<<< HEAD
-			Method:      "GET",
-			Pattern:     "/auth",
-			Handler:     root.handleIndex,
-			MakeMessage: nil,
+			Method:          "POST",
+			Pattern:         "/auth",
+			Handler:         handleAuth,
+			MakeMessage:     func() interface{} { return &common.Credential{} },
+			UseRequestToken: false,
 		},
 		common.Route{
-			Method:      "GET",
-			Pattern:     "/config/{serviceName}",
-			Handler:     root.handleConfig,
-			MakeMessage: nil,
-=======
 			Method:          "GET",
 			Pattern:         "/config/{serviceName}",
-			Handler:         root.handleConfig,
+			Handler:         handleConfig,
 			MakeMessage:     nil,
 			UseRequestToken: false,
->>>>>>> feature/gg-auth
 		},
 		common.Route{
 			Method:          "POST",
 			Pattern:         "/config/{serviceName}/port",
-			Handler:         root.handlePortUpdate,
+			Handler:         handlePortUpdate,
 			MakeMessage:     func() interface{} { return &common.PortUpdateMessage{} },
 			UseRequestToken: false,
 		},
@@ -173,7 +192,8 @@ func Run(configFileName string) (*common.RestServiceInfo, error) {
 	rootService := &Root{}
 	rootServiceConfig := common.ServiceConfig{
 		Common:          fullConfig.Services["root"].Common,
-		ServiceSpecific: make(map[string]interface{})}
+		ServiceSpecific: make(map[string]interface{})
+		}
 	rootServiceConfig.ServiceSpecific[fullConfigKey] = fullConfig
 	return common.InitializeService(rootService, rootServiceConfig)
 }

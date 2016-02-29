@@ -26,6 +26,7 @@ import (
 	"net"
 	"net/http"
 	//	"net/url"
+	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
@@ -84,12 +85,10 @@ type Service interface {
 
 	// Name returns the name of this service.
 	Name() string
-	
-	// Middlewares returns an array of middleware handlers to add
-	// in addition to the default set. 
-	Middlewares() []http.Handler
-	
 
+	//	// Middlewares returns an array of middleware handlers to add
+	//	// in addition to the default set.
+	//	Middlewares() []http.Handler
 }
 
 // InitializeService initializes the service with the
@@ -109,9 +108,6 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 	// Create negroni
 	negroni := negroni.New()
 
-	// Add authentication middleware
-	negroni.Use(NewAuth())
-
 	// Add content-negotiation middleware.
 	// This is an example of using a middleware.
 	// This will modify the response header to the
@@ -123,6 +119,14 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 	// Unmarshal data from the content-type format
 	// into a map
 	negroni.Use(NewUnmarshaller())
+
+	pubKeyLocation := config.Common.Api.AuthPublic
+	config.Common.PublicKey, err = ioutil.ReadFile(pubKeyLocation)
+	if err != nil {
+		return nil, err
+	}
+	authMiddleware := AuthMiddleware{PublicKey: config.Common.PublicKey}
+	negroni.Use(authMiddleware)
 
 	routes := service.Routes()
 	router := newRouter(routes)
@@ -167,7 +171,7 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 			if retries <= 0 {
 				retries = DefaultRestRetries
 			}
-			config := RestClientConfig{TimeoutMillis: timeoutMillis, Retries: retries}
+			config := RestClientConfig{TimeoutMillis: timeoutMillis, Retries: retries, Credential: config.Credential}
 			client, err := NewRestClient("", config)
 			if err != nil {
 				return svcInfo, err

@@ -24,6 +24,7 @@ import (
 
 type rootStore struct {
 	common.DbStore
+	root Root
 }
 
 func (rootStore rootStore) CreateSchemaPostProcess() error {
@@ -58,19 +59,23 @@ type Role struct {
 }
 
 
-// Authenticate method here fulfills the Authenticate() method of common.AuthDb interface.
-// When this rootStore is passed to common.AuthMiddleware middleware, this method will be
-// called as a request comes in.
-func (rootStore *rootStore) Authenticate(user string, password string) ([]common.Role, error) {
+func (rootStore *rootStore) Authenticate(cred common.Credential) ([]common.Role, error) {
+	rootServiceConfig := rootStore.root.config.full.Services[rootStore.root.Name()]
+	if rootServiceConfig.ServiceSpecific["auth"] != "yes" {
+			log.Println("Authentication is disabled")
+		return nil, nil
+	} else {
+		log.Println("Authentication is enabled")
 	gormDb := rootStore.DbStore.Db
 	whereClause = fmt.Sprintf("username = ? AND password = %s", rootStore.DbStore.GetPasswordFunction())
-	var roles []Role
-	gormDb.Table("role").Select("role.name").Joins("JOIN user_roles ON role.id = user_roles.role_id JOIN users ON users.id = user_roles.user_id").Where(whereClause, username, password).Find(roles)
+	var roles []common.Role
+	gormDb.Table("role").Select("role.name").Joins("JOIN user_roles ON role.id = user_roles.role_id JOIN users ON users.id = user_roles.user_id").Where(whereClause, cred.Username, cred.Password).Find(roles)
 	err := common.MakeMultiError(tenantStore.DbStore.Db.GetErrors())
 	if err != nil {
 		return nil, err
 	}
 	return roles, nil
+	}
 }
 
 

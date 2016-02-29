@@ -21,6 +21,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/K-Phoen/negotiation"
+	"github.com/dgrijalva/jwt-go"
 	"github.com/gorilla/context"
 	"github.com/gorilla/mux"
 	"github.com/pborman/uuid"
@@ -43,6 +44,8 @@ type RestContext struct {
 	QueryVariables url.Values
 
 	RequestToken string
+
+	Roles []Role
 }
 
 // RestHandler specifies type of a function that each Route provides.
@@ -453,41 +456,37 @@ var ContentTypeMarshallers map[string]Marshaller = map[string]Marshaller{
 	//	"*/*": jsonMarshaller{},
 }
 
-//// Authenticator is the interface that will be used by AuthMiddleware
-//// to provide authentication. Details to be worked out later.
-//type Authenticator interface {
-//	// As this is a placeholder, we are not dealing with
-//	// details yet, tokens vs credentials, principals vs roles, etc.
-//	Authenticate() Principal
-//}
-//
-//type PlaceholderAuth struct {
-//}
-//
-//func (p PlaceholderAuth) Authenticate() Principal {
-//	return Principal{"asdf", []string{"read", "write", "execute"}}
-//}
-
-// Principal is a placeholder for a Principal structure
-// for authentication. We'll leave roles and
-// other stuff for later.
-type Principal struct {
-	Id string
-	// This really is a placeholder
-	Rights []string
-}
-
 // AuthMiddleware wrapper for auth.
 type AuthMiddleware struct {
-	Authenticator: Authenticator
+	PublicKey []byte
 }
 
-func (am AuthMiddleware) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
-	p := am.Authenticator.Authenticate()
-	rights := p.Rights
-	context.Set(r, "Rights", rights)
-	// Call the next middleware handler
-	next(rw, r)
+func (am AuthMiddleware) ServeHTTP(writer http.ResponseWriter, request *http.Request, next http.HandlerFunc) {
+	contentType := writer.Header().Get("Content-Type")
+	marshaller := ContentTypeMarshallers[contentType]
+	
+	f := func(token *jwt.Token) (interface{}, error) {
+		return am.PublicKey, nil
+	}
+	token, err := jwt.ParseFromRequest(request, f)
+
+	if err != nil {
+		writer.WriteHeader(http.StatusForbidden)
+		httpErr := NewError(http.StatusForbidden, err.Error())
+		outData, _ := marshaller.Marshal(httpErr)
+		writer.Write(outData)
+		return
+	}
+	if !token.Valid {
+		writer.WriteHeader(http.StatusForbidden)
+		httpErr := NewError(http.StatusForbidden,  "Invalid token.")
+		outData, _ := marshaller.Marshal(httpErr)
+		writer.Write(outData)
+		return
+	}
+
+	context.Set(request, ContextKeyRoles, token.Claims["roles"].([]string))
+	next(writer, request)
 }
 
 type UnmarshallerMiddleware struct {

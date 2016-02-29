@@ -36,6 +36,7 @@ import (
 type RestClient struct {
 	url    *url.URL
 	client *http.Client
+	token  string
 	config *RestClientConfig
 }
 
@@ -43,6 +44,7 @@ type RestClient struct {
 type RestClientConfig struct {
 	TimeoutMillis int64
 	Retries       int
+	Credential    Credential
 }
 
 func GetDefaultRestClientConfig() RestClientConfig {
@@ -173,6 +175,9 @@ func (rc *RestClient) modifyUrl(dest string, queryMod url.Values) error {
 // execMethod applies the specified method to the provided url (which is interpreted
 // as relative or absolute).
 func (rc *RestClient) execMethod(method string, dest string, data interface{}, result interface{}) error {
+	// TODO check if token expired, if yes, reauthenticate... But this needs
+	// more state here (knowledge of Root service by Rest client...)
+
 	var queryMod url.Values
 	queryMod = nil
 	// POST methods may not be idempotent, so for retry capability we will employ the following logic:
@@ -236,7 +241,9 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 			return err
 		}
 		req.Header.Set("accept", "application/json")
-
+		if rc.token != "" {
+			req.Header.Set("authorization", rc.token)
+		}
 		var resp *http.Response
 		for i := 0; i < rc.config.Retries; i++ {
 			log.Printf("Try %d for %s", (i + 1), rc.url)
@@ -318,15 +325,27 @@ func (rc *RestClient) Get(url string, result interface{}) error {
 // GetServiceConfig retrieves configuration for a given service from the root service.
 func (rc *RestClient) GetServiceConfig(rootServiceUrl string, svc Service) (*ServiceConfig, error) {
 	rootIndexResponse := &RootIndexResponse{}
+
 	err := rc.Get(rootServiceUrl, rootIndexResponse)
 	if err != nil {
 		return nil, err
 	}
+
+	if rc.config.Credential.Type != CredentialNone {
+		// First things first - authenticate
+		authUrl := rootIndexResponse.Links.FindByRel("auth")
+		log.Printf("Authenticating to %s", authUrl)
+		tokenMsg := &TokenMessage{}
+		err = rc.Post(authUrl, rc.config.Credential, tokenMsg)
+		if err != nil {
+			return nil, err
+		}
+		rc.token = tokenMsg.Token
+	}
+
 	config := &ServiceConfig{}
 	config.Common.Api = &Api{RootServiceUrl: rootServiceUrl}
-
 	relName := svc.Name() + "-config"
-
 	configUrl := rootIndexResponse.Links.FindByRel(relName)
 	if configUrl == "" {
 		return nil, errors.New(fmt.Sprintf("Could not find %s at %s", relName, rootServiceUrl))
@@ -336,5 +355,9 @@ func (rc *RestClient) GetServiceConfig(rootServiceUrl string, svc Service) (*Ser
 	if err != nil {
 		return nil, err
 	}
+	// Save the credential from the client in the resulting service config --
+	// if the resulting config is to be used in InitializeService(), it's useful;
+	// otherwise, it will be ignored.
+	config.Common.Credential = rc.config.Credential
 	return config, nil
 }

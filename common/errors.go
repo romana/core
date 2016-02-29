@@ -27,6 +27,7 @@ type HttpError struct {
 	StatusCode int    `json:"status_code"`
 	StatusText string `json:"status_text"`
 	Message    string `json:"message"`
+	SeeAlso    string `json:"see_also, omitempty"`
 }
 
 func NewError500(err error) HttpError {
