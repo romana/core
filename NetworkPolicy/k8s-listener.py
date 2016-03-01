@@ -8,6 +8,7 @@ from BaseHTTPServer import BaseHTTPRequestHandler,HTTPServer
 from mimetools import Message
 from StringIO import StringIO
 import logging
+from multiprocessing import Process, Lock
 PORT_NUMBER = 9630
 HTTP_Unprocessable_Entity = 422
 
@@ -16,14 +17,23 @@ logging.basicConfig(level=logging.DEBUG,
                     datefmt='%a, %d %b %Y %H:%M:%S')
 
 url = 'http://192.168.0.10:8080/apis/romana.io/demo/v1/namespaces/default/networkpolicys/?watch=true'
+ns_url = 'http://192.168.0.10:8080/api/v1/namespaces/?watch=true'
 tenant_url = 'http://192.168.0.10:9602/tenants'
 topology_url = "http://192.168.0.10:9603/hosts"
+
+# For each namespace discovered in kubernetes we need to fire up
+# a subprocess. This dict is to keep account in suborocesses which
+# are running. k = namespacename, v = proc
+listen_pool = {}
+listen_pool_lock = Lock()
 
 parser = OptionParser(usage="%prog --agent")
 parser.add_option('--agent', default=False, dest="agent", action="store_true",
                   help="Act as agent for the Kubernetes listener")
 (options, args) = parser.parse_args()
 
+def network_policy_url(ns_name):
+    return 'http://192.168.0.10:8080/apis/romana.io/demo/v1/namespaces/' + ns_name + '/networkpolicys/?watch=true'
 
 def _make_rule(chain_name, text):
     """
@@ -376,6 +386,104 @@ addr_scheme = {
     "network_value" : 10,
 }
 
+def process_namespaces(s):
+    """
+    Processing kubernetes namespace ADD/DELETE events
+    Firing up subprocess for each ADD event or terminating
+    subprocess already running on DELETE
+    """
+
+    try:
+        obj = simplejson.loads(s)
+    except Exception as e:
+        logging.warning("Failed to parse %s as json %s" %(s,e))
+
+    op = obj.get("type")
+    if not op:
+        logging.warning("Failed to parse event type from out of %s" % obj)
+        return
+
+    resource = obj.get("object")
+    if not resource:
+        logging.warning("Failed to parse object out of %s" % obj)
+        return
+
+    meta = resource.get("metadata")
+    if not meta:
+        logging.warning("Failed to parse metadata from out of %s" % resource)
+        return
+
+    ns_name = meta.get("name")
+    if not ns_name:
+        logging.warning("Failed to parse namespace name out of %s" % obj)
+
+    ns_uid = meta.get("uid")
+    if not ns_uid:
+        logging.warning("Failed to parse namespace uid out of %s" % obj)
+
+    logging.debug("In process_namespace:: operation=%s" % op)
+    if op == 'ADDED':
+        ensure_ns_watcher_running(ns_uid, ns_name)
+    elif op == 'DELETED':
+        ensure_ns_watcher_stopped(ns_uid, ns_name)
+    else:
+        # Ignore MODIFIED event
+        pass
+
+def start_new_np_watcher(ns_uid, ns_name):
+    logging.debug("In start_new_np_watcher:: with ns_uid = %s, ns_name = %s ... begin" % (ns_uid, ns_name))
+    new_ns_proc = Process(target=watch_network_policies, args=(ns_name,))
+    new_ns_proc.start()
+    listen_pool_lock.acquire()
+    listen_pool[ns_uid] = new_ns_proc
+    listen_pool_lock.release()
+    logging.debug("In start_new_np_watcher:: with ns_uid = %s, ns_name = %s ... finishing" % (ns_uid, ns_name))
+
+def ensure_ns_watcher_running(ns_uid, ns_name):
+    """
+    Starting new subprocess to process network policies for
+    given namespace.
+    List of known active subprocesses is stored in global
+    listen_pool dictionary.
+    """
+
+    logging.debug("In ensure_ns_watcher_running:: ")
+    listen_pool_lock.acquire()
+    ns_proc = listen_pool.get(ns_uid)
+    listen_pool_lock.release()
+
+    logging.debug("In ensure_ns_watcher_running:: ns_proc=%s" % ns_proc)
+    if ns_proc:
+        if not ns_proc.is_alive():
+            ns_proc.terminate()
+            start_new_np_watcher(ns_uid, ns_name)
+            logging.debug("In ensure_ns_watcher_running:: ns_proc is not alive")
+        else:
+            logging.debug("In ensure_ns_watcher_running:: ns_proc is alive")
+            # all good - do nothing
+            return
+    else:
+        logging.debug("In ensure_ns_watcher_running:: there is no such process in process pool - starting new one")
+        start_new_np_watcher(ns_uid, ns_name)
+
+def ensure_ns_watcher_stopped(ns_uid, ns_name):
+    """
+    Terminating subprocess for given namespace.
+    Removing subprocess object from global listen_pool
+    """
+
+    logging.debug("In ensure_ns_watcher_stopped:: ")
+    listen_pool_lock.acquire()
+    ns_proc = listen_pool.get(ns_uid)
+    listen_pool_lock.release()
+    logging.debug("In ensure_ns_watcher_stopped:: ns_proc=%s" % ns_proc)
+    if ns_proc:
+        if ns_proc.is_alive():
+            logging.debug("In ensure_ns_watcher_stopped:: ns_proc is alive - terminating")
+            ns_proc.terminate()
+        listen_pool_lock.acquire()
+        del listen_pool[ns_uid]
+        listen_pool_lock.release()
 
 # Processing kubernetes events coming from api
 def process(s):
@@ -453,8 +561,8 @@ def dispatch_orders(method, policy_definition):
         except Exception, e:
             logging.info("Cannot sontact host %s: %s" % (host, e))
 
-def listen_to_kube_api():
-    r = requests.get(url, stream=True, timeout=300)
+def listen_chunked_stream(watch_url, callback):
+    r = requests.get(watch_url, stream=True, timeout=300)
     iter = r.iter_content(1)
     while True:
         len_buf = ""
@@ -472,23 +580,40 @@ def listen_to_kube_api():
         buf = ""
         for i in range(len):
             buf += iter.next()
-        process(buf)
+        callback(buf)
         c = iter.next()
         c2 = iter.next()
         if c != '\r' or c2 != '\n':
             raise "Expected CRLF, got %c%c" % (c, c2)
 
+def watch_namespaces():
+    """
+    This function watches for events in kubernetes regarding namespaces
+    and passes this events for processing
+
+    Never exits
+    """
+    while True:
+        try:
+            listen_chunked_stream(ns_url, process_namespaces)
+        except Exception, e:
+            logging.info("Kube api namespace listener terminated with: %s keep going" % str(e))
+
+def watch_network_policies(ns_name):
+    while True:
+        try:
+            ns_url = network_policy_url(ns_name)
+            listen_chunked_stream(ns_url, process)
+        except Exception, e:
+            logging.info("Kube api listener terminated with: %s " % str(e))
 
 # Watch kubernetes events, they come as chunks
 # so we need to process them chunk by chink
 def main():
-    while True:
-        try:
-            listen_to_kube_api()
-        except Exception, e:
-            logging.info("Kube api listener terminated with: %s " % str(e))
-             
-       
+    namespace_watcher = Process(target=watch_namespaces)
+    namespace_watcher.start()
+    namespace_watcher.join()
+
 def get_romana_hosts():
     """
     returns a list of romana host IPs
