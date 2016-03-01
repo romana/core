@@ -86,6 +86,7 @@ func (a *Agent) Routes() common.Routes {
 			// TODO this is for the future so we ensure idempotence.
 			UseRequestToken: true,
 		},
+		
 	}
 	return routes
 }
@@ -119,9 +120,10 @@ func (a *Agent) Name() string {
 
 // k8sPodUpHandler handles HTTP requests for endpoints provisioning.
 func (a *Agent) k8sPodUpHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
+	log.Println("Agent: Entering k8sPodUpHandler()")
 	netReq := input.(*NetworkRequest)
 
-	log.Printf("Got request for network configuration: %v\n", netReq)
+	log.Printf("Agent: Got request for network configuration: %v\n", netReq)
 	// Spawn new thread to process the request
 
 	// TODO don't know if fork-bombs are possible in go but if they are this
@@ -162,6 +164,7 @@ func (a *Agent) index(input interface{}, ctx common.RestContext) (interface{}, e
 // 3. Creates ip route pointing new interface
 // 4. Provisions firewall rules
 func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
+	log.Println("Agent: Entering k8sPodUpHandle()")
 	fullIsolation, err := common.ToBool(netReq.Options[fullIsolationOption])
 	if err != nil {
 		return agentErrorString(fmt.Sprintf("Invalid value in %s: %s", fullIsolation, err.Error()))

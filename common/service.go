@@ -32,6 +32,45 @@ import (
 	"time"
 )
 
+// ServiceUtils represents functionality common to various services.
+// One example of such functionality is asynchronous processing -- 
+// a service can accept a request for creation of an object and return a
+// 202 ACCEPTED, creating an entry that can be queried for status.
+type ServiceUtils struct {
+	// ResourceIdToStatus is a maps request ID
+	// to status. A request ID can be a RequestToken if required,
+	// or a resource ID. In general the idea is that this is used
+	// in conjunction with RequestToken.
+	// See also
+	// - Route.UseRequestToken
+	// - RestContext.RequestToken
+	RequestIdToStatus map[string]interface{}
+
+	// RequestIdToTimestamp maps request ID (for more information
+	// on what that is see RequestIdToStatus) to the timestamp
+	// of the original request. It will later be used for things
+	// such as possible expiration, etc., but for now it's just a
+	// placeholder.
+	RequestIdToTimestamp map[string]int64
+}
+
+// AddStatus adds a status of a request
+func (su ServiceUtils) AddStatus(requestId string, value interface{}) {
+	su.RequestIdToStatus[key] = value
+	ts := time.Now().Unix()
+	su.RequestIdToTimestamp[key] = ts
+}
+
+// GetStatus gets the status of the request or returns an common.HttpError (404) 
+// if not found.
+func (su ServiceUtils) GetStatus(resourceType string, requestId string) (interface{}, error) {
+	val := su.RequestIdToStatus[string]
+	if val == nil {
+		return nil, common.NewError404(resourceType, key)
+	}
+	return nil, val
+}
+
 type Links []LinkResponse
 
 // FindByRel finds the path (href) for a link based on its

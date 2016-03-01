@@ -43,12 +43,18 @@ func startAgent(t *testing.T) {
 // TestK8SHandler will test K8S handler
 func TestK8SHandler(t *testing.T) {
 	startAgent(t)
-	restClient := common.RestClient{}
+	restClient, err := common.NewRestClient("", common.GetDefaultRestClientConfig())
+	if err != nil {
+		t.Error(err)
+		return
+	}
 	options := make(map[string]string)
 	options[fullIsolationOption] = "on"
-	nr := NetworkRequest{NetIf{}, options}
+	netif := NetIf{}
+	netif.SetIP("127.0.0.1")
+	nr := NetworkRequest{netif, options}
 	result := make(map[string]string)
-	restClient.Post("http://localhost:8899", nr, &result)
+	restClient.Post("http://localhost:8899/kubernetes-pod-up", nr, &result)
 	log.Printf("Sent to agent %v, agent returned %v", nr, result)
 
 }

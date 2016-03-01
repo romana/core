@@ -41,7 +41,7 @@ type RestContext struct {
 	// QueryVariables stores key-value-list map of query variables, see url.Values
 	// for more details.
 	QueryVariables url.Values
-
+	// Unique identifier for a request.
 	RequestToken string
 }
 
