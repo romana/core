@@ -17,7 +17,29 @@ package common
 
 import (
 	"log"
+	"sync"
 )
+
+var once sync.Once
+
+// Holds environment variables
+var environ map[string]string
+
+// Environ is similar to os.Environ() but
+// returning environment as a map instead of an
+// array of strings.
+func Environ() map[string]string {
+	once.Do(initEnviron)
+	return environ
+}
+
+func initEnviron() {
+	environ = make(map[string]string)
+	for _, kv := range os.Environ() {
+		keyValue := strings.Split(kv, "=")
+		environ[keyValue[0]] = keyValue[1]
+	}
+}
 
 // MockPortsInConfig will take the config file specified
 // and replace the ports with 0 to use arbitrary ports

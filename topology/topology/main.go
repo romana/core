@@ -48,7 +48,7 @@ func main() {
 		return
 	}
 
-	cred := common.MakeCredentialFromArgs(username, password)
+	cred := common.MakeCredentialFromCliArgs(username, password)
 	svcInfo, err := topology.Run(*rootUrl, cred)
 	if err != nil {
 		panic(err)

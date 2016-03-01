@@ -39,7 +39,7 @@ func main() {
 		return
 	}
 
-	cred := common.MakeCredentialFromArgs(username, password)
+	cred := common.MakeCredentialFromCliArgs(username, password)
 	svcInfo, err := agent.Run(*rootURL)
 	if err != nil {
 		panic(err)

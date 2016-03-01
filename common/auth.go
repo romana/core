@@ -31,6 +31,8 @@ type CredentialType string
 const (
 	CredentialUsernamePassword = "userPass"
 	CredentialNone             = "none"
+	
+	PasswordEnvironmentVariable = "ROMANA_PASSWORD"
 )
 
 // Container for various credentials. Currently containing Username/Password
@@ -50,6 +52,9 @@ func MakeCredentialFromCliArgs(username string, password string) Credential {
 	if username == "" {
 		return Credential{Type: CredentialNone}
 	} else {
+		if password == "" {
+			password = Environ[PasswordEnvironmentVariable]
+		}
 		return Credential{Type: CredentialUsernamePassword, Username: username, Password: password}
 	}
 }

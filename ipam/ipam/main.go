@@ -44,7 +44,7 @@ func main() {
 		fmt.Println("Schema created.")
 		return
 	}
-	cred := common.MakeCredentialFromArgs(username, password)
+	cred := common.MakeCredentialFromCliArgs(username, password)
 	svcInfo, err := ipam.Run(*rootUrl)
 	if err != nil {
 		panic(err)
