@@ -56,19 +56,19 @@ type ServiceUtils struct {
 
 // AddStatus adds a status of a request
 func (su ServiceUtils) AddStatus(requestId string, value interface{}) {
-	su.RequestIdToStatus[key] = value
+	su.RequestIdToStatus[requestId] = value
 	ts := time.Now().Unix()
-	su.RequestIdToTimestamp[key] = ts
+	su.RequestIdToTimestamp[requestId] = ts
 }
 
 // GetStatus gets the status of the request or returns an common.HttpError (404) 
 // if not found.
 func (su ServiceUtils) GetStatus(resourceType string, requestId string) (interface{}, error) {
-	val := su.RequestIdToStatus[string]
+	val := su.RequestIdToStatus[requestId]
 	if val == nil {
-		return nil, common.NewError404(resourceType, key)
+		return nil, NewError404(resourceType, requestId)
 	}
-	return nil, val
+	return val, nil
 }
 
 type Links []LinkResponse

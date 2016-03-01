@@ -46,6 +46,9 @@ const (
 	inputChainIndex       = 0
 	outputChainIndex      = 1
 	forwardChainIndex     = 2
+
+	targetDrop   = "DROP"
+	targetAccept = "ACCEPT"
 )
 
 // Firewall describes state of firewall rules for the given endpoint.
@@ -262,19 +265,19 @@ func (fw *Firewall) CreateU32Rules(chain int) error {
 // CreateDefaultDropRule creates iptables rules to drop all unidentified traffic
 // in the given chain
 func (fw *Firewall) CreateDefaultDropRule(chain int) error {
-	return fw.CreateDefaultRule(chain, "DROP")
+	return fw.CreateDefaultRule(chain, targetDrop)
 }
 
 // CreateDefaultRule creates iptables rule for a chain with the
 // specified target
 func (fw *Firewall) CreateDefaultRule(chain int, target string) error {
-	log.Print("Creating default drop rules for chain", chain)
+	log.Printf("Creating default %s rules for chain %d", target, chain)
 	chainName := fw.chains[chain].chainName
 	cmd := "/sbin/iptables"
 	args := []string{"-A", chainName, "-j", target}
 	_, err := fw.Agent.Helper.Executor.Exec(cmd, args)
 	if err != nil {
-		log.Print("Creating default drop rules failed")
+		log.Printf("Creating default %s rules failed", target)
 		return err
 	}
 	log.Print("Creating default drop rules failed for chain", chain)
@@ -398,7 +401,7 @@ func (fw *Firewall) extractTenantID(addr uint64) uint64 {
 // provisionFirewallRules provisions rules for a new pod in Kubernetes.
 // Depending on the fullIsolation flag, the rule is specified to either
 // DROP or ALLOW all traffic.
-func provisionK8SFirewallRules(netReq NetworkRequest, agent *Agent, fullIsolation bool) error {
+func provisionK8SFirewallRules(netReq NetworkRequest, agent *Agent, namespaceIsolation bool) error {
 	log.Print("Firewall: Initializing")
 	fw, err := NewFirewall(netReq.NetIf, agent)
 	if err != nil {
@@ -411,17 +414,16 @@ func provisionK8SFirewallRules(netReq NetworkRequest, agent *Agent, fullIsolatio
 	if err != nil {
 		return err
 	}
+	var target string
 	for chain := range missingChains {
-
 		//		if err := fw.CreateRules(chain); err != nil {
 		//			return err
 		//		}
 
-		var target string
-		if fullIsolation {
-			target = "DROP"
+		if namespaceIsolation {
+			target = targetDrop
 		} else {
-			target = "ALLOW"
+			target = targetAccept
 		}
 		if err := fw.CreateDefaultRule(chain, target); err != nil {
 			return err

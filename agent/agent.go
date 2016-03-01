@@ -165,9 +165,9 @@ func (a *Agent) index(input interface{}, ctx common.RestContext) (interface{}, e
 // 4. Provisions firewall rules
 func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 	log.Println("Agent: Entering k8sPodUpHandle()")
-	fullIsolation, err := common.ToBool(netReq.Options[fullIsolationOption])
+	namespaceIsolation, err := common.ToBool(netReq.Options[namespaceIsolationOption])
 	if err != nil {
-		return agentErrorString(fmt.Sprintf("Invalid value in %s: %s", fullIsolation, err.Error()))
+		return agentErrorString(fmt.Sprintf("Invalid value in %s: %s", namespaceIsolation, err.Error()))
 	}
 
 	netif := netReq.NetIf
@@ -191,7 +191,7 @@ func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 	}
 	log.Print("Agent: provisioning firewall")
 
-	if err := provisionK8SFirewallRules(netReq, a, fullIsolation); err != nil {
+	if err := provisionK8SFirewallRules(netReq, a, namespaceIsolation); err != nil {
 		log.Print(agentError(err))
 		return agentError(err)
 	}

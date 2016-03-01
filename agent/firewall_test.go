@@ -103,6 +103,44 @@ func TestDivertTraffic(t *testing.T) {
 	t.Log("All good here, don't be afraid if 'Diverting traffic failed' message")
 }
 
+// TestCreateDefaultRules is checking that CreateRules generates correct commands to create
+// firewall rules.
+func TestCreateDefaultRules(t *testing.T) {
+	agent := mockAgent()
+	e := &FakeExecutor{nil, nil, nil}
+	agent.Helper.Executor = e
+	ip := net.ParseIP("127.0.0.1")
+	fw, _ := NewFirewall(NetIf{"eth0", "A", ip}, &agent)
+
+	// 0 is a first standard chain - INPUT
+	fw.CreateDefaultRule(0, targetDrop)
+
+	// expect
+	expect := strings.Join([]string{"/sbin/iptables -A ROMANA-T0S0-INPUT -j DROP"},
+		"\n")
+
+	if *e.Commands != expect {
+		t.Errorf("Unexpected input from TestCreateRules, expect\n%s, got\n%s", expect, *e.Commands)
+	}
+
+	agent = mockAgent()
+	e = &FakeExecutor{nil, nil, nil}
+	agent.Helper.Executor = e
+	fw, _ = NewFirewall(NetIf{"eth0", "A", ip}, &agent)
+
+	// 0 is a first standard chain - INPUT
+	fw.CreateDefaultRule(0, targetAccept)
+
+	// expect
+	expect = strings.Join([]string{"/sbin/iptables -A ROMANA-T0S0-INPUT -j ACCEPT"},
+		"\n")
+
+	if *e.Commands != expect {
+		t.Errorf("Unexpected input from TestCreateRules, expect\n%s, got\n%s", expect, *e.Commands)
+	}
+
+}
+
 // TestCreateRules is checking that CreateRules generates correct commands to create
 // firewall rules.
 func TestCreateRules(t *testing.T) {

@@ -49,7 +49,7 @@ func TestK8SHandler(t *testing.T) {
 		return
 	}
 	options := make(map[string]string)
-	options[fullIsolationOption] = "on"
+	options[namespaceIsolationOption] = "on"
 	netif := NetIf{}
 	netif.SetIP("127.0.0.1")
 	nr := NetworkRequest{netif, options}

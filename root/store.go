@@ -42,7 +42,7 @@ func (rootStore rootStore) CreateSchemaPostProcess() error {
 // Service interface.
 func (rootStore *rootStore) Entities() []interface{} {
 	retval := make([]interface{}, 1)
-	retval[0] = User{}
+	retval[0] = &User{}
 	return retval
 }
 

@@ -47,8 +47,8 @@ type topoStore struct {
 
 func (topoStore topoStore) Entities() []interface{} {
 	retval := make([]interface{}, 2)
-	retval[0] = Host{}
-	retval[1] = common.Datacenter{}
+	retval[0] = &Host{}
+	retval[1] = &common.Datacenter{}
 	return retval
 }
 

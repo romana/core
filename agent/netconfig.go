@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	fullIsolationOption = "full_isolation"
+	namespaceIsolationOption = "namespace_isolation"
 )
 
 // NetworkRequest specifies messages sent to the

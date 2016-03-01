@@ -224,7 +224,7 @@ func createSchemaSqlite3(dbStore DbStore, force bool) error {
 
 	entities := dbStore.ServiceStore.Entities()
 	for _, entity := range entities {
-		db.CreateTable(&entity)
+		db.CreateTable(entity)
 	}
 
 	errs := db.GetErrors()
@@ -268,7 +268,7 @@ func createSchemaMysql(dbStore DbStore, force bool) error {
 	entities := dbStore.ServiceStore.Entities()
 	for i := range entities {
 		entity := entities[i]
-		db.CreateTable(&entity)
+		db.CreateTable(entity)
 	}
 
 	errs := db.GetErrors()
