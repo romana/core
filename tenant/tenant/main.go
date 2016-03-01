@@ -45,7 +45,7 @@ func main() {
 		return
 	}
 
-	cred := common.MakeCredentialFromArgs(username, password)
+	cred := common.MakeCredentialFromCliArgs(username, password)
 	svcInfo, err := tenant.Run(*rootUrl)
 
 	if err != nil {
