@@ -24,7 +24,7 @@ import (
 	//	"log"
 	"os"
 	"reflect"
-
+"time"
 	"testing"
 )
 
@@ -153,7 +153,11 @@ func (s *MySuite) TestTopology(c *check.C) {
 
 	newHostResp := common.HostMessage{}
 	client.Post(hostsRelUrl, newHostReq, &newHostResp)
+	
 	myLog(c, "Response: ", newHostResp)
+	myLog(c, "Waiting for....", time.Hour)
+//	time.Sleep(time.Hour)
+	
 	c.Assert(newHostResp.Ip, check.Equals, "10.10.10.10")
 	c.Assert(newHostResp.Id, check.Equals, "1")
 

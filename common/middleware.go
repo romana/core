@@ -461,13 +461,23 @@ type AuthMiddleware struct {
 	PublicKey []byte
 }
 
+// If the path of request is common.AuthPath, this does nothing, as 
+// the request is for authentication in the first place. Otherwise,
+// checks token from request. If the token is not valid, returns a 
+// 403 FORBIDDEN status.
 func (am AuthMiddleware) ServeHTTP(writer http.ResponseWriter, request *http.Request, next http.HandlerFunc) {
+	if request.URL.Path == common.AuthPath {
+		// Let this one through, no token yet.
+		next(writer, request)
+		return
+	}
 	contentType := writer.Header().Get("Content-Type")
 	marshaller := ContentTypeMarshallers[contentType]
 	
 	f := func(token *jwt.Token) (interface{}, error) {
 		return am.PublicKey, nil
 	}
+	
 	token, err := jwt.ParseFromRequest(request, f)
 
 	if err != nil {

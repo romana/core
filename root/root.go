@@ -159,7 +159,7 @@ func (root Root) Routes() common.Routes {
 		},
 		common.Route{
 			Method:          "POST",
-			Pattern:         "/auth",
+			Pattern:         common.AuthPath,
 			Handler:         handleAuth,
 			MakeMessage:     func() interface{} { return &common.Credential{} },
 			UseRequestToken: false,

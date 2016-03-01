@@ -37,7 +37,7 @@ func (rootStore rootStore) CreateSchemaPostProcess() error {
 	sql := fmt.Sprintf("INSERT INTO users (username, password) VALUES (?, %s)", passwd)
 	rootStore.DbStore.Db.Exec(sql, "admin", "password")
 	rootStore.DbStore.Db.Exec("INSERT INTO roles (name) VALUES (admin)")
-//	rootStore.DbStore.Db.Exec("INSERT INTO roles (name) VALUES (admin)")
+	//	rootStore.DbStore.Db.Exec("INSERT INTO roles (name) VALUES (admin)")
 	return common.MakeMultiError(rootStore.DbStore.Db.GetErrors())
 }
 
@@ -53,34 +53,32 @@ func (rootStore *rootStore) Entities() []interface{} {
 type User struct {
 	Id       uint64 `sql:"AUTO_INCREMENT" json:"id"`
 	Username string `json:"username"`
-	Roles []Role  `gorm:"many2many:user_roles;"` 
+	Roles    []Role `gorm:"many2many:user_roles;"`
 	Password string `json:"password"`
 }
 
 type Role struct {
-	Id       uint64 `sql:"AUTO_INCREMENT" json:"id"`
+	Id   uint64 `sql:"AUTO_INCREMENT" json:"id"`
 	Name string `json:"naame"`
 }
 
-
+// Authenticate returns a list of roles this credential
+// has or an error if cannot authenticate.
 func (rootStore *rootStore) Authenticate(cred common.Credential) ([]common.Role, error) {
 	rootServiceConfig := rootStore.root.config.full.Services[rootStore.root.Name()]
 	if rootServiceConfig.ServiceSpecific["auth"] != "yes" {
-			log.Println("Authentication is disabled")
+		log.Println("Authentication is disabled")
 		return nil, nil
 	} else {
 		log.Println("Authentication is enabled")
-	gormDb := rootStore.DbStore.Db
-	whereClause = fmt.Sprintf("username = ? AND password = %s", rootStore.DbStore.GetPasswordFunction())
-	var roles []common.Role
-	gormDb.Table("role").Select("role.name").Joins("JOIN user_roles ON role.id = user_roles.role_id JOIN users ON users.id = user_roles.user_id").Where(whereClause, cred.Username, cred.Password).Find(roles)
-	err := common.MakeMultiError(tenantStore.DbStore.Db.GetErrors())
-	if err != nil {
-		return nil, err
-	}
-	return roles, nil
+		gormDb := rootStore.DbStore.Db
+		whereClause = fmt.Sprintf("username = ? AND password = %s", rootStore.DbStore.GetPasswordFunction())
+		var roles []common.Role
+		gormDb.Table("role").Select("role.name").Joins("JOIN user_roles ON role.id = user_roles.role_id JOIN users ON users.id = user_roles.user_id").Where(whereClause, cred.Username, cred.Password).Find(roles)
+		err := common.MakeMultiError(tenantStore.DbStore.Db.GetErrors())
+		if err != nil {
+			return nil, err
+		}
+		return roles, nil
 	}
 }
-
-
-db.Joins("JOIN user_roles ON users.id = user_roles.user_id JOIN roleusers on users.id = emails.user_id").Where("users.name = ?", "jinzhu").Find(&emails)

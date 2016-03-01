@@ -103,7 +103,7 @@ func getEffectiveSeq(vmSeq uint64, stride uint) uint64 {
 // Entities implements Entities method of Service interface.
 func (ipamStore ipamStore) Entities() []interface{} {
 	retval := make([]interface{}, 1)
-	retval[0] = IpamVm{}
+	retval[0] = &IpamVm{}
 	return retval
 }
 

@@ -125,6 +125,7 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 	if err != nil {
 		return nil, err
 	}
+	// We use the public key of root server to check the token.
 	authMiddleware := AuthMiddleware{PublicKey: config.Common.PublicKey}
 	negroni.Use(authMiddleware)
 

@@ -32,8 +32,8 @@ type tenantStore struct {
 // Service interface.
 func (tenantStore tenantStore) Entities() []interface{} {
 	retval := make([]interface{}, 2)
-	retval[0] = Tenant{}
-	retval[1] = Segment{}
+	retval[0] = &Tenant{}
+	retval[1] = &Segment{}
 	return retval
 }
 
