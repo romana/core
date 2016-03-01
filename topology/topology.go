@@ -16,7 +16,6 @@
 package topology
 
 import (
-	"errors"
 	"fmt"
 	//	"github.com/mitchellh/mapstructure"
 	"github.com/romana/core/common"
@@ -30,7 +29,7 @@ import (
 type TopologySvc struct {
 	config     common.ServiceConfig
 	datacenter *common.Datacenter
-	store      topologyStore
+	store      topoStore
 	routes     common.Route
 }
 
@@ -168,17 +167,6 @@ func (topology *TopologySvc) handleIndex(input interface{}, ctx common.RestConte
 	return retval, nil
 }
 
-// Backing store
-type topologyStore interface {
-	validateConnectionInformation() error
-	connect() error
-	createSchema(overwrite bool) error
-	addHost(host *Host) (string, error)
-	listHosts() ([]Host, error)
-	findHost(id uint64) (Host, error)
-	setConfig(config map[string]interface{}) error
-}
-
 // SetConfig implements SetConfig function of the Service interface.
 // Returns an error if cannot connect to the data store
 func (topology *TopologySvc) SetConfig(config common.ServiceConfig) error {
@@ -208,18 +196,9 @@ func (topology *TopologySvc) SetConfig(config common.ServiceConfig) error {
 	log.Printf("Datacenter information: was %s, decoded to %#v\n", dcMap, dc)
 	topology.datacenter = &dc
 	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
-	storeType := strings.ToLower(storeConfig["type"].(string))
-	switch storeType {
-	case "mysql":
-		topology.store = &mysqlStore{}
-
-	case "mock":
-		topology.store = &mockStore{}
-
-	default:
-		return errors.New("Unknown store type: " + storeType)
-	}
-	return topology.store.setConfig(storeConfig)
+	topology.store = topoStore{}
+	topology.store.ServiceStore = topology.store
+	return topology.store.SetConfig(storeConfig)
 }
 
 // Run configures and runs topology service.
@@ -245,7 +224,7 @@ func (topology *TopologySvc) Initialize() error {
 		return err
 	}
 	topology.datacenter.Prefix = common.IPv4ToInt(ip)
-	return topology.store.connect()
+	return topology.store.Connect()
 }
 
 // CreateSchema runs topology service
@@ -266,5 +245,5 @@ func CreateSchema(rootServiceUrl string, overwrite bool) error {
 	if err != nil {
 		return err
 	}
-	return topologyService.store.createSchema(overwrite)
+	return topologyService.store.CreateSchema(overwrite)
 }

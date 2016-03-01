@@ -16,11 +16,9 @@
 package tenant
 
 import (
-	"errors"
 	"github.com/romana/core/common"
 	"log"
 	"strconv"
-	"strings"
 )
 
 // TenantSvc provides tenant service.
@@ -176,20 +174,17 @@ func (tsvc *TenantSvc) SetConfig(config common.ServiceConfig) error {
 	log.Println(config)
 	tsvc.config = config
 	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
-	storeType := strings.ToLower(storeConfig["type"].(string))
-	switch storeType {
-	case "mysql":
-		tsvc.store = &mysqlStore{}
-	case "mock":
-		tsvc.store = &mockStore{}
-	default:
-		return errors.New("Unknown store type: " + storeType)
-	}
-	return tsvc.store.setConfig(storeConfig)
+	tsvc.store = tenantStore{}
+	// TODO
+	// From review:
+	// What's going on here? Why does ServicStore need a reference to the structure that contains it?
+	// Need a good way to document this (pattern or anti-pattern?)
+	tsvc.store.ServiceStore = tsvc.store
+	return tsvc.store.SetConfig(storeConfig)
 }
 
 func (tsvc *TenantSvc) createSchema(overwrite bool) error {
-	return tsvc.store.createSchema(overwrite)
+	return tsvc.store.CreateSchema(overwrite)
 }
 
 // Run configures and runs tenant service.
@@ -208,7 +203,7 @@ func Run(rootServiceUrl string) (*common.RestServiceInfo, error) {
 }
 
 func (tsvc *TenantSvc) Initialize() error {
-	err := tsvc.store.connect()
+	err := tsvc.store.Connect()
 	if err != nil {
 		return err
 	}
@@ -259,5 +254,5 @@ func CreateSchema(rootServiceUrl string, overwrite bool) error {
 	if err != nil {
 		return err
 	}
-	return tsvc.store.createSchema(overwrite)
+	return tsvc.store.CreateSchema(overwrite)
 }
