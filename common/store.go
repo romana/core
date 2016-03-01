@@ -13,6 +13,8 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
+// Contains general routines and definitions for a generic back-end storage
+// (currently geared towards RDBMS but not necessarily limited to that).
 package common
 
 import (
@@ -28,14 +30,16 @@ import (
 
 // MultiError adapts GORM (ORM - see https://github.com/jinzhu/gorm) array of errors found in GetErrors()
 // to a single error interface.
-// GORMdoes not return errors at every turn. It accumulates them and returns
+// GORM does not return errors at every turn. It accumulates them and returns
 // them whenever you feel like calling GetErrors() (https://godoc.org/github.com/jinzhu/gorm#DB.GetErrors).
-// Since this is not consistent  with the rest of the code, I prefer to isolate it
+// Since this is not consistent with the rest of the code, I prefer to isolate it
 // here and make an adapter.
 type MultiError struct {
 	errors []error
 }
 
+// MakeMultiError creates a single MultiError (or nil!) out of an array of
+// error objects.
 func MakeMultiError(errors []error) error {
 	if errors == nil {
 
@@ -49,6 +53,8 @@ func MakeMultiError(errors []error) error {
 	return &MultiError{errors}
 }
 
+// Error satisfies Error method on error interface and returns
+// a concatenated string of all error messages.
 func (m *MultiError) Error() string {
 	s := ""
 	for i := range m.errors {
@@ -60,14 +66,16 @@ func (m *MultiError) Error() string {
 	return s
 }
 
-// Stores information needed for a DB connection.
+// StoreConfig stores information needed for a DB connection.
 type StoreConfig struct {
 	Host     string
 	Port     uint64
 	Username string
 	Password string
 	Database string
-	Type     string
+	// Database type, e.g., sqlite3, mysql, etc.
+	// TODO add a set of constants for it.
+	Type string
 }
 
 // MakeStoreConfig creates StoreConfig object from a map.
@@ -96,14 +104,14 @@ func makeStoreConfig(configMap map[string]interface{}) StoreConfig {
 	return storeConfig
 }
 
-// Defines generic store interface that can be used
+// Store defines generic store interface that can be used
 // by any service for persistence.
 type Store interface {
 	// SetConfig sets the configuration
 	SetConfig(configMap map[string]interface{}) error
 	// Connect connects to the store
 	Connect() error
-	// Create the schema, dropping existing one if the true flag is specified
+	// Create the schema, dropping existing one if the force flag is specified
 	CreateSchema(force bool) error
 }
 
@@ -116,9 +124,13 @@ type ServiceStore interface {
 	CreateSchemaPostProcess() error
 }
 
-// Function implementing createSchema functionality
+// createSchema is a type for functions that create database schemas.
+// By defining a type we can more easily store references to functions of
+// the specified signature.
 type createSchema func(dbStore DbStore, force bool) error
 
+// DbStore is a structure storing information specific to RDBMS-based
+// implementation of Store.
 type DbStore struct {
 	ServiceStore      ServiceStore
 	Config            *StoreConfig
@@ -153,6 +165,8 @@ func (dbStore *DbStore) DbStore() DbStore {
 	return *dbStore
 }
 
+// getConnString returns the appropriate GORM connection string for
+// the given DB.
 func (dbStore *DbStore) getConnString() string {
 	info := dbStore.Config
 	switch info.Type {
@@ -163,6 +177,8 @@ func (dbStore *DbStore) getConnString() string {
 	}
 }
 
+// Connect connects to the appropriate DB (mutating dbStore's state with
+// the connection information), or returns an error.
 func (dbStore *DbStore) Connect() error {
 	if dbStore.Config == nil {
 		return errors.New("No configuration specified.")
@@ -176,6 +192,8 @@ func (dbStore *DbStore) Connect() error {
 	return nil
 }
 
+// CreateSchema creates the schema in this DB. If force flag
+// is specified, the schema is dropped and recreated.
 func (dbStore *DbStore) CreateSchema(force bool) error {
 	f := dbStore.createSchemaFuncs[dbStore.Config.Type]
 	if f == nil {
@@ -205,8 +223,7 @@ func createSchemaSqlite3(dbStore DbStore, force bool) error {
 	}
 
 	entities := dbStore.ServiceStore.Entities()
-	for i := range entities {
-		entity := entities[i]
+	for _, entity := range entities {
 		db.CreateTable(&entity)
 	}
 

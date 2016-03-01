@@ -175,6 +175,10 @@ func (tsvc *TenantSvc) SetConfig(config common.ServiceConfig) error {
 	tsvc.config = config
 	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
 	tsvc.store = tenantStore{}
+	// TODO
+	// From review:
+	// What's going on here? Why does ServicStore need a reference to the structure that contains it?
+	// Need a good way to document this (pattern or anti-pattern?)
 	tsvc.store.ServiceStore = tsvc.store
 	return tsvc.store.SetConfig(storeConfig)
 }

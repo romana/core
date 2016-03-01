@@ -28,21 +28,13 @@ type tenantStore struct {
 	common.DbStore
 }
 
-<<<<<<< HEAD
+// Entities implements Entities method of
+// Service interface.
 func (tenantStore tenantStore) Entities() []interface{} {
 	retval := make([]interface{}, 2)
 	retval[0] = Tenant{}
 	retval[1] = Segment{}
 	return retval
-=======
-	addTenant(tenant *Tenant) error
-	findTenant(id uint64) (Tenant, error)
-	addSegment(tenantId uint64, segment *Segment) error
-	findSegment(tenantId uint64, id uint64) (Segment, error)
-
-	listTenants() ([]Tenant, error)
-	listSegments(tenantId uint64) ([]Segment, error)
->>>>>>> master
 }
 
 type Tenant struct {
@@ -120,6 +112,7 @@ func (tenantStore *tenantStore) findTenant(id uint64) (Tenant, error) {
 	if err != nil {
 		return Tenant{}, err
 	}
+	// TODO change to WHERE.
 	for i := range tenants {
 		if tenants[i].Id == id {
 			return tenants[i], nil
@@ -166,6 +159,8 @@ func (tenantStore *tenantStore) addSegment(tenantId uint64, segment *Segment) er
 	return nil
 }
 
+// CreateSchemaPostProcess implements CreateSchemaPostProcess method of
+// Service interface.
 func (tenantStore tenantStore) CreateSchemaPostProcess() error {
 	return nil
 }

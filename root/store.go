@@ -26,6 +26,8 @@ type rootStore struct {
 	common.DbStore
 }
 
+// CreateSchemaPostProcess implements CreateSchemaPostProcess method of
+// Service interface.
 func (rootStore rootStore) CreateSchemaPostProcess() error {
 	passwd, err := rootStore.GetPasswordFunction()
 	if err != nil {
@@ -36,6 +38,8 @@ func (rootStore rootStore) CreateSchemaPostProcess() error {
 	return common.MakeMultiError(rootStore.DbStore.Db.GetErrors())
 }
 
+// Entities implements Entities method of
+// Service interface.
 func (rootStore *rootStore) Entities() []interface{} {
 	retval := make([]interface{}, 1)
 	retval[0] = User{}
