@@ -466,7 +466,7 @@ type AuthMiddleware struct {
 // checks token from request. If the token is not valid, returns a 
 // 403 FORBIDDEN status.
 func (am AuthMiddleware) ServeHTTP(writer http.ResponseWriter, request *http.Request, next http.HandlerFunc) {
-	if request.URL.Path == common.AuthPath {
+	if request.URL.Path == AuthPath {
 		// Let this one through, no token yet.
 		next(writer, request)
 		return

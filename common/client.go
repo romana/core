@@ -358,6 +358,7 @@ func (rc *RestClient) GetServiceConfig(rootServiceUrl string, svc Service) (*Ser
 	// Save the credential from the client in the resulting service config --
 	// if the resulting config is to be used in InitializeService(), it's useful;
 	// otherwise, it will be ignored.
-	config.Common.Credential = rc.config.Credential
+	config.Common.Credential = &rc.config.Credential
+	log.Printf("Saved from %v to %v", rc.config.Credential, config.Common.Credential)
 	return config, nil
 }

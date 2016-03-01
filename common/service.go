@@ -172,8 +172,8 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 			if retries <= 0 {
 				retries = DefaultRestRetries
 			}
-			config := RestClientConfig{TimeoutMillis: timeoutMillis, Retries: retries, Credential: config.Credential}
-			client, err := NewRestClient("", config)
+			clientConfig := RestClientConfig{TimeoutMillis: timeoutMillis, Retries: retries, Credential: config.Credential}
+			client, err := NewRestClient("", clientConfig)
 			if err != nil {
 				return svcInfo, err
 			}

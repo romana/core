@@ -49,7 +49,7 @@ type CommonConfig struct {
 	Api *Api `yaml:"api" json:"api"`
 	// Credential is convenient to store here but it is not part of the
 	// configuration that is passed around in JSON.
-	Credential Credential `yaml:"-" json:"-"`
+	Credential *Credential `yaml:"-" json:"-"`
 	PublicKey []byte `yaml:"-" json:"-"`
 }
 

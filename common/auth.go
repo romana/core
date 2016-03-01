@@ -53,7 +53,7 @@ func MakeCredentialFromCliArgs(username string, password string) Credential {
 		return Credential{Type: CredentialNone}
 	} else {
 		if password == "" {
-			password = Environ[PasswordEnvironmentVariable]
+			password = Environ()[PasswordEnvironmentVariable]
 		}
 		return Credential{Type: CredentialUsernamePassword, Username: username, Password: password}
 	}
