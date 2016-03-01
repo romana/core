@@ -55,13 +55,21 @@ type IpamVm struct {
 	//	IpamHostId sql.NullString
 }
 
+// ipamStore is a backing store for IPAM service.
 type ipamStore struct {
 	common.DbStore
 }
 
 func (ipamStore *ipamStore) addVm(stride uint, vm *Vm) error {
 	tx := ipamStore.DbStore.Db.Begin()
-
+	// TODO
+	// JB: Isn't "Db" and therefore "Db.Begin()" really a lower-level 
+	// implementation detail? Should users of DbStore need to know this? 
+	// What if at some point we replace this with a NoSQL store, where we won't have gorm?
+	// Maybe DbStore itself should offer 'begin', 'end', 'commit', whatever, so that it can 
+	// effectively hide those lower level implementation choices?
+	// GG: I agree but the functionality does not exactly map well to RDBMS backing store 
+	// and hiding it neatly doesn't work - yet.
 	row := tx.Model(IpamVm{}).Where("host_id = ? AND segment_id = ?", vm.HostId, vm.SegmentId).Select("IFNULL(MAX(seq),-1)+1").Row()
 	row.Scan(&vm.Seq)
 	log.Printf("New sequence is %d\n", vm.Seq)
