@@ -204,11 +204,3 @@ func WriteConfig(config Config, fname string) error {
 	return ioutil.WriteFile(fname, b, 0777)
 }
 
-// MysqlStoreInfo stores information needed for a MySQL connection.
-type MysqlStoreInfo struct {
-	Host     string
-	Port     uint64
-	Username string
-	Password string
-	Database string
-}

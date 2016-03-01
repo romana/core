@@ -40,6 +40,13 @@
 [submodule "vendor/github.com/jinzhu/gorm"]
 	path = vendor/github.com/jinzhu/gorm
 	url = git@github.com:jinzhu/gorm
+[submodule "vendor/github.com/dgrijalva/jwt-go"]
+	path = vendor/github.com/dgrijalva/jwt-go
+	url = git@github.com:dgrijalva/jwt-go.git
+[submodule "vendor/github.com/mattn/go-sqlite3"]
+	path = vendor/github.com/mattn/go-sqlite3
+	url = git@github.com:mattn/go-sqlite3.git
 [submodule "vendor/github.com/pborman/uuid"]
 	path = vendor/github.com/pborman/uuid
 	url = git@github.com:pborman/uuid.git
+

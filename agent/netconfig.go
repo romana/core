@@ -53,7 +53,9 @@ func (netif *NetIf) SetIP(ip string) error {
 }
 
 // UnmarshalJSON results in having NetIf implement Unmarshaler
-// interface from encoding/json
+// interface from encoding/json. This is needed because we use 
+// a type like net.IP here, not a simple type, and so a call to
+// net.ParseIP is required to unmarshal this properly.
 func (netif *NetIf) UnmarshalJSON(data []byte) error {
 	m := make(map[string]string)
 	json.Unmarshal(data, &m)

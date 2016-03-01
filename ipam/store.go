@@ -16,7 +16,9 @@
 package ipam
 
 import (
-//	"database/sql"
+	//	"database/sql"
+	"github.com/romana/core/common"
+	"log"
 )
 
 type Vm struct {
@@ -45,9 +47,61 @@ type IpamSegment struct {
 	Id  string `sql:"unique_index"`
 }
 
+// TODO change this to Endpoint
 type IpamVm struct {
 	Vm
 
 	Id uint64 `sql:"AUTO_INCREMENT"`
 	//	IpamHostId sql.NullString
+}
+
+type ipamStore struct {
+	common.DbStore
+}
+
+func (ipamStore *ipamStore) addVm(stride uint, vm *Vm) error {
+	tx := ipamStore.DbStore.Db.Begin()
+
+	row := tx.Model(IpamVm{}).Where("host_id = ? AND segment_id = ?", vm.HostId, vm.SegmentId).Select("IFNULL(MAX(seq),-1)+1").Row()
+	row.Scan(&vm.Seq)
+	log.Printf("New sequence is %d\n", vm.Seq)
+
+	// vmSeq is the sequence number of VM in a given host
+	effectiveVmSeq := getEffectiveSeq(vm.Seq, stride)
+	log.Printf("Effective sequence for seq %d (stride %d): %d\n", vm.Seq, stride, effectiveVmSeq)
+	vm.EffectiveSeq = effectiveVmSeq
+	ipamVm := IpamVm{Vm: *vm}
+	tx.NewRecord(ipamVm)
+	tx.Create(&ipamVm)
+	err := common.MakeMultiError(ipamStore.DbStore.Db.GetErrors())
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	tx.Commit()
+	return nil
+}
+
+// getEffectiveSeq gets effective sequence number of a VM
+// on a given host.
+func getEffectiveSeq(vmSeq uint64, stride uint) uint64 {
+	var effectiveVmSeq uint64
+	// We start with 3 because we reserve 1 for gateway
+	// and 2 for DHCP.
+	effectiveVmSeq = 3 + (1<<stride)*vmSeq
+	return effectiveVmSeq
+}
+
+// Entities implements Entities method of Service interface.
+func (ipamStore ipamStore) Entities() []interface{} {
+	retval := make([]interface{}, 1)
+	retval[0] = IpamVm{}
+	return retval
+}
+
+// CreateSchemaPostProcess implements CreateSchemaPostProcess method of
+// Service interface.
+func (ipamStore ipamStore) CreateSchemaPostProcess() error {
+	ipamStore.Db.Model(&IpamVm{}).AddUniqueIndex("idx_segment_host_seq", "segment_id", "host_id", "seq")
+	return nil
 }
