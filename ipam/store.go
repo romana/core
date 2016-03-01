@@ -47,6 +47,7 @@ type IpamSegment struct {
 	Id  string `sql:"unique_index"`
 }
 
+// TODO change this to Endpoint
 type IpamVm struct {
 	Vm
 
@@ -81,18 +82,25 @@ func (ipamStore *ipamStore) addVm(stride uint, vm *Vm) error {
 	return nil
 }
 
+// getEffectiveSeq gets effective sequence number of a VM
+// on a given host.
 func getEffectiveSeq(vmSeq uint64, stride uint) uint64 {
 	var effectiveVmSeq uint64
+	// We start with 3 because we reserve 1 for gateway
+	// and 2 for DHCP.
 	effectiveVmSeq = 3 + (1<<stride)*vmSeq
 	return effectiveVmSeq
 }
 
+// Entities implements Entities method of Service interface.
 func (ipamStore ipamStore) Entities() []interface{} {
 	retval := make([]interface{}, 1)
 	retval[0] = IpamVm{}
 	return retval
 }
 
+// CreateSchemaPostProcess implements CreateSchemaPostProcess method of
+// Service interface.
 func (ipamStore ipamStore) CreateSchemaPostProcess() error {
 	ipamStore.Db.Model(&IpamVm{}).AddUniqueIndex("idx_segment_host_seq", "segment_id", "host_id", "seq")
 	return nil

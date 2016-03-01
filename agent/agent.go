@@ -73,6 +73,15 @@ func (a *Agent) Routes() common.Routes {
 			},
 			UseRequestToken: false,
 		},
+		common.Route{
+			Method:  "POST",
+			Pattern: "/kubernetes-pod-up",
+			Handler: a.k8sPodUpHandler,
+			MakeMessage: func() interface{} {
+				return &NetIf{}
+			},
+			UseRequestToken: false,
+		},
 	}
 	return routes
 }
@@ -102,6 +111,27 @@ func (a *Agent) Name() string {
 	return "agent"
 }
 
+// k8sPodUpHandler handles HTTP requests for endpoints provisioning.
+func (a *Agent) k8sPodUpHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
+	// Parse out NetIf form the request
+	// TODO netif struct has mac address field that is not needed for k8s
+	// right now its required to pass any valid mac address to statisfy unmarshaller
+	// this will confuse API users and needs to be fixed.
+	netif := input.(*NetIf)
+
+	log.Printf("Got interface: Name %s, IP %s Mac %s\n", netif.Name, netif.IP, netif.Mac)
+	// Spawn new thread to process the request
+
+	// TODO don't know if fork-bombs are possible in go but if they are this
+	// need to be refactored as buffered channel with fixed pool of workers
+	go a.k8sPodUpHandle(*netif)
+
+	// TODO I wonder if this should actually return something like a
+	// link to a status of this request which will later get updated
+	// with success or failure -- Greg.
+	return "OK", nil
+}
+
 // index handles HTTP requests for endpoints provisioning.
 // Currently tested with Romana ML2 driver.
 // TODO index should be reserved for an actual index, while this function
@@ -121,6 +151,42 @@ func (a *Agent) index(input interface{}, ctx common.RestContext) (interface{}, e
 	// link to a status of this request which will later get updated
 	// with success or failure -- Greg.
 	return "OK", nil
+}
+
+// k8sPodUpHandle does a number of operations on given endpoint to ensure
+// it's connected:
+// 1. Ensures interface is ready
+// 2. Ensures interhost routes are in place
+// 3. Creates ip route pointing new interface
+// 4. Provisions firewall rules
+func (a *Agent) k8sPodUpHandle(netif NetIf) error {
+	log.Print("Agent: processing request to provision new interface")
+	if !a.Helper.waitForIface(netif.Name) {
+		// TODO should we resubmit failed interface in queue for later
+		// retry ? ... considering openstack will give up as well after
+		// timeout
+		return agentErrorString(fmt.Sprintf("Requested interface not available in time - %s", netif.Name))
+	}
+
+	// Ensure we have all the routes to our neighbours
+	log.Print("Agent: ensuring interhost routes exist")
+	if err := a.Helper.ensureInterHostRoutes(); err != nil {
+		log.Print(agentError(err))
+		return agentError(err)
+	}
+	log.Print("Agent: creating endpoint routes")
+	if err := a.Helper.ensureRouteToEndpoint(&netif); err != nil {
+		log.Print(agentError(err))
+		return agentError(err)
+	}
+	log.Print("Agent: provisioning firewall")
+	if err := provisionFirewallRules(netif, a); err != nil {
+		log.Print(agentError(err))
+		return agentError(err)
+	}
+
+	log.Print("All good", netif)
+	return nil
 }
 
 // interfaceHandle does a number of operations on given endpoint to ensure
