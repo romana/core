@@ -21,7 +21,46 @@ import (
 	"github.com/go-yaml/yaml"
 	"io/ioutil"
 	"log"
+	"strings"
 )
+
+// toBool is a convenience function that's like ParseBool
+// but allows also "on"/"off" values.
+func ToBool(val string) (bool, error) {
+	s := strings.ToLower(val)
+	switch s {
+	case "yes":
+		return true, nil
+	case "on":
+		return true, nil
+	case "y":
+		return true, nil
+	case "true":
+		return true, nil
+	case "t":
+		return true, nil
+	case "1":
+		return true, nil
+	case "enabled":
+		return true, nil
+	case "no":
+		return false, nil
+	case "off":
+		return false, nil
+	case "n":
+		return false, nil
+	case "false":
+		return false, nil
+	case "f":
+		return false, nil
+	case "0":
+		return false, nil
+	case "disabled":
+		return false, nil
+	}
+	return false, errors.New(fmt.Sprintf("Cannot convert %s to boolean", val))
+
+}
 
 // Api part of service configuration (host/port).
 type Api struct {
@@ -34,6 +73,7 @@ type Api struct {
 	// Rest timeout in milliseconds (if omitted, defaults to DefaultRestTimeout)
 	RestTimeoutMillis int64 `yaml:"rest_timeout_millis,omitempty" json:"rest_timeout_millis,omitempty"`
 	RestRetries       int   `yaml:"rest_retries,omitempty" json:"rest_retries,omitempty"`
+	RestTestMode      bool `yaml:"rest_test_mode,omitempty" json:"rest_test_mode,omitempty"`
 }
 
 func (api Api) GetHostPort() string {

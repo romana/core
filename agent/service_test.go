@@ -18,23 +18,37 @@ package agent
 
 import (
 	"fmt"
+	"github.com/romana/core/common"
+	"log"
 	"os"
 	"testing"
 )
 
-// TestService will test agents talking to other services
-func TestService(t *testing.T) {
+func startAgent(t *testing.T) {
 	cwd, err := os.Getwd()
 	fmt.Println("In", cwd)
 	if err != nil {
 		panic(err)
 	}
 	rootURL := fmt.Sprintf("file://%s/testdata/root.json", cwd)
-	svcInfo, err := Run(rootURL)
+	svcInfo, err := Run(rootURL, true)
 	if err != nil {
 		t.Fatal(err)
 	}
 	msg := <-svcInfo.Channel
 	t.Log("Service says", msg)
 	fmt.Println(msg)
+}
+
+// TestK8SHandler will test K8S handler
+func TestK8SHandler(t *testing.T) {
+	startAgent(t)
+	restClient := common.RestClient{}
+	options := make(map[string]string)
+	options[fullIsolationOption] = "on"
+	nr := NetworkRequest{NetIf{}, options}
+	result := make(map[string]string)
+	restClient.Post("http://localhost:8899", nr, &result)
+	log.Printf("Sent to agent %v, agent returned %v", nr, result)
+
 }

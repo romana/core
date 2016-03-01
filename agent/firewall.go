@@ -262,10 +262,16 @@ func (fw *Firewall) CreateU32Rules(chain int) error {
 // CreateDefaultDropRule creates iptables rules to drop all unidentified traffic
 // in the given chain
 func (fw *Firewall) CreateDefaultDropRule(chain int) error {
+	return fw.CreateDefaultRule(chain, "DROP")
+}
+
+// CreateDefaultRule creates iptables rule for a chain with the
+// specified target
+func (fw *Firewall) CreateDefaultRule(chain int, target string) error {
 	log.Print("Creating default drop rules for chain", chain)
 	chainName := fw.chains[chain].chainName
 	cmd := "/sbin/iptables"
-	args := []string{"-A", chainName, "-j", "DROP"}
+	args := []string{"-A", chainName, "-j", target}
 	_, err := fw.Agent.Helper.Executor.Exec(cmd, args)
 	if err != nil {
 		log.Print("Creating default drop rules failed")
@@ -387,6 +393,48 @@ func (fw *Firewall) extractTenantID(addr uint64) uint64 {
 	tenantBits := fw.Agent.networkConfig.TenantBits()
 	tid := (addr >> (endpointBits + segmentBits)) & ((1 << tenantBits) - 1)
 	return tid
+}
+
+// provisionFirewallRules provisions rules for a new pod in Kubernetes.
+// Depending on the fullIsolation flag, the rule is specified to either
+// DROP or ALLOW all traffic.
+func provisionK8SFirewallRules(netReq NetworkRequest, agent *Agent, fullIsolation bool) error {
+	log.Print("Firewall: Initializing")
+	fw, err := NewFirewall(netReq.NetIf, agent)
+	if err != nil {
+		log.Fatal("Failed to initialize firewall ", err)
+	}
+
+	missingChains := fw.detectMissingChains()
+	log.Print("Firewall: creating chains")
+	err = fw.CreateChains(missingChains)
+	if err != nil {
+		return err
+	}
+	for chain := range missingChains {
+
+		//		if err := fw.CreateRules(chain); err != nil {
+		//			return err
+		//		}
+
+		var target string
+		if fullIsolation {
+			target = "DROP"
+		} else {
+			target = "ALLOW"
+		}
+		if err := fw.CreateDefaultRule(chain, target); err != nil {
+			return err
+		}
+	}
+
+	for chain := range fw.chains {
+		if err := fw.DivertTrafficToRomanaIptablesChain(chain); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // provisionFirewallRules orchestrates Firewall to satisfy request

@@ -8,7 +8,7 @@
 //   http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
-//  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
 // WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 // License for the specific language governing permissions and limitations
 // under the License.
@@ -22,12 +22,24 @@ import (
 	"net"
 )
 
+const (
+	fullIsolationOption = "full_isolation"
+)
+
+// NetworkRequest specifies messages sent to the
+// agent containing information on how to configure network
+// on its host.
+type NetworkRequest struct {
+	NetIf NetIf
+	Options map[string]string
+}
+
 // NetIf is a structure that represents
-// network interface and its ip configuration
+// network interface and its IP configuration
 // together with basic methods operating on this structure.
 type NetIf struct {
 	Name string `form:"interface_name" json:"interface_name"`
-	Mac  string `form:"mac_address" json:"interface_name"`
+	Mac  string `form:"mac_address,omitempty" json:"interface_name,omitempty"`
 	IP  net.IP `form:"ip_address" json:"ip_address"`
 }
 

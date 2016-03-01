@@ -43,6 +43,7 @@ type RestClient struct {
 type RestClientConfig struct {
 	TimeoutMillis int64
 	Retries       int
+	TestMode      bool
 }
 
 func GetDefaultRestClientConfig() RestClientConfig {
@@ -208,6 +209,13 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 	if err != nil {
 		return err
 	}
+
+	log.Printf("Scheme is %s, method is %s, test mode: %B", rc.url.Scheme, method, rc.config.TestMode)
+	if rc.url.Scheme == "file" && method == "POST" && rc.config.TestMode {
+		log.Printf("Attempt to POST to a file URL %s, in test mode will just return OK", rc.url)
+		return nil
+	}
+
 	var reqBodyReader *bytes.Reader
 	var reqBody []byte
 	if data != nil {

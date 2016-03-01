@@ -88,7 +88,10 @@ type Route struct {
 	// this route expects as an input.
 	MakeMessage MakeMessage
 
-	//
+	// Whether this route is using a request token. If true, the
+	// request token will be parsed out of the request and made
+	// available in RestContext. It can then
+	// used by the handler to achieve idempotence.
 	UseRequestToken bool
 }
 
@@ -246,7 +249,6 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 					return
 				}
 			} else {
-				log.Printf("HEYHEYHEY %v\n", err)
 				switch err := err.(type) {
 				case HttpError:
 					writer.WriteHeader(err.StatusCode)

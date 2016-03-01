@@ -92,6 +92,7 @@ type Service interface {
 // service. Messages are of type ServiceMessage above.
 // It can be used for launching service from tests, etc.
 func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo, error) {
+	log.Printf("Initializing service %s with %v", service.Name(), config.Common.Api)
 	err := service.SetConfig(config)
 	if err != nil {
 		return nil, err
@@ -125,10 +126,10 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 	var dur time.Duration
 	var readWriteDur time.Duration
 	if timeoutMillis <= 0 {
+		log.Printf("%s: Invalid timeout %d, defaulting to %d\n", service.Name(), timeoutMillis, DefaultRestTimeout)
 		timeoutMillis = DefaultRestTimeout
 		dur = DefaultRestTimeout * time.Millisecond
 		readWriteDur = (DefaultRestTimeout + ReadWriteTimeoutDelta) * time.Millisecond
-		log.Printf("%s: Invalid timeout %d, defaulting to %d\n", service.Name(), timeoutMillis, dur)
 	} else {
 		timeoutStr := fmt.Sprintf("%dms", timeoutMillis)
 		dur, _ = time.ParseDuration(timeoutStr)
@@ -161,8 +162,9 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 			if retries <= 0 {
 				retries = DefaultRestRetries
 			}
-			config := RestClientConfig{TimeoutMillis: timeoutMillis, Retries: retries}
-			client, err := NewRestClient("", config)
+			clientConfig := RestClientConfig{TimeoutMillis: timeoutMillis, Retries: retries, TestMode: config.Common.Api.RestTestMode}
+			log.Printf("InitializeService() : Initializing Rest client with %v", clientConfig)
+			client, err := NewRestClient("", clientConfig)
 			if err != nil {
 				return svcInfo, err
 			}
