@@ -397,6 +397,7 @@ def process_namespaces(s):
         obj = simplejson.loads(s)
     except Exception as e:
         logging.warning("Failed to parse %s as json %s" %(s,e))
+        return
 
     op = obj.get("type")
     if not op:
@@ -416,10 +417,12 @@ def process_namespaces(s):
     ns_name = meta.get("name")
     if not ns_name:
         logging.warning("Failed to parse namespace name out of %s" % obj)
+        return
 
     ns_uid = meta.get("uid")
     if not ns_uid:
         logging.warning("Failed to parse namespace uid out of %s" % obj)
+        return
 
     logging.debug("In process_namespace:: operation=%s" % op)
     if op == 'ADDED':
