@@ -1,3 +1,33 @@
+#
+# Execution flow chart
+#
+#
+# +------------+    +----------+    +---------------+
+# | Namespaces |<---| Kube API |--->|NetworkPolicies|
+# +------------+    +----------+    +---------------+
+#     |                                     |
+#     |   <------   HTTP GET  ------->      |
+#     v                                     v
+# +------------------+     +------------------------+
+# | watch_namespaces |---->| watch_network_policies*|
+# +------------------+     +------------------------+
+#     ^      |                              |        
+#     |      |                        on add/delete NP
+#     |      |                              |        
+#     |      |                              v        
+#     |      |  on delete NS             +----------+
+#     |      +-------------------------->| np_queue |
+#     |                                  +----------+
+#     |                                     |       
+#     |                                     |        
+#     |                                     v        
+# +--------+             +--------------------------+
+# |listener|             | network_policy_processor*|
+# +--------+             +--------------------------+
+#
+# Legend:
+# * - subprocess
+#
 import httplib
 import requests
 import sys
@@ -26,7 +56,6 @@ topology_url = "http://192.168.0.10:9603/hosts"
 # a subprocess. This dict is to keep account in suborocesses which
 # are running. k = namespacename, v = proc
 listen_pool = {}
-listen_pool_lock = Lock()
 
 parser = OptionParser(usage="%prog --agent")
 parser.add_option('--agent', default=False, dest="agent", action="store_true",
@@ -448,9 +477,7 @@ def start_new_np_watcher(ns_uid, ns_name):
     # np_queue available globally in this context
     new_ns_proc = Process(target=watch_network_policies, args=(ns_name,np_queue,))
     new_ns_proc.start()
-    listen_pool_lock.acquire()
     listen_pool[ns_uid] = new_ns_proc
-    listen_pool_lock.release()
     logging.debug("In start_new_np_watcher:: with ns_uid = %s, ns_name = %s ... finishing" % (ns_uid, ns_name))
 
 def ensure_ns_watcher_running(ns_uid, ns_name):
@@ -462,9 +489,7 @@ def ensure_ns_watcher_running(ns_uid, ns_name):
     """
 
     logging.debug("In ensure_ns_watcher_running:: ")
-    listen_pool_lock.acquire()
     ns_proc = listen_pool.get(ns_uid)
-    listen_pool_lock.release()
 
     logging.debug("In ensure_ns_watcher_running:: ns_proc=%s" % ns_proc)
     if ns_proc:
@@ -487,17 +512,13 @@ def ensure_ns_watcher_stopped(ns_uid, ns_name):
     """
 
     logging.debug("In ensure_ns_watcher_stopped:: ")
-    listen_pool_lock.acquire()
     ns_proc = listen_pool.get(ns_uid)
-    listen_pool_lock.release()
     logging.debug("In ensure_ns_watcher_stopped:: ns_proc=%s" % ns_proc)
     if ns_proc:
         if ns_proc.is_alive():
             logging.debug("In ensure_ns_watcher_stopped:: ns_proc is alive - terminating")
             ns_proc.terminate()
-        listen_pool_lock.acquire()
         del listen_pool[ns_uid]
-        listen_pool_lock.release()
 
 # Processing kubernetes events coming from api
 def process(s, uid_by_ns, pd_by_uid):
@@ -629,7 +650,7 @@ def listen_chunked_stream(watch_url, submit_type, submit_object):
 def watch_namespaces():
     """
     This function watches for events in kubernetes regarding namespaces
-    and passes this events for processing
+    and passes the events for processing
 
     Never exits
     """
