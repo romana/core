@@ -519,7 +519,6 @@ def process(s, uid_by_ns, pd_by_uid):
     if op == 'NS_CLEANUP':
         ns = obj.get("namespace")
         for uid in uid_by_ns[ns]:
-            # TODO
             dispatch_orders('DELETED', pd_by_uid[uid])
             del pd_by_uid[uid]
             uid_by_ns[ns].remove(uid)
