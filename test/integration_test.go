@@ -308,7 +308,7 @@ func (s *MySuite) TestIntegration(c *check.C) {
 
 	// 5. Start Agent service
 	myLog(c, "STARTING Agent SERVICE")
-	agentInfo, err := agent.Run(s.rootUrl)
+	agentInfo, err := agent.Run(s.rootUrl, true)
 	if err != nil {
 		c.Error(err)
 	}

@@ -42,11 +42,9 @@ type MultiError struct {
 // error objects.
 func MakeMultiError(errors []error) error {
 	if errors == nil {
-
 		return nil
 	}
 	if len(errors) == 0 {
-
 		return nil
 	}
 
@@ -168,13 +166,20 @@ func (dbStore *DbStore) DbStore() DbStore {
 // getConnString returns the appropriate GORM connection string for
 // the given DB.
 func (dbStore *DbStore) getConnString() string {
+	var connStr string
 	info := dbStore.Config
 	switch info.Type {
 	case "sqlite3":
-		return info.Database
+		connStr = info.Database
 	default:
-		return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", info.Username, info.Password, info.Host, info.Port, info.Database)
+		portStr := fmt.Sprintf(":%d", info.Port)
+		if info.Port == 0 {
+			portStr = ":3306"
+		}
+		connStr = fmt.Sprintf("%s:%s@tcp(%s%s)/%s", info.Username, info.Password, info.Host, portStr, info.Database)
 	}
+	log.Printf("DB: Connection string: %s", connStr)
+	return connStr
 }
 
 // Connect connects to the appropriate DB (mutating dbStore's state with
@@ -184,6 +189,7 @@ func (dbStore *DbStore) Connect() error {
 		return errors.New("No configuration specified.")
 	}
 	connStr := dbStore.getConnString()
+	log.Printf("DB: Connecting to %s", connStr)
 	db, err := gorm.Open(dbStore.Config.Type, connStr)
 	if err != nil {
 		return err
@@ -216,6 +222,7 @@ func createSchemaSqlite3(dbStore DbStore, force bool) error {
 		}
 	}
 	connStr := dbStore.getConnString()
+	log.Printf("DB: Connecting to %s", connStr)
 	db, err := gorm.Open("sqlite3", connStr)
 
 	if err != nil {
@@ -244,6 +251,7 @@ func createSchemaMysql(dbStore DbStore, force bool) error {
 	schemaName := dbStore.Config.Database
 	dbStore.Config.Database = "mysql"
 	connStr := dbStore.getConnString()
+	log.Printf("DB: Connecting to %s", connStr)
 	db, err := gorm.Open("mysql", connStr)
 
 	if err != nil {
