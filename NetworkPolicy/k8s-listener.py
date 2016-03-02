@@ -8,9 +8,10 @@ from BaseHTTPServer import BaseHTTPRequestHandler,HTTPServer
 from mimetools import Message
 from StringIO import StringIO
 import logging
-from multiprocessing import Process, Lock
+from multiprocessing import Process, Lock, Queue
 PORT_NUMBER = 9630
 HTTP_Unprocessable_Entity = 422
+np_queue = Queue()
 
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(levelname)-8s %(message)s',
@@ -429,13 +430,23 @@ def process_namespaces(s):
         ensure_ns_watcher_running(ns_uid, ns_name)
     elif op == 'DELETED':
         ensure_ns_watcher_stopped(ns_uid, ns_name)
+        np_processor_send_cleanup(ns_name)
     else:
         # Ignore MODIFIED event
         pass
 
+def np_processor_send_cleanup(ns_name):
+    """
+    Used to notify policy processor of deleted namespace
+    so it could delete outdated policies
+    """
+    message = { "type" : "NS_CLEANUP", "namespace": ns_name }
+    np_queue.put_nowait(simplejson.dumps(message))
+
 def start_new_np_watcher(ns_uid, ns_name):
     logging.debug("In start_new_np_watcher:: with ns_uid = %s, ns_name = %s ... begin" % (ns_uid, ns_name))
-    new_ns_proc = Process(target=watch_network_policies, args=(ns_name,))
+    # np_queue available globally in this context
+    new_ns_proc = Process(target=watch_network_policies, args=(ns_name,np_queue,))
     new_ns_proc.start()
     listen_pool_lock.acquire()
     listen_pool[ns_uid] = new_ns_proc
@@ -489,7 +500,7 @@ def ensure_ns_watcher_stopped(ns_uid, ns_name):
         listen_pool_lock.release()
 
 # Processing kubernetes events coming from api
-def process(s):
+def process(s, uid_by_ns, pd_by_uid):
 
     # Kube api listener is a GET request which will timeout eventually
     # producing empty request.
@@ -498,11 +509,20 @@ def process(s):
     except Exception as e:
         logging.info("====== could not parse:")
         logging.info(s)
-        logging.info("@@@@ Error: ", str(e))
+        logging.info("@@@@ Error: %s" % str(e))
         return
     op = obj.get("type")
     if not op:
         logging.warning("Failed to parse event type from out of %s" % obj)
+        return
+
+    if op == 'NS_CLEANUP':
+        ns = obj.get("namespace")
+        for uid in uid_by_ns[ns]:
+            # TODO
+            dispatch_orders('DELETED', pd_by_uid[uid])
+            del pd_by_uid[uid]
+            uid_by_ns[ns].remove(uid)
         return
 
     rule = parse_rule_specs(obj)
@@ -545,6 +565,21 @@ def process(s):
         }
     }
 
+    ns = obj['object']['metadata']['namespace']
+    uid = obj['object']['metadata']['uid']
+    if op == 'ADDED':
+        if not uid_by_ns.get(ns):
+            uid_by_ns[ns]=[]
+        if uid not in uid_by_ns[ns]:
+            uid_by_ns[ns].append(uid)
+        if uid not in pd_by_uid.keys():
+            pd_by_uid[uid]=policy_definition
+    elif op == 'DELETED':
+        if uid in uid_by_ns[ns]:
+            uid_by_ns[ns].remove(uid)
+        if uid in pd_by_uid.keys():
+            del pd_by_uid[uid]
+
     dispatch_orders(op, policy_definition)
 
 def dispatch_orders(method, policy_definition):
@@ -564,7 +599,7 @@ def dispatch_orders(method, policy_definition):
         except Exception, e:
             logging.info("Cannot sontact host %s: %s" % (host, e))
 
-def listen_chunked_stream(watch_url, callback):
+def listen_chunked_stream(watch_url, submit_type, submit_object):
     r = requests.get(watch_url, stream=True, timeout=300)
     iter = r.iter_content(1)
     while True:
@@ -583,7 +618,10 @@ def listen_chunked_stream(watch_url, callback):
         buf = ""
         for i in range(len):
             buf += iter.next()
-        callback(buf)
+        if submit_type == 'callback':
+            submit_object(buf)
+        elif submit_type == 'queue':
+            submit_object.put_nowait(buf)
         c = iter.next()
         c2 = iter.next()
         if c != '\r' or c2 != '\n':
@@ -598,24 +636,37 @@ def watch_namespaces():
     """
     while True:
         try:
-            listen_chunked_stream(ns_url, process_namespaces)
+            submit_type = 'callback'
+            submit_object = process_namespaces
+            listen_chunked_stream(ns_url, submit_type, submit_object)
         except Exception, e:
             logging.info("Kube api namespace listener terminated with: %s keep going" % str(e))
 
-def watch_network_policies(ns_name):
+def watch_network_policies(ns_name, np_queue):
     while True:
         try:
             ns_url = network_policy_url(ns_name)
-            listen_chunked_stream(ns_url, process)
+            submit_type = 'queue'
+            submit_object = np_queue
+            listen_chunked_stream(ns_url, submit_type, submit_object)
         except Exception, e:
             logging.info("Kube api listener terminated with: %s " % str(e))
+
+def network_policy_processor(np_queue):
+    uid_by_ns = {}
+    pd_by_uid = {}
+    while True:
+        try:
+            process(np_queue.get(), uid_by_ns, pd_by_uid)
+        except Exception, e:
+            logging.info("Network policy processor error: %s " % str(e))
 
 # Watch kubernetes events, they come as chunks
 # so we need to process them chunk by chink
 def main():
-    namespace_watcher = Process(target=watch_namespaces)
-    namespace_watcher.start()
-    namespace_watcher.join()
+    np_processor = Process(target=network_policy_processor, args=(np_queue,))
+    np_processor.start()
+    watch_namespaces()
 
 def get_romana_hosts():
     """
