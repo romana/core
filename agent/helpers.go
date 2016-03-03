@@ -235,24 +235,23 @@ func (h Helper) ensureInterHostRoutes() error {
 	otherHosts := h.otherHosts()
 	via := "via"
 	for j := range otherHosts {
-		romanaIP, romanaCidr, err := net.ParseCIDR(otherHosts[j].RomanaIp)
+		_, romanaCidr, err := net.ParseCIDR(otherHosts[j].RomanaIp)
 		if err != nil {
 			return failedToParseOtherHosts(otherHosts[j].RomanaIp)
 		}
-		//		romanaIP := romanaIP
 		romanaMaskInt, _ := romanaCidr.Mask.Size()
 		romanaMask := fmt.Sprintf("%d", romanaMaskInt)
 		dest := otherHosts[j].Ip
 
 		// wait until no one messing with routes
 		// If route doesn't exist yet
-		if err := h.isRouteExist(romanaIP, romanaMask); err != nil {
+		if err := h.isRouteExist(romanaCidr.IP, romanaMask); err != nil {
 
 			// Create it
-			if err := h.createRoute(romanaIP, romanaMask, via, dest); err != nil {
+			if err := h.createRoute(romanaCidr.IP, romanaMask, via, dest); err != nil {
 
 				// Or report error
-				return routeCreateError(err, romanaIP.String(), romanaMask, dest)
+				return routeCreateError(err, romanaCidr.IP.String(), romanaMask, dest)
 			}
 		}
 	}
