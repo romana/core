@@ -20,10 +20,10 @@ import (
 )
 
 // MockPortsInConfig will take the config file specified
-// and replace the ports with 0 to use arbitrary ports 
+// and replace the ports with 0 to use arbitrary ports
 // and write it out to /tmp/romana.yaml
 func MockPortsInConfig(fname string) error {
-	config,err := ReadConfig(fname)
+	config, err := ReadConfig(fname)
 	if err != nil {
 		return err
 	}

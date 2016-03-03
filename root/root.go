@@ -5,29 +5,27 @@
 // not use this file except in compliance with the License. You may obtain
 // a copy of the License at
 //
-//   http://www.apache.org/licenses/LICENSE-2.0
+// http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
-//  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
 // WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 // License for the specific language governing permissions and limitations
 // under the License.
 
-/*
-Implements root service
-*/
+// Package root implements root service.
 package root
 
 import (
 	//	"fmt"
 	"github.com/romana/core/common"
-	"strconv"
 	"log"
+	"strconv"
 	"strings"
 	//	"github.com/gorilla/mux"
 )
 
-// Root-specific configuration. This may seem a bit
+// Config provides Root-specific configuration. This may seem a bit
 // convoluted, but it is convoluted only for root - for this
 // cost we are buying simplicity/uniformity for other services.
 // See SetConfig() func.
@@ -48,8 +46,6 @@ const fullConfigKey = "fullConfig"
 
 // SetConfig implements SetConfig function of the Service interface
 func (root *Root) SetConfig(config common.ServiceConfig) error {
-	//	RootConfig{fullConfig.ServiceConfigs["root"], fullConfig}
-
 	root.config = Config{}
 	root.config.common = &config.Common
 	f := config.ServiceSpecific[fullConfigKey].(common.Config)
@@ -94,11 +90,11 @@ func (root *Root) handleIndex(input interface{}, ctx common.RestContext) (interf
 		href := "http://" + value.Common.Api.GetHostPort()
 		link := common.LinkResponse{Rel: "service", Href: href}
 		retval.Services[i].Links = []common.LinkResponse{link}
-		configLink := common.LinkResponse{"/config/" + key, key + "-config"}
+		configLink := common.LinkResponse{Href: "/config/" + key, Rel: key + "-config"}
 		retval.Links[i] = configLink
 		i++
 	}
-	retval.Links[i] = common.LinkResponse{myUrl, "self"}
+	retval.Links[i] = common.LinkResponse{Href: myUrl, Rel: "self"}
 
 	return retval, nil
 }
@@ -115,43 +111,45 @@ func (root *Root) handleConfig(input interface{}, ctx common.RestContext) (inter
 	return retval, nil
 }
 
-
-// Provides Routes
+// Routes provided by root service.
 func (root Root) Routes() common.Routes {
 	routes := common.Routes{
 		common.Route{
-			"GET",
-			"/",
-			root.handleIndex,
-			nil,
+			Method:          "GET",
+			Pattern:         "/",
+			Handler:         root.handleIndex,
+			MakeMessage:     nil,
+			UseRequestToken: false,
 		},
 		common.Route{
-			"GET",
-			"/config/{serviceName}",
-			root.handleConfig,
-			nil,
+			Method:          "GET",
+			Pattern:         "/config/{serviceName}",
+			Handler:         root.handleConfig,
+			MakeMessage:     nil,
+			UseRequestToken: false,
 		},
 		common.Route{
-			"POST",
-			"/config/{serviceName}/port",
-			root.handlePortUpdate,
-			func() interface{} {
-				return &common.PortUpdateMessage{}
-			},
+			Method:          "POST",
+			Pattern:         "/config/{serviceName}/port",
+			Handler:         root.handlePortUpdate,
+			MakeMessage:     func() interface{} { return &common.PortUpdateMessage{} },
+			UseRequestToken: false,
 		},
 	}
 	return routes
 }
 
-// Runs root service
-func Run(configFileName string) (chan common.ServiceMessage, string, error) {
+// Run configures and starts root service.
+func Run(configFileName string) (*common.RestServiceInfo, error) {
 	fullConfig, err := common.ReadConfig(configFileName)
 	if err != nil {
-		return nil, "", err
+		return nil, err
 	}
 
 	rootService := &Root{}
-	rootServiceConfig := common.ServiceConfig{fullConfig.Services["root"].Common, make(map[string]interface{})}
+	rootServiceConfig := common.ServiceConfig{
+		Common:          fullConfig.Services["root"].Common,
+		ServiceSpecific: make(map[string]interface{})}
 	rootServiceConfig.ServiceSpecific[fullConfigKey] = fullConfig
 	return common.InitializeService(rootService, rootServiceConfig)
 }

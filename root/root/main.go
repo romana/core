@@ -18,6 +18,8 @@ package main
 
 import (
 	"flag"
+	"fmt"
+	"github.com/romana/core/common"
 	"github.com/romana/core/root"
 	"log"
 )
@@ -25,13 +27,18 @@ import (
 // Main entry point for the root microservice
 func main() {
 	configFileName := flag.String("c", "", "Configuration file")
+	version := flag.Bool("version", false, "Build Information.")
 	flag.Parse()
-	channel, _,  err := root.Run(*configFileName)
+	if *version {
+		fmt.Println(common.BuildInfo())
+		return
+	}
+	svcInfo, err := root.Run(*configFileName)
 	if err != nil {
 		panic(err)
 	}
 	for {
-		msg := <-channel
+		msg := <-svcInfo.Channel
 		log.Println(msg)
 	}
 }

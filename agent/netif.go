@@ -23,14 +23,15 @@ import (
 )
 
 // NetIf is a structure that represents
-// network interface and it's ip configuration
+// network interface and its ip configuration
 // together with basic methods operating on this structure.
 type NetIf struct {
-	Name string `form:"interface_name" mapstructure:"interface_name"`
-	Mac  string `form:"mac_address" mapstructure:"interface_name"`
-	IP   net.IP `form:"ip_address" mapstructure:"ip_address"`
+	Name string `form:"interface_name" json:"interface_name"`
+	Mac  string `form:"mac_address" json:"interface_name"`
+	IP  net.IP `form:"ip_address" json:"ip_address"`
 }
 
+// SetIP parses and sets the IP address of the interface.
 func (netif *NetIf) SetIP(ip string) error {
 	netif.IP = net.ParseIP(ip)
 	if netif.IP == nil {
@@ -40,12 +41,14 @@ func (netif *NetIf) SetIP(ip string) error {
 }
 
 // UnmarshalJSON results in having NetIf implement Unmarshaler
-// interface from encoding/json
+// interface from encoding/json. This is needed because we use 
+// a type like net.IP here, not a simple type, and so a call to
+// net.ParseIP is required to unmarshal this properly.
 func (netif *NetIf) UnmarshalJSON(data []byte) error {
 	m := make(map[string]string)
 	json.Unmarshal(data, &m)
 
-	netif.IP = net.ParseIP(m["mac_address"])
+	netif.IP = net.ParseIP(m["ip_address"])
 	if netif.IP == nil {
 		return failedToParseNetif()
 	}
