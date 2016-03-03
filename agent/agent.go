@@ -172,6 +172,7 @@ func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 		return agentErrorString(msg)
 	}
 	
+	log.Printf("Isolation is %t",namespaceIsolationOption)
 	netif := netReq.NetIf
 	if netif.Name == "" {
 		return agentErrorString("Agent: Interface name required")

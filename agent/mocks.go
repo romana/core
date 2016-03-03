@@ -89,7 +89,7 @@ func mockAgent() Agent {
 	return *agent
 }
 
-// Executable is an interface that mocks exec.Command().Output()
+// Executable is a facade to exec.Command().Output()
 type Executable interface {
 	Exec(cmd string, args []string) ([]byte, error)
 }
@@ -101,19 +101,20 @@ type DefaultExecutor struct{}
 // Exec proxies all requests to exec.Command()
 // Used to support unit testing.
 func (DefaultExecutor) Exec(cmd string, args []string) ([]byte, error) {
-	log.Printf("Helper.Executor: executing command: %s %s", cmd, args)
-	out, err := exec.Command(cmd, args...).Output()
+	log.Printf("Helper.Executor: executing command: %s %s", cmd, strings.Join(args," "))
+	cmdObj := exec.Command(cmd, args...)
+	out, err := cmdObj.CombinedOutput()
 	return out, err
 }
 
-// OS interface mocks standard lib os.
+// OS interface is a facade to standard lib os.
 type OS interface {
 	open(name string) (OSFile, error)
 	appendFile(name string) (OSFile, error)
 	createIfMissing(name string) error
 }
 
-// OSFile interface mocks os.File
+// OSFile interface is a facade to os.File
 type OSFile interface {
 	io.Reader
 	io.Writer

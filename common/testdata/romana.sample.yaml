@@ -13,25 +13,33 @@ services:
       port: 9601
     config:
       store: 
-        type: sqlite3
-        database: ./ipam.sqlite3
+        type: mysql
+        database: ipam
+        host: localhost
+        username: root
+        password: password
   - service: tenant
     api:
       host: localhost
       port: 9602
     config:
       store: 
-        type: sqlite3
+        type: mysql
+        database: tenant
+        username: root
         host: localhost
-        database: ./tenant.sqlite3
+        password: password
   - service: topology
     api:
       host: localhost
       port: 9603
     config:
       store: 
-        type: sqlite3
-        database: ./topology.sqlite3
+        type: mysql
+        username: root
+        database: topology
+        host: localhost
+        password: password
       datacenter: 
         ip_version: 4
         cidr: 10.0.0.0/8
