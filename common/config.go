@@ -165,4 +165,3 @@ func WriteConfig(config Config, fname string) error {
 	}
 	return ioutil.WriteFile(fname, b, 0777)
 }
-

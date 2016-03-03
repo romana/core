@@ -20,7 +20,6 @@ package agent
 import (
 	"bufio"
 	"fmt"
-	"github.com/romana/core/common"
 	"log"
 	"net"
 	"os"
@@ -98,11 +97,12 @@ func (h Helper) isRouteExist(ip net.IP, netmask string) error {
 }
 
 // createRoute creates IP route, returns nil if success and error otherwise.
-func (h Helper) createRoute(ip net.IP, netmask string, via string, dest string) error {
+func (h Helper) createRoute(ip net.IP, netmask string, via string, dest string, extraArgs ...string) error {
 	log.Print("Helper: creating route")
 	cmd := "/sbin/ip"
 	targetIP := fmt.Sprintf("%s/%v", ip, netmask)
 	args := []string{"ro", "add", targetIP, via, dest}
+	args = append(args, extraArgs...)
 	if _, err := h.Executor.Exec(cmd, args); err != nil {
 		return shelloutError(err, cmd, args)
 	}
@@ -128,10 +128,8 @@ func (h Helper) ensureRouteToEndpoint(netif *NetIf) error {
 		via := "dev"
 		dest := netif.Name
 
-		if err := h.createRoute(netif.IP,
-			mask, via, dest); err != nil {
-
-			// Or report error
+		err := h.createRoute(netif.IP, mask, via, dest, "src", h.Agent.networkConfig.romanaGW.String())
+		if err != nil {
 			return netIfRouteCreateError(err, *netif)
 		}
 	}
@@ -205,23 +203,6 @@ func (h Helper) ensureLine(path string, token string) error {
 	return nil
 }
 
-// otherHosts builds array of hosts in the Romana setup other then
-// ourselves, for the purposes of routing mainly.
-func (h Helper) otherHosts() []common.HostMessage {
-	index := h.Agent.networkConfig.currentHostIndex
-	//	origin := h.Agent.config.PocConfig.DC.Leaves[0].Hosts
-	// Should this keep querying the REST service every time?
-	origin := h.Agent.networkConfig.hosts
-	if len(origin) == 1 {
-		return nil
-	}
-	others := make([]common.HostMessage, 0, len(origin)-1)
-	others = append(others, origin[:index]...)
-	others = append(others, origin[index+1:]...)
-	log.Printf("otherHosts(): Our host is %d out of %d, all hosts: %#v\n", index, len(origin), origin)
-	return others
-}
-
 // ensureInterHostRoutes ensures we have routes to every other host.
 func (h Helper) ensureInterHostRoutes() error {
 	log.Print("Acquiring mutex ensureInterhostRoutes")
@@ -232,26 +213,23 @@ func (h Helper) ensureInterHostRoutes() error {
 	}()
 	log.Print("Acquired mutex ensureInterhostRoutes")
 
-	otherHosts := h.otherHosts()
 	via := "via"
-	for j := range otherHosts {
-		romanaIP, romanaCidr, err := net.ParseCIDR(otherHosts[j].RomanaIp)
+	for _, host := range h.Agent.networkConfig.otherHosts {
+		romanaIP, romanaCidr, err := net.ParseCIDR(host.RomanaIp)
 		if err != nil {
-			return failedToParseOtherHosts(otherHosts[j].RomanaIp)
+			return failedToParseOtherHosts(host.RomanaIp)
 		}
-		//		romanaIP := romanaIP
 		romanaMaskInt, _ := romanaCidr.Mask.Size()
 		romanaMask := fmt.Sprintf("%d", romanaMaskInt)
-		dest := otherHosts[j].Ip
+		dest := host.Ip
 
 		// wait until no one messing with routes
 		// If route doesn't exist yet
-		if err := h.isRouteExist(romanaIP, romanaMask); err != nil {
+		if err := h.isRouteExist(romanaCidr.IP, romanaMask); err != nil {
 
 			// Create it
-			if err := h.createRoute(romanaIP, romanaMask, via, dest); err != nil {
-
-				// Or report error
+			err := h.createRoute(romanaIP, romanaMask, via, dest)
+			if err != nil {
 				return routeCreateError(err, romanaIP.String(), romanaMask, dest)
 			}
 		}
