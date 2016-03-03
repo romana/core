@@ -16,13 +16,14 @@
 package agent
 
 import (
-	//	"fmt"
-	//	"log"
 	"encoding/json"
 	"net"
 )
 
 const (
+	// Name of the option (see Options field in
+	// NetIf below) that specifies Kubernetes
+	// namespace isolation value (on/off).
 	namespaceIsolationOption = "namespace_isolation"
 )
 
@@ -30,8 +31,9 @@ const (
 // agent containing information on how to configure network
 // on its host.
 type NetworkRequest struct {
-	NetIf NetIf
-	Options map[string]string
+	NetIf NetIf `json:"net_if,omitempty"`
+	// TODO we should not need this tag
+	Options map[string]string `json:"options,omitempty"`
 }
 
 // NetIf is a structure that represents
@@ -40,7 +42,7 @@ type NetworkRequest struct {
 type NetIf struct {
 	Name string `form:"interface_name" json:"interface_name"`
 	Mac  string `form:"mac_address,omitempty" json:"interface_name,omitempty"`
-	IP  net.IP `form:"ip_address" json:"ip_address"`
+	IP   net.IP `form:"ip_address" json:"ip_address"`
 }
 
 // SetIP parses and sets the IP address of the interface.
@@ -53,7 +55,7 @@ func (netif *NetIf) SetIP(ip string) error {
 }
 
 // UnmarshalJSON results in having NetIf implement Unmarshaler
-// interface from encoding/json. This is needed because we use 
+// interface from encoding/json. This is needed because we use
 // a type like net.IP here, not a simple type, and so a call to
 // net.ParseIP is required to unmarshal this properly.
 func (netif *NetIf) UnmarshalJSON(data []byte) error {

@@ -167,7 +167,9 @@ func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 	log.Println("Agent: Entering k8sPodUpHandle()")
 	namespaceIsolation, err := common.ToBool(netReq.Options[namespaceIsolationOption])
 	if err != nil {
-		return agentErrorString(fmt.Sprintf("Invalid value in %s: %s", namespaceIsolation, err.Error()))
+		msg := fmt.Sprintf("Invalid value in %s: %s", namespaceIsolation, err.Error())
+		log.Println(msg)
+		return agentErrorString(msg)
 	}
 
 	netif := netReq.NetIf
@@ -175,13 +177,15 @@ func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 		// TODO should we resubmit failed interface in queue for later
 		// retry ? ... considering openstack will give up as well after
 		// timeout
-		return agentErrorString(fmt.Sprintf("Requested interface not available in time - %s", netif.Name))
+		msg := fmt.Sprintf("Requested interface not available in time - %s", netif.Name)
+		log.Println("Agent: ", msg)
+		return agentErrorString(msg)
 	}
 
 	// Ensure we have all the routes to our neighbours
 	log.Print("Agent: ensuring interhost routes exist")
 	if err := a.Helper.ensureInterHostRoutes(); err != nil {
-		log.Print(agentError(err))
+		log.Print("Agent: ", agentError(err))
 		return agentError(err)
 	}
 	log.Print("Agent: creating endpoint routes")
@@ -196,7 +200,7 @@ func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 		return agentError(err)
 	}
 
-	log.Print("All good", netif)
+	log.Print("Agent: All good", netif)
 	return nil
 }
 

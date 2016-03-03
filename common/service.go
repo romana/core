@@ -247,7 +247,8 @@ func (ln tcpKeepAliveListener) Accept() (c net.Conn, err error) {
 
 // ListenAndServe is same as http.ListenAndServe except it returns
 // the address that will be listened on (which is useful when using
-// arbitrary ports)
+// arbitrary ports).
+// See https://github.com/golang/go/blob/master/src/net/http/server.go
 func ListenAndServe(svr *http.Server) (*RestServiceInfo, error) {
 	if svr.Addr == "" {
 		svr.Addr = ":0"
@@ -265,7 +266,11 @@ func ListenAndServe(svr *http.Server) (*RestServiceInfo, error) {
 	go func() {
 		channel <- Starting
 		l.Printf("listening on %s (asked for %s) with configuration %v\n", realAddr, svr.Addr, svr)
-		l.Fatal(svr.Serve(tcpKeepAliveListener{ln.(*net.TCPListener)}))
+		err := svr.Serve(tcpKeepAliveListener{ln.(*net.TCPListener)})
+		if err != nil {
+			log.Println("RestService: Fatal error %v", err)
+			log.Fatal(err)
+		}
 	}()
 	return &RestServiceInfo{Address: realAddr, Channel: channel}, nil
 }
