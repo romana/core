@@ -451,7 +451,7 @@ func (fw *Firewall) deleteChains() error {
 							log.Printf("executing iptables -D %s %d: %s", curChain, ruleNo, string(out2))
 						}
 						if err != nil {
-							log.Printf("Deleting rule %d: %v", rleNo, err)
+							log.Printf("Deleting rule %d: %v", ruleNo, err)
 							return err
 						}
 						log.Printf("Deleting rule %d: OK", ruleNo)
