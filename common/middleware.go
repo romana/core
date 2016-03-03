@@ -230,7 +230,13 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 						} else {
 							log.Printf("Token from query string %s\n", token)
 						}
-						token = tokens[0]
+						if len(tokens) == 0 {
+							// Token was not sent, the caller does it at his own
+							// risk. There will be no idempotence.
+							token = "1"
+						} else {
+							token = tokens[0]
+						}
 					}
 				}
 			}

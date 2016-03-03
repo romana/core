@@ -171,8 +171,11 @@ func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 		log.Println(msg)
 		return agentErrorString(msg)
 	}
-
+	
 	netif := netReq.NetIf
+	if netif.Name == "" {
+		return agentErrorString("Agent: Interface name required")
+	}
 	if !a.Helper.waitForIface(netif.Name) {
 		// TODO should we resubmit failed interface in queue for later
 		// retry ? ... considering openstack will give up as well after

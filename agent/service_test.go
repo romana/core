@@ -20,8 +20,10 @@ import (
 	"fmt"
 	"github.com/romana/core/common"
 	"log"
+	"net"
 	"os"
 	"testing"
+	"time"
 )
 
 func startAgent(t *testing.T) {
@@ -50,11 +52,11 @@ func TestK8SHandler(t *testing.T) {
 	}
 	options := make(map[string]string)
 	options[namespaceIsolationOption] = "on"
-	netif := NetIf{}
+	netif := NetIf{Name: "veth0-17274", Mac: "de:ad:be:ef:00:00", IP: net.ParseIP("10.0.33.3")}
 	netif.SetIP("127.0.0.1")
 	nr := NetworkRequest{netif, options}
 	result := make(map[string]string)
 	restClient.Post("http://localhost:8899/kubernetes-pod-up", nr, &result)
 	log.Printf("Sent to agent %v, agent returned %v", nr, result)
-
+	time.Sleep(time.Hour)
 }
