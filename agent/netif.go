@@ -28,7 +28,7 @@ import (
 type NetIf struct {
 	Name string `form:"interface_name" json:"interface_name"`
 	Mac  string `form:"mac_address" json:"interface_name"`
-	IP  net.IP `form:"ip_address" json:"ip_address"`
+	IP   net.IP `form:"ip_address" json:"ip_address"`
 }
 
 // SetIP parses and sets the IP address of the interface.
@@ -41,7 +41,7 @@ func (netif *NetIf) SetIP(ip string) error {
 }
 
 // UnmarshalJSON results in having NetIf implement Unmarshaler
-// interface from encoding/json. This is needed because we use 
+// interface from encoding/json. This is needed because we use
 // a type like net.IP here, not a simple type, and so a call to
 // net.ParseIP is required to unmarshal this properly.
 func (netif *NetIf) UnmarshalJSON(data []byte) error {

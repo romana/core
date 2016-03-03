@@ -17,5 +17,4 @@
 package common
 
 type AuthBackend interface {
-	
 }
