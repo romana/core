@@ -126,9 +126,9 @@ def make_rules(addr_scheme, policy_def, policy_id):
 
     # This policy needs to be processed in the forward chain of both interfaces
     # that are involved.
-    target_segment_forward_chain = "pani-T%sS%s-FORWARD" % \
+    target_segment_forward_chain = "ROMANA-T%sS%s-FORWARD" % \
         (tenant, target_segment)
-    from_segment_forward_chain = "pani-T%sS%s-FORWARD" % \
+    from_segment_forward_chain = "ROMANA-T%sS%s-FORWARD" % \
         (tenant, from_segment)
 
     rules[target_segment_forward_chain] = [
