@@ -42,6 +42,7 @@ IPAM_TYPE="romana-ipam"
 
 # -- Helpers
 get_pod            () { while read line; do [[ ${line/=*/} == "K8S_POD_NAME" ]] && echo ${line/*=/} || :; done; }
+get_pod_ns         () { while read line; do [[ ${line/=*/} == "K8S_POD_NAMESPACE" ]] && echo ${line/*=/} || :; done; }
 get_tenant         () { while read line; do [[ ${line/=*/} == "owner" ]] && echo ${line/*=/} || :; done; }
 get_segment        () { while read line; do [[ ${line/=*/} == "tier" ]] && echo ${line/*=/} || :; done; }
 get_labels         () { awk '/Labels/ { print $2}' | xargs -d"," -n1 ; } 
@@ -137,14 +138,15 @@ set_up_pod () {
 	log "--- nspid = $NSPID ---"
 	POD=$(get_args | get_pod)
 	log "--- POD = $POD ---"
+	NAMESPACE=$(get_args | get_pod_ns)
+	log "--- NAMESPACE = $NAMESPACE ---"
+	KUBEARGS="$KUBEARGS --namespace=$NAMESPACE"
 	TENANT=$( $KUBECTL $KUBEARGS describe pod $POD | get_labels | get_tenant )
 	log "--- TENANT = $TENANT ---"
 	SEGMENT=$( $KUBECTL $KUBEARGS describe pod $POD | get_labels | get_segment )
 	log "--- SEGMENT = $SEGMENT ---"
 	NODE=$( $KUBECTL $KUBEARGS get pods -o wide | grep "$POD " | awk '{ print $6 }' )
 	log "--- NODE = $NODE ---"
-	NAMESPACE=$( $KUBECTL $KUBEARGS get pod $POD -o json | jq -r '.metadata.namespace' )
-	log "--- NAMESPACE = $NAMESPACE ---"
 	NS_ISOLATION=$( $KUBECTL $KUBEARGS get namespace $NAMESPACE -o json | jq -r '.metadata.annotations["net.alpha.kubernetes.io/network-isolation"]' )
 	[[ $NS_ISOLATION != "on" ]] && NS_ISOLATION="off"
 	log "--- NS_ISOLATION = $NS_ISOLATION ---"
@@ -167,6 +169,7 @@ set_up_pod () {
 	sudo nsenter -t ${NSPID} -n ip ro add 0.0.0.0/0 dev eth0
 	sudo ip link set "veth0-${NSPID}" up
 
+	log "$(req "veth0-${NSPID}" "$IP" "$NS_ISOLATION")"
 	# Romana agent does the rest (endpoint route and firewall)
 	curl -s -H 'content-type: application/json' -XPOST -d "$(req "veth0-${NSPID}" "$IP" "$NS_ISOLATION")" http://localhost:9604/kubernetes-pod-up 2>&1 >> $LOGFILE
 
