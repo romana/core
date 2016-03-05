@@ -5,14 +5,17 @@ services:
       port: 9600
     config:
       auth: no
-  - service: ipam
+      store: 
+        type: sqlite3
+        database: /var/tmp/auth.sqlite3
+> - service: ipam
     api:
       host: localhost
       port: 9601
     config:
       store: 
         type: sqlite3
-        database: /tmp/ipam.sqlite3
+        database: /var/tmp/ipam.sqlite3
   - service: tenant
     api:
       host: localhost
@@ -20,8 +23,7 @@ services:
     config:
       store: 
         type: sqlite3
-        host: localhost
-        database: /tmp/tenant.sqlite3
+       database: /var/tmp/tenant.sqlite3
   - service: topology
     api:
       host: localhost

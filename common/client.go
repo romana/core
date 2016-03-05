@@ -45,6 +45,7 @@ type RestClientConfig struct {
 	TimeoutMillis int64
 	Retries       int
 	Credential    Credential
+	TestMode      bool
 }
 
 func GetDefaultRestClientConfig() RestClientConfig {
@@ -174,23 +175,24 @@ func (rc *RestClient) modifyUrl(dest string, queryMod url.Values) error {
 
 // execMethod applies the specified method to the provided url (which is interpreted
 // as relative or absolute).
+// POST methods may not be idempotent, so for retry capability we will employ the following logic:
+// 1. If the provided structure (data) already has a field "RequestToken", that means the service
+//    is aware of this and is exposing RequestToken as a unique key to enable safe and idempotent
+//    retries. The service would do that if it does not have another way to ensure uniqueness. An
+//    example is IPAM service - a request for an IP address by itself does not necessarily have any
+//    inherent properties that can ensure its uniqueness, unlike a request to, say, add a host (which
+//    has an IP address). IPAM then uses RequestToken for that purpose.
+// 2. If the provided structure does not have that field, and the query does not either, we are going
+//    to generate a uuid and add it to the query as RequestToken=<UUID>. It will then be up to the service
+//    to ensure idempotence or not.
+
 func (rc *RestClient) execMethod(method string, dest string, data interface{}, result interface{}) error {
 	// TODO check if token expired, if yes, reauthenticate... But this needs
 	// more state here (knowledge of Root service by Rest client...)
 
 	var queryMod url.Values
 	queryMod = nil
-	// POST methods may not be idempotent, so for retry capability we will employ the following logic:
-	// 1. If the provided structure (data) already has a field "RequestToken", that means the service
-	//    is aware of this and is exposing RequestToken as a unique key to enable safe and idempotent
-	//    retries. The service would do that if it does not have another way to ensure uniqueness. An
-	//    example is IPAM service - a request for an IP address by itself does not necessarily have any
-	//    inherent properties that can ensure its uniqueness, unlike a request to, say, add a host (which
-	//    has an IP address). IPAM then uses RequestToken for that purpose.
-	// 2. If the provided structure does not have that field, and the query does not either, we are going
-	//    to generate a uuid and add it to the query as RequestToken=<UUID>. It will then be up to the service
-	//    to ensure idempotence or not.
-	if method == "POST" {
+	if method == "POST" && rc.config != nil && !rc.config.TestMode {
 		var token string
 		if data != nil {
 			// If the provided struct has the RequestToken field,
@@ -213,6 +215,13 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 	if err != nil {
 		return err
 	}
+
+	log.Printf("Scheme is %s, method is %s, test mode: %t", rc.url.Scheme, method, rc.config.TestMode)
+	if rc.url.Scheme == "file" && method == "POST" && rc.config.TestMode {
+		log.Printf("Attempt to POST to a file URL %s, in test mode will just return OK", rc.url)
+		return nil
+	}
+
 	var reqBodyReader *bytes.Reader
 	var reqBody []byte
 	if data != nil {

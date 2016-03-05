@@ -39,6 +39,12 @@ func NewError400(message string, request string) HttpError {
 	return NewError(http.StatusBadRequest, msg)
 }
 
+// NewError404 creates a 404 NOT FOUND message.
+func NewError404(resourceType string, resourceId string) HttpError {
+	msg := fmt.Sprintf("Resource '%s' at %s not found", resourceType, resourceId)
+	return NewError(http.StatusNotFound, msg)
+}
+
 // NewError helps to construct new Error structure.
 func NewError(code int, msg string) HttpError {
 	return HttpError{

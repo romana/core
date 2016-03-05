@@ -23,6 +23,7 @@ import (
 	"log"
 )
 
+
 // Api part of service configuration (host/port).
 type Api struct {
 	// Host to listen on.
@@ -36,6 +37,7 @@ type Api struct {
 	RestRetries       int   `yaml:"rest_retries,omitempty" json:"rest_retries,omitempty"`
 	// Location of the public key.
 	AuthPublic        string `yaml:"auth_public"`
+	RestTestMode      bool `yaml:"rest_test_mode,omitempty" json:"rest_test_mode,omitempty"`
 }
 
 func (api Api) GetHostPort() string {
@@ -167,4 +169,3 @@ func WriteConfig(config Config, fname string) error {
 	}
 	return ioutil.WriteFile(fname, b, 0777)
 }
-

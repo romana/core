@@ -29,7 +29,7 @@ type rootStore struct {
 
 // CreateSchemaPostProcess implements CreateSchemaPostProcess method of
 // Service interface.
-func (rootStore rootStore) CreateSchemaPostProcess() error {
+func (rootStore *rootStore) CreateSchemaPostProcess() error {
 	passwd, err := rootStore.GetPasswordFunction()
 	if err != nil {
 		return err
@@ -45,8 +45,8 @@ func (rootStore rootStore) CreateSchemaPostProcess() error {
 // Service interface.
 func (rootStore *rootStore) Entities() []interface{} {
 	retval := make([]interface{}, 2)
-	retval[0] = User{}
-	retval[1] = Role{}
+	retval[0] = &User{}
+	retval[1] = &Role{}
 	return retval
 }
 

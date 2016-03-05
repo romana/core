@@ -180,7 +180,7 @@ func (tsvc *TenantSvc) SetConfig(config common.ServiceConfig) error {
 	// From review:
 	// What's going on here? Why does ServicStore need a reference to the structure that contains it?
 	// Need a good way to document this (pattern or anti-pattern?)
-	tsvc.store.ServiceStore = tsvc.store
+	tsvc.store.ServiceStore = &tsvc.store
 	return tsvc.store.SetConfig(storeConfig)
 }
 

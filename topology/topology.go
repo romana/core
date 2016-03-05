@@ -197,7 +197,7 @@ func (topology *TopologySvc) SetConfig(config common.ServiceConfig) error {
 	topology.datacenter = &dc
 	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
 	topology.store = topoStore{}
-	topology.store.ServiceStore = topology.store
+	topology.store.ServiceStore = &topology.store
 	return topology.store.SetConfig(storeConfig)
 }
 
