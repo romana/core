@@ -6,40 +6,31 @@ services:
     config:
       store: 
         type: sqlite3
-        database: ./auth.sqlite3
+        database: /var/tmp/auth.sqlite3
   - service: ipam
     api:
       host: localhost
       port: 9601
     config:
       store: 
-        type: mysql
-        database: ipam
-        host: localhost
-        username: root
-        password: password
+        type: sqlite3
+        database: /var/tmp/ipam.sqlite3
   - service: tenant
     api:
       host: localhost
       port: 9602
     config:
       store: 
-        type: mysql
-        database: tenant
-        username: root
-        host: localhost
-        password: password
+        type: sqlite3
+        database: /var/tmp/tenant.sqlite3
   - service: topology
     api:
       host: localhost
       port: 9603
     config:
       store: 
-        type: mysql
-        username: root
-        database: topology
-        host: localhost
-        password: password
+        type: sqlite3
+        database: /var/tmp/topology.sqlite3
       datacenter: 
         ip_version: 4
         cidr: 10.0.0.0/8

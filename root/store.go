@@ -28,7 +28,7 @@ type rootStore struct {
 
 // CreateSchemaPostProcess implements CreateSchemaPostProcess method of
 // Service interface.
-func (rootStore rootStore) CreateSchemaPostProcess() error {
+func (rootStore *rootStore) CreateSchemaPostProcess() error {
 	passwd, err := rootStore.GetPasswordFunction()
 	if err != nil {
 		return err

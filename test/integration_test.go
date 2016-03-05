@@ -71,7 +71,7 @@ func (s *MySuite) SetUpTest(c *check.C) {
 	c.Log("Root service said:", msg)
 	c.Log("Waiting a bit...")
 	time.Sleep(time.Second)
-	c.Log("Creating topology schema with root URL", s.rootUrl)
+	c.Log("Creating topology schema with root URL ", s.rootUrl)
 
 	err = topology.CreateSchema(s.rootUrl, true)
 	if err != nil {
@@ -142,7 +142,7 @@ func (s *MySuite) TestIntegration(c *check.C) {
 	client.Get(hostsRelUrl, &hostList)
 	myLog(c, "Host list: ", hostList)
 	c.Assert(len(hostList), check.Equals, 0)
-	newHostReq := common.HostMessage{Ip: "10.10.10.10", RomanaIp: "10.64.0.0/16", AgentPort: 9999, Name: "HOST1000"}
+	newHostReq := common.HostMessage{Ip: "10.10.10.10", RomanaIp: "10.0.0.1/16", AgentPort: 9999, Name: "HOST1000"}
 
 	host1 := common.HostMessage{}
 	client.Post(hostsRelUrl, newHostReq, &host1)
@@ -150,7 +150,7 @@ func (s *MySuite) TestIntegration(c *check.C) {
 	c.Assert(host1.Ip, check.Equals, "10.10.10.10")
 	c.Assert(host1.Id, check.Equals, "1")
 	//
-	newHostReq = common.HostMessage{Ip: "10.10.10.11", RomanaIp: "10.65.0.0/16", AgentPort: 9999, Name: "HOST2000"}
+	newHostReq = common.HostMessage{Ip: "10.10.10.11", RomanaIp: "10.0.0.2/16", AgentPort: 9999, Name: "HOST2000"}
 	host2 := common.HostMessage{}
 	client.Post(hostsRelUrl, newHostReq, &host2)
 	myLog(c, "Response: ", host2)

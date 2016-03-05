@@ -16,12 +16,13 @@
 package common
 
 import (
+	"errors"
+	"fmt"
 	"log"
 	"strings"
-	"fmt"
-	"errors"
+	"os"
+	"bufio"
 )
-
 
 // toBool is a convenience function that's like ParseBool
 // but allows also "on"/"off" values.
@@ -58,6 +59,12 @@ func ToBool(val string) (bool, error) {
 		return false, nil
 	}
 	return false, errors.New(fmt.Sprintf("Cannot convert %s to boolean", val))
+}
+
+func PressEnterToContinue() {
+	fmt.Println("Press ENTER to continue")
+	scanner := bufio.NewScanner(os.Stdin)
+	scanner.Scan()
 }
 
 // MockPortsInConfig will take the config file specified
