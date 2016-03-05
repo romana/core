@@ -268,7 +268,7 @@ func ListenAndServe(svr *http.Server) (*RestServiceInfo, error) {
 		l.Printf("listening on %s (asked for %s) with configuration %v\n", realAddr, svr.Addr, svr)
 		err := svr.Serve(tcpKeepAliveListener{ln.(*net.TCPListener)})
 		if err != nil {
-			log.Println("RestService: Fatal error %v", err)
+			log.Printf("RestService: Fatal error %v", err)
 			log.Fatal(err)
 		}
 	}()

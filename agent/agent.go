@@ -45,7 +45,7 @@ type Agent struct {
 	Helper *Helper
 
 	waitForIfaceTry int
-	
+
 	// Whether this is running in test mode.
 	testMode bool
 }
@@ -86,7 +86,6 @@ func (a *Agent) Routes() common.Routes {
 			// TODO this is for the future so we ensure idempotence.
 			UseRequestToken: true,
 		},
-		
 	}
 	return routes
 }
@@ -96,7 +95,7 @@ func Run(rootServiceURL string, testMode bool) (*common.RestServiceInfo, error) 
 	clientConfig := common.GetDefaultRestClientConfig()
 	clientConfig.TestMode = testMode
 	client, err := common.NewRestClient("", clientConfig)
-	
+
 	if err != nil {
 		return nil, err
 	}
@@ -171,8 +170,8 @@ func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 		log.Println(msg)
 		return agentErrorString(msg)
 	}
-	
-	log.Printf("Isolation is %t",namespaceIsolationOption)
+
+	log.Printf("Isolation is %t", namespaceIsolation)
 	netif := netReq.NetIf
 	if netif.Name == "" {
 		return agentErrorString("Agent: Interface name required")
