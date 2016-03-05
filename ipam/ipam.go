@@ -254,7 +254,7 @@ func (ipam *IPAMSvc) SetConfig(config common.ServiceConfig) error {
 	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
 	log.Printf("IPAM port: %d", config.Common.Api.Port)
 	ipam.store = ipamStore{}
-	ipam.store.ServiceStore = ipam.store
+	ipam.store.ServiceStore = &ipam.store
 	return ipam.store.SetConfig(storeConfig)
 
 }

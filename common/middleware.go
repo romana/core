@@ -41,7 +41,7 @@ type RestContext struct {
 	// QueryVariables stores key-value-list map of query variables, see url.Values
 	// for more details.
 	QueryVariables url.Values
-
+	// Unique identifier for a request.
 	RequestToken string
 }
 
@@ -88,7 +88,10 @@ type Route struct {
 	// this route expects as an input.
 	MakeMessage MakeMessage
 
-	//
+	// Whether this route is using a request token. If true, the
+	// request token will be parsed out of the request and made
+	// available in RestContext. It can then
+	// used by the handler to achieve idempotence.
 	UseRequestToken bool
 }
 
@@ -227,7 +230,13 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 						} else {
 							log.Printf("Token from query string %s\n", token)
 						}
-						token = tokens[0]
+						if len(tokens) == 0 {
+							// Token was not sent, the caller does it at his own
+							// risk. There will be no idempotence.
+							token = "1"
+						} else {
+							token = tokens[0]
+						}
 					}
 				}
 			}
@@ -246,7 +255,6 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 					return
 				}
 			} else {
-				log.Printf("HEYHEYHEY %v\n", err)
 				switch err := err.(type) {
 				case HttpError:
 					writer.WriteHeader(err.StatusCode)

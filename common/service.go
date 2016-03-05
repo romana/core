@@ -32,6 +32,45 @@ import (
 	"time"
 )
 
+// ServiceUtils represents functionality common to various services.
+// One example of such functionality is asynchronous processing -- 
+// a service can accept a request for creation of an object and return a
+// 202 ACCEPTED, creating an entry that can be queried for status.
+type ServiceUtils struct {
+	// ResourceIdToStatus is a maps request ID
+	// to status. A request ID can be a RequestToken if required,
+	// or a resource ID. In general the idea is that this is used
+	// in conjunction with RequestToken.
+	// See also
+	// - Route.UseRequestToken
+	// - RestContext.RequestToken
+	RequestIdToStatus map[string]interface{}
+
+	// RequestIdToTimestamp maps request ID (for more information
+	// on what that is see RequestIdToStatus) to the timestamp
+	// of the original request. It will later be used for things
+	// such as possible expiration, etc., but for now it's just a
+	// placeholder.
+	RequestIdToTimestamp map[string]int64
+}
+
+// AddStatus adds a status of a request
+func (su ServiceUtils) AddStatus(requestId string, value interface{}) {
+	su.RequestIdToStatus[requestId] = value
+	ts := time.Now().Unix()
+	su.RequestIdToTimestamp[requestId] = ts
+}
+
+// GetStatus gets the status of the request or returns an common.HttpError (404) 
+// if not found.
+func (su ServiceUtils) GetStatus(resourceType string, requestId string) (interface{}, error) {
+	val := su.RequestIdToStatus[requestId]
+	if val == nil {
+		return nil, NewError404(resourceType, requestId)
+	}
+	return val, nil
+}
+
 type Links []LinkResponse
 
 // FindByRel finds the path (href) for a link based on its
@@ -92,6 +131,7 @@ type Service interface {
 // service. Messages are of type ServiceMessage above.
 // It can be used for launching service from tests, etc.
 func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo, error) {
+	log.Printf("Initializing service %s with %v", service.Name(), config.Common.Api)
 	err := service.SetConfig(config)
 	if err != nil {
 		return nil, err
@@ -125,10 +165,10 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 	var dur time.Duration
 	var readWriteDur time.Duration
 	if timeoutMillis <= 0 {
+		log.Printf("%s: Invalid timeout %d, defaulting to %d\n", service.Name(), timeoutMillis, DefaultRestTimeout)
 		timeoutMillis = DefaultRestTimeout
 		dur = DefaultRestTimeout * time.Millisecond
 		readWriteDur = (DefaultRestTimeout + ReadWriteTimeoutDelta) * time.Millisecond
-		log.Printf("%s: Invalid timeout %d, defaulting to %d\n", service.Name(), timeoutMillis, dur)
 	} else {
 		timeoutStr := fmt.Sprintf("%dms", timeoutMillis)
 		dur, _ = time.ParseDuration(timeoutStr)
@@ -161,8 +201,9 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 			if retries <= 0 {
 				retries = DefaultRestRetries
 			}
-			config := RestClientConfig{TimeoutMillis: timeoutMillis, Retries: retries}
-			client, err := NewRestClient("", config)
+			clientConfig := RestClientConfig{TimeoutMillis: timeoutMillis, Retries: retries, TestMode: config.Common.Api.RestTestMode}
+			log.Printf("InitializeService() : Initializing Rest client with %v", clientConfig)
+			client, err := NewRestClient("", clientConfig)
 			if err != nil {
 				return svcInfo, err
 			}
@@ -206,7 +247,8 @@ func (ln tcpKeepAliveListener) Accept() (c net.Conn, err error) {
 
 // ListenAndServe is same as http.ListenAndServe except it returns
 // the address that will be listened on (which is useful when using
-// arbitrary ports)
+// arbitrary ports).
+// See https://github.com/golang/go/blob/master/src/net/http/server.go
 func ListenAndServe(svr *http.Server) (*RestServiceInfo, error) {
 	if svr.Addr == "" {
 		svr.Addr = ":0"
@@ -224,7 +266,11 @@ func ListenAndServe(svr *http.Server) (*RestServiceInfo, error) {
 	go func() {
 		channel <- Starting
 		l.Printf("listening on %s (asked for %s) with configuration %v\n", realAddr, svr.Addr, svr)
-		l.Fatal(svr.Serve(tcpKeepAliveListener{ln.(*net.TCPListener)}))
+		err := svr.Serve(tcpKeepAliveListener{ln.(*net.TCPListener)})
+		if err != nil {
+			log.Printf("RestService: Fatal error %v", err)
+			log.Fatal(err)
+		}
 	}()
 	return &RestServiceInfo{Address: realAddr, Channel: channel}, nil
 }

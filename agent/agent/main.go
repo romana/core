@@ -38,7 +38,7 @@ func main() {
 		fmt.Println("Must specify rootUrl.")
 		return
 	}
-	svcInfo, err := agent.Run(*rootURL)
+	svcInfo, err := agent.Run(*rootURL, false)
 	if err != nil {
 		panic(err)
 	}

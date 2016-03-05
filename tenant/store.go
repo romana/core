@@ -30,10 +30,10 @@ type tenantStore struct {
 
 // Entities implements Entities method of
 // Service interface.
-func (tenantStore tenantStore) Entities() []interface{} {
+func (tenantStore *tenantStore) Entities() []interface{} {
 	retval := make([]interface{}, 2)
-	retval[0] = Tenant{}
-	retval[1] = Segment{}
+	retval[0] = &Tenant{}
+	retval[1] = &Segment{}
 	return retval
 }
 
@@ -161,7 +161,7 @@ func (tenantStore *tenantStore) addSegment(tenantId uint64, segment *Segment) er
 
 // CreateSchemaPostProcess implements CreateSchemaPostProcess method of
 // Service interface.
-func (tenantStore tenantStore) CreateSchemaPostProcess() error {
+func (tenantStore *tenantStore) CreateSchemaPostProcess() error {
 	return nil
 }
 

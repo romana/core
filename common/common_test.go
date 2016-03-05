@@ -70,6 +70,26 @@ func refute2(t *testing.T, msg string, a interface{}, b interface{}) {
 	}
 }
 
+func TestToBool(t *testing.T) {
+	yeses := []string{"YES", "y", "On", "1", "tRuE", "t"}
+	nos := []string{"NO", "n", "Off", "0", "fALse", "f"}
+	for i := range yeses {
+		b, e := ToBool(yeses[i])
+		if e != nil {
+			t.Error(e)
+		}
+		expect(t, b, true)
+	}
+	for i := range nos {
+		b, e := ToBool(nos[i])
+		if e != nil {
+			t.Error(e)
+		}
+		expect(t, b, false)
+	}
+
+}
+
 // TestClientNoHost just tests that we don't hang forever
 // when there is no host.
 // TODO

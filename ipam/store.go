@@ -93,15 +93,17 @@ func getEffectiveSeq(vmSeq uint64, stride uint) uint64 {
 }
 
 // Entities implements Entities method of Service interface.
-func (ipamStore ipamStore) Entities() []interface{} {
+func (ipamStore *ipamStore) Entities() []interface{} {
 	retval := make([]interface{}, 1)
-	retval[0] = IpamVm{}
+	retval[0] = &IpamVm{}
 	return retval
 }
 
 // CreateSchemaPostProcess implements CreateSchemaPostProcess method of
 // Service interface.
-func (ipamStore ipamStore) CreateSchemaPostProcess() error {
-	ipamStore.Db.Model(&IpamVm{}).AddUniqueIndex("idx_segment_host_seq", "segment_id", "host_id", "seq")
+func (ipamStore *ipamStore) CreateSchemaPostProcess() error {
+	db := ipamStore.Db
+	log.Printf("ipamStore.CreateSchemaPostProcess(), DB is %v", db)
+	db.Model(&IpamVm{}).AddUniqueIndex("idx_segment_host_seq", "segment_id", "host_id", "seq")
 	return nil
 }

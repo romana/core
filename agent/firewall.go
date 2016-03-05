@@ -46,6 +46,9 @@ const (
 	inputChainIndex       = 0
 	outputChainIndex      = 1
 	forwardChainIndex     = 2
+
+	targetDrop   = "DROP"
+	targetAccept = "ACCEPT"
 )
 
 // Firewall describes state of firewall rules for the given endpoint.
@@ -136,10 +139,11 @@ func (fw *Firewall) Init(netif NetIf) error {
 func (fw *Firewall) isChainExist(chain int) bool {
 	cmd := "/sbin/iptables"
 	args := []string{"-L", fw.chains[chain].chainName}
-	_, err := fw.Agent.Helper.Executor.Exec(cmd, args)
+	output, err := fw.Agent.Helper.Executor.Exec(cmd, args)
 	if err != nil {
 		return false
 	}
+	log.Printf("isChainExist(): iptables -L %s returned %s", fw.chains[chain].chainName, string(output))
 	return true
 }
 
@@ -262,13 +266,19 @@ func (fw *Firewall) CreateU32Rules(chain int) error {
 // CreateDefaultDropRule creates iptables rules to drop all unidentified traffic
 // in the given chain
 func (fw *Firewall) CreateDefaultDropRule(chain int) error {
-	log.Print("Creating default drop rules for chain", chain)
+	return fw.CreateDefaultRule(chain, targetDrop)
+}
+
+// CreateDefaultRule creates iptables rule for a chain with the
+// specified target
+func (fw *Firewall) CreateDefaultRule(chain int, target string) error {
+	log.Printf("Creating default %s rules for chain %d", target, chain)
 	chainName := fw.chains[chain].chainName
 	cmd := "/sbin/iptables"
-	args := []string{"-A", chainName, "-j", "DROP"}
+	args := []string{"-A", chainName, "-j", target}
 	_, err := fw.Agent.Helper.Executor.Exec(cmd, args)
 	if err != nil {
-		log.Print("Creating default drop rules failed")
+		log.Printf("Creating default %s rules failed", target)
 		return err
 	}
 	log.Print("Creating default drop rules success")
@@ -389,6 +399,162 @@ func (fw *Firewall) extractTenantID(addr uint64) uint64 {
 	return tid
 }
 
+func (fw *Firewall) deleteChains() error {
+	errStr := ""
+	cmd := "/sbin/iptables"
+
+	// Save our chains here...
+	chainMap := make(map[string]string)
+	for chain := range fw.chains {
+		chainName := fw.chains[chain].chainName
+		chainMap[chainName] = chainName
+	}
+
+	output, err := fw.Agent.Helper.Executor.Exec(cmd, []string{"-L"})
+	if err != nil {
+		return err
+	}
+	// Parse output of iptables listing
+	lines := strings.Split(string(output), "\n")
+	curChain := ""
+	skipLine := false
+	ruleCnt := 0
+	curRules := make([]int, 0)
+	for lineNo, line := range lines {
+		if skipLine {
+			skipLine = false
+			continue
+		}
+		line = strings.TrimSpace(line)
+		// Skip an empty line
+		if line == "" {
+			continue
+		}
+		words := strings.Split(line, " ")
+		if len(words) == 0 {
+			continue
+		}
+		if words[0] == "Chain" {
+			// Entering a new chain
+			if curChain != "" {
+				// We may have rules to delete from the previously processed chain.
+				if len(curRules) > 0 {
+					log.Printf("Process %d rules to delete for chain %s: %v", len(curRules), curChain, curRules)
+					// Delete rules in reverse order (so that we don't change rule number
+					// on the fly)
+					for i := len(curRules) - 1; i >= 0; i-- {
+						ruleNo := curRules[i]
+						ruleNoStr := strconv.Itoa(ruleNo)
+						args := []string{"-D", curChain, ruleNoStr}
+						out2, err := fw.Agent.Helper.Executor.Exec(cmd, args)
+						if len(out2) > 0 {
+							log.Printf("executing iptables -D %s %d: %s", curChain, ruleNo, string(out2))
+						}
+						if err != nil {
+							log.Printf("Deleting rule %d: %v", ruleNo, err)
+							return err
+						}
+						log.Printf("Deleting rule %d: OK", ruleNo)
+					}
+					curRules = make([]int, 0)
+					ruleCnt = 0
+				}
+			}
+			curChain = words[1]
+			ruleCnt = 0
+			curRules = make([]int, 0)
+			if chainMap[curChain] == curChain {
+				log.Printf("Chain %s is ours, skipping for now...", curChain)
+				continue
+			}
+			log.Printf("Entering chain %s on line %d", curChain, lineNo)
+			skipLine = true
+			continue
+		}
+
+		refChain := words[0]
+		ruleCnt++
+
+		if chainMap[refChain] == refChain {
+			log.Printf("Chain %s refers to our chain %s in rule %d (line %d), adding to removal list", curChain, refChain, ruleCnt, lineNo)
+			curRules = append(curRules, ruleCnt)
+		}
+	}
+
+	for chain := range fw.chains {
+		chainName := fw.chains[chain].chainName
+		if !fw.isChainExist(chain) {
+			log.Printf("Chain %d: %s does not really exist.", chain, chainName)
+			continue
+		}
+		log.Printf("Deleting chain %d (%s)", chain, chainName)
+		args := []string{"-F", chainName}
+		out, err := fw.Agent.Helper.Executor.Exec(cmd, args)
+		if len(out) > 0 {
+			log.Printf("iptables -F said %s", string(out))
+		}
+		if err != nil {
+			errStr += fmt.Sprintf("Error executing iptables --flush %s: %v. ", chainName, err)
+			continue
+		}
+
+		args = []string{"-X", chainName}
+		out, err = fw.Agent.Helper.Executor.Exec(cmd, args)
+		if len(out) > 0 {
+			log.Printf("iptables -X %s said %s", chainName, string(out))
+		}
+		if err != nil {
+			errStr += fmt.Sprintf("Error executing iptables -X %s: %v. ", chainName, err)
+
+		}
+	}
+	if errStr == "" {
+		return nil
+	}
+	return agentErrorString(errStr)
+}
+
+// provisionFirewallRules provisions rules for a new pod in Kubernetes.
+// Depending on the fullIsolation flag, the rule is specified to either
+// DROP or ALLOW all traffic.
+func provisionK8SFirewallRules(netReq NetworkRequest, agent *Agent, namespaceIsolation bool) error {
+	log.Print("Firewall: Initializing")
+	fw, err := NewFirewall(netReq.NetIf, agent)
+	if err != nil {
+		log.Fatal("Failed to initialize firewall ", err)
+	}
+
+	err = fw.deleteChains()
+	if err != nil {
+		return err
+	}
+	missingChains := fw.detectMissingChains()
+	log.Print("Firewall: creating chains")
+	err = fw.CreateChains(missingChains)
+	if err != nil {
+		return err
+	}
+	var target string
+	for chain := range fw.chains {
+		if namespaceIsolation {
+			target = targetDrop
+		} else {
+			target = targetAccept
+		}
+		if err := fw.CreateDefaultRule(chain, target); err != nil {
+			return err
+		}
+	}
+
+	for chain := range fw.chains {
+		if err := fw.DivertTrafficToRomanaIptablesChain(chain); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // provisionFirewallRules orchestrates Firewall to satisfy request
 // to provision new endpoint.
 // Creates per-tenant, per-segment iptables chains, diverts
@@ -407,7 +573,7 @@ func provisionFirewallRules(netif NetIf, agent *Agent) error {
 	if err != nil {
 		return err
 	}
-	for _, chain := range missingChains {
+	for chain := range missingChains {
 		if err := fw.CreateRules(chain); err != nil {
 			return err
 		}

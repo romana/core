@@ -103,7 +103,7 @@ func (a Agent) identifyCurrentHost() error {
 		return err
 	}
 
-	log.Println("Searching", len(addrs), "interfaces for a matching host configuration")
+	log.Printf("Searching %d interfaces for a matching host configuration: %v", len(addrs), addrs)
 
 	// Find an interface that matches a Romana CIDR
 	// and store that interface's IP address.

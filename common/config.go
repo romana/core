@@ -23,6 +23,7 @@ import (
 	"log"
 )
 
+
 // Api part of service configuration (host/port).
 type Api struct {
 	// Host to listen on.
@@ -34,6 +35,7 @@ type Api struct {
 	// Rest timeout in milliseconds (if omitted, defaults to DefaultRestTimeout)
 	RestTimeoutMillis int64 `yaml:"rest_timeout_millis,omitempty" json:"rest_timeout_millis,omitempty"`
 	RestRetries       int   `yaml:"rest_retries,omitempty" json:"rest_retries,omitempty"`
+	RestTestMode      bool `yaml:"rest_test_mode,omitempty" json:"rest_test_mode,omitempty"`
 }
 
 func (api Api) GetHostPort() string {
