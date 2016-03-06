@@ -141,9 +141,10 @@ set_up_pod () {
 	NAMESPACE=$(get_args | get_pod_ns)
 	log "--- NAMESPACE = $NAMESPACE ---"
 	KUBEARGS="$KUBEARGS --namespace=$NAMESPACE"
-	TENANT=$( $KUBECTL $KUBEARGS describe pod $POD | get_labels | get_tenant )
-	log "--- TENANT = $TENANT ---"
+#	TENANT=$( $KUBECTL $KUBEARGS describe pod $POD | get_labels | get_tenant )
+#	log "--- TENANT = $TENANT ---"
 	SEGMENT=$( $KUBECTL $KUBEARGS describe pod $POD | get_labels | get_segment )
+	[[ $SEGMENT ]] || SEGMENT="default"
 	log "--- SEGMENT = $SEGMENT ---"
 	NODE=$( $KUBECTL $KUBEARGS get pods -o wide | grep "$POD " | awk '{ print $6 }' )
 	log "--- NODE = $NODE ---"
@@ -154,9 +155,9 @@ set_up_pod () {
 	# Asking romana ipam for an IP address, based on `tenant` label.
 	log "--- PRE-IPAM ---"
 	[[ $SEGMENT ]] || SEGMENT=default
-	IP=$(ipam_allocate_ip $TENANT $SEGMENT $NODE)
+	IP=$(ipam_allocate_ip $NAMESPACE $SEGMENT $NODE)
 	log "--- POST-IPAM IP=$IP---"
-	[[ $IP ]] || die "Failed to allocate IP address for pod $POD on node $NODE with tenant $TENANT" 2
+	[[ $IP ]] || die "Failed to allocate IP address for pod $POD on node $NODE with tenant $NAMESPACE" 2
 
 	# Setting up the networking for Infra namespace
 	sudo ip link add type veth
@@ -174,7 +175,7 @@ set_up_pod () {
 	curl -s -H 'content-type: application/json' -XPOST -d "$(req "veth0-${NSPID}" "$IP" "$NS_ISOLATION")" http://localhost:9604/kubernetes-pod-up 2>&1 >> $LOGFILE
 
 	log "$(req "veth0-${NSPID}" "$IP" "$NS_ISOLATION")"
-	log "--- Setup with infra pod = $POD pid = $PID, PEERIFx = $PEERIFx, PEERIFn=$PEERIFn, TENANT=$TENANT, NODE=$NODE, IP=$IP"
+	log "--- Setup with infra pod = $POD pid = $PID, PEERIFx = $PEERIFx, PEERIFn=$PEERIFn, TENANT=$NAMESPACE, NODE=$NODE, IP=$IP"
 	R=$(result "$IP" "$GATE_MASK")
 	log "$R"
 
