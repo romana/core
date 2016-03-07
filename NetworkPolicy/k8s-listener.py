@@ -344,10 +344,10 @@ def parse_rule_specs(obj):
     """
     try:
         rule = {}
-        rule["src_tenant"] = obj["object"]["metadata"]["labels"]["owner"]
+        rule["src_tenant"] = obj["object"]["metadata"]["namespace"]
         rule["dst_tenant"] = rule["src_tenant"]
-        rule["dst_segment"] = obj["object"]["spec"]["podSelector"]["tier"]
-        rule["src_segment"] = obj["object"]["spec"]["allowIncoming"]["from"][0]["pods"]["tier"]
+        rule["dst_segment"] = obj["object"]["spec"]["podSelector"]["segment"]
+        rule["src_segment"] = obj["object"]["spec"]["allowIncoming"]["from"][0]["pods"]["segment"]
         rule["port"] = obj["object"]["spec"]["allowIncoming"]["toPorts"][0]["port"]
         rule["protocol"] = obj["object"]["spec"]["allowIncoming"]["toPorts"][0]["protocol"]
         return rule
