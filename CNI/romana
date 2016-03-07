@@ -44,7 +44,7 @@ IPAM_TYPE="romana-ipam"
 get_pod            () { while read line; do [[ ${line/=*/} == "K8S_POD_NAME" ]] && echo ${line/*=/} || :; done; }
 get_pod_ns         () { while read line; do [[ ${line/=*/} == "K8S_POD_NAMESPACE" ]] && echo ${line/*=/} || :; done; }
 get_tenant         () { while read line; do [[ ${line/=*/} == "owner" ]] && echo ${line/*=/} || :; done; }
-get_segment        () { while read line; do [[ ${line/=*/} == "tier" ]] && echo ${line/*=/} || :; done; }
+get_segment        () { while read line; do [[ ${line/=*/} == "segment" ]] && echo ${line/*=/} || :; done; }
 get_labels         () { awk '/Labels/ { print $2}' | xargs -d"," -n1 ; } 
 get_json_kv        () { sed 's/["{}]//g' | xargs -d "," -n1; }
 get_ip             () { while read line; do [[ ${line/:*/} == "ip" ]] && echo ${line/*:/} || :; done; }
