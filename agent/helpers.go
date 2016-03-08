@@ -215,7 +215,7 @@ func (h Helper) ensureInterHostRoutes() error {
 
 	via := "via"
 	for _, host := range h.Agent.networkConfig.otherHosts {
-		romanaIP, romanaCidr, err := net.ParseCIDR(host.RomanaIp)
+		_, romanaCidr, err := net.ParseCIDR(host.RomanaIp)
 		if err != nil {
 			return failedToParseOtherHosts(host.RomanaIp)
 		}
@@ -228,9 +228,9 @@ func (h Helper) ensureInterHostRoutes() error {
 		if err := h.isRouteExist(romanaCidr.IP, romanaMask); err != nil {
 
 			// Create it
-			err := h.createRoute(romanaIP, romanaMask, via, dest)
+			err := h.createRoute(romanaCidr.IP, romanaMask, via, dest)
 			if err != nil {
-				return routeCreateError(err, romanaIP.String(), romanaMask, dest)
+				return routeCreateError(err, romanaCidr.IP.String(), romanaMask, dest)
 			}
 		}
 	}
