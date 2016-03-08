@@ -25,6 +25,7 @@ import (
 	"github.com/romana/core/root"
 	"github.com/romana/core/tenant"
 	"github.com/romana/core/topology"
+	"database/sql"
 	"os"
 	"time"
 	//	"reflect"
@@ -264,7 +265,7 @@ func (s *MySuite) TestIntegration(c *check.C) {
 	// Get first IP
 	myLog(c, "Get first IP")
 
-	vmIn := ipam.Vm{Name: "vm1", TenantId: fmt.Sprintf("%d", tOut.Id), SegmentId: fmt.Sprintf("%d", sOut.Id), HostId: host2.Id, RequestToken: "ttt"}
+	vmIn := ipam.Vm{Name: "vm1", TenantId: fmt.Sprintf("%d", tOut.Id), SegmentId: fmt.Sprintf("%d", sOut.Id), HostId: host2.Id, RequestToken: sql.NullString{String:"ttt", Valid: true}}
 	vmOut := ipam.Vm{}
 	err = client.Post("/vms", vmIn, &vmOut)
 	if err != nil {

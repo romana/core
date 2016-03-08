@@ -215,7 +215,7 @@ func createSchemaSqlite3(dbStore *DbStore, force bool) error {
 	schemaName := dbStore.Config.Database
 	if force {
 		finfo, err := os.Stat(schemaName)
-exist := finfo != nil || os.IsExist(err)
+		exist := finfo != nil || os.IsExist(err)
 		log.Printf("Before attempting to drop %s, exists: %t, stat: [%v] ... [%v]", schemaName, exist, finfo, err)
 		if exist {
 			err = os.Remove(schemaName)
@@ -269,6 +269,10 @@ func createSchemaMysql(dbStore *DbStore, force bool) error {
 
 	sql = fmt.Sprintf("CREATE DATABASE %s", schemaName)
 	db.Exec(sql)
+	err = MakeMultiError(db.GetErrors())
+	if err != nil {
+		return err
+	}
 
 	dbStore.Config.Database = schemaName
 	err = dbStore.Connect()
@@ -280,15 +284,12 @@ func createSchemaMysql(dbStore *DbStore, force bool) error {
 
 	for i := range entities {
 		entity := entities[i]
-		db.CreateTable(entity)
+		dbStore.Db.CreateTable(entity)
 	}
 
-	errs := db.GetErrors()
-	log.Println("Errors", errs)
-	err2 := MakeMultiError(errs)
-
-	if err2 != nil {
-		return err2
+	err = MakeMultiError(dbStore.Db.GetErrors())
+	if err != nil {
+		return err
 	}
 	return dbStore.ServiceStore.CreateSchemaPostProcess()
 }
