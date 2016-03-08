@@ -166,7 +166,7 @@ func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 	log.Println("Agent: Entering k8sPodUpHandle()")
 	namespaceIsolation, err := common.ToBool(netReq.Options[namespaceIsolationOption])
 	if err != nil {
-		msg := fmt.Sprintf("Invalid value in %s: %s", namespaceIsolation, err.Error())
+		msg := fmt.Sprintf("Invalid value in %s: %s", namespaceIsolationOption, err.Error())
 		log.Println(msg)
 		return agentErrorString(msg)
 	}
