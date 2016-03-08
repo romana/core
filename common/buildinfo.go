@@ -38,6 +38,7 @@ import (
 var buildInfo = "No Build Information Provided"
 var buildTimeStamp = "No Build Time Provided"
 
+// BuildInfo return build revision and time string.
 func BuildInfo() string {
 	return fmt.Sprintf("Build Revision: %s\nBuild Time: %s", buildInfo, buildTimeStamp)
 }

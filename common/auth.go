@@ -13,8 +13,9 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Code related to authentication.
+// Package common authentication related code.
 package common
 
+// AuthBackend interface for auth realted stuff.
 type AuthBackend interface {
 }

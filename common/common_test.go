@@ -123,13 +123,13 @@ func TestClientNoHost(t *testing.T) {
 	log.Println("Done")
 }
 
-// timeoutingHttpServer mocks up an HTTP server that sleeps a
+// timeoutingHTTPServer mocks up an HTTP server that sleeps a
 // specified number of milliseconds before returning a response.
-type timeoutingHttpServer struct{}
+type timeoutingHTTPServer struct{}
 
 // ServeHTTP is the method to conform to Handler interface
-// for timeoutingHttpServer.
-func (s timeoutingHttpServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+// for timeoutingHTTPServer.
+func (s timeoutingHTTPServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	req.ParseForm()
 	tStr := string(req.Form.Get("t"))
 	log.Printf("Parsing duration %s\n", tStr)
@@ -318,7 +318,7 @@ func doTestTimeout(timeout int, t *testing.T) {
 	s := &http.Server{
 		// Arbitrary post
 		Addr:         ":0",
-		Handler:      timeoutingHttpServer{},
+		Handler:      timeoutingHTTPServer{},
 		ReadTimeout:  100 * time.Millisecond,
 		WriteTimeout: 100 * time.Millisecond,
 	}

@@ -419,7 +419,7 @@ func (fw *Firewall) deleteChains() error {
 	curChain := ""
 	skipLine := false
 	ruleCnt := 0
-	curRules := make([]int, 0)
+	var curRules []int
 	for lineNo, line := range lines {
 		if skipLine {
 			skipLine = false
