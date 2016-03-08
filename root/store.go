@@ -17,14 +17,14 @@ package root
 import (
 	"fmt"
 	//	"github.com/jinzhu/gorm"
-
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/romana/core/common"
+	"log"
 )
 
 type rootStore struct {
 	common.DbStore
-	root Root
+	isAuthEnabled bool
 }
 
 // CreateSchemaPostProcess implements CreateSchemaPostProcess method of
@@ -65,17 +65,21 @@ type Role struct {
 // Authenticate returns a list of roles this credential
 // has or an error if cannot authenticate.
 func (rootStore *rootStore) Authenticate(cred common.Credential) ([]common.Role, error) {
-	rootServiceConfig := rootStore.root.config.full.Services[rootStore.root.Name()]
-	if rootServiceConfig.ServiceSpecific["auth"] != "yes" {
+
+	if !rootStore.isAuthEnabled {
 		log.Println("Authentication is disabled")
 		return nil, nil
 	} else {
 		log.Println("Authentication is enabled")
 		gormDb := rootStore.DbStore.Db
-		whereClause = fmt.Sprintf("username = ? AND password = %s", rootStore.DbStore.GetPasswordFunction())
+		pwdFunc, err := rootStore.DbStore.GetPasswordFunction()
+		if err != nil {
+			return nil, err
+		}
+		whereClause := fmt.Sprintf("username = ? AND password = %s", pwdFunc)
 		var roles []common.Role
 		gormDb.Table("role").Select("role.name").Joins("JOIN user_roles ON role.id = user_roles.role_id JOIN users ON users.id = user_roles.user_id").Where(whereClause, cred.Username, cred.Password).Find(roles)
-		err := common.MakeMultiError(tenantStore.DbStore.Db.GetErrors())
+		err = common.MakeMultiError(rootStore.DbStore.Db.GetErrors())
 		if err != nil {
 			return nil, err
 		}

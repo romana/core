@@ -49,7 +49,7 @@ func (s *MySuite) SetUpTest(c *check.C) {
 	dir, _ := os.Getwd()
 	c.Log("Entering setup in directory", dir)
 
-	common.MockPortsInConfig("../common/testdata/romana.sample.yaml")
+	common.MockPortsInConfig("../common/testdata/romana.auth.yaml")
 	s.configFile = "/tmp/romana.yaml"
 	var err error
 	s.config, err = common.ReadConfig(s.configFile)

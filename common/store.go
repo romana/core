@@ -234,10 +234,10 @@ func createSchemaSqlite3(dbStore *DbStore, force bool) error {
 	log.Printf("Creating tables for %v", entities) 
 	for _, entity := range entities {
 		log.Printf("sqlite3: Creating table %T", entity)
-		db.CreateTable(entity)
+		dbStore.Db.CreateTable(entity)
 	}
 	
-	errs := db.GetErrors()
+	errs := dbStore.Db.GetErrors()
 	log.Println("sqlite3: Errors", errs)
 	err2 := MakeMultiError(errs)
 
