@@ -16,7 +16,7 @@
 package ipam
 
 import (
-	//	"database/sql"
+	"database/sql"
 	"github.com/romana/core/common"
 	"log"
 )
@@ -28,7 +28,7 @@ type Vm struct {
 	SegmentId    string `json:"segment_id"`
 	HostId       string `json:"host_id"`
 	Name         string `json:"instance"`
-	RequestToken string `json:"request_token" sql:"unique"`
+	RequestToken sql.NullString `json:"request_token" sql:"unique"`
 	// Ordinal number of this VM in the host/tenant combination
 	Seq uint64 `json:"sequence"`
 	// Calculated effective sequence number of this VM --
@@ -72,8 +72,8 @@ func (ipamStore *ipamStore) addVm(stride uint, vm *Vm) error {
 	vm.EffectiveSeq = effectiveVmSeq
 	ipamVm := IpamVm{Vm: *vm}
 	tx.NewRecord(ipamVm)
-	tx.Create(&ipamVm)
-	err := common.MakeMultiError(ipamStore.DbStore.Db.GetErrors())
+	tx = tx.Create(&ipamVm)
+	err := common.MakeMultiError(tx.GetErrors())
 	if err != nil {
 		tx.Rollback()
 		return err
