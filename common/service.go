@@ -33,7 +33,7 @@ import (
 )
 
 // ServiceUtils represents functionality common to various services.
-// One example of such functionality is asynchronous processing -- 
+// One example of such functionality is asynchronous processing --
 // a service can accept a request for creation of an object and return a
 // 202 ACCEPTED, creating an entry that can be queried for status.
 type ServiceUtils struct {
@@ -61,7 +61,7 @@ func (su ServiceUtils) AddStatus(requestId string, value interface{}) {
 	su.RequestIdToTimestamp[requestId] = ts
 }
 
-// GetStatus gets the status of the request or returns an common.HttpError (404) 
+// GetStatus gets the status of the request or returns an common.HttpError (404)
 // if not found.
 func (su ServiceUtils) GetStatus(resourceType string, requestId string) (interface{}, error) {
 	val := su.RequestIdToStatus[requestId]

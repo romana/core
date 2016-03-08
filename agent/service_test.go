@@ -23,7 +23,6 @@ import (
 	"net"
 	"os"
 	"testing"
-//	"time"
 )
 
 func startAgent(t *testing.T) {
@@ -58,5 +57,4 @@ func TestK8SHandler(t *testing.T) {
 	result := make(map[string]string)
 	restClient.Post("http://localhost:8899/kubernetes-pod-up", nr, &result)
 	log.Printf("Sent to agent %v, agent returned %v", nr, result)
-//	time.Sleep(time.Hour)
 }

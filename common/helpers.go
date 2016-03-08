@@ -16,12 +16,12 @@
 package common
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"log"
-	"strings"
 	"os"
-	"bufio"
+	"strings"
 )
 
 // toBool is a convenience function that's like ParseBool

@@ -23,11 +23,11 @@ import (
 
 type Vm struct {
 	//	Id        uint64 `json:"id"`
-	Ip           string `json:"ip"`
-	TenantId     string `json:"tenant_id"`
-	SegmentId    string `json:"segment_id"`
-	HostId       string `json:"host_id"`
-	Name         string `json:"instance"`
+	Ip           string         `json:"ip"`
+	TenantId     string         `json:"tenant_id"`
+	SegmentId    string         `json:"segment_id"`
+	HostId       string         `json:"host_id"`
+	Name         string         `json:"instance"`
 	RequestToken sql.NullString `json:"request_token" sql:"unique"`
 	// Ordinal number of this VM in the host/tenant combination
 	Seq uint64 `json:"sequence"`

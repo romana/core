@@ -97,7 +97,7 @@ type DefaultExecutor struct{}
 // Exec proxies all requests to exec.Command()
 // Used to support unit testing.
 func (DefaultExecutor) Exec(cmd string, args []string) ([]byte, error) {
-	log.Printf("Helper.Executor: executing command: %s %s", cmd, strings.Join(args," "))
+	log.Printf("Helper.Executor: executing command: %s %s", cmd, strings.Join(args, " "))
 	cmdObj := exec.Command(cmd, args...)
 	out, err := cmdObj.CombinedOutput()
 	return out, err
