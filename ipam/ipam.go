@@ -264,7 +264,7 @@ func (ipam *IPAM) createSchema(overwrite bool) error {
 }
 
 // Run mainly runs IPAM service.
-func Run(rootServiceUrl string, cred common.Credential) (*common.RestServiceInfo, error) {
+func Run(rootServiceUrl string, cred *common.Credential) (*common.RestServiceInfo, error) {
 	clientConfig := common.GetDefaultRestClientConfig()
 	clientConfig.Credential = cred
 	client, err := common.NewRestClient(rootServiceUrl, clientConfig)

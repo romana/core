@@ -28,6 +28,9 @@ import (
 func main() {
 	var rootURL = flag.String("rootUrl", "", "URL to root service URL")
 	var version = flag.Bool("version", false, "Build Information.")
+	username := flag.String("username", "", "Username")
+	password := flag.String("password", "", "Password")
+	
 	flag.Parse()
 
 	if *version {
@@ -38,8 +41,8 @@ func main() {
 		fmt.Println("Must specify rootUrl.")
 		return
 	}
-	cred := common.MakeCredentialFromCliArgs(username, password)
-	svcInfo, err := agent.Run(*rootURL, false)
+	cred := common.MakeCredentialFromCliArgs(*username, *password)
+	svcInfo, err := agent.Run(*rootURL, cred, false)
 	if err != nil {
 		panic(err)
 	}

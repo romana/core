@@ -16,12 +16,12 @@
 package common
 
 import (
+	"bufio"
+	"errors"
+	"fmt"
 	"log"
 	"os"
 	"strings"
-	"errors"
-	"fmt"
-	"bufio"
 	"sync"
 )
 
@@ -67,7 +67,10 @@ func MockPortsInConfig(fname string) error {
 		log.Printf("Set port for %s: %d\n", svc, config.Services[svc].Common.Api.Port)
 	}
 
-	return WriteConfig(config, "/tmp/romana.yaml")
+	outFile := "/tmp/romana.yaml"
+	err = WriteConfig(config, outFile)
+	log.Printf("Read %s, wrote %s: %v", fname, outFile, err)
+	return err
 }
 
 // toBool is a convenience function that's like ParseBool

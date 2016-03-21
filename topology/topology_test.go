@@ -120,7 +120,7 @@ func (s *MySuite) TestTopology(c *check.C) {
 	myLog(c, "In", dir)
 	myLog(c, "Starting topology service")
 
-	svcInfo, err := Run(s.rootUrl)
+	svcInfo, err := Run(s.rootUrl, nil)
 	if err != nil {
 		c.Error(err)
 	}

@@ -189,7 +189,7 @@ func (tsvc *TenantSvc) createSchema(overwrite bool) error {
 }
 
 // Run configures and runs tenant service.
-func Run(rootServiceUrl string, cred common.Credential) (*common.RestServiceInfo, error) {
+func Run(rootServiceUrl string, cred *common.Credential) (*common.RestServiceInfo, error) {
 	tsvc := &TenantSvc{}
 	clientConfig := common.GetDefaultRestClientConfig()
 	clientConfig.Credential = cred

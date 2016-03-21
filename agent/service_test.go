@@ -32,9 +32,9 @@ func startAgent(t *testing.T) {
 		panic(err)
 	}
 	rootURL := fmt.Sprintf("file://%s/testdata/root.json", cwd)
-	svcInfo, err := Run(rootURL, true)
+	svcInfo, err := Run(rootURL, nil, true)
 	if err != nil {
-		t.Fatal(err)
+			t.Fatal(err)
 	}
 	msg := <-svcInfo.Channel
 	t.Log("Service says", msg)

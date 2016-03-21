@@ -21,6 +21,8 @@ import (
 	"github.com/go-yaml/yaml"
 	"io/ioutil"
 	"log"
+	
+	"path/filepath"
 )
 
 // Api part of service configuration (host/port).
@@ -122,6 +124,16 @@ func cleanupMap2(ifcIfc map[interface{}]interface{}) map[string]interface{} {
 func ReadConfig(fname string) (Config, error) {
 	// Created new...
 	config := &Config{}
+	
+	absFname, err := filepath.Abs(fname)
+	if err != nil {
+		return *config, err
+	}
+	if fname != absFname {
+		log.Printf("Converted %s to %s", fname, absFname)
+		fname = absFname
+	}
+	
 	yamlConfig := yamlConfig{}
 	if fname != "" {
 		data, err := ioutil.ReadFile(fname)

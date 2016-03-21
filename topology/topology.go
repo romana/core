@@ -202,7 +202,7 @@ func (topology *TopologySvc) SetConfig(config common.ServiceConfig) error {
 }
 
 // Run configures and runs topology service.
-func Run(rootServiceUrl string, cred common.Credential) (*common.RestServiceInfo, error) {
+func Run(rootServiceUrl string, cred *common.Credential) (*common.RestServiceInfo, error) {
 	clientConfig := common.GetDefaultRestClientConfig()
 	clientConfig.Credential = cred
 	client, err := common.NewRestClient(rootServiceUrl, clientConfig)

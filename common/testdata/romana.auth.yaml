@@ -3,10 +3,10 @@ services:
     api:
       host: localhost
       port: 9600
-      auth_public: ./demo.rsa.pub
+      auth_public: ../common/testdata/demo.rsa.pub
     config:
       auth: yes
-      auth_private: ./demo.rsa
+      auth_private: ../common/testdata/demo.rsa
       store: 
         type: sqlite3
         database: /tmp/auth.sqlite3
@@ -14,7 +14,7 @@ services:
     api:
       host: localhost
       port: 9601
-      auth_public: ./demo.rsa.pub
+      auth_public: ../common/testdata/demo.rsa.pub
     config:
       store: 
         type: sqlite3
@@ -23,7 +23,7 @@ services:
     api:
       host: localhost
       port: 9602
-      auth_public: ./demo.rsa.pub
+      auth_public: ../common/testdata/demo.rsa.pub
     config:
       store: 
         type: sqlite3
@@ -33,7 +33,7 @@ services:
     api:
       host: localhost
       port: 9603
-      auth_public: ./demo.rsa.pub
+      auth_public: ../common/testdata/demo.rsa.pub
     config:
       store: 
         type: sqlite3
@@ -50,7 +50,7 @@ services:
     api:
       host: 0.0.0.0
       port: 9604
-      auth_public: ./demo.rsa.pub
+      auth_public: ../common/testdata/demo.rsa.pub
     config:
       lease_file : /etc/ethers"
       wait_for_iface_try : 6

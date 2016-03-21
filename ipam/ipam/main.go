@@ -30,6 +30,9 @@ func main() {
 	overwriteSchema := flag.Bool("overwriteSchema", false, "Overwrite schema")
 	rootUrl := flag.String("rootUrl", "", "Root service URL")
 	version := flag.Bool("version", false, "Build Information.")
+	username := flag.String("username", "", "Username")
+	password := flag.String("password", "", "Password")
+	
 	flag.Parse()
 
 	if *version {
@@ -44,8 +47,8 @@ func main() {
 		fmt.Println("Schema created.")
 		return
 	}
-	cred := common.MakeCredentialFromCliArgs(username, password)
-	svcInfo, err := ipam.Run(*rootUrl)
+	cred := common.MakeCredentialFromCliArgs(*username, *password)
+	svcInfo, err := ipam.Run(*rootUrl, cred)
 	if err != nil {
 		panic(err)
 	}

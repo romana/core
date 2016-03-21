@@ -469,9 +469,9 @@ type AuthMiddleware struct {
 	PublicKey []byte
 }
 
-// If the path of request is common.AuthPath, this does nothing, as 
+// If the path of request is common.AuthPath, this does nothing, as
 // the request is for authentication in the first place. Otherwise,
-// checks token from request. If the token is not valid, returns a 
+// checks token from request. If the token is not valid, returns a
 // 403 FORBIDDEN status.
 func (am AuthMiddleware) ServeHTTP(writer http.ResponseWriter, request *http.Request, next http.HandlerFunc) {
 	if request.URL.Path == AuthPath {
@@ -481,29 +481,31 @@ func (am AuthMiddleware) ServeHTTP(writer http.ResponseWriter, request *http.Req
 	}
 	contentType := writer.Header().Get("Content-Type")
 	marshaller := ContentTypeMarshallers[contentType]
-	
-	f := func(token *jwt.Token) (interface{}, error) {
-		return am.PublicKey, nil
-	}
-	
-	token, err := jwt.ParseFromRequest(request, f)
 
-	if err != nil {
-		writer.WriteHeader(http.StatusForbidden)
-		httpErr := NewError(http.StatusForbidden, err.Error())
-		outData, _ := marshaller.Marshal(httpErr)
-		writer.Write(outData)
-		return
-	}
-	if !token.Valid {
-		writer.WriteHeader(http.StatusForbidden)
-		httpErr := NewError(http.StatusForbidden,  "Invalid token.")
-		outData, _ := marshaller.Marshal(httpErr)
-		writer.Write(outData)
-		return
-	}
+	if am.PublicKey != nil {
+		f := func(token *jwt.Token) (interface{}, error) {
+			return am.PublicKey, nil
+		}
+		log.Printf("Parsing request for auth token\n")
+		token, err := jwt.ParseFromRequest(request, f)
 
-	context.Set(request, ContextKeyRoles, token.Claims["roles"].([]string))
+		if err != nil {
+			writer.WriteHeader(http.StatusForbidden)
+			httpErr := NewError(http.StatusForbidden, err.Error())
+			outData, _ := marshaller.Marshal(httpErr)
+			writer.Write(outData)
+			return
+		}
+		if !token.Valid {
+			writer.WriteHeader(http.StatusForbidden)
+			httpErr := NewError(http.StatusForbidden, "Invalid token.")
+			outData, _ := marshaller.Marshal(httpErr)
+			writer.Write(outData)
+			return
+		}
+
+		context.Set(request, ContextKeyRoles, token.Claims["roles"].([]string))
+	}
 	next(writer, request)
 }
 

@@ -44,7 +44,7 @@ type RestClient struct {
 type RestClientConfig struct {
 	TimeoutMillis int64
 	Retries       int
-	Credential    Credential
+	Credential    *Credential
 	TestMode      bool
 }
 
@@ -283,9 +283,12 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 		body, err = ioutil.ReadAll(resp.Body)
 
 	} else if rc.url.Scheme == "file" {
-		log.Printf("Loading file %s, %s", rc.url.String(), rc.url.Path)
+		log.Printf("RestClient: Loading file %s, %s", rc.url.String(), rc.url.Path)
 		body, err = ioutil.ReadFile(rc.url.Path)
-
+		if err != nil {
+			log.Printf("RestClient: Error loading file %s: %v", rc.url.Path, err)
+			return err
+		}
 	} else {
 		return errors.New(fmt.Sprintf("Unsupported scheme %s", rc.url.Scheme))
 	}
@@ -340,7 +343,7 @@ func (rc *RestClient) GetServiceConfig(rootServiceUrl string, svc Service) (*Ser
 		return nil, err
 	}
 
-	if rc.config.Credential.Type != CredentialNone {
+	if rc.config.Credential != nil && rc.config.Credential.Type != CredentialNone {
 		// First things first - authenticate
 		authUrl := rootIndexResponse.Links.FindByRel("auth")
 		log.Printf("Authenticating to %s", authUrl)
@@ -367,7 +370,7 @@ func (rc *RestClient) GetServiceConfig(rootServiceUrl string, svc Service) (*Ser
 	// Save the credential from the client in the resulting service config --
 	// if the resulting config is to be used in InitializeService(), it's useful;
 	// otherwise, it will be ignored.
-	config.Common.Credential = &rc.config.Credential
+	config.Common.Credential = rc.config.Credential
 	log.Printf("Saved from %v to %v", rc.config.Credential, config.Common.Credential)
 	return config, nil
 }

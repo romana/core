@@ -18,15 +18,15 @@ package root
 
 import (
 	//	"fmt"
+	"errors"
+	"fmt"
 	"github.com/dgrijalva/jwt-go"
 	"github.com/romana/core/common"
 	"io/ioutil"
 	"log"
 	"strconv"
-	"fmt"
 	"strings"
 	"time"
-	"errors"
 	//	"github.com/gorilla/mux"
 )
 
@@ -60,20 +60,29 @@ func (root *Root) SetConfig(config common.ServiceConfig) error {
 	var err error
 	root.store = rootStore{}
 	root.store.ServiceStore = &root.store
-	root.store.isAuthEnabled, err = common.ToBool(config.ServiceSpecific["auth"].(string))
-	if err != nil {
-		return errors.New(fmt.Sprintf("Invalid value in field auth: %s", err.Error()))
+	if config.ServiceSpecific["auth"] == nil {
+		root.store.isAuthEnabled = false
+	} else {
+		root.store.isAuthEnabled, err = common.ToBool(config.ServiceSpecific["auth"].(string))
+		if err != nil {
+			return errors.New(fmt.Sprintf("Invalid value in field auth: %s", err.Error()))
+		}
 	}
+	log.Printf("Checking auth: %t", root.store.isAuthEnabled)
+
 	if root.store.isAuthEnabled {
+		log.Printf("Auth is on!\n")
 		privateKeyLocation := config.ServiceSpecific["authPrivate"].(string)
 		log.Printf("Reading private key from %s", privateKeyLocation)
 		root.privateKey, err = ioutil.ReadFile(privateKeyLocation)
 		if err != nil {
 			return err
 		}
+
+		storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
+		return root.store.SetConfig(storeConfig)
 	}
-	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
-	return root.store.SetConfig(storeConfig)
+	return nil
 }
 
 func (root *Root) Initialize() error {

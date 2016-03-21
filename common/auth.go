@@ -48,14 +48,14 @@ type Credential struct {
 // Credential structure. This is just keeping in one
 // method a common functionality that will be in every
 // command.
-func MakeCredentialFromCliArgs(username string, password string) Credential {
+func MakeCredentialFromCliArgs(username string, password string) *Credential {
 	if username == "" {
-		return Credential{Type: CredentialNone}
+		return &Credential{Type: CredentialNone}
 	} else {
 		if password == "" {
 			password = Environ()[PasswordEnvironmentVariable]
 		}
-		return Credential{Type: CredentialUsernamePassword, Username: username, Password: password}
+		return &Credential{Type: CredentialUsernamePassword, Username: username, Password: password}
 	}
 }
 

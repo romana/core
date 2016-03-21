@@ -136,7 +136,7 @@ type Service interface {
 // service. Messages are of type ServiceMessage above.
 // It can be used for launching service from tests, etc.
 func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo, error) {
-	log.Printf("Initializing service %s with %v", service.Name(), config.Common.Api)
+	log.Printf("Initializing service %s: listen at %s, root service at %s, ", service.Name(), config.Common.Api.GetHostPort(), config.Common.Api.RootServiceUrl)
 	err := service.SetConfig(config)
 	if err != nil {
 		return nil, err
@@ -161,7 +161,10 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 	negroni.Use(NewUnmarshaller())
 
 	pubKeyLocation := config.Common.Api.AuthPublic
-	config.Common.PublicKey, err = ioutil.ReadFile(pubKeyLocation)
+	if pubKeyLocation != "" {
+		log.Printf("Reading public key from %s", pubKeyLocation)
+		config.Common.PublicKey, err = ioutil.ReadFile(pubKeyLocation)
+	}
 	if err != nil {
 		return nil, err
 	}

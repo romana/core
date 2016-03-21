@@ -110,7 +110,7 @@ func (s *MySuite) TestIntegration(c *check.C) {
 
 	// 1. Start topology service
 	myLog(c, "STARTING TOPOLOGY SERVICE")
-	topoInfo, err := topology.Run(s.rootURL)
+	topoInfo, err := topology.Run(s.rootURL, nil)
 	if err != nil {
 		c.Error(err)
 	}
@@ -164,7 +164,7 @@ func (s *MySuite) TestIntegration(c *check.C) {
 
 	// 3. Start tenant service
 	myLog(c, "STARTING TENANT SERVICE")
-	tenantInfo, err := tenant.Run(s.rootURL)
+	tenantInfo, err := tenant.Run(s.rootURL, nil)
 	if err != nil {
 		c.Error(err)
 	}
@@ -248,7 +248,7 @@ func (s *MySuite) TestIntegration(c *check.C) {
 
 	// 4. Start IPAM service
 	myLog(c, "STARTING IPAM SERVICE")
-	ipamInfo, err := ipam.Run(s.rootURL)
+	ipamInfo, err := ipam.Run(s.rootURL, nil)
 	if err != nil {
 		c.Error(err)
 	}
