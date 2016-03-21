@@ -30,10 +30,10 @@ type tenantStore struct {
 
 // Entities implements Entities method of
 // Service interface.
-func (tenantStore tenantStore) Entities() []interface{} {
+func (tenantStore *tenantStore) Entities() []interface{} {
 	retval := make([]interface{}, 2)
-	retval[0] = Tenant{}
-	retval[1] = Segment{}
+	retval[0] = &Tenant{}
+	retval[1] = &Segment{}
 	return retval
 }
 
@@ -118,7 +118,10 @@ func (tenantStore *tenantStore) findTenant(id uint64) (Tenant, error) {
 			return tenants[i], nil
 		}
 	}
+	// TODO make this a 404
 	return Tenant{}, errors.New("Not found")
+	// TODO
+	// Should move Where instead of iterating above.
 	//	tenant := Tenant{}
 	//	tenantStore.DB().Where("id = ?", id).First(&tenant)
 	//	err := common.MakeMultiError(tenantStore.DB().GetErrors())
@@ -161,7 +164,7 @@ func (tenantStore *tenantStore) addSegment(tenantId uint64, segment *Segment) er
 
 // CreateSchemaPostProcess implements CreateSchemaPostProcess method of
 // Service interface.
-func (tenantStore tenantStore) CreateSchemaPostProcess() error {
+func (tenantStore *tenantStore) CreateSchemaPostProcess() error {
 	return nil
 }
 

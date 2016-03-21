@@ -16,19 +16,19 @@
 package ipam
 
 import (
-	//	"database/sql"
+	"database/sql"
 	"github.com/romana/core/common"
 	"log"
 )
 
 type Vm struct {
 	//	Id        uint64 `json:"id"`
-	Ip           string `json:"ip"`
-	TenantId     string `json:"tenant_id"`
-	SegmentId    string `json:"segment_id"`
-	HostId       string `json:"host_id"`
-	Name         string `json:"instance"`
-	RequestToken string `json:"request_token" sql:"unique"`
+	Ip           string         `json:"ip"`
+	TenantId     string         `json:"tenant_id"`
+	SegmentId    string         `json:"segment_id"`
+	HostId       string         `json:"host_id"`
+	Name         string         `json:"instance"`
+	RequestToken sql.NullString `json:"request_token" sql:"unique"`
 	// Ordinal number of this VM in the host/tenant combination
 	Seq uint64 `json:"sequence"`
 	// Calculated effective sequence number of this VM --
@@ -55,13 +55,21 @@ type IpamVm struct {
 	//	IpamHostId sql.NullString
 }
 
+// ipamStore is a backing store for IPAM service.
 type ipamStore struct {
 	common.DbStore
 }
 
 func (ipamStore *ipamStore) addVm(stride uint, vm *Vm) error {
 	tx := ipamStore.DbStore.Db.Begin()
-
+	// TODO
+	// JB: Isn't "Db" and therefore "Db.Begin()" really a lower-level 
+	// implementation detail? Should users of DbStore need to know this? 
+	// What if at some point we replace this with a NoSQL store, where we won't have gorm?
+	// Maybe DbStore itself should offer 'begin', 'end', 'commit', whatever, so that it can 
+	// effectively hide those lower level implementation choices?
+	// GG: I agree but the functionality does not exactly map well to RDBMS backing store 
+	// and hiding it neatly doesn't work - yet.
 	row := tx.Model(IpamVm{}).Where("host_id = ? AND segment_id = ?", vm.HostId, vm.SegmentId).Select("IFNULL(MAX(seq),-1)+1").Row()
 	row.Scan(&vm.Seq)
 	log.Printf("New sequence is %d\n", vm.Seq)
@@ -72,8 +80,8 @@ func (ipamStore *ipamStore) addVm(stride uint, vm *Vm) error {
 	vm.EffectiveSeq = effectiveVmSeq
 	ipamVm := IpamVm{Vm: *vm}
 	tx.NewRecord(ipamVm)
-	tx.Create(&ipamVm)
-	err := common.MakeMultiError(ipamStore.DbStore.Db.GetErrors())
+	tx = tx.Create(&ipamVm)
+	err := common.MakeMultiError(tx.GetErrors())
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -93,15 +101,17 @@ func getEffectiveSeq(vmSeq uint64, stride uint) uint64 {
 }
 
 // Entities implements Entities method of Service interface.
-func (ipamStore ipamStore) Entities() []interface{} {
+func (ipamStore *ipamStore) Entities() []interface{} {
 	retval := make([]interface{}, 1)
-	retval[0] = IpamVm{}
+	retval[0] = &IpamVm{}
 	return retval
 }
 
 // CreateSchemaPostProcess implements CreateSchemaPostProcess method of
 // Service interface.
-func (ipamStore ipamStore) CreateSchemaPostProcess() error {
-	ipamStore.Db.Model(&IpamVm{}).AddUniqueIndex("idx_segment_host_seq", "segment_id", "host_id", "seq")
+func (ipamStore *ipamStore) CreateSchemaPostProcess() error {
+	db := ipamStore.Db
+	log.Printf("ipamStore.CreateSchemaPostProcess(), DB is %v", db)
+	db.Model(&IpamVm{}).AddUniqueIndex("idx_segment_host_seq", "segment_id", "host_id", "seq")
 	return nil
 }

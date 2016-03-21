@@ -18,10 +18,15 @@ package root
 
 import (
 	//	"fmt"
+	"errors"
+	"fmt"
+	"github.com/dgrijalva/jwt-go"
 	"github.com/romana/core/common"
+	"io/ioutil"
 	"log"
 	"strconv"
 	"strings"
+	"time"
 	//	"github.com/gorilla/mux"
 )
 
@@ -38,8 +43,10 @@ type Config struct {
 }
 
 type Root struct {
-	config Config
-	routes common.Route
+	config     Config
+	routes     common.Route
+	privateKey []byte
+	store      rootStore
 }
 
 const fullConfigKey = "fullConfig"
@@ -50,7 +57,31 @@ func (root *Root) SetConfig(config common.ServiceConfig) error {
 	root.config.common = &config.Common
 	f := config.ServiceSpecific[fullConfigKey].(common.Config)
 	root.config.full = &f
+	var err error
+	root.store = rootStore{}
+	root.store.ServiceStore = &root.store
+	if config.ServiceSpecific["auth"] == nil {
+		root.store.isAuthEnabled = false
+	} else {
+		root.store.isAuthEnabled, err = common.ToBool(config.ServiceSpecific["auth"].(string))
+		if err != nil {
+			return errors.New(fmt.Sprintf("Invalid value in field auth: %s", err.Error()))
+		}
+	}
+	log.Printf("Checking auth: %t", root.store.isAuthEnabled)
 
+	if root.store.isAuthEnabled {
+		log.Printf("Auth is on!\n")
+		privateKeyLocation := config.ServiceSpecific["authPrivate"].(string)
+		log.Printf("Reading private key from %s", privateKeyLocation)
+		root.privateKey, err = ioutil.ReadFile(privateKeyLocation)
+		if err != nil {
+			return err
+		}
+
+		storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
+		return root.store.SetConfig(storeConfig)
+	}
 	return nil
 }
 
@@ -71,6 +102,28 @@ func (root *Root) handlePortUpdate(input interface{}, ctx common.RestContext) (i
 	return nil, nil
 }
 
+// Handler for the /auth URL
+func (root *Root) handleAuth(input interface{}, ctx common.RestContext) (interface{}, error) {
+	cred := input.(*common.Credential)
+	// We assume just username/password for now
+	roles, err := root.store.Authenticate(*cred)
+	if err != nil {
+		return nil, err
+	}
+	token := jwt.New(jwt.SigningMethodHS256)
+	rolesStr := make([]string, len(roles))
+	for i := range roles {
+		rolesStr[i] = roles[i].Name()
+	}
+	token.Claims["roles"] = rolesStr
+	token.Claims["iat"] = time.Now().Unix()
+	// TODO make this configurable?
+	token.Claims["exp"] = time.Now().Add(time.Second * 3600 * 24).Unix()
+	jwtString, err := token.SignedString(root.privateKey)
+	log.Printf("Signed token %v as %s", token, jwtString)
+	return common.TokenMessage{Token: jwtString}, err
+}
+
 // Handler for the / URL
 // See https://github.com/romanaproject/romana/wiki/Root-service-API
 func (root *Root) handleIndex(input interface{}, ctx common.RestContext) (interface{}, error) {
@@ -80,7 +133,7 @@ func (root *Root) handleIndex(input interface{}, ctx common.RestContext) (interf
 	myUrl := strings.Join([]string{"http://", root.config.common.Api.Host, ":", strconv.FormatUint(root.config.common.Api.Port, 10)}, "")
 
 	// Links has links to config URLs for now, but also self - hence plus one
-	retval.Links = make([]common.LinkResponse, len(root.config.full.Services)+1)
+	retval.Links = make([]common.LinkResponse, len(root.config.full.Services)+2)
 
 	retval.Services = make([]common.ServiceResponse, len(root.config.full.Services))
 	i := 0
@@ -95,7 +148,8 @@ func (root *Root) handleIndex(input interface{}, ctx common.RestContext) (interf
 		i++
 	}
 	retval.Links[i] = common.LinkResponse{Href: myUrl, Rel: "self"}
-
+	i++
+	retval.Links[i] = common.LinkResponse{Href: "/auth", Rel: "auth"}
 	return retval, nil
 }
 
@@ -119,6 +173,13 @@ func (root Root) Routes() common.Routes {
 			Pattern:         "/",
 			Handler:         root.handleIndex,
 			MakeMessage:     nil,
+			UseRequestToken: false,
+		},
+		common.Route{
+			Method:          "POST",
+			Pattern:         common.AuthPath,
+			Handler:         root.handleAuth,
+			MakeMessage:     func() interface{} { return &common.Credential{} },
 			UseRequestToken: false,
 		},
 		common.Route{
@@ -149,7 +210,8 @@ func Run(configFileName string) (*common.RestServiceInfo, error) {
 	rootService := &Root{}
 	rootServiceConfig := common.ServiceConfig{
 		Common:          fullConfig.Services["root"].Common,
-		ServiceSpecific: make(map[string]interface{})}
+		ServiceSpecific: make(map[string]interface{}),
+	}
 	rootServiceConfig.ServiceSpecific[fullConfigKey] = fullConfig
 	return common.InitializeService(rootService, rootServiceConfig)
 }

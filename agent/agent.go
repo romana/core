@@ -45,6 +45,9 @@ type Agent struct {
 	Helper *Helper
 
 	waitForIfaceTry int
+
+	// Whether this is running in test mode.
+	testMode bool
 }
 
 // SetConfig implements SetConfig function of the Service interface.
@@ -73,18 +76,32 @@ func (a *Agent) Routes() common.Routes {
 			},
 			UseRequestToken: false,
 		},
+		common.Route{
+			Method:  "POST",
+			Pattern: "/kubernetes-pod-up",
+			Handler: a.k8sPodUpHandler,
+			MakeMessage: func() interface{} {
+				return &NetworkRequest{}
+			},
+			// TODO this is for the future so we ensure idempotence.
+			UseRequestToken: true,
+		},
 	}
 	return routes
 }
 
 // Run starts the agent service.
-func Run(rootServiceURL string) (*common.RestServiceInfo, error) {
-	client, err := common.NewRestClient("", common.GetDefaultRestClientConfig())
+func Run(rootServiceURL string, cred *common.Credential, testMode bool) (*common.RestServiceInfo, error) {
+	clientConfig := common.GetDefaultRestClientConfig()
+	clientConfig.TestMode = testMode
+	client, err := common.NewRestClient("", clientConfig)
+	clientConfig.Credential = cred
+	
 	if err != nil {
 		return nil, err
 	}
 
-	agent := &Agent{}
+	agent := &Agent{testMode: testMode}
 	helper := NewAgentHelper(agent)
 	agent.Helper = &helper
 	log.Printf("Agent: Getting configuration from %s", rootServiceURL)
@@ -94,12 +111,29 @@ func Run(rootServiceURL string) (*common.RestServiceInfo, error) {
 		return nil, err
 	}
 	return common.InitializeService(agent, *config)
-
 }
 
 // Name implements method of Service interface.
 func (a *Agent) Name() string {
 	return "agent"
+}
+
+// k8sPodUpHandler handles HTTP requests for endpoints provisioning.
+func (a *Agent) k8sPodUpHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
+	log.Println("Agent: Entering k8sPodUpHandler()")
+	netReq := input.(*NetworkRequest)
+
+	log.Printf("Agent: Got request for network configuration: %v\n", netReq)
+	// Spawn new thread to process the request
+
+	// TODO don't know if fork-bombs are possible in go but if they are this
+	// need to be refactored as buffered channel with fixed pool of workers
+	go a.k8sPodUpHandle(*netReq)
+
+	// TODO I wonder if this should actually return something like a
+	// link to a status of this request which will later get updated
+	// with success or failure -- Greg.
+	return "OK", nil
 }
 
 // index handles HTTP requests for endpoints provisioning.
@@ -121,6 +155,57 @@ func (a *Agent) index(input interface{}, ctx common.RestContext) (interface{}, e
 	// link to a status of this request which will later get updated
 	// with success or failure -- Greg.
 	return "OK", nil
+}
+
+// k8sPodUpHandle does a number of operations on given endpoint to ensure
+// it's connected:
+// 1. Ensures interface is ready
+// 2. Ensures interhost routes are in place
+// 3. Creates ip route pointing new interface
+// 4. Provisions firewall rules
+func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
+	log.Println("Agent: Entering k8sPodUpHandle()")
+	namespaceIsolation, err := common.ToBool(netReq.Options[namespaceIsolationOption])
+	if err != nil {
+		msg := fmt.Sprintf("Invalid value in %s: %s", namespaceIsolationOption, err.Error())
+		log.Println(msg)
+		return agentErrorString(msg)
+	}
+
+	log.Printf("Isolation is %t", namespaceIsolation)
+	netif := netReq.NetIf
+	if netif.Name == "" {
+		return agentErrorString("Agent: Interface name required")
+	}
+	if !a.Helper.waitForIface(netif.Name) {
+		// TODO should we resubmit failed interface in queue for later
+		// retry ? ... considering openstack will give up as well after
+		// timeout
+		msg := fmt.Sprintf("Requested interface not available in time - %s", netif.Name)
+		log.Println("Agent: ", msg)
+		return agentErrorString(msg)
+	}
+
+	// Ensure we have all the routes to our neighbours
+	log.Print("Agent: ensuring interhost routes exist")
+	if err := a.Helper.ensureInterHostRoutes(); err != nil {
+		log.Print("Agent: ", agentError(err))
+		return agentError(err)
+	}
+	log.Print("Agent: creating endpoint routes")
+	if err := a.Helper.ensureRouteToEndpoint(&netif); err != nil {
+		log.Print(agentError(err))
+		return agentError(err)
+	}
+	log.Print("Agent: provisioning firewall")
+
+	if err := provisionK8SFirewallRules(netReq, a, namespaceIsolation); err != nil {
+		log.Print(agentError(err))
+		return agentError(err)
+	}
+
+	log.Print("Agent: All good", netif)
+	return nil
 }
 
 // interfaceHandle does a number of operations on given endpoint to ensure

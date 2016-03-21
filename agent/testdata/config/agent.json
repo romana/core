@@ -1,8 +1,10 @@
 { 
     "common" :
-       {
+       {  "api" : {
             "host" : "0.0.0.0",
-            "port" : "8899"
+            "port" : 8899,
+            "rest_test_mode" : true            
+       }
        },
     "config" : 
        {

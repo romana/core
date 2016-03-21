@@ -30,7 +30,14 @@ func MakeIPv4(a, b, c, d byte) IP {
 }
 
 func IPv4ToInt(ip net.IP) uint64 {
-	return uint64(ip[12])<<24 | uint64(ip[13])<<16 | uint64(ip[14])<<8 | uint64(ip[15])
+	switch len(ip) {
+	case 4: // IPv4
+		return uint64(ip[0])<<24 | uint64(ip[1])<<16 | uint64(ip[2])<<8 | uint64(ip[3])
+	case 16: // IPv6
+		return uint64(ip[12])<<24 | uint64(ip[13])<<16 | uint64(ip[14])<<8 | uint64(ip[15])
+	default:
+		return 0
+	}
 }
 
 func IntToIPv4(ipInt uint64) net.IP {

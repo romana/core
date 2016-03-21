@@ -197,13 +197,15 @@ func (topology *TopologySvc) SetConfig(config common.ServiceConfig) error {
 	topology.datacenter = &dc
 	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
 	topology.store = topoStore{}
-	topology.store.ServiceStore = topology.store
+	topology.store.ServiceStore = &topology.store
 	return topology.store.SetConfig(storeConfig)
 }
 
 // Run configures and runs topology service.
-func Run(rootServiceUrl string) (*common.RestServiceInfo, error) {
-	client, err := common.NewRestClient(rootServiceUrl, common.GetDefaultRestClientConfig())
+func Run(rootServiceUrl string, cred *common.Credential) (*common.RestServiceInfo, error) {
+	clientConfig := common.GetDefaultRestClientConfig()
+	clientConfig.Credential = cred
+	client, err := common.NewRestClient(rootServiceUrl, clientConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -212,6 +214,7 @@ func Run(rootServiceUrl string) (*common.RestServiceInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+	
 	return common.InitializeService(topSvc, *config)
 
 }

@@ -13,9 +13,49 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Code related to authentication.
+// Package common authentication related code.
 package common
 
-type AuthBackend interface {
-	
+type Role interface {
+	Name() string
 }
+
+type role struct {
+	name string
+}
+
+// Represents the type of credential (e.g., certificate,
+// username-password, etc.
+type CredentialType string
+
+const (
+	CredentialUsernamePassword = "userPass"
+	CredentialNone             = "none"
+	
+	PasswordEnvironmentVariable = "ROMANA_PASSWORD"
+)
+
+// Container for various credentials. Currently containing Username/Password
+// but keys, certificates, etc. can be used in the future.
+type Credential struct {
+	Type     CredentialType
+	Username string
+	Password string
+}
+
+// MakeCredentialFromCliArgs takes all possible CLI
+// arguments that can be provided and constructs appropriate
+// Credential structure. This is just keeping in one
+// method a common functionality that will be in every
+// command.
+func MakeCredentialFromCliArgs(username string, password string) *Credential {
+	if username == "" {
+		return &Credential{Type: CredentialNone}
+	} else {
+		if password == "" {
+			password = Environ()[PasswordEnvironmentVariable]
+		}
+		return &Credential{Type: CredentialUsernamePassword, Username: username, Password: password}
+	}
+}
+

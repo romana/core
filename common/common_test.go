@@ -70,6 +70,26 @@ func refute2(t *testing.T, msg string, a interface{}, b interface{}) {
 	}
 }
 
+func TestToBool(t *testing.T) {
+	yeses := []string{"YES", "y", "On", "1", "tRuE", "t"}
+	nos := []string{"NO", "n", "Off", "0", "fALse", "f"}
+	for i := range yeses {
+		b, e := ToBool(yeses[i])
+		if e != nil {
+			t.Error(e)
+		}
+		expect(t, b, true)
+	}
+	for i := range nos {
+		b, e := ToBool(nos[i])
+		if e != nil {
+			t.Error(e)
+		}
+		expect(t, b, false)
+	}
+
+}
+
 // TestClientNoHost just tests that we don't hang forever
 // when there is no host.
 // TODO
@@ -77,7 +97,7 @@ func refute2(t *testing.T, msg string, a interface{}, b interface{}) {
 // that all attempts to send a packet there fails, no RST or anything
 // ever comes back? Do we wait the full TCP timeout?
 func TestClientNoHost(t *testing.T) {
-	client, err := NewRestClient("http://no.such.host", GetDefaultRestClientConfig())
+	client, err := NewRestClient("http://no.such.host.really", GetDefaultRestClientConfig())
 	if err != nil {
 		t.Error(err)
 	}
@@ -103,13 +123,13 @@ func TestClientNoHost(t *testing.T) {
 	log.Println("Done")
 }
 
-// timeoutingHttpServer mocks up an HTTP server that sleeps a
+// timeoutingHTTPServer mocks up an HTTP server that sleeps a
 // specified number of milliseconds before returning a response.
-type timeoutingHttpServer struct{}
+type timeoutingHTTPServer struct{}
 
 // ServeHTTP is the method to conform to Handler interface
-// for timeoutingHttpServer.
-func (s timeoutingHttpServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+// for timeoutingHTTPServer.
+func (s timeoutingHTTPServer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	req.ParseForm()
 	tStr := string(req.Form.Get("t"))
 	log.Printf("Parsing duration %s\n", tStr)
@@ -199,7 +219,7 @@ func TestSleepyServerTimeout(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	msg := <-svcInfo.Channel
+	msg := <- svcInfo.Channel
 	log.Printf("Service says %s\n", msg)
 
 	times := []int{80, 90, 110, 120}
@@ -298,7 +318,7 @@ func doTestTimeout(timeout int, t *testing.T) {
 	s := &http.Server{
 		// Arbitrary post
 		Addr:         ":0",
-		Handler:      timeoutingHttpServer{},
+		Handler:      timeoutingHTTPServer{},
 		ReadTimeout:  100 * time.Millisecond,
 		WriteTimeout: 100 * time.Millisecond,
 	}
