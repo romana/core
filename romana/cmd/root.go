@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -33,6 +34,7 @@ var (
 	cfgFile  string
 	rootURL  string
 	version  bool
+	verbose  bool
 	format   string
 	platform string
 )
@@ -83,6 +85,8 @@ func init() {
 		"f", "", "enable formatting options like [json|table], etc.")
 	RootCmd.PersistentFlags().StringVarP(&platform, "platform",
 		"p", "", "Use platforms like [openstack|kubernetes], etc.")
+	RootCmd.PersistentFlags().BoolVarP(&verbose, "verbose",
+		"w", false, "Verbose output.")
 
 	RootCmd.PersistentPreRun = preConfig
 	RootCmd.Run = versionInfo
@@ -147,7 +151,7 @@ func initConfig() {
 	err := viper.ReadInConfig()
 	setLogOutput()
 	if err != nil {
-		fmt.Println("Error using config file:", viper.ConfigFileUsed())
+		log.Println("Error using config file:", viper.ConfigFileUsed())
 	} else {
 		log.Println("Using config file:", viper.ConfigFileUsed())
 	}
@@ -159,10 +163,22 @@ func setLogOutput() {
 	logFile, err := os.OpenFile(viper.GetString("LogFile"),
 		os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err == nil {
-		// Redirect log output to the log file.
-		log.SetOutput(logFile)
+		if verbose || viper.GetBool("Verbose") {
+			// If output is verbose send it to log file
+			// stdout simultenously.
+			viper.Set("Verbose", true)
+			log.SetOutput(io.MultiWriter(logFile, os.Stdout))
+		} else {
+			// Redirect log output to the log file.
+			log.SetOutput(logFile)
+		}
 	} else {
-		// Silently fail and discard log output
-		log.SetOutput(ioutil.Discard)
+		if verbose || viper.GetBool("Verbose") {
+			viper.Set("Verbose", true)
+			log.SetOutput(os.Stdout)
+		} else {
+			// Silently fail and discard log output
+			log.SetOutput(ioutil.Discard)
+		}
 	}
 }
