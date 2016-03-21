@@ -41,8 +41,8 @@ type NetworkRequest struct {
 // together with basic methods operating on this structure.
 type NetIf struct {
 	Name string `form:"interface_name" json:"interface_name"`
-	Mac  string `form:"mac_address,omitempty" json:"interface_name,omitempty"`
-	IP   net.IP `form:"ip_address,omitempty" json:"ip_address,omitempty"`
+	Mac  string `form:"mac_address" json:"interface_name,omitempty"`
+	IP   net.IP `form:"ip_address" json:"ip_address,omitempty"`
 }
 
 // SetIP parses and sets the IP address of the interface.

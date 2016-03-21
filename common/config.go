@@ -23,7 +23,6 @@ import (
 	"log"
 )
 
-
 // Api part of service configuration (host/port).
 type Api struct {
 	// Host to listen on.
