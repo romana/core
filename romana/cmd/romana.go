@@ -21,13 +21,13 @@ import (
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
 
-	"github.com/spf13/viper"
+	config "github.com/spf13/viper"
 )
 
 // getRomanaTenantID return romana Tenant ID
 // corresponding to romana name.
 func getRomanaTenantID(name string) (uint64, error) {
-	rootURL := viper.GetString("RootURL")
+	rootURL := config.GetString("RootURL")
 
 	client, err := common.NewRestClient(rootURL,
 		common.GetDefaultRestClientConfig())

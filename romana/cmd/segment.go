@@ -24,11 +24,11 @@ import (
 	rc "github.com/romana/core/romana/client"
 	"github.com/romana/core/tenant"
 
-	"github.com/spf13/cobra"
+	cli "github.com/spf13/cobra"
 )
 
 // segmentCmd represents the segment commands
-var segmentCmd = &cobra.Command{
+var segmentCmd = &cli.Command{
 	Use:   "segment [add|remove]",
 	Short: "Add or Remove a segment.",
 	Long: `Add or Remove a segment.
@@ -51,7 +51,7 @@ func init() {
 	segmentCmd.AddCommand(segmentRemoveCmd)
 }
 
-var segmentAddCmd = &cobra.Command{
+var segmentAddCmd = &cli.Command{
 	Use:          "add [tenant name] [segment name]",
 	Short:        "Add a new segment.",
 	Long:         `Add a new segment.`,
@@ -59,7 +59,7 @@ var segmentAddCmd = &cobra.Command{
 	SilenceUsage: true,
 }
 
-var segmentRemoveCmd = &cobra.Command{
+var segmentRemoveCmd = &cli.Command{
 	Use:          "remove",
 	Short:        "Remove a specific segment.",
 	Long:         `Remove a specific segment.`,
@@ -67,7 +67,7 @@ var segmentRemoveCmd = &cobra.Command{
 	SilenceUsage: true,
 }
 
-func segmentAdd(cmd *cobra.Command, args []string) error {
+func segmentAdd(cmd *cli.Command, args []string) error {
 	if len(args) < 2 {
 		return UsageError(cmd, "TENANT and SEGMENT name should be provided.")
 	}
@@ -107,7 +107,7 @@ func segmentAdd(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func segmentRemove(cmd *cobra.Command, args []string) error {
+func segmentRemove(cmd *cli.Command, args []string) error {
 	fmt.Println("Unimplemented: Remove a specific segment.")
 	return nil
 }

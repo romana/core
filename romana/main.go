@@ -13,7 +13,7 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Package main implements command line for various romana services.
+// Package main implements command line tools for various romana services.
 package main
 
 import (

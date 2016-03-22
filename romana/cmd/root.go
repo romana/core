@@ -25,8 +25,8 @@ import (
 
 	"github.com/romana/core/common"
 
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
+	cli "github.com/spf13/cobra"
+	config "github.com/spf13/viper"
 )
 
 // Variables used for configuration and flags.
@@ -40,7 +40,7 @@ var (
 )
 
 // This represents the base command when called without any subcommands
-var RootCmd = &cobra.Command{
+var RootCmd = &cli.Command{
 	Use:   "romana",
 	Short: "Command line tools for romana services.",
 	Long: `Command line tools for romana services.
@@ -68,7 +68,7 @@ func Execute() {
 }
 
 func init() {
-	cobra.OnInitialize(initConfig)
+	cli.OnInitialize(initConfig)
 
 	RootCmd.AddCommand(hostCmd)
 	RootCmd.AddCommand(tenantCmd)
@@ -92,12 +92,12 @@ func init() {
 	RootCmd.Run = versionInfo
 }
 
-// preConfig sanitizes URLs and setup viper with URLs.
-func preConfig(cmd *cobra.Command, args []string) {
+// preConfig sanitizes URLs and sets up config with URLs.
+func preConfig(cmd *cli.Command, args []string) {
 	// Add port details to rootURL else try localhost
 	// if nothing is given on command line or config.
 	if rootURL == "" {
-		rootURL = viper.GetString("RootURL")
+		rootURL = config.GetString("RootURL")
 	}
 	if rootURL != "" {
 		rootURL = strings.TrimSuffix(rootURL, "/")
@@ -105,31 +105,31 @@ func preConfig(cmd *cobra.Command, args []string) {
 	} else {
 		rootURL = "http://localhost:9600/"
 	}
-	viper.Set("RootURL", rootURL)
+	config.Set("RootURL", rootURL)
 
 	// Give command line options higher priority then
 	// the corresponding config options.
 	if format == "" {
-		format = viper.GetString("Format")
+		format = config.GetString("Format")
 	}
 	// if format is still not found just default to tabular format.
 	if format == "" {
 		format = "table"
 	}
-	viper.Set("Format", format)
+	config.Set("Format", format)
 
 	if platform == "" {
-		platform = viper.GetString("Platform")
+		platform = config.GetString("Platform")
 	}
 	if platform == "" {
 		platform = "openstack"
 	}
-	viper.Set("Platform", platform)
+	config.Set("Platform", platform)
 
 }
 
 // versionInfo displays the build and versioning information.
-func versionInfo(cmd *cobra.Command, args []string) {
+func versionInfo(cmd *cli.Command, args []string) {
 	if version {
 		fmt.Println(common.BuildInfo())
 		os.Exit(0)
@@ -140,41 +140,41 @@ func versionInfo(cmd *cobra.Command, args []string) {
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
 	if cfgFile != "" { // enable ability to specify config file via flag
-		viper.SetConfigFile(cfgFile)
+		config.SetConfigFile(cfgFile)
 	}
 
-	viper.SetConfigName(".romana") // name of config file (without extension)
-	viper.AddConfigPath("$HOME")   // adding home directory as first search path
-	viper.AutomaticEnv()           // read in environment variables that match
+	config.SetConfigName(".romana") // name of config file (without extension)
+	config.AddConfigPath("$HOME")   // adding home directory as first search path
+	config.AutomaticEnv()           // read in environment variables that match
 
 	// If a config file is found, read it in.
-	err := viper.ReadInConfig()
+	err := config.ReadInConfig()
 	setLogOutput()
 	if err != nil {
-		log.Println("Error using config file:", viper.ConfigFileUsed())
+		log.Println("Error using config file:", config.ConfigFileUsed())
 	} else {
-		log.Println("Using config file:", viper.ConfigFileUsed())
+		log.Println("Using config file:", config.ConfigFileUsed())
 	}
 }
 
 // setLogOutput sets the log output to a file of /dev/null
 // depending on the configuration set during initialization.
 func setLogOutput() {
-	logFile, err := os.OpenFile(viper.GetString("LogFile"),
+	logFile, err := os.OpenFile(config.GetString("LogFile"),
 		os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err == nil {
-		if verbose || viper.GetBool("Verbose") {
+		if verbose || config.GetBool("Verbose") {
 			// If output is verbose send it to log file
 			// stdout simultenously.
-			viper.Set("Verbose", true)
+			config.Set("Verbose", true)
 			log.SetOutput(io.MultiWriter(logFile, os.Stdout))
 		} else {
 			// Redirect log output to the log file.
 			log.SetOutput(logFile)
 		}
 	} else {
-		if verbose || viper.GetBool("Verbose") {
-			viper.Set("Verbose", true)
+		if verbose || config.GetBool("Verbose") {
+			config.Set("Verbose", true)
 			log.SetOutput(os.Stdout)
 		} else {
 			// Silently fail and discard log output

@@ -23,12 +23,12 @@ import (
 
 	"github.com/romana/core/common"
 
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
+	cli "github.com/spf13/cobra"
+	config "github.com/spf13/viper"
 )
 
 // hostCmd represents the host commands
-var hostCmd = &cobra.Command{
+var hostCmd = &cli.Command{
 	Use:   "host [add|show|list|remove]",
 	Short: "Add, Remove or Show hosts for romana services.",
 	Long: `Add, Remove or Show hosts for romana services.
@@ -55,7 +55,7 @@ func init() {
 	hostCmd.AddCommand(hostRemoveCmd)
 }
 
-var hostAddCmd = &cobra.Command{
+var hostAddCmd = &cli.Command{
 	Use:          "add",
 	Short:        "Add a new host.",
 	Long:         `Add a new host.`,
@@ -63,7 +63,7 @@ var hostAddCmd = &cobra.Command{
 	SilenceUsage: true,
 }
 
-var hostShowCmd = &cobra.Command{
+var hostShowCmd = &cli.Command{
 	Use:          "show [host name]",
 	Short:        "Show details for a specific host.",
 	Long:         `Show details for a specific host.`,
@@ -71,7 +71,7 @@ var hostShowCmd = &cobra.Command{
 	SilenceUsage: true,
 }
 
-var hostListCmd = &cobra.Command{
+var hostListCmd = &cli.Command{
 	Use:          "list",
 	Short:        "List all hosts.",
 	Long:         `List all hosts if no argument given else show a specific one.`,
@@ -79,7 +79,7 @@ var hostListCmd = &cobra.Command{
 	SilenceUsage: true,
 }
 
-var hostRemoveCmd = &cobra.Command{
+var hostRemoveCmd = &cli.Command{
 	Use:          "remove",
 	Short:        "Remove a host.",
 	Long:         `Remove a host.`,
@@ -87,17 +87,17 @@ var hostRemoveCmd = &cobra.Command{
 	SilenceUsage: true,
 }
 
-func hostAdd(cmd *cobra.Command, args []string) error {
+func hostAdd(cmd *cli.Command, args []string) error {
 	fmt.Println("Unimplemented: Add a new host.")
 	return nil
 }
 
-func hostShow(cmd *cobra.Command, args []string) error {
+func hostShow(cmd *cli.Command, args []string) error {
 	fmt.Println("Unimplemented: Show host details.")
 	return nil
 }
 
-func hostList(cmd *cobra.Command, args []string) error {
+func hostList(cmd *cli.Command, args []string) error {
 	client, err := common.NewRestClient(rootURL, common.GetDefaultRestClientConfig())
 	if err != nil {
 		return err
@@ -121,7 +121,7 @@ func hostList(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if viper.GetString("Format") == "json" {
+	if config.GetString("Format") == "json" {
 		body, err := json.MarshalIndent(hosts, "", "\t")
 		if err != nil {
 			return err
@@ -147,7 +147,7 @@ func hostList(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func hostRemove(cmd *cobra.Command, args []string) error {
+func hostRemove(cmd *cli.Command, args []string) error {
 	fmt.Println("Unimplemented: Remove a host.")
 	return nil
 }

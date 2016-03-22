@@ -23,13 +23,13 @@ import (
 	"github.com/romana/core/romana/kubernetes"
 	"github.com/romana/core/romana/openstack"
 
-	"github.com/spf13/viper"
+	config "github.com/spf13/viper"
 )
 
 // GetTenantName returns openstack tenant name corresponding
 // to the UUID being used in romana tenants.
 func GetTenantName(uuid string) (string, error) {
-	if platform := viper.GetString("Platform"); platform == "kubernetes" {
+	if platform := config.GetString("Platform"); platform == "kubernetes" {
 		return kubernetes.GetTenantName(uuid)
 	} else if platform == "openstack" {
 		return openstack.GetTenantName(uuid)
@@ -42,7 +42,7 @@ func GetTenantName(uuid string) (string, error) {
 // TenantExists returns true/false depending on
 // openstack tenant name or uuid exists or not.
 func TenantExists(name string) bool {
-	if platform := viper.GetString("Platform"); platform == "kubernetes" {
+	if platform := config.GetString("Platform"); platform == "kubernetes" {
 		return kubernetes.TenantExists(name)
 	} else if platform == "openstack" {
 		return openstack.TenantExists(name)
@@ -54,7 +54,7 @@ func TenantExists(name string) bool {
 
 // GetTenantUUID returns openstack tenant UUID corresponding to the name.
 func GetTenantUUID(name string) (string, error) {
-	if platform := viper.GetString("Platform"); platform == "kubernetes" {
+	if platform := config.GetString("Platform"); platform == "kubernetes" {
 		return kubernetes.GetTenantUUID(name)
 	} else if platform == "openstack" {
 		return openstack.GetTenantUUID(name)

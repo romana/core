@@ -25,12 +25,12 @@ import (
 	rc "github.com/romana/core/romana/client"
 	"github.com/romana/core/tenant"
 
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
+	cli "github.com/spf13/cobra"
+	config "github.com/spf13/viper"
 )
 
 // tenantCmd represents the tenant commands
-var tenantCmd = &cobra.Command{
+var tenantCmd = &cli.Command{
 	Use:   "tenant [create|delete|show|list]",
 	Short: "Create, Delete, Show or List Tenant Details.",
 	Long: `Create, Delete, Show or List Tenant Details.
@@ -57,7 +57,7 @@ func init() {
 	tenantCmd.AddCommand(tenantDeleteCmd)
 }
 
-var tenantCreateCmd = &cobra.Command{
+var tenantCreateCmd = &cli.Command{
 	Use:          "create",
 	Short:        "Create a new tenant.",
 	Long:         `Create a new tenant.`,
@@ -65,7 +65,7 @@ var tenantCreateCmd = &cobra.Command{
 	SilenceUsage: true,
 }
 
-var tenantShowCmd = &cobra.Command{
+var tenantShowCmd = &cli.Command{
 	Use:          "show",
 	Short:        "Show tenant details.",
 	Long:         `Show tenant details.`,
@@ -73,7 +73,7 @@ var tenantShowCmd = &cobra.Command{
 	SilenceUsage: true,
 }
 
-var tenantListCmd = &cobra.Command{
+var tenantListCmd = &cli.Command{
 	Use:          "list",
 	Short:        "List all tenants.",
 	Long:         `List all tenants.`,
@@ -81,7 +81,7 @@ var tenantListCmd = &cobra.Command{
 	SilenceUsage: true,
 }
 
-var tenantDeleteCmd = &cobra.Command{
+var tenantDeleteCmd = &cli.Command{
 	Use:          "delete",
 	Short:        "Delete a specific tenant.",
 	Long:         `Delete a specific tenant.`,
@@ -89,18 +89,18 @@ var tenantDeleteCmd = &cobra.Command{
 	SilenceUsage: true,
 }
 
-func tenantCreate(cmd *cobra.Command, args []string) error {
+func tenantCreate(cmd *cli.Command, args []string) error {
 	fmt.Println("Unimplemented: Create a new tenant.")
 	return nil
 }
 
-func tenantShow(cmd *cobra.Command, args []string) error {
+func tenantShow(cmd *cli.Command, args []string) error {
 	fmt.Println("Unimplemented: Show tenant details.")
 	return nil
 }
 
-func tenantList(cmd *cobra.Command, args []string) error {
-	rootURL := viper.GetString("RootURL")
+func tenantList(cmd *cli.Command, args []string) error {
+	rootURL := config.GetString("RootURL")
 
 	client, err := common.NewRestClient(rootURL,
 		common.GetDefaultRestClientConfig())
@@ -119,7 +119,7 @@ func tenantList(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if viper.GetString("Format") == "json" {
+	if config.GetString("Format") == "json" {
 		body, err := json.MarshalIndent(tenants, "", "\t")
 		if err != nil {
 			return err
@@ -143,7 +143,7 @@ func tenantList(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func tenantDelete(cmd *cobra.Command, args []string) error {
+func tenantDelete(cmd *cli.Command, args []string) error {
 	fmt.Println("Unimplemented: Delete a specific tenant.")
 	return nil
 }
