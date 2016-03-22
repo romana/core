@@ -73,7 +73,7 @@ func getNetworkClient() (*gophercloud.ServiceClient, error) {
 }
 
 // initIdentityClient initializes openstack api using
-// gophercloud. Currently it uses enviornmental variables
+// gophercloud. Currently it uses enviornment variables
 // for authenticating with openstack identity.
 func initIdentityClient() (*gophercloud.ServiceClient, error) {
 	opts, err := openstack.AuthOptionsFromEnv()
@@ -207,7 +207,7 @@ func TenantExists(name string) bool {
 	return tenant
 }
 
-// GetTenantUUID returns kubernetes tenant UUID corresponding to the name.
+// GetTenantUUID returns openstack tenant UUID corresponding to the name.
 func GetTenantUUID(name string) (string, error) {
 	var tenant string
 

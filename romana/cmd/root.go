@@ -45,21 +45,15 @@ var RootCmd = &cli.Command{
 	Short: "Command line tools for romana services.",
 	Long: `Command line tools for romana services.
 
-Romana is a new Software Defined Network solution specifically
-designed for Cloud Native applications. Romana allows multi-tenant
-cloud computing networks for OpenStack, Docker and Kubernetes to
-be built without encapsulation or a virtual network overlay.
-
-Romana networks are less expensive to build, easier to operate
-and deliver higher performance than networks built using
-alternative overlay based SDN designs.
-
 For more information, please check http://romana.io
 `,
 }
 
-// Execute adds all child commands to the root command sets flags appropriately.
-// This is called by main.main(). It only needs to happen once to the rootCmd.
+// Execute adds all child commands to the root command and sets
+// flags appropriately. This is called by main.main(). It only
+// needs to happen once to the rootCmd. Here commands/subcommand
+// mapping is added where control is passed around from main()
+// to commands/subcommands evoked.
 func Execute() {
 	if err := RootCmd.Execute(); err != nil {
 		fmt.Println(err)

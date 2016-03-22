@@ -37,15 +37,6 @@ var tenantCmd = &cli.Command{
 
 tenant requires a subcommand, e.g. ` + "`romana tenant create`." + `
 
-Romana is a new Software Defined Network solution specifically
-designed for Cloud Native applications. Romana allows multi-tenant
-cloud computing networks for OpenStack, Docker and Kubernetes to
-be built without encapsulation or a virtual network overlay.
-
-Romana networks are less expensive to build, easier to operate
-and deliver higher performance than networks built using
-alternative overlay based SDN designs.
-
 For more information, please check http://romana.io
 `,
 }
