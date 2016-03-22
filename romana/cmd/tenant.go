@@ -22,7 +22,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/romana/core/common"
-	rc "github.com/romana/core/romana/client"
+	"github.com/romana/core/romana/adaptor"
 	"github.com/romana/core/tenant"
 
 	cli "github.com/spf13/cobra"
@@ -133,7 +133,7 @@ func tenantList(cmd *cli.Command, args []string) error {
 			"Tenant UUID\t",
 			"Tenant Name")
 		for _, tenant := range tenants {
-			t, _ := rc.GetTenantName(tenant.Name)
+			t, _ := adaptor.GetTenantName(tenant.Name)
 			fmt.Fprintln(w, tenant.Id, "\t",
 				tenant.Name, "\t", t)
 		}

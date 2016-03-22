@@ -21,7 +21,7 @@ import (
 	"strconv"
 
 	"github.com/romana/core/common"
-	rc "github.com/romana/core/romana/client"
+	"github.com/romana/core/romana/adaptor"
 	"github.com/romana/core/tenant"
 
 	cli "github.com/spf13/cobra"
@@ -74,9 +74,9 @@ func segmentAdd(cmd *cli.Command, args []string) error {
 
 	tnt := args[0]
 	seg := args[1]
-	tenantUUID, err := rc.GetTenantUUID(tnt)
+	tenantUUID, err := adaptor.GetTenantUUID(tnt)
 	if err != nil {
-		return errors.New("Openstack Tenant doesn't exists: " + tnt)
+		return errors.New("Tenant doesn't exists: " + tnt)
 	}
 
 	romanaID, err := getRomanaTenantID(tenantUUID)

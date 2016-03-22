@@ -13,9 +13,11 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Package client implements glue code for multiple
-// platforms like openstack and kubernetes.
-package client
+// Package adaptor implements glue code for multiple
+// platforms like openstack, kubernetes, etc. It
+// interfaces directly with REST API for them and
+// allows same interface for other command line tools.
+package adaptor
 
 import (
 	"errors"
