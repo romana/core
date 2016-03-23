@@ -19,7 +19,7 @@ package common
 // interfaces.
 
 import (
-	//	"errors"
+	"errors"
 	"fmt"
 	"github.com/codegangsta/negroni"
 	"log"
@@ -132,6 +132,48 @@ type Service interface {
 // It can be used for launching service from tests, etc.
 func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo, error) {
 	log.Printf("Initializing service %s with %v", service.Name(), config.Common.Api)
+
+	routes := service.Routes()
+
+	// Validate hooks
+	hooks := config.Common.Api.Hooks
+	for i, hook := range hooks {
+		if strings.ToLower(hook.When) != "before" && strings.ToLower(hook.When) != "after" {
+			return nil, errors.New(fmt.Sprintf("InitializeService(): Invalid value for when: %s", hook.When))
+		}
+		m := strings.ToUpper(hook.Method)
+		if m != "POST" && m != "PUT" && m != "GET" && m != "DELETE" && m != "HEAD" {
+			return nil, errors.New(fmt.Sprintf("Invalid method: %s", m))
+		}
+		found := false
+		for j, _ := range routes {
+			r := &routes[j]
+			if r.Pattern == hook.Pattern && strings.ToUpper(r.Method) == m {
+				found = true
+				// If you use &hook here instead, guess what happens...
+				// you get the last hook attached to all modified routes.
+				r.Hook = &hooks[i]
+				log.Printf("InitializeService(): [%d] Added hook to run %s %s %s %s", j, hook.Executable, hook.When, r.Method, r.Pattern)
+				break
+			}
+		}
+
+		for i, r := range routes {
+			log.Printf("InitializeService(): Modified route[%d]: %s %s %v", i, r.Method, r.Pattern, r.Hook)
+		}
+		if !found {
+			return nil, errors.New(fmt.Sprintf("No route matching pattern %s and method %s found in %v", hook.Pattern, hook.Method, routes))
+		}
+		finfo, err := os.Stat(hook.Executable)
+		if err != nil {
+			return nil, errors.New(fmt.Sprintf("Problem with specified executable %s: %v", hook.Executable, err))
+		}
+
+		if finfo.Mode().Perm()&0111 == 0 {
+			return nil, errors.New(fmt.Sprintf("%s is not an executable", hook.Executable))
+		}
+	}
+
 	err := service.SetConfig(config)
 	if err != nil {
 		return nil, err
@@ -158,7 +200,6 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 	// into a map
 	negroni.Use(NewUnmarshaller())
 
-	routes := service.Routes()
 	router := newRouter(routes)
 
 	timeoutMillis := config.Common.Api.RestTimeoutMillis
