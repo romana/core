@@ -23,6 +23,8 @@ import (
 	"log"
 )
 
+// Hook defines an executable to run before or after any
+// Route handler execution.
 type Hook struct {
 	// Executable to run
 	Executable string

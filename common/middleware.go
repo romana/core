@@ -157,20 +157,20 @@ func doHook(before bool, route Route, restContext RestContext, body string) (str
 	}
 	pathVars := restContext.PathVariables
 	queryVars := restContext.QueryVariables
-	clArgs := make([]string, len(pathVars)+len(queryVars) + 1)
-	
+	clArgs := make([]string, len(pathVars)+len(queryVars)+1)
+
 	clArgs[0] = fmt.Sprintf("%s=%s", HookExecutableBodyArgument, body)
 	i := 1
 	for k, v := range pathVars {
 		clArgs[i] = fmt.Sprintf("%s=%s", k, v)
 		i++
 	}
-	
+
 	for k, v := range queryVars {
 		clArgs[i] = fmt.Sprintf("%s=%s", k, v)
 		i++
 	}
-	
+
 	var writer io.Writer
 	var err error
 	writer = nil
@@ -327,7 +327,9 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 				}
 			}
 			restContext := RestContext{PathVariables: mux.Vars(request), QueryVariables: request.Form, RequestToken: token}
-			log.Printf("doHook() will be called before %s %s: %s", route.Method, route.Pattern, route.Hook.Executable)
+			if route.Hook != nil {
+				log.Printf("doHook() will be called before %s %s: %s", route.Method, route.Pattern, route.Hook.Executable)
+			}
 			out, err := doHook(true, route, restContext, bufStr)
 			if err != nil {
 				write500(writer, marshaller, err)
@@ -336,7 +338,9 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 			restContext.HookOutput = out
 			outData, err := restHandler(inData, restContext)
 			if err == nil {
-				log.Printf("doHook() will be called after %s %s: %s", route.Method, route.Pattern, route.Hook.Executable)
+				if route.Hook != nil {
+					log.Printf("doHook() will be called after %s %s: %s", route.Method, route.Pattern, route.Hook.Executable)
+				}
 				out, err = doHook(false, route, restContext, bufStr)
 				if err != nil {
 					write500(writer, marshaller, err)
