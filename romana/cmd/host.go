@@ -56,7 +56,7 @@ var hostAddCmd = &cli.Command{
 }
 
 var hostShowCmd = &cli.Command{
-	Use:          "show [hostname]",
+	Use:          "show [hostname1][hostname2]...",
 	Short:        "Show details for a specific host.",
 	Long:         `Show details for a specific host.`,
 	RunE:         hostShow,
@@ -66,7 +66,7 @@ var hostShowCmd = &cli.Command{
 var hostListCmd = &cli.Command{
 	Use:          "list",
 	Short:        "List all hosts.",
-	Long:         `List all hosts if no argument given else show a specific one.`,
+	Long:         `List all hosts.`,
 	RunE:         hostList,
 	SilenceUsage: true,
 }
@@ -81,7 +81,8 @@ var hostRemoveCmd = &cli.Command{
 
 func hostAdd(cmd *cli.Command, args []string) error {
 	if len(args) < 3 || len(args) > 4 {
-		return UsageError(cmd, fmt.Sprintf("expected 3 or 4 arguments, saw %d: %s", len(args), args))
+		return UsageError(cmd,
+			fmt.Sprintf("expected 3 or 4 arguments, saw %d: %s", len(args), args))
 	}
 
 	hostname := args[0]
@@ -92,13 +93,15 @@ func hostAdd(cmd *cli.Command, args []string) error {
 		var err error
 		agentport, err = strconv.Atoi(args[3])
 		if err != nil {
-			return UsageError(cmd, fmt.Sprintf("Agent Port number error, saw %s", args[3]))
+			return UsageError(cmd,
+				fmt.Sprintf("Agent Port number error, saw %s", args[3]))
 		}
 	} else {
 		agentport, _ = strconv.Atoi("9606")
 	}
 
-	client, err := common.NewRestClient(rootURL, common.GetDefaultRestClientConfig())
+	client, err := common.NewRestClient(rootURL,
+		common.GetDefaultRestClientConfig())
 	if err != nil {
 		return err
 	}
@@ -134,12 +137,75 @@ func hostAdd(cmd *cli.Command, args []string) error {
 }
 
 func hostShow(cmd *cli.Command, args []string) error {
-	fmt.Println("Unimplemented: Show host details.")
+	if len(args) < 1 {
+		return UsageError(cmd,
+			fmt.Sprintf("expected at-least 1 arguments, saw none"))
+	}
+
+	client, err := common.NewRestClient(rootURL,
+		common.GetDefaultRestClientConfig())
+	if err != nil {
+		return err
+	}
+
+	topologyURL, err := client.GetServiceUrl(rootURL, "topology")
+	if err != nil {
+		return err
+	}
+
+	index := common.IndexResponse{}
+	err = client.Get(topologyURL, &index)
+	if err != nil {
+		return err
+	}
+
+	hostURL := index.Links.FindByRel("host-list")
+	data := []common.HostMessage{}
+	hosts := []common.HostMessage{}
+	err = client.Get(hostURL, &data)
+	if err != nil {
+		return err
+	}
+
+	for _, h := range data {
+		for _, n := range args {
+			if h.Name == n {
+				hosts = append(hosts, h)
+			}
+		}
+	}
+
+	if config.GetString("Format") == "json" {
+		body, err := json.MarshalIndent(hosts, "", "\t")
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(body))
+	} else {
+		w := new(tabwriter.Writer)
+		w.Init(os.Stdout, 0, 8, 0, '\t', 0)
+		fmt.Println("Host List")
+		fmt.Fprintln(w, "Id\t",
+			"Host Name\t",
+			"Host IP\t",
+			"Romana CIDR\t",
+			"Agent Port\t")
+		for _, host := range hosts {
+			fmt.Fprintln(w, host.Id, "\t",
+				host.Name, "\t",
+				host.Ip, "\t",
+				host.RomanaIp, "\t",
+				host.AgentPort, "\t")
+		}
+		w.Flush()
+	}
+
 	return nil
 }
 
 func hostList(cmd *cli.Command, args []string) error {
-	client, err := common.NewRestClient(rootURL, common.GetDefaultRestClientConfig())
+	client, err := common.NewRestClient(rootURL,
+		common.GetDefaultRestClientConfig())
 	if err != nil {
 		return err
 	}

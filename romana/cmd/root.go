@@ -68,7 +68,7 @@ func init() {
 	RootCmd.AddCommand(tenantCmd)
 	RootCmd.AddCommand(segmentCmd)
 
-	RootCmd.Flags().BoolVarP(&version, "version", "v",
+	RootCmd.Flags().BoolVarP(&version, "version", "",
 		false, "Build and Versioning Information.")
 
 	RootCmd.PersistentFlags().StringVarP(&cfgFile, "config",
@@ -80,7 +80,7 @@ func init() {
 	RootCmd.PersistentFlags().StringVarP(&platform, "platform",
 		"p", "", "Use platforms like [openstack|kubernetes], etc.")
 	RootCmd.PersistentFlags().BoolVarP(&verbose, "verbose",
-		"w", false, "Verbose output.")
+		"v", false, "Verbose output.")
 
 	RootCmd.PersistentPreRun = preConfig
 	RootCmd.Run = versionInfo
