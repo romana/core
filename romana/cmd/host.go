@@ -139,7 +139,7 @@ func hostAdd(cmd *cli.Command, args []string) error {
 func hostShow(cmd *cli.Command, args []string) error {
 	if len(args) < 1 {
 		return UsageError(cmd,
-			fmt.Sprintf("expected at-least 1 arguments, saw none"))
+			fmt.Sprintf("expected at-least 1 argument, saw none"))
 	}
 
 	client, err := common.NewRestClient(rootURL,

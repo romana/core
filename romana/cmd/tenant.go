@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"text/tabwriter"
 
 	"github.com/romana/core/common"
@@ -28,6 +29,14 @@ import (
 	cli "github.com/spf13/cobra"
 	config "github.com/spf13/viper"
 )
+
+// tenantData holds tenant information received from tenant
+// service and its corresponding name received from adaptors.
+type tenantData struct {
+	Tenant   tenant.Tenant
+	Name     string
+	Segments []tenant.Segment
+}
 
 // tenantCmd represents the tenant commands
 var tenantCmd = &cli.Command{
@@ -49,7 +58,7 @@ func init() {
 }
 
 var tenantCreateCmd = &cli.Command{
-	Use:          "create",
+	Use:          "create [tenantname]",
 	Short:        "Create a new tenant.",
 	Long:         `Create a new tenant.`,
 	RunE:         tenantCreate,
@@ -57,7 +66,7 @@ var tenantCreateCmd = &cli.Command{
 }
 
 var tenantShowCmd = &cli.Command{
-	Use:          "show",
+	Use:          "show [tenantname1][tenantname2]...",
 	Short:        "Show tenant details.",
 	Long:         `Show tenant details.`,
 	RunE:         tenantShow,
@@ -86,7 +95,71 @@ func tenantCreate(cmd *cli.Command, args []string) error {
 }
 
 func tenantShow(cmd *cli.Command, args []string) error {
-	fmt.Println("Unimplemented: Show tenant details.")
+	if len(args) < 1 {
+		return UsageError(cmd,
+			fmt.Sprintf("expected at-least 1 argument, saw none"))
+	}
+
+	rootURL := config.GetString("RootURL")
+
+	client, err := common.NewRestClient(rootURL,
+		common.GetDefaultRestClientConfig())
+	if err != nil {
+		return err
+	}
+
+	tenantURL, err := client.GetServiceUrl(rootURL, "tenant")
+	if err != nil {
+		return err
+	}
+
+	data := []tenant.Tenant{}
+	tenants := []tenantData{}
+	err = client.Get(tenantURL+"/tenants", &data)
+	if err != nil {
+		return err
+	}
+
+	for _, t := range data {
+		for _, n := range args {
+			name, _ := adaptor.GetTenantName(t.Name)
+			if t.Name == n || name == n {
+				seg := []tenant.Segment{}
+				tIdStr := strconv.FormatUint(t.Id, 10)
+				err = client.Get(tenantURL+"/tenants/"+tIdStr+"/segments", &seg)
+				if err != nil {
+					return err
+				}
+				tenants = append(tenants, tenantData{t, name, seg})
+			}
+		}
+	}
+
+	if config.GetString("Format") == "json" {
+		body, err := json.MarshalIndent(tenants, "", "\t")
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(body))
+	} else {
+		w := new(tabwriter.Writer)
+		w.Init(os.Stdout, 0, 8, 0, '\t', 0)
+		fmt.Fprintln(w, "Id\t",
+			"Tenant UUID\t",
+			"Tenant Name\t",
+			"Segments", "\t",
+		)
+		for _, t := range tenants {
+			fmt.Fprintf(w, "%d \t %s \t %s \t", t.Tenant.Id,
+				t.Tenant.Name, t.Name)
+			for _, s := range t.Segments {
+				fmt.Fprintf(w, "%s, ", s.Name)
+			}
+			fmt.Fprintf(w, "\n")
+		}
+		w.Flush()
+	}
+
 	return nil
 }
 
@@ -104,10 +177,16 @@ func tenantList(cmd *cli.Command, args []string) error {
 		return err
 	}
 
-	tenants := []tenant.Tenant{}
-	err = client.Get(tenantURL+"/tenants", &tenants)
+	data := []tenant.Tenant{}
+	tenants := []tenantData{}
+	err = client.Get(tenantURL+"/tenants", &data)
 	if err != nil {
 		return err
+	}
+
+	for _, t := range data {
+		name, _ := adaptor.GetTenantName(t.Name)
+		tenants = append(tenants, tenantData{t, name, []tenant.Segment{}})
 	}
 
 	if config.GetString("Format") == "json" {
@@ -122,11 +201,12 @@ func tenantList(cmd *cli.Command, args []string) error {
 		fmt.Println("Tenant List")
 		fmt.Fprintln(w, "Id\t",
 			"Tenant UUID\t",
-			"Tenant Name")
-		for _, tenant := range tenants {
-			t, _ := adaptor.GetTenantName(tenant.Name)
-			fmt.Fprintln(w, tenant.Id, "\t",
-				tenant.Name, "\t", t)
+			"Tenant Name\t",
+		)
+		for _, t := range tenants {
+			fmt.Fprintln(w, t.Tenant.Id, "\t",
+				t.Tenant.Name, "\t", t.Name, "\t",
+			)
 		}
 		w.Flush()
 	}

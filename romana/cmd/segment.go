@@ -29,7 +29,7 @@ import (
 
 // segmentCmd represents the segment commands
 var segmentCmd = &cli.Command{
-	Use:   "segment [add|remove]",
+	Use:   "segment [add|remove|list]",
 	Short: "Add or Remove a segment.",
 	Long: `Add or Remove a segment.
 
@@ -40,10 +40,11 @@ For more information, please check http://romana.io
 func init() {
 	segmentCmd.AddCommand(segmentAddCmd)
 	segmentCmd.AddCommand(segmentRemoveCmd)
+	segmentCmd.AddCommand(segmentListCmd)
 }
 
 var segmentAddCmd = &cli.Command{
-	Use:          "add [tenant name] [segment name]",
+	Use:          "add [tenant name][segment name]",
 	Short:        "Add a new segment.",
 	Long:         `Add a new segment.`,
 	RunE:         segmentAdd,
@@ -55,6 +56,14 @@ var segmentRemoveCmd = &cli.Command{
 	Short:        "Remove a specific segment.",
 	Long:         `Remove a specific segment.`,
 	RunE:         segmentRemove,
+	SilenceUsage: true,
+}
+
+var segmentListCmd = &cli.Command{
+	Use:          "list [tenant name]",
+	Short:        "List segments for a specific tenant.",
+	Long:         `List segments for a specific tenant.`,
+	RunE:         segmentList,
 	SilenceUsage: true,
 }
 
@@ -100,5 +109,18 @@ func segmentAdd(cmd *cli.Command, args []string) error {
 
 func segmentRemove(cmd *cli.Command, args []string) error {
 	fmt.Println("Unimplemented: Remove a specific segment.")
+	return nil
+}
+
+func segmentList(cmd *cli.Command, args []string) error {
+	if len(args) < 1 {
+		return UsageError(cmd, "TENANT name should be provided.")
+	}
+	if len(args) > 1 {
+		return UsageError(cmd,
+			"Extra arguments provided, only one TENANT name accepted.")
+	}
+
+	tenantShow(cmd, args)
 	return nil
 }
