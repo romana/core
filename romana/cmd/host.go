@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"strconv"
 	"text/tabwriter"
 
 	"github.com/romana/core/common"
@@ -47,7 +48,7 @@ func init() {
 }
 
 var hostAddCmd = &cli.Command{
-	Use:          "add",
+	Use:          "add [hostname][hostip][romana cidr][(optional)agent port]",
 	Short:        "Add a new host.",
 	Long:         `Add a new host.`,
 	RunE:         hostAdd,
@@ -55,7 +56,7 @@ var hostAddCmd = &cli.Command{
 }
 
 var hostShowCmd = &cli.Command{
-	Use:          "show [host name]",
+	Use:          "show [hostname]",
 	Short:        "Show details for a specific host.",
 	Long:         `Show details for a specific host.`,
 	RunE:         hostShow,
@@ -71,7 +72,7 @@ var hostListCmd = &cli.Command{
 }
 
 var hostRemoveCmd = &cli.Command{
-	Use:          "remove",
+	Use:          "remove [hostname|hostip]",
 	Short:        "Remove a host.",
 	Long:         `Remove a host.`,
 	RunE:         hostRemove,
@@ -79,7 +80,56 @@ var hostRemoveCmd = &cli.Command{
 }
 
 func hostAdd(cmd *cli.Command, args []string) error {
-	fmt.Println("Unimplemented: Add a new host.")
+	if len(args) < 3 || len(args) > 4 {
+		return UsageError(cmd, fmt.Sprintf("expected 3 or 4 arguments, saw %d: %s", len(args), args))
+	}
+
+	hostname := args[0]
+	hostip := args[1]
+	romanacidr := args[2]
+	var agentport int
+	if len(args) == 4 {
+		var err error
+		agentport, err = strconv.Atoi(args[3])
+		if err != nil {
+			return UsageError(cmd, fmt.Sprintf("Agent Port number error, saw %s", args[3]))
+		}
+	} else {
+		agentport, _ = strconv.Atoi("9606")
+	}
+
+	client, err := common.NewRestClient(rootURL, common.GetDefaultRestClientConfig())
+	if err != nil {
+		return err
+	}
+
+	topologyURL, err := client.GetServiceUrl(rootURL, "topology")
+	if err != nil {
+		return err
+	}
+
+	index := common.IndexResponse{}
+	err = client.Get(topologyURL, &index)
+	if err != nil {
+		return err
+	}
+
+	host := common.HostMessage{
+		Name:      hostname,
+		Ip:        hostip,
+		RomanaIp:  romanacidr,
+		AgentPort: agentport,
+	}
+	fmt.Printf("Host (%v) added successfully.\n", host)
+
+	data := common.HostMessage{}
+	err = client.Post(topologyURL+"/hosts", host, &data)
+	if err != nil {
+		fmt.Printf("Error adding host (%s).\n", hostname)
+		return err
+	}
+
+	fmt.Printf("Host (%s) added successfully.\n", hostname)
 	return nil
 }
 
@@ -125,12 +175,14 @@ func hostList(cmd *cli.Command, args []string) error {
 		fmt.Fprintln(w, "Id\t",
 			"Host Name\t",
 			"Host IP\t",
-			"Romana IP\t")
+			"Romana CIDR\t",
+			"Agent Port\t")
 		for _, host := range hosts {
 			fmt.Fprintln(w, host.Id, "\t",
 				host.Name, "\t",
 				host.Ip, "\t",
-				host.RomanaIp)
+				host.RomanaIp, "\t",
+				host.AgentPort, "\t")
 		}
 		w.Flush()
 	}

@@ -33,9 +33,6 @@ var (
 	computeClient  *gophercloud.ServiceClient
 )
 
-type ClientInterface interface {
-}
-
 func getIdentityClient() (*gophercloud.ServiceClient, error) {
 	var err error
 	if identityClient == nil {
