@@ -25,7 +25,7 @@ import (
 // to few or more arguments being passed to the commands or
 // sub-commands of romana command line tools.
 func UsageError(cmd *cli.Command, format string, args ...interface{}) error {
-	return fmt.Errorf("%s\nCheck '%s -h' for help.",
+	return fmt.Errorf("%s\nCheck '%s -h' for help",
 		fmt.Sprintf(format, args...),
 		cmd.CommandPath())
 }

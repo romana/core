@@ -28,8 +28,8 @@ import (
 	config "github.com/spf13/viper"
 )
 
-// GetTenantName returns openstack tenant name corresponding
-// to the UUID being used in romana tenants.
+// GetTenantName returns platform specific tenant name
+// corresponding to the UUID being used in romana tenants.
 func GetTenantName(uuid string) (string, error) {
 	if platform := config.GetString("Platform"); platform == "kubernetes" {
 		return kubernetes.GetTenantName(uuid)
@@ -41,8 +41,8 @@ func GetTenantName(uuid string) (string, error) {
 	}
 }
 
-// TenantExists returns true/false depending on
-// openstack tenant name or uuid exists or not.
+// TenantExists returns true/false depending on platform
+// specific tenant name or uuid exists or not.
 func TenantExists(name string) bool {
 	if platform := config.GetString("Platform"); platform == "kubernetes" {
 		return kubernetes.TenantExists(name)
@@ -54,7 +54,8 @@ func TenantExists(name string) bool {
 	}
 }
 
-// GetTenantUUID returns openstack tenant UUID corresponding to the name.
+// GetTenantUUID returns platform specific tenant UUID
+// corresponding to the name.
 func GetTenantUUID(name string) (string, error) {
 	if platform := config.GetString("Platform"); platform == "kubernetes" {
 		return kubernetes.GetTenantUUID(name)
@@ -63,5 +64,18 @@ func GetTenantUUID(name string) (string, error) {
 	} else {
 		// Unimplemented Platform.
 		return "", errors.New("Unimplemented Platform.")
+	}
+}
+
+// CreateTenant creates platform specific tenant
+// corresponding to the name given.
+func CreateTenant(name string) error {
+	if platform := config.GetString("Platform"); platform == "kubernetes" {
+		return kubernetes.CreateTenant(name)
+	} else if platform == "openstack" {
+		return openstack.CreateTenant(name)
+	} else {
+		// Unimplemented Platform.
+		return errors.New("Unimplemented Platform.")
 	}
 }

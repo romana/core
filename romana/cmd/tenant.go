@@ -90,7 +90,70 @@ var tenantDeleteCmd = &cli.Command{
 }
 
 func tenantCreate(cmd *cli.Command, args []string) error {
-	fmt.Println("Unimplemented: Create a new tenant.")
+	if len(args) < 1 {
+		return UsageError(cmd,
+			fmt.Sprintf("expected at-least 1 argument, saw none"))
+	}
+
+	rootURL := config.GetString("RootURL")
+
+	client, err := common.NewRestClient(rootURL,
+		common.GetDefaultRestClientConfig())
+	if err != nil {
+		return err
+	}
+
+	tenantURL, err := client.GetServiceUrl(rootURL, "tenant")
+	if err != nil {
+		return err
+	}
+
+	tenants := []tenantData{}
+	for _, tnt := range args {
+		if !adaptor.TenantExists(tnt) {
+			// uncomment this once creating tenant for all
+			// platforms are ready. Till then tenants needs
+			// to be manually created for every platform and
+			// then created using romana command line tools.
+			// if adaptor.CreateTenant(tnt) != nil {
+			return err
+			// }
+		}
+		tntUUID, err := adaptor.GetTenantUUID(tnt)
+		if err != nil {
+			return err
+		}
+		data := tenant.Tenant{Name: tntUUID}
+		result := tenant.Tenant{}
+		err = client.Post(tenantURL+"/tenants", data, &result)
+		if err != nil {
+			return err
+		}
+		tenants = append(tenants, tenantData{result, tnt, []tenant.Segment{}})
+	}
+
+	if config.GetString("Format") == "json" {
+		body, err := json.MarshalIndent(tenants, "", "\t")
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(body))
+	} else {
+		w := new(tabwriter.Writer)
+		w.Init(os.Stdout, 0, 8, 0, '\t', 0)
+		fmt.Println("New Tenant(s) Added:")
+		fmt.Fprintln(w, "Id\t",
+			"Tenant UUID\t",
+			"Tenant Name\t",
+		)
+		for _, t := range tenants {
+			fmt.Fprintf(w, "%d \t %s \t %s \t", t.Tenant.Id,
+				t.Tenant.Name, t.Name)
+			fmt.Fprintf(w, "\n")
+		}
+		w.Flush()
+	}
+
 	return nil
 }
 
@@ -125,8 +188,8 @@ func tenantShow(cmd *cli.Command, args []string) error {
 			name, _ := adaptor.GetTenantName(t.Name)
 			if t.Name == n || name == n {
 				seg := []tenant.Segment{}
-				tIdStr := strconv.FormatUint(t.Id, 10)
-				err = client.Get(tenantURL+"/tenants/"+tIdStr+"/segments", &seg)
+				tIDStr := strconv.FormatUint(t.Id, 10)
+				err = client.Get(tenantURL+"/tenants/"+tIDStr+"/segments", &seg)
 				if err != nil {
 					return err
 				}

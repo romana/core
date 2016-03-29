@@ -233,3 +233,10 @@ func GetTenantUUID(name string) (string, error) {
 	)
 	return tenant, nil
 }
+
+// CreateTenant creates openstack specific tenant
+// corresponding to the name given.
+func CreateTenant(name string) error {
+	// Unimplemented
+	return nil
+}

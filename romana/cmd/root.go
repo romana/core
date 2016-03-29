@@ -39,7 +39,7 @@ var (
 	platform string
 )
 
-// This represents the base command when called without any subcommands
+// RootCmd represents the base command when called without any subcommands
 var RootCmd = &cli.Command{
 	Use:   "romana",
 	Short: "Command line tools for romana services.",

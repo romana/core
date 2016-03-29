@@ -31,8 +31,16 @@ func TenantExists(name string) bool {
 	return false
 }
 
-// GetTenantUUID returns kubernetes tenant UUID corresponding to the name.
+// GetTenantUUID returns kubernetes tenant
+// UUID corresponding to the name.
 func GetTenantUUID(name string) (string, error) {
 	// Unimplemented
 	return name, nil
+}
+
+// CreateTenant creates kubernetes specific tenant
+// corresponding to the name given.
+func CreateTenant(name string) error {
+	// Unimplemented
+	return nil
 }
