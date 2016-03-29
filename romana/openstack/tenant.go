@@ -70,8 +70,9 @@ func getNetworkClient() (*gophercloud.ServiceClient, error) {
 }
 
 // initIdentityClient initializes openstack api using
-// gophercloud. Currently it uses enviornment variables
-// for authenticating with openstack identity.
+// gophercloud which handles auth tokens keeping api calls
+// simpler. Currently it uses enviornment variables for
+// authenticating with openstack identity.
 func initIdentityClient() (*gophercloud.ServiceClient, error) {
 	opts, err := openstack.AuthOptionsFromEnv()
 	if err != nil {
@@ -87,8 +88,9 @@ func initIdentityClient() (*gophercloud.ServiceClient, error) {
 }
 
 // initComputeClient initializes openstack api using
-// gophercloud. Currently it uses enviornmental variables
-// for authenticating with openstack identity.
+// gophercloud which handles auth tokens keeping api calls
+// simpler. Currently it uses enviornment variables for
+// authenticating with openstack identity.
 func initComputeClient() (*gophercloud.ServiceClient, error) {
 	opts, err := openstack.AuthOptionsFromEnv()
 	if err != nil {
@@ -107,8 +109,9 @@ func initComputeClient() (*gophercloud.ServiceClient, error) {
 }
 
 // initNetworkClient initializes openstack api using
-// gophercloud. Currently it uses enviornmental variables
-// for authenticating with openstack identity.
+// gophercloud which handles auth tokens keeping api calls
+// simpler. Currently it uses enviornment variables for
+// authenticating with openstack identity.
 func initNetworkClient() (*gophercloud.ServiceClient, error) {
 	opts, err := openstack.AuthOptionsFromEnv()
 	if err != nil {
