@@ -150,8 +150,6 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 			r := &routes[j]
 			if r.Pattern == hook.Pattern && strings.ToUpper(r.Method) == m {
 				found = true
-				// If you use &hook here instead, guess what happens...
-				// you get the last hook attached to all modified routes.
 				r.Hook = &hooks[i]
 				log.Printf("InitializeService(): [%d] Added hook to run %s %s %s %s", j, hook.Executable, hook.When, r.Method, r.Pattern)
 				break

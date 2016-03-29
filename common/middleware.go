@@ -140,6 +140,10 @@ func write400(writer http.ResponseWriter, m Marshaller, request string, err erro
 	writer.Write(outData)
 }
 
+// doHook runs the Executable specified in route.Hook
+// if the before parameter provided here (before or after) matches that
+// of before value in route.Hook. It returns stdout and stderr
+// from the executable, or an error.
 func doHook(before bool, route Route, restContext RestContext, body string) (string, error) {
 	hook := route.Hook
 	if hook == nil {
@@ -155,17 +159,26 @@ func doHook(before bool, route Route, restContext RestContext, body string) (str
 		log.Printf("doHook(): We are in after and %s is for before", hookInfo)
 		return "", nil
 	}
+	// Path variables (e.g., id in /foo/{id}) will be passed to the executable as a
+	// list of key=value pairs.
 	pathVars := restContext.PathVariables
+	// Query variables from this URL call will also be provided in the
+	// above manner.
 	queryVars := restContext.QueryVariables
+	// One more element is needed - body=<body> of the request will be provided
+	// as CLI argument.
 	clArgs := make([]string, len(pathVars)+len(queryVars)+1)
-
+	// Add body argument.
 	clArgs[0] = fmt.Sprintf("%s=%s", HookExecutableBodyArgument, body)
+
+	// Add pathVars arguments.
 	i := 1
 	for k, v := range pathVars {
 		clArgs[i] = fmt.Sprintf("%s=%s", k, v)
 		i++
 	}
 
+	// Add query argument.
 	for k, v := range queryVars {
 		clArgs[i] = fmt.Sprintf("%s=%s", k, v)
 		i++
