@@ -154,6 +154,7 @@ func (s *MySuite) TestIntegration(c *check.C) {
 	possibleRomanaIps := make([]string, 0)
 	for _, addr := range addrs {
 		strAddr := addr.String()
+		// Ignore IPv6 for now...
 		if strings.ContainsAny(strAddr, ":") {
 			continue
 		}
