@@ -17,7 +17,7 @@
 package test
 
 import (
-	"database/sql"
+	//	"database/sql"
 	"fmt"
 	"github.com/go-check/check"
 	"github.com/romana/core/common"
@@ -47,7 +47,12 @@ func (s *MySuite) SetUpTest(c *check.C) {
 	dir, _ := os.Getwd()
 	c.Log("Entering setup in directory", dir)
 
-	common.MockPortsInConfig("../common/testdata/romana.sample.yaml")
+	romanaConfigFile := os.ExpandEnv("${ROMANA_CONFIG_FILE}")
+	if romanaConfigFile == "" {
+		romanaConfigFile = "../common/testdata/romana.sample.yaml"
+	}
+	c.Log("Will use config file", romanaConfigFile)
+	common.MockPortsInConfig(romanaConfigFile)
 	s.configFile = "/tmp/romana.yaml"
 	var err error
 	s.config, err = common.ReadConfig(s.configFile)
@@ -141,25 +146,27 @@ func (s *MySuite) TestIntegration(c *check.C) {
 	client.Get(hostsRelURL, &hostList)
 	myLog(c, "Host list: ", hostList)
 	c.Assert(len(hostList), check.Equals, 0)
-	newHostReq := common.HostMessage{Ip: "10.10.10.10", RomanaIp: "10.0.0.1/16", AgentPort: 9999, Name: "HOST1000"}
 
+	// Add host 1
+	newHostReq := common.HostMessage{Ip: "10.10.10.10", RomanaIp: "10.0.0.0/16", AgentPort: 9999, Name: "HOST1000"}
 	host1 := common.HostMessage{}
 	client.Post(hostsRelURL, newHostReq, &host1)
 	myLog(c, "Response: ", host1)
 	c.Assert(host1.Ip, check.Equals, "10.10.10.10")
 	c.Assert(host1.Id, check.Equals, "1")
-	//
-	newHostReq = common.HostMessage{Ip: "10.10.10.11", RomanaIp: "10.0.0.2/16", AgentPort: 9999, Name: "HOST2000"}
+
+	// Add host 2
+	newHostReq = common.HostMessage{Ip: "10.10.10.11", RomanaIp: "10.0.128.0/16", AgentPort: 9999, Name: "HOST2000"}
 	host2 := common.HostMessage{}
 	client.Post(hostsRelURL, newHostReq, &host2)
 	myLog(c, "Response: ", host2)
-
 	c.Assert(host2.Ip, check.Equals, "10.10.10.11")
 	c.Assert(host2.Id, check.Equals, "2")
+
+	// Get list of hosts - should have 2 now
 	var hostList2 []common.HostMessage
 	client.Get(hostsRelURL, &hostList2)
 	myLog(c, "Host list: ", hostList2)
-
 	c.Assert(len(hostList2), check.Equals, 2)
 
 	// 3. Start tenant service
@@ -171,10 +178,6 @@ func (s *MySuite) TestIntegration(c *check.C) {
 	tenantAddr := "http://" + tenantInfo.Address
 	msg = <-tenantInfo.Channel
 	myLog(c, "Tenant service said:", msg)
-	client, err = common.NewRestClient(tenantAddr, common.GetDefaultRestClientConfig())
-	if err != nil {
-		c.Error(err)
-	}
 
 	// 4. Add a tenant and a segment
 	err = client.NewUrl(tenantAddr)
@@ -182,69 +185,71 @@ func (s *MySuite) TestIntegration(c *check.C) {
 		c.Error(err)
 	}
 
-	// Add first tenant
-	tIn := tenant.Tenant{Name: "t1"}
-	tOut := tenant.Tenant{}
-	err = client.Post("/tenants", tIn, &tOut)
+	// Add tenant t1
+	t1In := tenant.Tenant{Name: "t1"}
+	t1Out := tenant.Tenant{}
+	err = client.Post("/tenants", t1In, &t1Out)
 	if err != nil {
 		c.Error(err)
 	}
-	t1Id := tOut.Id
-	myLog(c, "Tenant", tOut)
+	t1Id := t1Out.Id
+	myLog(c, "Tenant 1", t1Out)
 
-	// Add second tenant
-	tIn = tenant.Tenant{Name: "t2"}
-	tOut = tenant.Tenant{}
-	err = client.Post("/tenants", tIn, &tOut)
+	// Add tenant t2
+	t2In := tenant.Tenant{Name: "t2"}
+	t2Out := tenant.Tenant{}
+	err = client.Post("/tenants", t2In, &t2Out)
 	if err != nil {
 		c.Error(err)
 	}
-	t2Id := tOut.Id
-	myLog(c, "Tenant", tOut)
+	t2Id := t2Out.Id
+	myLog(c, "Tenant 2", t2Out)
 
 	// Find first tenant
-	tOut2 := tenant.Tenant{}
+	t1OutFound := tenant.Tenant{}
 	tenant1Path := fmt.Sprintf("/tenants/%d", t1Id)
-	err = client.Get(tenant1Path, &tOut2)
+	err = client.Get(tenant1Path, &t1OutFound)
 	if err != nil {
 		c.Error(err)
 	}
-	myLog(c, "Found", tOut2)
+	myLog(c, "Found", t1OutFound)
 
-	// Add 2 segments to tenant 1
-	sIn := tenant.Segment{Name: "s1", TenantId: t1Id}
-	sOut := tenant.Segment{}
-	err = client.Post(tenant1Path+"/segments", sIn, &sOut)
+	// Add segment s1 to tenant t1
+	t1s1In := tenant.Segment{Name: "s1", TenantId: t1Id}
+	t1s1Out := tenant.Segment{}
+	err = client.Post(tenant1Path+"/segments", t1s1In, &t1s1Out)
 	if err != nil {
 		c.Error(err)
 	}
-	myLog(c, "Added segment s1 to t1: ", sOut)
-	sIn = tenant.Segment{Name: "s2", TenantId: t1Id}
-	sOut = tenant.Segment{}
-	err = client.Post(tenant1Path+"/segments", sIn, &sOut)
-	if err != nil {
-		c.Error(err)
-	}
-	myLog(c, "Added segment s2 to t1: ", sOut)
+	myLog(c, "Added segment s1 to t1: ", t1s1Out)
 
-	// Add 2 segments to tenant 2
+	// Add segment s2 to tenant t1
+	t1s2In := tenant.Segment{Name: "s2", TenantId: t1Id}
+	t1s2Out := tenant.Segment{}
+	err = client.Post(tenant1Path+"/segments", t1s2In, &t1s2Out)
+	if err != nil {
+		c.Error(err)
+	}
+	myLog(c, "Added segment s2 to t1: ", t1s2Out)
+
+	// Add segment s1 to tenant t2
 	tenant2Path := fmt.Sprintf("/tenants/%d", t2Id)
-
-	sIn = tenant.Segment{Name: "s1", TenantId: t2Id}
-	sOut = tenant.Segment{}
-	err = client.Post(tenant2Path+"/segments", sIn, &sOut)
+	t2s1In := tenant.Segment{Name: "s1", TenantId: t2Id}
+	t2s1Out := tenant.Segment{}
+	err = client.Post(tenant2Path+"/segments", t2s1In, &t2s1Out)
 	if err != nil {
 		c.Error(err)
 	}
-	myLog(c, "Added segment s1 to t2: ", sOut)
+	myLog(c, "Added segment s1 to t2: ", t2s1Out)
 
-	sIn = tenant.Segment{Name: "s2", TenantId: t2Id}
-	sOut = tenant.Segment{}
-	err = client.Post(tenant2Path+"/segments", sIn, &sOut)
+	// Add segment s2 to tenant t2
+	t2s2In := tenant.Segment{Name: "s2", TenantId: t2Id}
+	t2s2Out := tenant.Segment{}
+	err = client.Post(tenant2Path+"/segments", t2s2In, &t2s2Out)
 	if err != nil {
 		c.Error(err)
 	}
-	myLog(c, "Added segment s2 to t2: ", sOut)
+	myLog(c, "Added segment s2 to t2: ", t2s2Out)
 
 	// 4. Start IPAM service
 	myLog(c, "STARTING IPAM SERVICE")
@@ -260,50 +265,79 @@ func (s *MySuite) TestIntegration(c *check.C) {
 		c.Error(err)
 	}
 
-	// Get first IP
+	// Get IP for t1, s1, h1
 	myLog(c, "Get first IP")
-
-	vmIn := ipam.Vm{Name: "vm1", TenantId: fmt.Sprintf("%d", tOut.Id), SegmentId: fmt.Sprintf("%d", sOut.Id), HostId: host2.Id, RequestToken: sql.NullString{String: "ttt", Valid: true}}
-	vmOut := ipam.Vm{}
-	err = client.Post("/vms", vmIn, &vmOut)
+	tenantId := fmt.Sprintf("%d", t1Out.Id)
+	segmentId := fmt.Sprintf("%d", t1s1Out.Id)
+	t1s1h1EpIn := ipam.Endpoint{Name: "endpoint1", TenantId: tenantId, SegmentId: segmentId, HostId: host1.Id}
+	t1s1h1Ep1Out := ipam.Endpoint{}
+	err = client.Post("/endpoints", t1s1h1EpIn, &t1s1h1Ep1Out)
 	if err != nil {
 		c.Error(err)
 	}
-	myLog(c, "Response from IPAM for ", vmIn, "is", vmOut)
+	myLog(c, "Response from IPAM for ", t1s1h1EpIn, "is", t1s1h1Ep1Out)
+	c.Assert(t1s1h1Ep1Out.Ip, check.Equals, "10.0.17.3")
 
-	// TODO waiting for
-	// https://github.com/jinzhu/gorm/issues/819
-	//	myLog(c, "Try same request, watch it result in 409")
-	//	vmOut = ipam.Vm{}
-	//	err = client.Post("/vms", vmIn, &vmOut)
-	//	if err != nil {
-	//		c.Error(err)
-	//	}
-	//	myLog(c, "Response from IPAM for ", vmIn, "is", vmOut)
-
-	// Get second IP
-	vmIn = ipam.Vm{Name: "vm2", TenantId: fmt.Sprintf("%d", tOut.Id), SegmentId: fmt.Sprintf("%d", sOut.Id), HostId: host2.Id}
-	vmOut = ipam.Vm{}
-	err = client.Post("/vms", vmIn, &vmOut)
+	// Get another IP for t1, s1, h1
+	t1s1h1Ep2Out := ipam.Endpoint{}
+	err = client.Post("/endpoints", t1s1h1EpIn, &t1s1h1Ep2Out)
 	if err != nil {
 		c.Error(err)
 	}
-	myLog(c, "Response from IPAM for ", vmIn, "is", vmOut)
-	myLog(c, "IP:", vmOut.Ip)
+	myLog(c, "Response from IPAM for ", t1s1h1EpIn, "is", t1s1h1Ep2Out)
+	c.Assert(t1s1h1Ep2Out.Ip, check.Equals, "10.0.17.4")
+
+	// And another one for t1, s1, h1
+	t1s1h1Ep3Out := ipam.Endpoint{}
+	err = client.Post("/endpoints", t1s1h1EpIn, &t1s1h1Ep2Out)
+	if err != nil {
+		c.Error(err)
+	}
+	myLog(c, "Response from IPAM for ", t1s1h1EpIn, "is", t1s1h1Ep3Out)
+	c.Assert(t1s1h1Ep3Out.Ip, check.Equals, "10.0.17.5")
+
+	// Try deleting second...
+	myLog(c, "Trying to delete IP ", t1s1h1Ep2Out.Ip)
+	delOut := ipam.Endpoint{}
+	err = client.Delete(fmt.Sprintf("/endpoints/%s", t1s1h1Ep2Out.Ip), nil, &delOut)
+	if err != nil {
+		c.Error(err)
+	}
+	myLog(c, "Deletion returned ", delOut)
+
+	// And add another one for t1, s1, h1
+	t1s1h1Ep4Out := ipam.Endpoint{}
+	err = client.Post("/endpoints", t1s1h1EpIn, &t1s1h1Ep4Out)
+	if err != nil {
+		c.Error(err)
+	}
+	myLog(c, "Response from IPAM for ", t1s1h1EpIn, "is", t1s1h1Ep4Out)
+
+	// Get IP for t2, s2, h2
+	myLog(c, "Get first IP")
+	tenantId = fmt.Sprintf("%d", t2Out.Id)
+	segmentId = fmt.Sprintf("%d", t2s2Out.Id)
+	t2s2h2EpIn := ipam.Endpoint{Name: "endpoint1", TenantId: tenantId, SegmentId: segmentId, HostId: host2.Id}
+	t2s2h2EpOut := ipam.Endpoint{}
+	err = client.Post("/endpoints", t2s2h2EpIn, &t2s2h2EpOut)
+	if err != nil {
+		c.Error(err)
+	}
+	myLog(c, "Response from IPAM for ", t2s2h2EpIn, "is", t2s2h2EpOut)
 
 	// Try legacy request
-	vmOut = ipam.Vm{}
+	endpointOut := ipam.Endpoint{}
 	legacyURL := "/allocateIpByName?tenantName=t1&segmentName=s1&hostName=HOST2000&instanceName=bla"
 	myLog(c, "Calling legacy URL", legacyURL)
 
-	err = client.Get(legacyURL, &vmOut)
+	err = client.Get(legacyURL, &endpointOut)
 
 	if err != nil {
 		myLog(c, "Error %s\n", err)
 		c.Error(err)
 	}
-	myLog(c, "Legacy received:", vmOut)
-	myLog(c, "Legacy IP:", vmOut.Ip)
+	myLog(c, "Legacy received:", endpointOut)
+	myLog(c, "Legacy IP:", endpointOut.Ip)
 
 	// 5. Start Agent service
 	// Temporarily commenting this out but this should be working.
