@@ -1,0 +1,54 @@
+services:
+  - service: root
+    api:
+      host: localhost
+      hooks:
+          - executable: ../common/testdata/hook.sh
+            pattern: /config/{serviceName}
+            method: GET
+            when: before
+            output: /tmp/hook.txt
+          - executable: ../common/testdata/hook_bad.sh
+            pattern: /config/{serviceName}/port
+            method: POST
+            when: after
+            output: /tmp/hook_bad.txt
+    config:
+      store: 
+        type: sqlite3
+        database: /var/tmp/auth.sqlite3
+  - service: ipam
+    api:
+      host: localhost
+    config:
+      store: 
+        type: sqlite3
+        database: /var/tmp/ipam.sqlite3
+  - service: tenant
+    api:
+      host: localhost
+    config:
+      store: 
+        type: sqlite3
+        database: /var/tmp/tenant.sqlite3
+  - service: topology
+    api:
+      host: localhost
+    config:
+      store: 
+        type: sqlite3
+        database: /var/tmp/topology.sqlite3
+      datacenter: 
+        ip_version: 4
+        cidr: 10.0.0.0/8
+        host_bits: 8
+        tenant_bits: 4
+        segment_bits: 4
+        endpoint_space_bits: 0
+        endpoint_bits: 8 
+  - service: agent 
+    api:
+      host: 0.0.0.0
+    config:
+      lease_file : "/etc/ethers"
+      wait_for_iface_try : 6

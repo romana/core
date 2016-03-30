@@ -24,9 +24,12 @@ import (
 	"github.com/gorilla/context"
 	"github.com/gorilla/mux"
 	"github.com/pborman/uuid"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/url"
+	"os"
+	"os/exec"
 	"reflect"
 	"strings"
 	//	"log"
@@ -43,6 +46,8 @@ type RestContext struct {
 	QueryVariables url.Values
 	// Unique identifier for a request.
 	RequestToken string
+	// Output of the hook if any run before the execution of the handler.
+	HookOutput string
 }
 
 // RestHandler specifies type of a function that each Route provides.
@@ -93,6 +98,8 @@ type Route struct {
 	// available in RestContext. It can then
 	// used by the handler to achieve idempotence.
 	UseRequestToken bool
+
+	Hook *Hook
 }
 
 // Routes provided by each service.
@@ -133,6 +140,76 @@ func write400(writer http.ResponseWriter, m Marshaller, request string, err erro
 	writer.Write(outData)
 }
 
+// doHook runs the Executable specified in route.Hook
+// if the before parameter provided here (before or after) matches that
+// of before value in route.Hook. It returns stdout and stderr
+// from the executable, or an error.
+func doHook(before bool, route Route, restContext RestContext, body string) (string, error) {
+	hook := route.Hook
+	if hook == nil {
+		log.Printf("doHook(): No hook for %s %s", route.Method, route.Pattern)
+		return "", nil
+	}
+	hookInfo := fmt.Sprintf("Hook for %s %s: %s", route.Method, route.Pattern, hook.Executable)
+	if before && strings.ToLower(hook.When) != "before" {
+		log.Printf("doHook(): We are in before and %s is for after", hookInfo)
+		return "", nil
+	}
+	if !before && strings.ToLower(hook.When) != "after" {
+		log.Printf("doHook(): We are in after and %s is for before", hookInfo)
+		return "", nil
+	}
+	// Path variables (e.g., id in /foo/{id}) will be passed to the executable as a
+	// list of key=value pairs.
+	pathVars := restContext.PathVariables
+	// Query variables from this URL call will also be provided in the
+	// above manner.
+	queryVars := restContext.QueryVariables
+	// One more element is needed - body=<body> of the request will be provided
+	// as CLI argument.
+	clArgs := make([]string, len(pathVars)+len(queryVars)+1)
+	// Add body argument.
+	clArgs[0] = fmt.Sprintf("%s=%s", HookExecutableBodyArgument, body)
+
+	// Add pathVars arguments.
+	i := 1
+	for k, v := range pathVars {
+		clArgs[i] = fmt.Sprintf("%s=%s", k, v)
+		i++
+	}
+
+	// Add query argument.
+	for k, v := range queryVars {
+		clArgs[i] = fmt.Sprintf("%s=%s", k, v)
+		i++
+	}
+
+	var writer io.Writer
+	var err error
+	writer = nil
+	if hook.Output != "" {
+		log.Printf("doHook(): Writing output of %s to %s", hookInfo, hook.Output)
+		writer, err = os.Create(hook.Output)
+		if err != nil {
+			return "", err
+		}
+	} else {
+		log.Printf("doHook(): No output specified for %s", hookInfo)
+	}
+	log.Printf("doHook(): Running hook %s with %s", hook.Executable, clArgs)
+	cmd := exec.Command(hook.Executable, clArgs...)
+	out, errProcess := cmd.CombinedOutput()
+	outStr := string(out)
+	log.Printf("\n---------------------------------\n%s\n---------------------------------\n", outStr)
+	if writer != nil {
+		_, err = writer.Write(out)
+		if err != nil {
+			return outStr, err
+		}
+	}
+	return outStr, errProcess
+}
+
 // wrapHandler wraps the RestHandler function, which deals
 // with application logic into an instance of http.HandlerFunc
 // which deals with raw HTTP request and response. The wrapper
@@ -143,6 +220,10 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 	// This function is very long. Could we please break it up into a few smaller functions
 	// (with self-documenting names), which are called from within this function?
 	makeMessage := route.MakeMessage
+	log.Printf("Entering wrapHandler(%v,%v)", restHandler, route)
+	if route.Hook != nil {
+		log.Printf("wrapHandler(): %s %s %s", route.Method, route.Pattern, route.Hook.Executable)
+	}
 	if makeMessage != nil && reflect.TypeOf(makeMessage()) == requestType {
 		// This would mean the handler actually wants access to raw request/response
 		// Fine, then...
@@ -155,11 +236,28 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 			}
 			restContext := RestContext{PathVariables: mux.Vars(request), QueryVariables: request.Form}
 			respReq := UnwrappedRestHandlerInput{writer, request}
+
+			marshaller := ContentTypeMarshallers["application/json"]
+			log.Printf("doHook() will be called before %s %s", route.Method, route.Pattern)
+			out, err := doHook(true, route, restContext, "")
+			if err != nil {
+				write500(writer, marshaller, err)
+				return
+			}
+			restContext.HookOutput = out
 			restHandler(respReq, restContext)
+			log.Printf("doHook() will be called after %s %s", route.Method, route.Pattern)
+
+			_, err = doHook(false, route, restContext, "")
+			if err != nil {
+				write500(writer, marshaller, err)
+				return
+			}
 		}
 		return RomanaHandler{httpHandler}
 	} else {
 		httpHandler := func(writer http.ResponseWriter, request *http.Request) {
+			bufStr := ""
 			var inData interface{}
 			if makeMessage == nil {
 				inData = nil
@@ -187,7 +285,8 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 				log.Printf("httpHandler: inData addr: %d\n", &inData)
 				ct := request.Header.Get("content-type")
 				buf, err := ioutil.ReadAll(request.Body)
-				log.Printf("Read %s\n", string(buf))
+				bufStr = string(buf)
+				log.Printf("Read %s\n", bufStr)
 				if err != nil {
 					// Error reading...
 					write500(writer, marshaller, err)
@@ -241,9 +340,25 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 				}
 			}
 			restContext := RestContext{PathVariables: mux.Vars(request), QueryVariables: request.Form, RequestToken: token}
+			if route.Hook != nil {
+				log.Printf("doHook() will be called before %s %s: %s", route.Method, route.Pattern, route.Hook.Executable)
+			}
+			out, err := doHook(true, route, restContext, bufStr)
+			if err != nil {
+				write500(writer, marshaller, err)
+				return
+			}
+			restContext.HookOutput = out
 			outData, err := restHandler(inData, restContext)
-			//			log.Printf("In here, outData: [%s] of type %s, error [%s] [%s]\n", outData, reflect.TypeOf(outData), err, err == nil)
 			if err == nil {
+				if route.Hook != nil {
+					log.Printf("doHook() will be called after %s %s: %s", route.Method, route.Pattern, route.Hook.Executable)
+				}
+				out, err = doHook(false, route, restContext, bufStr)
+				if err != nil {
+					write500(writer, marshaller, err)
+					return
+				}
 				wireData, err := marshaller.Marshal(outData)
 				//				log.Printf("Out data: %s, wire data: %s, error %s\n", outData, wireData, err)
 				if err == nil {
@@ -276,13 +391,16 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 // NewRouter creates router for a new service.
 func newRouter(routes []Route) *mux.Router {
 	router := mux.NewRouter().StrictSlash(true)
-
 	for _, route := range routes {
 		handler := route.Handler
+		if route.Hook != nil {
+			log.Printf("Calling wrapHandler with %s %s %s", route.Method, route.Pattern, route.Hook.Executable)
+		}
+		wrappedHandler := wrapHandler(handler, route)
 		router.
 			Methods(route.Method).
 			Path(route.Pattern).
-			Handler(wrapHandler(handler, route))
+			Handler(wrappedHandler)
 	}
 	return router
 }

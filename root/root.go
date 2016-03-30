@@ -17,12 +17,10 @@
 package root
 
 import (
-	//	"fmt"
 	"github.com/romana/core/common"
 	"log"
 	"strconv"
 	"strings"
-	//	"github.com/gorilla/mux"
 )
 
 // Config provides Root-specific configuration. This may seem a bit
@@ -39,18 +37,18 @@ type Config struct {
 
 type Root struct {
 	config Config
-	routes common.Route
+	routes common.Routes
 }
 
 const fullConfigKey = "fullConfig"
 
 // SetConfig implements SetConfig function of the Service interface
 func (root *Root) SetConfig(config common.ServiceConfig) error {
+	log.Printf("Entering root.SetConfig(%v)", config)
 	root.config = Config{}
 	root.config.common = &config.Common
 	f := config.ServiceSpecific[fullConfigKey].(common.Config)
 	root.config.full = &f
-
 	return nil
 }
 
@@ -107,46 +105,53 @@ func (root *Root) Name() string {
 func (root *Root) handleConfig(input interface{}, ctx common.RestContext) (interface{}, error) {
 	pathVars := ctx.PathVariables
 	serviceName := pathVars["serviceName"]
+	log.Printf("Received request for config of %s", serviceName)
+	log.Printf("Looking for %s in %v", serviceName, root.config.full)
 	retval := root.config.full.Services[serviceName]
 	return retval, nil
 }
 
 // Routes provided by root service.
-func (root Root) Routes() common.Routes {
-	routes := common.Routes{
-		common.Route{
-			Method:          "GET",
-			Pattern:         "/",
-			Handler:         root.handleIndex,
-			MakeMessage:     nil,
-			UseRequestToken: false,
-		},
-		common.Route{
-			Method:          "GET",
-			Pattern:         "/config/{serviceName}",
-			Handler:         root.handleConfig,
-			MakeMessage:     nil,
-			UseRequestToken: false,
-		},
-		common.Route{
-			Method:          "POST",
-			Pattern:         "/config/{serviceName}/port",
-			Handler:         root.handlePortUpdate,
-			MakeMessage:     func() interface{} { return &common.PortUpdateMessage{} },
-			UseRequestToken: false,
-		},
+func (root *Root) Routes() common.Routes {
+	if root.routes == nil {
+		root.routes =
+			common.Routes{
+				common.Route{
+					Method:          "GET",
+					Pattern:         "/",
+					Handler:         root.handleIndex,
+					MakeMessage:     nil,
+					UseRequestToken: false,
+				},
+				common.Route{
+					Method:          "GET",
+					Pattern:         "/config/{serviceName}",
+					Handler:         root.handleConfig,
+					MakeMessage:     nil,
+					UseRequestToken: false,
+				},
+				common.Route{
+					Method:          "POST",
+					Pattern:         "/config/{serviceName}/port",
+					Handler:         root.handlePortUpdate,
+					MakeMessage:     func() interface{} { return &common.PortUpdateMessage{} },
+					UseRequestToken: false,
+				},
+			}
 	}
-	return routes
+	return root.routes
 }
 
 // Run configures and starts root service.
 func Run(configFileName string) (*common.RestServiceInfo, error) {
+	log.Printf("Entering root.Run()")
 	fullConfig, err := common.ReadConfig(configFileName)
 	if err != nil {
 		return nil, err
 	}
 
 	rootService := &Root{}
+	log.Printf("Initializing root config with\n%v\nand\n%v", fullConfig.Services["root"].Common, fullConfig)
 	rootServiceConfig := common.ServiceConfig{
 		Common:          fullConfig.Services["root"].Common,
 		ServiceSpecific: make(map[string]interface{})}

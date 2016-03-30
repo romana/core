@@ -28,42 +28,6 @@ import (
 	"strconv"
 )
 
-// MultiError adapts GORM (ORM - see https://github.com/jinzhu/gorm) array of errors found in GetErrors()
-// to a single error interface.
-// GORM does not return errors at every turn. It accumulates them and returns
-// them whenever you feel like calling GetErrors() (https://godoc.org/github.com/jinzhu/gorm#DB.GetErrors).
-// Since this is not consistent with the rest of the code, I prefer to isolate it
-// here and make an adapter.
-type MultiError struct {
-	errors []error
-}
-
-// MakeMultiError creates a single MultiError (or nil!) out of an array of
-// error objects.
-func MakeMultiError(errors []error) error {
-	if errors == nil {
-		return nil
-	}
-	if len(errors) == 0 {
-		return nil
-	}
-
-	return &MultiError{errors}
-}
-
-// Error satisfies Error method on error interface and returns
-// a concatenated string of all error messages.
-func (m *MultiError) Error() string {
-	s := ""
-	for i := range m.errors {
-		if len(s) > 0 {
-			s += "; "
-		}
-		s += m.errors[i].Error()
-	}
-	return s
-}
-
 // StoreConfig stores information needed for a DB connection.
 type StoreConfig struct {
 	Host     string
