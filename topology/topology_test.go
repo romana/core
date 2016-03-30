@@ -36,7 +36,7 @@ func Test(t *testing.T) {
 type MySuite struct {
 	config          common.Config
 	configFile      string
-	rootUrl         string
+	rootURL         string
 	servicesStarted bool
 }
 
@@ -64,14 +64,14 @@ func (s *MySuite) SetUpTest(c *check.C) {
 		if err != nil {
 			c.Error(err)
 		}
-		s.rootUrl = "http://" + svcInfo.Address
-		myLog(c, "Root URL:", s.rootUrl)
+		s.rootURL = "http://" + svcInfo.Address
+		myLog(c, "Root URL:", s.rootURL)
 
 		msg := <-svcInfo.Channel
 		myLog(c, "Root service said:", msg)
 
 		myLog(c, "Creating topology schema")
-		err = CreateSchema(s.rootUrl, true)
+		err = CreateSchema(s.rootURL, true)
 		myLog(c, "CreateSchema returned err: ", err, "which is of type", reflect.TypeOf(err), "let's compare it to", nil, ": err != nil: ", err != nil)
 		if err != nil {
 			c.Fatal(err)
@@ -97,12 +97,12 @@ func (s *MySuite) TestHostMarshaling(c *check.C) {
 	host.AgentPort = 9999
 	m := common.ContentTypeMarshallers["application/json"]
 	json, _ := m.Marshal(host)
-	marshaledJsonStr := string(json)
-	myLog(c, "Marshaled ", host, "to", marshaledJsonStr)
-	expectedJsonStr := "{\"id\":1,\"name\":\"host1\",\"ip\":\"10.1.1.1\",\"romana_ip\":\"192.168.0.1/16\",\"agent_port\":9999}"
-	c.Assert(marshaledJsonStr, check.Equals, expectedJsonStr)
+	marshaledJSONStr := string(json)
+	myLog(c, "Marshaled ", host, "to", marshaledJSONStr)
+	expectedJSONStr := "{\"id\":1,\"name\":\"host1\",\"ip\":\"10.1.1.1\",\"romana_ip\":\"192.168.0.1/16\",\"agent_port\":9999}"
+	c.Assert(marshaledJSONStr, check.Equals, expectedJSONStr)
 	host2 := Host{}
-	err := m.Unmarshal([]byte(expectedJsonStr), &host2)
+	err := m.Unmarshal([]byte(expectedJSONStr), &host2)
 	if err != nil {
 		c.Error(err)
 	}
@@ -120,7 +120,7 @@ func (s *MySuite) TestTopology(c *check.C) {
 	myLog(c, "In", dir)
 	myLog(c, "Starting topology service")
 
-	svcInfo, err := Run(s.rootUrl)
+	svcInfo, err := Run(s.rootURL)
 	if err != nil {
 		c.Error(err)
 	}
@@ -140,33 +140,33 @@ func (s *MySuite) TestTopology(c *check.C) {
 	}
 
 	c.Assert(topIndex.ServiceName, check.Equals, "topology")
-	hostsRelUrl := topIndex.Links.FindByRel("host-list")
-	hostsUrl := addr + hostsRelUrl
-	myLog(c, "Host list URL: ", hostsUrl)
+	hostsRelURL := topIndex.Links.FindByRel("host-list")
+	hostsURL := addr + hostsRelURL
+	myLog(c, "Host list URL: ", hostsURL)
 
 	// Get list of hosts - should be empty for now.
 	var hostList []Host
-	client.Get(hostsRelUrl, &hostList)
+	client.Get(hostsRelURL, &hostList)
 	myLog(c, "Host list: ", hostList)
 	c.Assert(len(hostList), check.Equals, 0)
 	newHostReq := common.HostMessage{Ip: "10.10.10.10", AgentPort: 9999, Name: "host10", RomanaIp: "15.15.15.15"}
 
 	newHostResp := common.HostMessage{}
-	client.Post(hostsRelUrl, newHostReq, &newHostResp)
+	client.Post(hostsRelURL, newHostReq, &newHostResp)
 	myLog(c, "Response: ", newHostResp)
 	c.Assert(newHostResp.Ip, check.Equals, "10.10.10.10")
 	c.Assert(newHostResp.Id, check.Equals, "1")
 
 	newHostReq = common.HostMessage{Ip: "10.10.10.11", AgentPort: 9999, Name: "host11", RomanaIp: "15.15.15.16"}
 	newHostResp = common.HostMessage{}
-	client.Post(hostsRelUrl, newHostReq, &newHostResp)
+	client.Post(hostsRelURL, newHostReq, &newHostResp)
 	myLog(c, "Response: ", newHostResp)
 
 	c.Assert(newHostResp.Ip, check.Equals, "10.10.10.11")
 	c.Assert(newHostResp.Id, check.Equals, "2")
 
 	var hostList2 []Host
-	client.Get(hostsRelUrl, &hostList2)
+	client.Get(hostsRelURL, &hostList2)
 	myLog(c, "Host list: ", hostList2)
 	c.Assert(len(hostList2), check.Equals, 2)
 

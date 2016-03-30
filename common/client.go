@@ -13,7 +13,7 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// This file contains the implementation of HttpClient and related utilities.
+// Package common contains the implementation of HttpClient and related utilities.
 package common
 
 import (
@@ -151,7 +151,7 @@ func (rc *RestClient) modifyUrl(dest string, queryMod url.Values) error {
 		// from that queryMod object are replaced with those from queryMod.
 		origUrl := rc.url
 		origQuery := origUrl.Query()
-		for k, _ := range queryMod {
+		for k := range queryMod {
 			origQuery[k] = queryMod[k]
 		}
 		dest := ""
