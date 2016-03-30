@@ -20,7 +20,6 @@ package common
 import (
 	"fmt"
 	"net/http"
-//	"errors"
 )
 
 // HttpError is a structure that represents, well, an Http error.
@@ -59,8 +58,8 @@ func (e HttpError) Error() string {
 	return fmt.Sprintf("%d %s %s", e.StatusCode, e.StatusText, e.Message)
 }
 
-// MultiError is a facility to collect multiple number of errors but 
-// present them as a single error interface. For example, 
+// MultiError is a facility to collect multiple number of errors but
+// present them as a single error interface. For example,
 // GORM does not return errors at every turn. It accumulates them and returns
 // them whenever you feel like calling GetErrors() (https://godoc.org/github.com/jinzhu/gorm#DB.GetErrors).
 // Since this is not consistent with the rest of the code, I prefer to isolate it
@@ -78,7 +77,7 @@ func (me MultiError) Add(err error) {
 	}
 }
 
-// NewMultiError creates a new MultiError object 
+// NewMultiError creates a new MultiError object
 // to which errors can be added.
 func NewMultiError() *MultiError {
 	return &MultiError{}
@@ -86,7 +85,7 @@ func NewMultiError() *MultiError {
 
 // GetError returns nil if there are no
 // underlying errors, the single error if there is
-// only one, and the MultiError object if there is 
+// only one, and the MultiError object if there is
 // more than one.
 func (m *MultiError) GetError() error {
 	if m.errors == nil {
@@ -126,4 +125,3 @@ func (m *MultiError) Error() string {
 	}
 	return s
 }
-

@@ -37,7 +37,6 @@ type Hook struct {
 	When string
 	// Where to write output (if omitted, will be just logged)
 	Output string
-	
 }
 
 // Api part of service configuration (host/port).
@@ -52,7 +51,7 @@ type Api struct {
 	RestTimeoutMillis int64 `yaml:"rest_timeout_millis,omitempty" json:"rest_timeout_millis,omitempty"`
 	RestRetries       int   `yaml:"rest_retries,omitempty" json:"rest_retries,omitempty"`
 	RestTestMode      bool  `yaml:"rest_test_mode,omitempty" json:"rest_test_mode,omitempty"`
-	Hooks []Hook
+	Hooks             []Hook
 }
 
 func (api Api) GetHostPort() string {

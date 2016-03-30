@@ -110,14 +110,14 @@ func (topology *TopologySvc) handleHost(input interface{}, ctx common.RestContex
 	if err != nil {
 		return nil, err
 	}
-	agentUrl := fmt.Sprintf("http://%s:%d", host.Ip, host.AgentPort)
-	agentLink := common.LinkResponse{Href: agentUrl, Rel: "agent"}
+	agentURL := fmt.Sprintf("http://%s:%d", host.Ip, host.AgentPort)
+	agentLink := common.LinkResponse{Href: agentURL, Rel: "agent"}
 	hostLink := common.LinkResponse{Href: hostListPath + "/" + idStr, Rel: "self"}
 	collectionLink := common.LinkResponse{Href: hostListPath, Rel: "self"}
 
 	links := []common.LinkResponse{agentLink, hostLink, collectionLink}
-	hostIdStr := strconv.FormatUint(host.Id, 10)
-	hostMessage := common.HostMessage{Id: hostIdStr, RomanaIp: host.RomanaIp, Ip: host.Ip, Name: host.Name, AgentPort: int(host.AgentPort), Links: links}
+	hostIDStr := strconv.FormatUint(host.Id, 10)
+	hostMessage := common.HostMessage{Id: hostIDStr, RomanaIp: host.RomanaIp, Ip: host.Ip, Name: host.Name, AgentPort: int(host.AgentPort), Links: links}
 	return hostMessage, nil
 }
 
@@ -153,9 +153,9 @@ func (topology *TopologySvc) handleHostListPost(input interface{}, ctx common.Re
 func (topology *TopologySvc) handleIndex(input interface{}, ctx common.RestContext) (interface{}, error) {
 	retval := common.IndexResponse{}
 	retval.ServiceName = "topology"
-	myUrl := strings.Join([]string{"http://", topology.config.Common.Api.Host, ":", strconv.FormatUint(topology.config.Common.Api.Port, 10)}, "")
+	myURL := strings.Join([]string{"http://", topology.config.Common.Api.Host, ":", strconv.FormatUint(topology.config.Common.Api.Port, 10)}, "")
 
-	selfLink := common.LinkResponse{Href: myUrl, Rel: "self"}
+	selfLink := common.LinkResponse{Href: myURL, Rel: "self"}
 	aboutLink := common.LinkResponse{Href: infoListPath, Rel: "about"}
 	agentsLink := common.LinkResponse{Href: agentListPath, Rel: "agent-list"}
 	hostsLink := common.LinkResponse{Href: hostListPath, Rel: "host-list"}
@@ -202,13 +202,13 @@ func (topology *TopologySvc) SetConfig(config common.ServiceConfig) error {
 }
 
 // Run configures and runs topology service.
-func Run(rootServiceUrl string) (*common.RestServiceInfo, error) {
-	client, err := common.NewRestClient(rootServiceUrl, common.GetDefaultRestClientConfig())
+func Run(rootServiceURL string) (*common.RestServiceInfo, error) {
+	client, err := common.NewRestClient(rootServiceURL, common.GetDefaultRestClientConfig())
 	if err != nil {
 		return nil, err
 	}
 	topSvc := &TopologySvc{}
-	config, err := client.GetServiceConfig(rootServiceUrl, topSvc)
+	config, err := client.GetServiceConfig(rootServiceURL, topSvc)
 	if err != nil {
 		return nil, err
 	}
@@ -228,15 +228,15 @@ func (topology *TopologySvc) Initialize() error {
 }
 
 // CreateSchema runs topology service
-func CreateSchema(rootServiceUrl string, overwrite bool) error {
-	log.Println("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
+func CreateSchema(rootServiceURL string, overwrite bool) error {
+	log.Println("In CreateSchema(", rootServiceURL, ",", overwrite, ")")
 	client, err := common.NewRestClient("", common.GetDefaultRestClientConfig())
 	if err != nil {
 		return err
 	}
 
 	topologyService := &TopologySvc{}
-	config, err := client.GetServiceConfig(rootServiceUrl, topologyService)
+	config, err := client.GetServiceConfig(rootServiceURL, topologyService)
 	if err != nil {
 		return err
 	}

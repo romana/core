@@ -85,10 +85,10 @@ func (ipam *IPAMSvc) legacyAllocateIpByName(input interface{}, ctx common.RestCo
 		return nil, err
 	}
 
-	hostsUrl := index.Links.FindByRel("host-list")
+	hostsURL := index.Links.FindByRel("host-list")
 	var hosts []common.HostMessage
 
-	err = client.Get(hostsUrl, &hosts)
+	err = client.Get(hostsURL, &hosts)
 	if err != nil {
 		return nil, err
 	}
@@ -182,10 +182,10 @@ func (ipam *IPAMSvc) addVm(input interface{}, ctx common.RestContext) (interface
 		return nil, err
 	}
 
-	hostsUrl := index.Links.FindByRel("host-list")
+	hostsURL := index.Links.FindByRel("host-list")
 	host := common.HostMessage{}
 
-	hostInfoUrl := fmt.Sprintf("%s/%s", hostsUrl, vm.HostId)
+	hostInfoUrl := fmt.Sprintf("%s/%s", hostsURL, vm.HostId)
 
 	err = client.Get(hostInfoUrl, &host)
 
