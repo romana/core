@@ -19,7 +19,10 @@ package test
 import (
 	"database/sql"
 	"fmt"
+	"net"
+	"strings"
 	"github.com/go-check/check"
+	"github.com/romana/core/agent"
 	"github.com/romana/core/common"
 	"github.com/romana/core/ipam"
 	"github.com/romana/core/root"
@@ -141,15 +144,31 @@ func (s *MySuite) TestIntegration(c *check.C) {
 	client.Get(hostsRelURL, &hostList)
 	myLog(c, "Host list: ", hostList)
 	c.Assert(len(hostList), check.Equals, 0)
-	newHostReq := common.HostMessage{Ip: "10.10.10.10", RomanaIp: "10.0.0.1/16", AgentPort: 9999, Name: "HOST1000"}
 
+	// Find some romana IPs that we can use... Because the agent checks for those
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		c.Error(err)
+	}
+
+	possibleRomanaIps := make([]string, 0)
+	for _, addr := range addrs {
+		strAddr := addr.String()
+		// Ignore IPv6 for now...
+		if strings.ContainsAny(strAddr, ":") {
+			continue
+		}
+		possibleRomanaIps = append(possibleRomanaIps, strAddr)
+	}
+	newHostReq := common.HostMessage{Ip: "10.10.10.10", RomanaIp: possibleRomanaIps[0], AgentPort: 9999, Name: "HOST1000"}
+	myLog(c, "Possible RomanaIPs:", possibleRomanaIps)
 	host1 := common.HostMessage{}
 	client.Post(hostsRelURL, newHostReq, &host1)
 	myLog(c, "Response: ", host1)
 	c.Assert(host1.Ip, check.Equals, "10.10.10.10")
 	c.Assert(host1.Id, check.Equals, "1")
-	//
-	newHostReq = common.HostMessage{Ip: "10.10.10.11", RomanaIp: "10.0.0.2/16", AgentPort: 9999, Name: "HOST2000"}
+
+	newHostReq = common.HostMessage{Ip: "10.10.10.11", RomanaIp: possibleRomanaIps[1], AgentPort: 9999, Name: "HOST2000"}
 	host2 := common.HostMessage{}
 	client.Post(hostsRelURL, newHostReq, &host2)
 	myLog(c, "Response: ", host2)
@@ -305,13 +324,12 @@ func (s *MySuite) TestIntegration(c *check.C) {
 	myLog(c, "Legacy received:", vmOut)
 	myLog(c, "Legacy IP:", vmOut.Ip)
 
-	// 5. Start Agent service
-	// Temporarily commenting this out but this should be working.
-	//	myLog(c, "STARTING Agent SERVICE")
-	//	agentInfo, err := agent.Run(s.rootURL, true)
-	//	if err != nil {
-	//		c.Error(err)
-	//	}
-	//	msg = <-agentInfo.Channel
-	//	myLog(c, "Agent service said:", msg)
+	//	 5. Start Agent service
+	myLog(c, "STARTING Agent SERVICE")
+	agentInfo, err := agent.Run(s.rootURL, true)
+	if err != nil {
+		c.Error(err)
+	}
+	msg = <-agentInfo.Channel
+	myLog(c, "Agent service said:", msg)
 }
