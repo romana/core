@@ -45,8 +45,8 @@ const (
 	// but there is an error so no point in returning any
 	// value.
 	ErrorNoValue = ""
-	
-	// Body provided. 
+
+	// Body provided.
 	HookExecutableBodyArgument = "body"
 )
 
