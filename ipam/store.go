@@ -43,7 +43,6 @@ type Endpoint struct {
 	InUse bool   `json:"-"`
 	Id    uint64 `sql:"AUTO_INCREMENT",json:"-"`
 }
-
 type ipamStore struct {
 	common.DbStore
 }
@@ -85,7 +84,6 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *Endpoint, upToEndpointIpInt ui
 	endpoint.InUse = true
 	tenantId := endpoint.TenantId
 	segId := endpoint.SegmentId
-
 	filter := "host_id = ? AND tenant_id = ? AND segment_id = ? "
 	// First, see if there is a formerly allocated IP already that has been released
 	// (marked "in_use")

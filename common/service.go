@@ -127,7 +127,7 @@ type Service interface {
 
 // InitializeService initializes the service with the
 // provided config and starts it. The channel returned
-// allows the calller to wait for a message from the running
+// allows the caller to wait for a message from the running
 // service. Messages are of type ServiceMessage above.
 // It can be used for launching service from tests, etc.
 func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo, error) {

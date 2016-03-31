@@ -161,7 +161,6 @@ func (ipam *IPAMSvc) legacyAllocateIpByName(input interface{}, ctx common.RestCo
 		return nil, errors.New("Segment with name " + hostName + " not found")
 	}
 	log.Printf("Segment name %s has ID %s", segmentName, Endpoint.SegmentId)
-
 	return ipam.addEndpoint(&Endpoint, ctx)
 }
 
