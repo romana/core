@@ -245,7 +245,7 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 			return err
 		}
 		req.Header.Set("accept", "application/json")
-		
+
 		var resp *http.Response
 		for i := 0; i < rc.config.Retries; i++ {
 			log.Printf("Try %d for %s", (i + 1), rc.url)
@@ -318,7 +318,7 @@ func (rc *RestClient) Post(url string, data interface{}, result interface{}) err
 	return err
 }
 
-// Post applies DELETE method to the specified URL
+// Delete applies DELETE method to the specified URL
 func (rc *RestClient) Delete(url string, data interface{}, result interface{}) error {
 	err := rc.execMethod("DELETE", url, data, result)
 	return err

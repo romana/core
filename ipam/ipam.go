@@ -165,7 +165,8 @@ func (ipam *IPAMSvc) legacyAllocateIpByName(input interface{}, ctx common.RestCo
 	return ipam.addEndpoint(&Endpoint, ctx)
 }
 
-// handleHost handles request for a specific host's info
+// addEndpoint handles request to add an endpoint and
+// allocate an IP address.
 func (ipam *IPAMSvc) addEndpoint(input interface{}, ctx common.RestContext) (interface{}, error) {
 	Endpoint := input.(*Endpoint)
 	client, err := common.NewRestClient("", common.GetRestClientConfig(ipam.config))
@@ -209,7 +210,7 @@ func (ipam *IPAMSvc) addEndpoint(input interface{}, ctx common.RestContext) (int
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("IPAM received tenant %s ID %d\n", t.Name, t.Id)
+	log.Printf("IPAM received tenant %s ID %d, sequence %d\n", t.Name, t.Id, t.Seq)
 
 	segmentUrl := fmt.Sprintf("/tenants/%s/segments/%s", Endpoint.TenantId, Endpoint.SegmentId)
 	log.Printf("IPAM calling %s\n", segmentUrl)
@@ -223,7 +224,7 @@ func (ipam *IPAMSvc) addEndpoint(input interface{}, ctx common.RestContext) (int
 
 	EndpointBits := 32 - ipam.dc.PrefixBits - ipam.dc.PortBits - ipam.dc.TenantBits - ipam.dc.SegmentBits - ipam.dc.EndpointSpaceBits
 	segmentBitShift := EndpointBits
-//	prefixBitShift := 32 - ipam.dc.PrefixBits
+	//	prefixBitShift := 32 - ipam.dc.PrefixBits
 	tenantBitShift := segmentBitShift + ipam.dc.SegmentBits
 	log.Printf("Parsing Romana IP address of host %s: %s\n", host.Name, host.RomanaIp)
 	_, network, err := net.ParseCIDR(host.RomanaIp)
@@ -231,8 +232,10 @@ func (ipam *IPAMSvc) addEndpoint(input interface{}, ctx common.RestContext) (int
 		return nil, err
 	}
 	hostIpInt := common.IPv4ToInt(network.IP)
-	upToEndpointIpInt := hostIpInt | (t.Seq << tenantBitShift) | (segment.Seq << segmentBitShift)
-	log.Printf("IPAM: before calling addEndpoint:  %v | (%v << %v) | (%v | %v): ", network.IP.String(), t.Seq, tenantBitShift, segment.Seq, segmentBitShift, common.IntToIPv4(upToEndpointIpInt))
+	tSeq := t.Seq -1
+	sSeq := segment.Seq -1 
+	upToEndpointIpInt := hostIpInt | (tSeq << tenantBitShift) | (sSeq << segmentBitShift)
+	log.Printf("IPAM: before calling addEndpoint:  %v | (%v << %v) | (%v << %v): %v ", network.IP.String(), tSeq, tenantBitShift, sSeq, segmentBitShift, common.IntToIPv4(upToEndpointIpInt))
 	err = ipam.store.addEndpoint(Endpoint, upToEndpointIpInt, ipam.dc.EndpointSpaceBits)
 	if err != nil {
 		return nil, err
@@ -244,8 +247,7 @@ func (ipam *IPAMSvc) addEndpoint(input interface{}, ctx common.RestContext) (int
 // deleteEndpoint releases the IP(s) owned by the endpoint into assignable
 // pool.
 func (ipam *IPAMSvc) deleteEndpoint(input interface{}, ctx common.RestContext) (interface{}, error) {
-	endpoint := input.(*Endpoint)
-	return ipam.store.deleteEndpoint(endpoint.Ip)
+	return ipam.store.deleteEndpoint(ctx.PathVariables["ip"])
 }
 
 // Name provides name of this service.
@@ -322,7 +324,7 @@ func (ipam *IPAMSvc) Initialize() error {
 	return nil
 }
 
-// CreateSchema runs topology service.
+// CreateSchema creates schema for IPAM service.
 func CreateSchema(rootServiceUrl string, overwrite bool) error {
 	log.Println("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
 	ipamSvc := &IPAMSvc{}
