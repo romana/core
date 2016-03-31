@@ -19,6 +19,8 @@ package test
 import (
 	//	"database/sql"
 	"fmt"
+	"net"
+	"strings"
 	"github.com/go-check/check"
 	"github.com/romana/core/agent"
 	"github.com/romana/core/common"

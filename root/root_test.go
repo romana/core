@@ -18,9 +18,86 @@ package root
 import (
 	"fmt"
 	"github.com/romana/core/common"
+	//	"log"
 	"os"
+	"strings"
 	"testing"
 )
+
+// Test hooks
+func TestHooks(t *testing.T) {
+
+	fmt.Println("Entering TestHooks")
+	dir, _ := os.Getwd()
+	fmt.Println("In", dir)
+
+	yamlFileName := "../common/testdata/romana.hooks.yaml"
+	svcInfo, err := Run(yamlFileName)
+	if err != nil {
+		fmt.Println(err.Error())
+
+	}
+
+	fmt.Println("Waiting for message")
+	msg := <-svcInfo.Channel
+	fmt.Println("Root service said:", msg)
+	addr := fmt.Sprintf("http://%s", svcInfo.Address)
+	client, err := common.NewRestClient(addr, common.GetDefaultRestClientConfig())
+	if err != nil {
+		t.Error(err)
+
+	}
+
+	result1 := make(map[string]interface{})
+	err = client.Get("/config/ipam", &result1)
+	if err != nil {
+		t.Error(err)
+
+	}
+	fmt.Println("Received: ", result1)
+
+	file, err := os.Open("/tmp/hook.txt")
+	if err != nil {
+		t.Error(err)
+	}
+	data := make([]byte, 1024)
+	n, err := file.Read(data)
+	if err != nil {
+		t.Error(err)
+	}
+	str := strings.TrimSpace(string(data[0:n]))
+	fmt.Printf("Hook output: [%s]", str)
+	expect := "Hello, world and body= serviceName=ipam"
+	if str != expect {
+		t.Error(fmt.Sprintf("Expected %s, received %s", expect, str))
+	}
+
+	url := fmt.Sprintf("%s/config/ipam/port", addr)
+	result2 := make(map[string]interface{})
+	portMsg := common.PortUpdateMessage{Port: 12345}
+	err = client.Post(url, portMsg, &result2)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+	fmt.Println("Received: ", result2)
+
+	file, err = os.Open("/tmp/hook_bad.txt")
+	if err != nil {
+		t.Error(err)
+	}
+	data = make([]byte, 1024)
+	n, err = file.Read(data)
+	if err != nil {
+		t.Error(err)
+	}
+	str = strings.TrimSpace(string(data[0:n]))
+	fmt.Printf("Hook output: [%s]", str)
+	expect = "Good-bye, cruel world"
+	if str != expect {
+		t.Error(fmt.Sprintf("Expected %s, received %s", expect, str))
+	}
+}
 
 // Test the service list.
 func TestServiceList(t *testing.T) {

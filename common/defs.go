@@ -45,6 +45,9 @@ const (
 	// but there is an error so no point in returning any
 	// value.
 	ErrorNoValue = ""
+
+	// Body provided.
+	HookExecutableBodyArgument = "body"
 )
 
 // LinkResponse structure represents the commonly occurring
