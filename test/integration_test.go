@@ -19,7 +19,10 @@ package test
 import (
 	//	"database/sql"
 	"fmt"
+	"net"
+	"strings"
 	"github.com/go-check/check"
+	"github.com/romana/core/agent"
 	"github.com/romana/core/common"
 	"github.com/romana/core/ipam"
 	"github.com/romana/core/root"
@@ -159,7 +162,6 @@ func (s *MySuite) TestIntegration(c *check.C) {
 	myLog(c, "Response: %s", host1)
 	c.Assert(host1.Ip, check.Equals, "10.10.10.10")
 	c.Assert(host1.Id, check.Equals, "1")
-
 	// Add host 2
 	newHostReq = common.HostMessage{Ip: "10.10.10.11", RomanaIp: "10.1.0.0/16", AgentPort: 9999, Name: "HOST2000"}
 	host2 := common.HostMessage{}
@@ -348,13 +350,12 @@ func (s *MySuite) TestIntegration(c *check.C) {
 	myLog(c, "Legacy received:", endpointOut)
 	myLog(c, "Legacy IP:", endpointOut.Ip)
 
-	// 5. Start Agent service
-	// Temporarily commenting this out but this should be working.
-	//	myLog(c, "STARTING Agent SERVICE")
-	//	agentInfo, err := agent.Run(s.rootURL, true)
-	//	if err != nil {
-	//		c.Error(err)
-	//	}
-	//	msg = <-agentInfo.Channel
-	//	myLog(c, "Agent service said:", msg)
+	//	 5. Start Agent service
+	myLog(c, "STARTING Agent SERVICE")
+	agentInfo, err := agent.Run(s.rootURL, true)
+	if err != nil {
+		c.Error(err)
+	}
+	msg = <-agentInfo.Channel
+	myLog(c, "Agent service said:", msg)
 }

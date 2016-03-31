@@ -4,7 +4,14 @@
 # lint: run golint.
 #
 
-services = $$GOPATH/bin/root $$GOPATH/bin/agent $$GOPATH/bin/tenant $$GOPATH/bin/ipam $$GOPATH/bin/topology
+services = $$GOPATH/bin/root\
+		   $$GOPATH/bin/agent\
+		   $$GOPATH/bin/tenant\
+		   $$GOPATH/bin/ipam\
+		   $$GOPATH/bin/romana\
+		   $$GOPATH/bin/topology
+
+UPX_VERSION := $(shell upx --version 2>/dev/null)
 
 install:
 	go install -ldflags \
@@ -30,7 +37,13 @@ lint:
 	go list -f '{{.Dir}}' "./..." | \
 		grep -v /vendor/ | xargs -n 1 golint
 
+upx:
+ifndef UPX_VERSION
+	$(error "No upx in $(PATH), consider doing apt-get install upx")
+endif
+	upx $(services)
+
 clean:
 	rm $(services)
 
-.PHONY: test vet lint all install clean fmt
+.PHONY: test vet lint all install clean fmt upx

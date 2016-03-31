@@ -28,7 +28,7 @@ import (
 func main() {
 	createSchema := flag.Bool("createSchema", false, "Create schema")
 	overwriteSchema := flag.Bool("overwriteSchema", false, "Overwrite schema")
-	rootUrl := flag.String("rootUrl", "", "Root service URL")
+	rootURL := flag.String("rootURL", "", "Root service URL")
 	version := flag.Bool("version", false, "Build Information.")
 	flag.Parse()
 
@@ -37,7 +37,7 @@ func main() {
 		return
 	}
 	if *createSchema || *overwriteSchema {
-		err := topology.CreateSchema(*rootUrl, *overwriteSchema)
+		err := topology.CreateSchema(*rootURL, *overwriteSchema)
 		if err != nil {
 			panic(err)
 		}
@@ -45,7 +45,7 @@ func main() {
 		return
 	}
 
-	svcInfo, err := topology.Run(*rootUrl)
+	svcInfo, err := topology.Run(*rootURL)
 	if err != nil {
 		panic(err)
 	}

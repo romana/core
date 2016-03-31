@@ -26,16 +26,12 @@
 package agent
 
 import (
-	"fmt"
-	"github.com/romana/core/common"
-
-	"io"
-	"log"
 	"net"
-	"os"
-	"os/exec"
-	"strings"
 	"sync"
+
+	"github.com/romana/core/common"
+	utilexec "github.com/romana/core/pkg/util/exec"
+	utilos "github.com/romana/core/pkg/util/os"
 )
 
 // TODO There is a tradeoff, either use global variable for provider
@@ -46,8 +42,8 @@ import (
 // Helper groups testable implementations
 // of standard library functions.
 type Helper struct {
-	Executor                   Executable
-	OS                         OS
+	Executor                   utilexec.Executable
+	OS                         utilos.OS
 	Agent                      *Agent //access field for Agent
 	ensureRouteToEndpointMutex *sync.Mutex
 	ensureLineMutex            *sync.Mutex
@@ -83,129 +79,4 @@ func mockAgent() Agent {
 	agent.Helper = &helper
 
 	return *agent
-}
-
-// Executable is a facade to exec.Command().Output()
-type Executable interface {
-	Exec(cmd string, args []string) ([]byte, error)
-}
-
-// DefaultExecutor is a default implementation of Executable that passes
-// back to standard library.
-type DefaultExecutor struct{}
-
-// Exec proxies all requests to exec.Command()
-// Used to support unit testing.
-func (DefaultExecutor) Exec(cmd string, args []string) ([]byte, error) {
-	log.Printf("Helper.Executor: executing command: %s %s", cmd, strings.Join(args, " "))
-	cmdObj := exec.Command(cmd, args...)
-	out, err := cmdObj.CombinedOutput()
-	return out, err
-}
-
-// OS interface is a facade to standard lib os.
-type OS interface {
-	open(name string) (OSFile, error)
-	appendFile(name string) (OSFile, error)
-	createIfMissing(name string) error
-}
-
-// OSFile interface is a facade to os.File
-type OSFile interface {
-	io.Reader
-	io.Writer
-	io.Closer
-}
-
-// DefaultOS is a default implementation of OS interface
-// which proxies everything to standard lib.
-type DefaultOS struct {
-}
-
-// open is a direct proxy to os.Open
-func (DefaultOS) open(name string) (OSFile, error) {
-	f, err := os.Open(name)
-	return f, err
-}
-
-// appendFile returns a file opened for write
-// with cursor positioned at the end of file.
-func (DefaultOS) appendFile(name string) (OSFile, error) {
-	file, err := os.OpenFile(name, os.O_APPEND|os.O_WRONLY, 0600)
-	return file, err
-}
-
-// createIfMissing tries create file if it's not there yet,
-// otherwise no op.
-func (DefaultOS) createIfMissing(name string) error {
-	file, err := os.OpenFile(name, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0600)
-	if err != nil {
-		return err
-	}
-	file.Close()
-	return nil
-}
-
-// FakeFile implements OSFile.
-type FakeFile struct {
-	io.Reader
-	content string
-}
-
-// Close is a no op to satisfy OSFile.
-func (f FakeFile) Close() error {
-	return nil
-}
-
-// Write is a method of FakeFile that records all data it receives.
-func (f *FakeFile) Write(p []byte) (ret int, err error) {
-	f.content = fmt.Sprintf("%s%s", f.content, string(p))
-	ret = len(p)
-	return ret, nil
-}
-
-// FakeOS implements OS.
-type FakeOS struct {
-	fakeData string
-	fakeFile *FakeFile
-}
-
-// open returns a FakeFile stuffed with fake data
-func (o FakeOS) open(name string) (OSFile, error) {
-	fake := FakeFile{strings.NewReader(o.fakeData), ""}
-	return &fake, nil
-}
-
-// appendFile returns a FakeFile implementation
-// that will record any data it receives for later analisis.
-func (o *FakeOS) appendFile(name string) (OSFile, error) {
-	fake := FakeFile{strings.NewReader(o.fakeData), ""}
-	o.fakeFile = &fake
-	return &fake, nil
-}
-
-// createIfMissing No op in tests.
-func (o *FakeOS) createIfMissing(name string) error {
-	return nil
-}
-
-// FakeExecutor implements Executable
-// stores faked Output, Error and commands recorded by Exec.
-type FakeExecutor struct {
-	Output   []byte
-	Error    error
-	Commands *string
-}
-
-// Exec is a method of fake executor that will record all incoming commands
-// and use faked Output and Error.
-func (x *FakeExecutor) Exec(cmd string, args []string) ([]byte, error) {
-	var c string
-	if x.Commands == nil {
-		c = fmt.Sprintf("%s %s", cmd, strings.Join(args, " "))
-	} else {
-		c = fmt.Sprintf("%s\n%s %s", *x.Commands, cmd, strings.Join(args, " "))
-	}
-	x.Commands = &c
-	return x.Output, x.Error
 }

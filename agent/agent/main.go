@@ -26,7 +26,7 @@ import (
 
 // main function is entrypoint to everything.
 func main() {
-	var rootURL = flag.String("rootUrl", "", "URL to root service URL")
+	var rootURL = flag.String("rootURL", "", "URL to root service URL")
 	var version = flag.Bool("version", false, "Build Information.")
 	flag.Parse()
 
@@ -35,7 +35,7 @@ func main() {
 		return
 	}
 	if rootURL == nil {
-		fmt.Println("Must specify rootUrl.")
+		fmt.Println("Must specify rootURL.")
 		return
 	}
 	svcInfo, err := agent.Run(*rootURL, false)

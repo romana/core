@@ -28,14 +28,17 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	utilexec "github.com/romana/core/pkg/util/exec"
+	utilos "github.com/romana/core/pkg/util/os"
 )
 
 // NewAgentHelper returns Helper with initialized default implementations
 // for all interfaces.
 func NewAgentHelper(agent *Agent) Helper {
 	helper := new(Helper)
-	helper.Executor = new(DefaultExecutor)
-	helper.OS = new(DefaultOS)
+	helper.Executor = new(utilexec.DefaultExecutor)
+	helper.OS = new(utilos.DefaultOS)
 	helper.Agent = agent
 	helper.ensureLineMutex = &sync.Mutex{}
 	helper.ensureRouteToEndpointMutex = &sync.Mutex{}
@@ -139,7 +142,7 @@ func (h Helper) ensureRouteToEndpoint(netif *NetIf) error {
 // isLineInFile reads a file and looks for specified string in file.
 // Returns true if line found in file and flase otherwise.
 func (h Helper) isLineInFile(path string, token string) (bool, error) {
-	file, err := h.OS.open(path)
+	file, err := h.OS.Open(path)
 	if err != nil {
 		return false, err
 	}
@@ -159,7 +162,7 @@ func (h Helper) isLineInFile(path string, token string) (bool, error) {
 // appendLineToFile appends a string to a file.
 // TODO ensure we're getting a new line if there is no '\n' at EOF
 func (h *Helper) appendLineToFile(path string, token string) error {
-	file, err := h.OS.appendFile(path)
+	file, err := h.OS.AppendFile(path)
 	if err != nil {
 		return err
 	}
@@ -176,7 +179,7 @@ func (h *Helper) appendLineToFile(path string, token string) error {
 // ensureLine ensures that line is present in a file.
 func (h Helper) ensureLine(path string, token string) error {
 	// if file exist
-	if err := h.OS.createIfMissing(path); err != nil {
+	if err := h.OS.CreateIfMissing(path); err != nil {
 		return ensureLineError(err)
 	}
 
