@@ -28,9 +28,7 @@ import (
 	"github.com/romana/core/root"
 	"github.com/romana/core/tenant"
 	"github.com/romana/core/topology"
-	"net"
 	"os"
-	"strings"
 	"testing"
 	"time"
 )

@@ -187,9 +187,8 @@ func (ipam *IPAMSvc) addEndpoint(input interface{}, ctx common.RestContext) (int
 	hostsURL := index.Links.FindByRel("host-list")
 	host := common.HostMessage{}
 
-	hostInfoUrl := fmt.Sprintf("%s/%s", hostsUrl, Endpoint.HostId)
-
-	err = client.Get(hostInfoUrl, &host)
+	hostInfoURL := fmt.Sprintf("%s/%s", hostsURL, Endpoint.HostId)
+	err = client.Get(hostInfoURL, &host)
 
 	if err != nil {
 		return nil, err

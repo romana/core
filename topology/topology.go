@@ -228,8 +228,8 @@ func (topology *TopologySvc) Initialize() error {
 }
 
 // CreateSchema creates schema for topology service.
-func CreateSchema(rootServiceUrl string, overwrite bool) error {
-	log.Println("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
+func CreateSchema(rootServiceURL string, overwrite bool) error {
+	log.Println("In CreateSchema(", rootServiceURL, ",", overwrite, ")")
 	client, err := common.NewRestClient("", common.GetDefaultRestClientConfig())
 	if err != nil {
 		return err
