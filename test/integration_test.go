@@ -163,6 +163,7 @@ func (s *MySuite) SetUpSuite(c *check.C) {
 	myLog(c, "Done with setup")
 }
 
+
 // Test that agent starts
 func (s *MySuite) TestAgentStart(c *check.C) {
 	// Find some romana IPs that we can use... Because the agent checks for those
@@ -207,7 +208,6 @@ func (s *MySuite) TestAgentStart(c *check.C) {
 	myLog(c, "Response: %s", host1)
 	c.Assert(host1.Ip, check.Equals, "10.10.10.10")
 	c.Assert(host1.Id, check.Equals, "1")
-
 	// Add host 2
 	newHostReq = common.HostMessage{Ip: "10.10.10.11", RomanaIp: possibleRomanaIps[1], AgentPort: 9999, Name: "HOST2000"}
 	host2 := common.HostMessage{}
