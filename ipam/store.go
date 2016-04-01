@@ -43,7 +43,6 @@ type Endpoint struct {
 	InUse bool   `json:"-"`
 	Id    uint64 `sql:"AUTO_INCREMENT",json:"-"`
 }
-
 type ipamStore struct {
 	common.DbStore
 }
@@ -85,7 +84,6 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *Endpoint, upToEndpointIpInt ui
 	endpoint.InUse = true
 	tenantId := endpoint.TenantId
 	segId := endpoint.SegmentId
-
 	filter := "host_id = ? AND tenant_id = ? AND segment_id = ? "
 	// First, see if there is a formerly allocated IP already that has been released
 	// (marked "in_use")
@@ -159,7 +157,7 @@ func (ipamStore *ipamStore) Entities() []interface{} {
 // CreateSchemaPostProcess implements CreateSchemaPostProcess method of
 // Service interface.
 func (ipamStore *ipamStore) CreateSchemaPostProcess() error {
-	db := ipamStore.Db 
+	db := ipamStore.Db
 	log.Printf("ipamStore.CreateSchemaPostProcess(), DB is %v", db)
 	db.Model(&Endpoint{}).AddUniqueIndex("idx_tenant_segment_host_seq", "tenant_id", "segment_id", "host_id", "seq")
 	err := common.MakeMultiError(db.GetErrors())

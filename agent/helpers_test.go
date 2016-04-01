@@ -43,7 +43,7 @@ func TestAppendLineToFile(t *testing.T) {
 	*/
 
 	// Init fake helpe, &leasefiler
-	fOS := &utilos.FakeOS{"", nil}
+	fOS := &utilos.FakeOS{}
 	helper := Helper{OS: fOS}
 	agent := Agent{Helper: &helper}
 
@@ -63,7 +63,7 @@ func TestAppendLineToFile(t *testing.T) {
 // given line in the file.
 func TestIsLineInFile(t *testing.T) {
 	// Returning correct lease via utilos.FakeOS
-	fOS := &utilos.FakeOS{"A 127.0.0.1", nil}
+	fOS := &utilos.FakeOS{FakeData: "A 127.0.0.1"}
 	agent := Agent{Helper: &Helper{OS: fOS}}
 
 	// NetIf to make a lease from
@@ -89,7 +89,7 @@ func TestIsLineInFile(t *testing.T) {
 	netif = NetIf{"eth0", "A", ip}
 
 	// Returning wrong lease via utilos.FakeOS
-	fOS = &utilos.FakeOS{"C 127.0.0.1", nil}
+	fOS = &utilos.FakeOS{FakeData: "C 127.0.0.1"}
 	agent.Helper.OS = fOS
 	lease = fmt.Sprintf("%s %s", netif.Mac, netif.IP)
 
@@ -113,7 +113,7 @@ func TestDhcpPid(t *testing.T) {
 	// when
 
 	// DhcpPid is expecting pid in stdout
-	E := &utilexec.FakeExecutor{[]byte("12345"), nil, nil}
+	E := &utilexec.FakeExecutor{Output: []byte("12345")}
 	agent.Helper.Executor = E
 	out, err := agent.Helper.DhcpPid()
 	// expect
@@ -127,7 +127,7 @@ func TestDhcpPid(t *testing.T) {
 	// when
 
 	// Here testing that DhcpPid's sanity check - pid must be < 65535
-	E = &utilexec.FakeExecutor{[]byte("1234567"), nil, nil}
+	E = &utilexec.FakeExecutor{Output: []byte("1234567")}
 	agent.Helper.Executor = E
 	out, err = agent.Helper.DhcpPid()
 	// expect
@@ -143,7 +143,7 @@ func TestIsRouteExist(t *testing.T) {
 	// when
 
 	// IsRouteExist treats non empty output as a success
-	E := &utilexec.FakeExecutor{[]byte("route exist"), nil, nil}
+	E := &utilexec.FakeExecutor{Output: []byte("route exist")}
 	agent.Helper.Executor = E
 	ip := net.ParseIP("127.0.0.1")
 	err := agent.Helper.isRouteExist(ip, "32")
@@ -161,7 +161,7 @@ func TestIsRouteExist(t *testing.T) {
 
 	// when
 	// for this test we want to fail isRouteExist by providing nil output
-	E = &utilexec.FakeExecutor{nil, nil, nil}
+	E = &utilexec.FakeExecutor{}
 	agent.Helper.Executor = E
 	err = agent.Helper.isRouteExist(ip, "32")
 
@@ -178,7 +178,7 @@ func TestCreateRoute(t *testing.T) {
 	// when
 
 	// we only care for recorded commands, no need for fake output or errors
-	E := &utilexec.FakeExecutor{nil, nil, nil}
+	E := &utilexec.FakeExecutor{}
 	agent.Helper.Executor = E
 	ip := net.ParseIP("127.0.0.1")
 	_ = agent.Helper.createRoute(ip, "0", "dev", "eth0")
@@ -198,7 +198,7 @@ func TestCreateInterhostRoutes(t *testing.T) {
 	// when
 
 	// we only care for recorded commands, no need for fake output or errors
-	E := &utilexec.FakeExecutor{nil, nil, nil}
+	E := &utilexec.FakeExecutor{}
 	agent.Helper.Executor = E
 	_ = agent.Helper.ensureInterHostRoutes()
 
