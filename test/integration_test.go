@@ -19,8 +19,6 @@ package test
 import (
 	//	"database/sql"
 	"fmt"
-	"net"
-	"strings"
 	"github.com/go-check/check"
 	"github.com/romana/core/agent"
 	"github.com/romana/core/common"
@@ -28,7 +26,9 @@ import (
 	"github.com/romana/core/root"
 	"github.com/romana/core/tenant"
 	"github.com/romana/core/topology"
+	"net"
 	"os"
+	"strings"
 	"testing"
 	"time"
 )
@@ -109,14 +109,14 @@ func (s *MySuite) SetUpSuite(c *check.C) {
 	c.Log("Root service said:", msg)
 	c.Log("Waiting a bit...")
 	time.Sleep(time.Second)
-	
+
 	c.Log("Creating topology schema")
 	err = topology.CreateSchema(s.rootURL, true)
 	if err != nil {
 		c.Fatal(err)
 	}
 	c.Log("OK")
-	
+
 	c.Log("Creating tenant schema")
 	err = tenant.CreateSchema(s.rootURL, true)
 	if err != nil {
