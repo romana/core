@@ -157,7 +157,7 @@ func (ipamStore *ipamStore) Entities() []interface{} {
 // CreateSchemaPostProcess implements CreateSchemaPostProcess method of
 // Service interface.
 func (ipamStore *ipamStore) CreateSchemaPostProcess() error {
-	db := ipamStore.Db 
+	db := ipamStore.Db
 	log.Printf("ipamStore.CreateSchemaPostProcess(), DB is %v", db)
 	db.Model(&Endpoint{}).AddUniqueIndex("idx_tenant_segment_host_seq", "tenant_id", "segment_id", "host_id", "seq")
 	err := common.MakeMultiError(db.GetErrors())
