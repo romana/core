@@ -318,6 +318,12 @@ func (rc *RestClient) Post(url string, data interface{}, result interface{}) err
 	return err
 }
 
+// Delete applies DELETE method to the specified URL
+func (rc *RestClient) Delete(url string, data interface{}, result interface{}) error {
+	err := rc.execMethod("DELETE", url, data, result)
+	return err
+}
+
 // Get applies GET method to the specified URL,
 // putting the result into the provided interface
 func (rc *RestClient) Get(url string, result interface{}) error {

@@ -227,7 +227,7 @@ func (topology *TopologySvc) Initialize() error {
 	return topology.store.Connect()
 }
 
-// CreateSchema runs topology service
+// CreateSchema creates schema for topology service.
 func CreateSchema(rootServiceURL string, overwrite bool) error {
 	log.Println("In CreateSchema(", rootServiceURL, ",", overwrite, ")")
 	client, err := common.NewRestClient("", common.GetDefaultRestClientConfig())

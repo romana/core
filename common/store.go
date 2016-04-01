@@ -199,7 +199,6 @@ func createSchemaSqlite3(dbStore *DbStore, force bool) error {
 	}
 
 	errs := dbStore.Db.GetErrors()
-	log.Println("Errors", errs)
 	err2 := MakeMultiError(errs)
 
 	if err2 != nil {
