@@ -26,7 +26,7 @@ import (
 
 // main function is entrypoint to everything.
 func main() {
-	var rootURL = flag.String("rootUrl", "", "URL to root service URL")
+	var rootURL = flag.String("rootURL", "", "URL to root service URL")
 	var version = flag.Bool("version", false, "Build Information.")
 	username := flag.String("username", "", "Username")
 	password := flag.String("password", "", "Password")
@@ -38,7 +38,7 @@ func main() {
 		return
 	}
 	if rootURL == nil {
-		fmt.Println("Must specify rootUrl.")
+		fmt.Println("Must specify rootURL.")
 		return
 	}
 	cred := common.MakeCredentialFromCliArgs(*username, *password)

@@ -13,7 +13,7 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// This file contains the implementation of HttpClient and related utilities.
+// Package common contains the implementation of HttpClient and related utilities.
 package common
 
 import (
@@ -153,7 +153,7 @@ func (rc *RestClient) modifyUrl(dest string, queryMod url.Values) error {
 		// from that queryMod object are replaced with those from queryMod.
 		origUrl := rc.url
 		origQuery := origUrl.Query()
-		for k, _ := range queryMod {
+		for k := range queryMod {
 			origQuery[k] = queryMod[k]
 		}
 		dest := ""
@@ -325,6 +325,12 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 // Post applies POST method to the specified URL
 func (rc *RestClient) Post(url string, data interface{}, result interface{}) error {
 	err := rc.execMethod("POST", url, data, result)
+	return err
+}
+
+// Delete applies DELETE method to the specified URL
+func (rc *RestClient) Delete(url string, data interface{}, result interface{}) error {
+	err := rc.execMethod("DELETE", url, data, result)
 	return err
 }
 

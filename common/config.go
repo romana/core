@@ -21,9 +21,25 @@ import (
 	"github.com/go-yaml/yaml"
 	"io/ioutil"
 	"log"
-	
+
 	"path/filepath"
 )
+
+// Hook defines an executable to run before or after any
+// Route handler execution.
+type Hook struct {
+	// Executable to run
+	Executable string
+	// Pattern to match in common.Route
+	Pattern string
+	// HTTP method to match
+	Method string
+	// Whether to run before or after the handler for the pattern/method
+	// pair is invoked
+	When string
+	// Where to write output (if omitted, will be just logged)
+	Output string
+}
 
 // Api part of service configuration (host/port).
 type Api struct {
@@ -37,8 +53,9 @@ type Api struct {
 	RestTimeoutMillis int64 `yaml:"rest_timeout_millis,omitempty" json:"rest_timeout_millis,omitempty"`
 	RestRetries       int   `yaml:"rest_retries,omitempty" json:"rest_retries,omitempty"`
 	// Location of the public key.
-	AuthPublic        string `yaml:"auth_public"`
-	RestTestMode      bool `yaml:"rest_test_mode,omitempty" json:"rest_test_mode,omitempty"`
+	AuthPublic   string `yaml:"auth_public"`
+	RestTestMode bool   `yaml:"rest_test_mode,omitempty" json:"rest_test_mode,omitempty"`
+	Hooks        []Hook
 }
 
 func (api Api) GetHostPort() string {
@@ -53,7 +70,7 @@ type CommonConfig struct {
 	// Credential is convenient to store here but it is not part of the
 	// configuration that is passed around in JSON.
 	Credential *Credential `yaml:"-" json:"-"`
-	PublicKey []byte `yaml:"-" json:"-"`
+	PublicKey  []byte      `yaml:"-" json:"-"`
 }
 
 // ServiceConfig contains common configuration
@@ -124,7 +141,7 @@ func cleanupMap2(ifcIfc map[interface{}]interface{}) map[string]interface{} {
 func ReadConfig(fname string) (Config, error) {
 	// Created new...
 	config := &Config{}
-	
+
 	absFname, err := filepath.Abs(fname)
 	if err != nil {
 		return *config, err
@@ -133,25 +150,28 @@ func ReadConfig(fname string) (Config, error) {
 		log.Printf("Converted %s to %s", fname, absFname)
 		fname = absFname
 	}
-	
+
 	yamlConfig := yamlConfig{}
 	if fname != "" {
 		data, err := ioutil.ReadFile(fname)
 		if err != nil {
 			return *config, err
 		}
+		log.Printf("Reading config from %s", fname)
 		err = yaml.Unmarshal([]byte(data), &yamlConfig)
 		if err != nil {
 			return *config, err
 		}
+		log.Printf("Read config from %s", fname)
 		serviceConfigs := yamlConfig.Services
 		config.Services = make(map[string]ServiceConfig)
 		// Now convert this to map for easier reading...
 		for i := range serviceConfigs {
 			c := serviceConfigs[i]
-			api := Api{Host: c.Api.Host, Port: c.Api.Port}
+			api := Api{Host: c.Api.Host, Port: c.Api.Port, Hooks: c.Api.Hooks}
 			cleanedConfig := cleanupMap(c.Config)
-			config.Services[c.Service] = ServiceConfig{CommonConfig{Api: &api}, cleanedConfig}
+			commonConfig := CommonConfig{Api: &api, Credential: nil, PublicKey: nil,}
+			config.Services[c.Service] = ServiceConfig{Common: commonConfig, ServiceSpecific: cleanedConfig,}
 		}
 		log.Println("Read configuration from", fname)
 		return *config, nil

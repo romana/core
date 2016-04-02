@@ -178,6 +178,7 @@ func (s timeoutService) Routes() Routes {
 				return http.Request{}
 			},
 			false,
+			nil,
 		},
 		Route{
 			"GET",
@@ -198,6 +199,7 @@ func (s timeoutService) Routes() Routes {
 				return http.Request{}
 			},
 			false,
+			nil,
 		},
 	}
 	return routes

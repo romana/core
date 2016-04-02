@@ -51,6 +51,9 @@ const (
 	// in the request we will not check the token (because
 	// we are attempting to get a token at this point).
 	AuthPath = "/auth"
+
+	// Body provided.
+	HookExecutableBodyArgument = "body"
 )
 
 type TokenMessage struct {

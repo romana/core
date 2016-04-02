@@ -17,7 +17,6 @@
 package root
 
 import (
-	//	"fmt"
 	"errors"
 	"fmt"
 	"github.com/dgrijalva/jwt-go"
@@ -27,7 +26,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-	//	"github.com/gorilla/mux"
 )
 
 // Config provides Root-specific configuration. This may seem a bit
@@ -44,7 +42,7 @@ type Config struct {
 
 type Root struct {
 	config     Config
-	routes     common.Route
+//	routes     common.Routes
 	privateKey []byte
 	store      rootStore
 }
@@ -53,6 +51,7 @@ const fullConfigKey = "fullConfig"
 
 // SetConfig implements SetConfig function of the Service interface
 func (root *Root) SetConfig(config common.ServiceConfig) error {
+	log.Printf("Entering root.SetConfig(%v)", config)
 	root.config = Config{}
 	root.config.common = &config.Common
 	f := config.ServiceSpecific[fullConfigKey].(common.Config)
@@ -161,12 +160,14 @@ func (root *Root) Name() string {
 func (root *Root) handleConfig(input interface{}, ctx common.RestContext) (interface{}, error) {
 	pathVars := ctx.PathVariables
 	serviceName := pathVars["serviceName"]
+	log.Printf("Received request for config of %s", serviceName)
+	log.Printf("Looking for %s in %v", serviceName, root.config.full)
 	retval := root.config.full.Services[serviceName]
 	return retval, nil
 }
 
 // Routes provided by root service.
-func (root Root) Routes() common.Routes {
+func (root *Root) Routes() common.Routes {
 	routes := common.Routes{
 		common.Route{
 			Method:          "GET",
@@ -202,12 +203,14 @@ func (root Root) Routes() common.Routes {
 
 // Run configures and starts root service.
 func Run(configFileName string) (*common.RestServiceInfo, error) {
+	log.Printf("Entering root.Run()")
 	fullConfig, err := common.ReadConfig(configFileName)
 	if err != nil {
 		return nil, err
 	}
 
 	rootService := &Root{}
+	log.Printf("Initializing root config with\n%v\nand\n%v", fullConfig.Services["root"].Common, fullConfig)
 	rootServiceConfig := common.ServiceConfig{
 		Common:          fullConfig.Services["root"].Common,
 		ServiceSpecific: make(map[string]interface{}),

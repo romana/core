@@ -28,7 +28,7 @@ import (
 func main() {
 	createSchema := flag.Bool("createSchema", false, "Create schema")
 	overwriteSchema := flag.Bool("overwriteSchema", false, "Overwrite schema")
-	rootUrl := flag.String("rootUrl", "", "Root service URL")
+	rootURL := flag.String("rootURL", "", "Root service URL")
 	version := flag.Bool("version", false, "Build Information.")
 	username := flag.String("username", "", "Username")
 	password := flag.String("password", "", "Password")
@@ -40,7 +40,7 @@ func main() {
 		return
 	}
 	if *createSchema || *overwriteSchema {
-		err := topology.CreateSchema(*rootUrl, *overwriteSchema)
+		err := topology.CreateSchema(*rootURL, *overwriteSchema)
 		if err != nil {
 			panic(err)
 		}
@@ -49,7 +49,7 @@ func main() {
 	}
 
 	cred := common.MakeCredentialFromCliArgs(*username, *password)
-	svcInfo, err := topology.Run(*rootUrl, cred)
+	svcInfo, err := topology.Run(*rootURL, cred)
 	if err != nil {
 		panic(err)
 	}

@@ -58,3 +58,71 @@ func NewError(code int, msg string) HttpError {
 func (e HttpError) Error() string {
 	return fmt.Sprintf("%d %s %s", e.StatusCode, e.StatusText, e.Message)
 }
+
+// MultiError is a facility to collect multiple number of errors but
+// present them as a single error interface. For example,
+// GORM does not return errors at every turn. It accumulates them and returns
+// them whenever you feel like calling GetErrors() (https://godoc.org/github.com/jinzhu/gorm#DB.GetErrors).
+// Since this is not consistent with the rest of the code, I prefer to isolate it
+// here and make an adapter.
+type MultiError struct {
+	errors []error
+}
+
+func (me MultiError) Add(err error) {
+	if me.errors == nil {
+		me.errors = make([]error, 1)
+		me.errors[0] = err
+	} else {
+		me.errors = append(me.errors, err)
+	}
+}
+
+// NewMultiError creates a new MultiError object
+// to which errors can be added.
+func NewMultiError() *MultiError {
+	return &MultiError{}
+}
+
+// GetError returns nil if there are no
+// underlying errors, the single error if there is
+// only one, and the MultiError object if there is
+// more than one.
+func (m *MultiError) GetError() error {
+	if m.errors == nil {
+		return nil
+	}
+	if len(m.errors) == 0 {
+		return nil
+	}
+	if len(m.errors) == 1 {
+		return m.errors[0]
+	}
+	return m
+}
+
+// MakeMultiError creates a single MultiError (or nil!) out of an array of
+// error objects.
+func MakeMultiError(errors []error) error {
+	if errors == nil {
+		return nil
+	}
+	if len(errors) == 0 {
+		return nil
+	}
+
+	return &MultiError{errors}
+}
+
+// Error satisfies Error method on error interface and returns
+// a concatenated string of all error messages.
+func (m *MultiError) Error() string {
+	s := ""
+	for i := range m.errors {
+		if len(s) > 0 {
+			s += "; "
+		}
+		s += m.errors[i].Error()
+	}
+	return s
+}
