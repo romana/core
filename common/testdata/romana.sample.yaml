@@ -46,3 +46,11 @@ services:
     config:
       lease_file : "/etc/ethers"
       wait_for_iface_try : 6
+  - service: kubernetesListener 
+    api:
+      host: 0.0.0.0
+    config:
+      kubernetes_url : "http://localhost"
+      url_prefix="apis/romana.io/demo/v1/namespaces"
+      segment_label_name="tier"
+ 

@@ -92,9 +92,9 @@ func (a *Agent) Routes() common.Routes {
 
 // Run starts the agent service.
 func Run(rootServiceURL string, testMode bool) (*common.RestServiceInfo, error) {
-	clientConfig := common.GetDefaultRestClientConfig()
+	clientConfig := common.GetDefaultRestClientConfig(rootServiceURL)
 	clientConfig.TestMode = testMode
-	client, err := common.NewRestClient("", clientConfig)
+	client, err := common.NewRestClient(clientConfig)
 
 	if err != nil {
 		return nil, err
@@ -105,7 +105,7 @@ func Run(rootServiceURL string, testMode bool) (*common.RestServiceInfo, error) 
 	agent.Helper = &helper
 	log.Printf("Agent: Getting configuration from %s", rootServiceURL)
 
-	config, err := client.GetServiceConfig(rootServiceURL, agent)
+	config, err := client.GetServiceConfig(agent)
 	if err != nil {
 		return nil, err
 	}

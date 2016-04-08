@@ -127,7 +127,7 @@ func (s *MySuite) TestTopology(c *check.C) {
 	msg := <-svcInfo.Channel
 	myLog(c, "Topology service said:", msg)
 	addr := "http://" + svcInfo.Address
-	client, err := common.NewRestClient(addr, common.GetDefaultRestClientConfig())
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(addr))
 	if err != nil {
 		c.Error(err)
 	}

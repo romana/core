@@ -15,6 +15,10 @@
 
 package common
 
+import (
+	"net"
+)
+
 // Here we only keep type definitions and struct definitions with no behavior.
 
 // Constants
@@ -70,6 +74,35 @@ type ServiceMessage string
 // port a service is listening on.
 type PortUpdateMessage struct {
 	Port uint64 `json:"port"`
+}
+
+type SrcDest struct {
+	Cidr string `json:"cidr,omitempty"`
+	// TODO this can be collapsed into Cidr but needs 
+	// work on JSON marshaller/unmarshaller to do that.
+	ParsedCidr net.IPNet `json:"-"`
+	TenantId string `json:"tenant_id,omitempty"`
+	SegmentId string `json:"segment_id,omitempty"`
+} 
+
+type Proto struct {
+	// TODO this can probably be an enum-like thing,
+	// but needs work on JSON marshaller/unmarshaller to do that.
+	Name string 
+	SourcePorts []PortRange
+	DestinationPorts []PortRange
+}
+
+type PortRange struct {
+	From uint 
+	To uint
+}
+
+type Policy struct {
+	Sources []SrcDest
+	Destinations []SrcDest
+	Protos []Proto
+	Ingress bool
 }
 
 type RestServiceInfo struct {

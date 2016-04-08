@@ -41,8 +41,8 @@ func TestHooks(t *testing.T) {
 	fmt.Println("Waiting for message")
 	msg := <-svcInfo.Channel
 	fmt.Println("Root service said:", msg)
-	addr := fmt.Sprintf("http://%s", svcInfo.Address)
-	client, err := common.NewRestClient(addr, common.GetDefaultRestClientConfig())
+	rootURL := fmt.Sprintf("http://%s", svcInfo.Address)
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
 	if err != nil {
 		t.Error(err)
 
@@ -123,8 +123,8 @@ func TestServiceList(t *testing.T) {
 		t.Error(err)
 		t.FailNow()
 	}
-	addr := fmt.Sprintf("http://%s", svcInfo.Address)
-	client, err := common.NewRestClient(addr, common.GetDefaultRestClientConfig())
+	rootURL := fmt.Sprintf("http://%s", svcInfo.Address)
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
 	if err != nil {
 		t.Error(err)
 		t.FailNow()

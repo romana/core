@@ -128,6 +128,20 @@ func (tenantStore *tenantStore) findTenant(id uint64) (Tenant, error) {
 	//	return tenant, nil
 }
 
+func (tenantStore *tenantStore) findTenantsByName(name string) ([]Tenant, error) {
+	var tenants []Tenant
+	log.Println("In findTenant()")
+	tenantStore.DbStore.Db.Find(&tenants).Where("name = ?", name)
+	err := common.MakeMultiError(tenantStore.DbStore.Db.GetErrors())
+	if err != nil {
+		return nil, err
+	}
+	if len(tenants) == 0 {
+		return nil, common.NewError404("tenant", name)
+	} 
+	return tenants, nil
+}
+
 func (tenantStore *tenantStore) addSegment(tenantId uint64, segment *Segment) error {
 	var err error
 

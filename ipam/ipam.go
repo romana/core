@@ -76,12 +76,12 @@ func (ipam *IPAMSvc) legacyAllocateIpByName(input interface{}, ctx common.RestCo
 	Endpoint := Endpoint{}
 	Endpoint.Name = name
 
-	client, err := common.NewRestClient("", common.GetRestClientConfig(ipam.config))
+	client, err := common.NewRestClient(common.GetRestClientConfig(ipam.config))
 	if err != nil {
 		return nil, err
 	}
 	// Get host info from topology service
-	topoUrl, err := client.GetServiceUrl(ipam.config.Common.Api.RootServiceUrl, "topology")
+	topoUrl, err := client.GetServiceUrl("topology")
 	if err != nil {
 		return nil, err
 	}
@@ -168,12 +168,12 @@ func (ipam *IPAMSvc) legacyAllocateIpByName(input interface{}, ctx common.RestCo
 // allocate an IP address.
 func (ipam *IPAMSvc) addEndpoint(input interface{}, ctx common.RestContext) (interface{}, error) {
 	Endpoint := input.(*Endpoint)
-	client, err := common.NewRestClient("", common.GetRestClientConfig(ipam.config))
+	client, err := common.NewRestClient(common.GetRestClientConfig(ipam.config))
 	if err != nil {
 		return nil, err
 	}
 	// Get host info from topology service
-	topoUrl, err := client.GetServiceUrl(ipam.config.Common.Api.RootServiceUrl, "topology")
+	topoUrl, err := client.GetServiceUrl("topology")
 	if err != nil {
 		return nil, err
 	}
@@ -273,12 +273,12 @@ func (ipam *IPAMSvc) createSchema(overwrite bool) error {
 
 // Run mainly runs IPAM service.
 func Run(rootServiceUrl string) (*common.RestServiceInfo, error) {
-	client, err := common.NewRestClient(rootServiceUrl, common.GetDefaultRestClientConfig())
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig())
 	if err != nil {
 		return nil, err
 	}
 	ipam := &IPAMSvc{}
-	config, err := client.GetServiceConfig(rootServiceUrl, ipam)
+	config, err := client.GetServiceConfig(ipam)
 	if err != nil {
 		return nil, err
 	}
@@ -294,12 +294,12 @@ func (ipam *IPAMSvc) Initialize() error {
 		return err
 	}
 
-	client, err := common.NewRestClient("", common.GetDefaultRestClientConfig())
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig())
 	if err != nil {
 		return err
 	}
 
-	topologyURL, err := client.GetServiceUrl(ipam.config.Common.Api.RootServiceUrl, "topology")
+	topologyURL, err := client.GetServiceUrl("topology")
 	if err != nil {
 		return err
 	}
@@ -327,12 +327,12 @@ func CreateSchema(rootServiceUrl string, overwrite bool) error {
 	log.Println("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
 	ipamSvc := &IPAMSvc{}
 
-	client, err := common.NewRestClient("", common.GetDefaultRestClientConfig())
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootServiceUrl))
 	if err != nil {
 		return err
 	}
 
-	config, err := client.GetServiceConfig(rootServiceUrl, ipamSvc)
+	config, err := client.GetServiceConfig(ipamSvc)
 	if err != nil {
 		return err
 	}

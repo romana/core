@@ -85,12 +85,12 @@ func segmentAdd(cmd *cli.Command, args []string) error {
 	}
 	romanaIDStr := strconv.FormatUint(romanaID, 10)
 
-	client, err := common.NewRestClient(rootURL, common.GetDefaultRestClientConfig())
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
 	if err != nil {
 		return err
 	}
 
-	tenantURL, err := client.GetServiceUrl(rootURL, "tenant")
+	tenantURL, err := client.GetServiceUrl( "tenant")
 	if err != nil {
 		return err
 	}

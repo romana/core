@@ -44,19 +44,20 @@ type RestClientConfig struct {
 	TimeoutMillis int64
 	Retries       int
 	TestMode      bool
+	RootURL       string
 }
 
-func GetDefaultRestClientConfig() RestClientConfig {
-	return RestClientConfig{TimeoutMillis: DefaultRestTimeout, Retries: DefaultRestRetries}
+func GetDefaultRestClientConfig(rootURL string) RestClientConfig {
+	return RestClientConfig{TimeoutMillis: DefaultRestTimeout, Retries: DefaultRestRetries, RootURL: rootURL}
 }
 
 // GetRestClientConfig returns a RestClientConfig based on a ServiceConfig
 func GetRestClientConfig(config ServiceConfig) RestClientConfig {
-	return RestClientConfig{TimeoutMillis: config.Common.Api.RestTimeoutMillis, Retries: config.Common.Api.RestRetries}
+	return RestClientConfig{TimeoutMillis: config.Common.Api.RestTimeoutMillis, Retries: config.Common.Api.RestRetries, RootURL: config.Common.Api.RootServiceUrl}
 }
 
 // NewRestClient creates a new Rest client.
-func NewRestClient(url string, config RestClientConfig) (*RestClient, error) {
+func NewRestClient(config RestClientConfig) (*RestClient, error) {
 	rc := &RestClient{client: &http.Client{}, config: &config}
 	timeoutMillis := config.TimeoutMillis
 
@@ -73,10 +74,23 @@ func NewRestClient(url string, config RestClientConfig) (*RestClient, error) {
 		log.Printf("Invalid retries %d, defaulting to %d\n", config.Retries, DefaultRestRetries)
 		config.Retries = DefaultRestRetries
 	}
-	if url == "" {
+	var url string
+	if config.RootURL == "" {
+		// Default to some URL. This client would not be able to be used
+		// for Romana-related service convenience methods, just as a generic
+		// REST client.
 		// If we keep this empty, NewUrl wouldn't work properly when
 		// trying to resolve things.
 		url = "http://localhost"
+	} else {
+		u, err := url.Parse(config.RootURL)
+		if err != nil {
+			return err
+		}
+		if !u.IsAbs() {
+			return nil, common.NewError("Expected absolute URL for root, received %s", config.RootURL)
+		}
+		url = config.RootURL
 	}
 	err := rc.NewUrl(url)
 	if err != nil {
@@ -92,12 +106,39 @@ func (rc *RestClient) NewUrl(dest string) error {
 	return rc.modifyUrl(dest, nil)
 }
 
+// ListHosts list host
+func (rc *RestClient) ListHosts() ([]common.HostMessage, error) {
+	// Save the current state of things, so we can restore after call to root.
+	savedUrl := rc.url
+	// Restore this after we're done so we don't lose this
+	defer func() {
+		rc.url = savedUrl
+	}()
+
+	topoUrl, err := rc.GetServiceUrl("topology")
+	if err != nil {
+		return nil, err
+	}
+	hostsRelURL := topIndex.Links.FindByRel("host-list")
+
+	var hostList []common.HostMessage
+	err = client.Get(hostsRelURL, &hostList)
+	return hostList, err
+}
+
 // GetServiceUrl is a convenience function, which, given the root
 // service URL and name of desired service, returns the URL of that service.
-func (rc *RestClient) GetServiceUrl(rootServiceUrl string, name string) (string, error) {
+func (rc *RestClient) GetServiceUrl(name string) (string, error) {
 	log.Printf("Entering GetServiceUrl(%s, %s)", rootServiceUrl, name)
+	// Save the current state of things, so we can restore after call to root.
+	savedUrl := rc.url
+	// Restore this after we're done so we don't lose this
+	defer func() {
+		rc.url = savedUrl
+	}()
 	resp := RootIndexResponse{}
-	err := rc.Get(rootServiceUrl, &resp)
+
+	err := rc.Get(rc.config.RootURL, &resp)
 	if err != nil {
 		return ErrorNoValue, err
 	}
@@ -324,6 +365,12 @@ func (rc *RestClient) Delete(url string, data interface{}, result interface{}) e
 	return err
 }
 
+// Put applies PUT method to the specified URL
+func (rc *RestClient) Put(url string, data interface{}, result interface{}) error {
+	err := rc.execMethod("PUT", url, data, result)
+	return err
+}
+
 // Get applies GET method to the specified URL,
 // putting the result into the provided interface
 func (rc *RestClient) Get(url string, result interface{}) error {
@@ -331,14 +378,39 @@ func (rc *RestClient) Get(url string, result interface{}) error {
 }
 
 // GetServiceConfig retrieves configuration for a given service from the root service.
-func (rc *RestClient) GetServiceConfig(rootServiceUrl string, svc Service) (*ServiceConfig, error) {
+func (rc *RestClient) GetServiceConfig(svc Service) (*ServiceConfig, error) {
 	rootIndexResponse := &RootIndexResponse{}
-	err := rc.Get(rootServiceUrl, rootIndexResponse)
+	if rc.RootURL == "" {
+		return nil, errors.New("RootURL not set")
+	}
+	err := rc.Get(rc.RootURL, rootIndexResponse)
 	if err != nil {
 		return nil, err
 	}
 	config := &ServiceConfig{}
 	config.Common.Api = &Api{RootServiceUrl: rootServiceUrl}
+
+	relName := svc.Name() + "-config"
+
+	configUrl := rootIndexResponse.Links.FindByRel(relName)
+	if configUrl == "" {
+		return nil, errors.New(fmt.Sprintf("Could not find %s at %s", relName, rootServiceUrl))
+	}
+	log.Printf("GetServiceConfig(): Found config url %s in %s from %s", configUrl, rootIndexResponse, relName)
+	err = rc.Get(configUrl, config)
+	if err != nil {
+		return nil, err
+	}
+	return config, nil
+}
+
+// FindService finds a service URL by name.
+func (rc *RestClient) GetServiceConfig(rootServiceUrl string, name string) (string, error) {
+	rootIndexResponse := &RootIndexResponse{}
+	err := rc.Get(rootServiceUrl, rootIndexResponse)
+	if err != nil {
+		return nil, err
+	}
 
 	relName := svc.Name() + "-config"
 

@@ -100,13 +100,12 @@ func hostAdd(cmd *cli.Command, args []string) error {
 		agentport, _ = strconv.Atoi("9606")
 	}
 
-	client, err := common.NewRestClient(rootURL,
-		common.GetDefaultRestClientConfig())
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
 	if err != nil {
 		return err
 	}
 
-	topologyURL, err := client.GetServiceUrl(rootURL, "topology")
+	topologyURL, err := client.GetServiceUrl("topology")
 	if err != nil {
 		return err
 	}
@@ -142,13 +141,12 @@ func hostShow(cmd *cli.Command, args []string) error {
 			fmt.Sprintf("expected at-least 1 argument, saw none"))
 	}
 
-	client, err := common.NewRestClient(rootURL,
-		common.GetDefaultRestClientConfig())
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
 	if err != nil {
 		return err
 	}
 
-	topologyURL, err := client.GetServiceUrl(rootURL, "topology")
+	topologyURL, err := client.GetServiceUrl( "topology")
 	if err != nil {
 		return err
 	}
@@ -204,8 +202,7 @@ func hostShow(cmd *cli.Command, args []string) error {
 }
 
 func hostList(cmd *cli.Command, args []string) error {
-	client, err := common.NewRestClient(rootURL,
-		common.GetDefaultRestClientConfig())
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig())
 	if err != nil {
 		return err
 	}

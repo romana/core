@@ -181,7 +181,7 @@ func (s *MySuite) TestAgentStart(c *check.C) {
 		possibleRomanaIps = append(possibleRomanaIps, strAddr)
 	}
 
-	client, err := common.NewRestClient(s.topoURL, common.GetDefaultRestClientConfig())
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(s.topoURL))
 	if err != nil {
 		c.Error(err)
 	}
@@ -236,7 +236,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	myLog(c, "Entering TestRootTopoTenantIpamInteraction()")
 
 	// 1. Add some hosts to topology service and test.
-	client, err := common.NewRestClient(s.topoURL, common.GetDefaultRestClientConfig())
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(s.topoURL))
 	if err != nil {
 		c.Error(err)
 	}
