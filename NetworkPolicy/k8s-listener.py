@@ -381,6 +381,16 @@ def get_tenant_id_by_name(name, tenants):
             return tenant['Id']
     return None
 
+def get_tenant_seq_by_id(id, tenants):
+    """
+    Returns romana tenant sequence number
+    Example : 1
+    """
+    for tenant in tenants:
+        if tenant['Id'] == id:
+            return tenant['Seq']
+    return None
+
 def get_segments(tenant_id):
     """
     Returns a list of romana segments for particular tenant
@@ -396,9 +406,9 @@ def get_segments(tenant_id):
         return None
     return segments
 
-def get_segment_id_by_name(name, segments):
+def get_segment_seq_by_name(name, segments):
     """
-    Returns romana segment id
+    Returns romana segment sequence number
     Example : 1
     """
     for segment in segments:
@@ -566,20 +576,22 @@ def process(s, uid_by_ns, pd_by_uid):
     if not segments:
         logging.warning("Failed to resolve segments for tenant %s - skipping event %s" % (rule['src_tenant'], obj))
         return
+    tenant_seq = get_tenant_seq_by_id(tenant_id, tenants)
     logging.info("Discovered segments = %s" % segments)
-    src_segment_id = get_segment_id_by_name(rule['src_segment'], segments)
-    logging.info("Discovered src_segment_id = %s" % src_segment_id)
-    dst_segment_id = get_segment_id_by_name(rule['dst_segment'], segments)
-    logging.info("Discovered dst_segment_id = %s" % dst_segment_id)
+    src_segment_seq = get_segment_seq_by_name(rule['src_segment'], segments)
+    logging.info("Discovered src_segment_seq = %s" % src_segment_seq)
+    dst_segment_seq = get_segment_seq_by_name(rule['dst_segment'], segments)
+    logging.info("Discovered dst_segment_seq = %s" % dst_segment_seq)
 
     # That should be a romana policy object.
+    # We subtract 1 from the seq values to match IPAM/Agent behaviour in producing rule labels
     policy_definition = {
         "policy_name" : obj['object']['metadata']['name'],
         "policy_namespace" : obj['object']['metadata']['namespace'],
-        "owner_tenant_id" : tenant_id,
-        "target_segment_id" : dst_segment_id,
+        "owner_tenant_id" : tenant_seq - 1,
+        "target_segment_id" : dst_segment_seq - 1,
         "allowFrom" : {
-            "segment_id" : src_segment_id,
+            "segment_id" : src_segment_seq - 1,
             "protocol" : "tcp",
             "port" : obj['object']['spec']['allowIncoming']['toPorts'][0]['port']
         }
