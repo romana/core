@@ -195,12 +195,15 @@ func createSchemaSqlite3(dbStore *DbStore, force bool) error {
 	}
 
 	entities := dbStore.ServiceStore.Entities()
-	log.Printf("Creating tables for %v", entities) 
+	log.Printf("Creating tables for %v", entities)
 	for _, entity := range entities {
 		log.Printf("sqlite3: Creating table %T", entity)
-		dbStore.Db.CreateTable(entity)
+		db := dbStore.Db.CreateTable(entity)
+		if db.Error != nil {
+			return db.Error
+		}
 	}
-	
+
 	errs := dbStore.Db.GetErrors()
 	log.Println("sqlite3: Errors", errs)
 	err2 := MakeMultiError(errs)
@@ -248,7 +251,10 @@ func createSchemaMysql(dbStore *DbStore, force bool) error {
 
 	for i := range entities {
 		entity := entities[i]
-		dbStore.Db.CreateTable(entity)
+		db := dbStore.Db.CreateTable(entity)
+		if db.Error != nil {
+			return db.Error
+		}
 	}
 
 	err = MakeMultiError(dbStore.Db.GetErrors())

@@ -16,9 +16,10 @@
 package tenant
 
 import (
-	"github.com/romana/core/common"
 	"log"
 	"strconv"
+
+	"github.com/romana/core/common"
 )
 
 // TenantSvc provides tenant service.
@@ -105,10 +106,24 @@ func (tsvc *TenantSvc) listTenants(input interface{}, ctx common.RestContext) (i
 func (tsvc *TenantSvc) listSegments(input interface{}, ctx common.RestContext) (interface{}, error) {
 	log.Println("In listSegments()")
 	idStr := ctx.PathVariables["tenantId"]
-	id, err := strconv.ParseUint(idStr, 10, 64)
-	if err != nil {
-		return nil, err
+
+	var id uint64
+	var err error
+
+	// check if we are finding tenant using ID or UUID.
+	if len(idStr) != 32 {
+		id, err = strconv.ParseUint(idStr, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		t, err := tsvc.store.findTenant(id, idStr)
+		id = t.ID
+		if err != nil {
+			return nil, err
+		}
 	}
+
 	segments, err := tsvc.store.listSegments(id)
 	if err != nil {
 		return nil, err
@@ -119,11 +134,19 @@ func (tsvc *TenantSvc) listSegments(input interface{}, ctx common.RestContext) (
 func (tsvc *TenantSvc) findTenant(input interface{}, ctx common.RestContext) (interface{}, error) {
 	idStr := ctx.PathVariables["tenantId"]
 	log.Printf("In findTenant(%s)\n", idStr)
-	id, err := strconv.ParseUint(idStr, 10, 64)
-	if err != nil {
-		return nil, err
+
+	var id uint64
+	var err error
+
+	// check if we are finding tenant using ID or UUID.
+	if len(idStr) != 32 {
+		id, err = strconv.ParseUint(idStr, 10, 64)
+		if err != nil {
+			return nil, err
+		}
 	}
-	tenant, err := tsvc.store.findTenant(id)
+
+	tenant, err := tsvc.store.findTenant(id, idStr)
 	if err != nil {
 		return nil, err
 	}

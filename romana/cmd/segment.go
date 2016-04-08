@@ -22,6 +22,8 @@ import (
 
 	"github.com/romana/core/common"
 	"github.com/romana/core/romana/adaptor"
+	"github.com/romana/core/romana/romana"
+	"github.com/romana/core/romana/util"
 	"github.com/romana/core/tenant"
 
 	cli "github.com/spf13/cobra"
@@ -69,7 +71,7 @@ var segmentListCmd = &cli.Command{
 
 func segmentAdd(cmd *cli.Command, args []string) error {
 	if len(args) < 2 {
-		return UsageError(cmd, "TENANT and SEGMENT name should be provided.")
+		return util.UsageError(cmd, "TENANT and SEGMENT name should be provided.")
 	}
 
 	tnt := args[0]
@@ -79,7 +81,7 @@ func segmentAdd(cmd *cli.Command, args []string) error {
 		return errors.New("Tenant doesn't exists: " + tnt)
 	}
 
-	romanaID, err := getRomanaTenantID(tenantUUID)
+	romanaID, err := romana.GetTenantID(tenantUUID)
 	if err != nil {
 		return errors.New("Romana Tenant doesn't exists: " + tnt)
 	}
@@ -114,10 +116,10 @@ func segmentRemove(cmd *cli.Command, args []string) error {
 
 func segmentList(cmd *cli.Command, args []string) error {
 	if len(args) < 1 {
-		return UsageError(cmd, "TENANT name should be provided.")
+		return util.UsageError(cmd, "TENANT name should be provided.")
 	}
 	if len(args) > 1 {
-		return UsageError(cmd,
+		return util.UsageError(cmd,
 			"Extra arguments provided, only one TENANT name accepted.")
 	}
 

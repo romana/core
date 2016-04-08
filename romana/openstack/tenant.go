@@ -21,6 +21,8 @@ import (
 	"log"
 	"os"
 
+	"github.com/romana/core/romana/util"
+
 	"github.com/rackspace/gophercloud"
 	"github.com/rackspace/gophercloud/openstack"
 	"github.com/rackspace/gophercloud/openstack/identity/v2/tenants"
@@ -157,6 +159,12 @@ func GetTenantName(uuid string) (string, error) {
 			return true, nil
 		},
 	)
+
+	if tenant == "" {
+		log.Println("Tenant (UUID: %s) not found.", uuid)
+		return "", util.ErrTenantNotFound
+	}
+
 	return tenant, nil
 }
 
@@ -208,8 +216,8 @@ func TenantExists(name string) bool {
 }
 
 // GetTenantUUID returns openstack tenant UUID corresponding to the name.
-func GetTenantUUID(name string) (string, error) {
-	var tenant string
+func GetTenantUUID(tenant string) (string, error) {
+	var uuid string
 
 	c, err := getIdentityClient()
 	if err != nil {
@@ -225,8 +233,8 @@ func GetTenantUUID(name string) (string, error) {
 			tenantList, _ := tenants.ExtractTenants(page)
 			for _, t := range tenantList {
 				// "t" is tenants.Tenant
-				if t.Name == name {
-					tenant = t.ID
+				if t.Name == tenant {
+					uuid = t.ID
 					// stop iterating and return tenant.Name
 					return false, nil
 				}
@@ -234,12 +242,17 @@ func GetTenantUUID(name string) (string, error) {
 			return true, nil
 		},
 	)
-	return tenant, nil
+
+	if uuid == "" {
+		log.Println("Tenant (Name: %s) not found.", tenant)
+		return "", util.ErrTenantNotFound
+	}
+
+	return uuid, nil
 }
 
 // CreateTenant creates openstack specific tenant
 // corresponding to the name given.
 func CreateTenant(name string) error {
-	// Unimplemented
-	return nil
+	return util.ErrUnimplementedFeature
 }
