@@ -17,9 +17,9 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"strings"
-	"fmt"
 )
 
 // Main entry point for the IPAM microservice

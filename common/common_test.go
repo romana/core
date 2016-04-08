@@ -221,7 +221,7 @@ func TestSleepyServerTimeout(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
-	msg := <- svcInfo.Channel
+	msg := <-svcInfo.Channel
 	log.Printf("Service says %s\n", msg)
 
 	times := []int{80, 90, 110, 120}

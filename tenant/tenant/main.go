@@ -30,10 +30,10 @@ func main() {
 	overwriteSchema := flag.Bool("overwriteSchema", false, "Overwrite schema")
 	rootURL := flag.String("rootURL", "", "Root service URL")
 	version := flag.Bool("version", false, "Build Information.")
-	
+
 	username := flag.String("username", "", "Username")
 	password := flag.String("password", "", "Password")
-	
+
 	flag.Parse()
 
 	if *version {

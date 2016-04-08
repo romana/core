@@ -83,7 +83,6 @@ func (tsvc *TenantSvc) Routes() common.Routes {
 	return routes
 }
 
-
 func (tsvc *TenantSvc) addTenant(input interface{}, ctx common.RestContext) (interface{}, error) {
 	log.Println("In addTenant()")
 	newTenant := input.(*Tenant)

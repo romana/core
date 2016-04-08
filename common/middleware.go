@@ -47,7 +47,7 @@ type RestContext struct {
 	QueryVariables url.Values
 	// Unique identifier for a request.
 	RequestToken string
-	Roles []Role
+	Roles        []Role
 	// Output of the hook if any run before the execution of the handler.
 	HookOutput string
 }

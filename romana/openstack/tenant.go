@@ -161,7 +161,7 @@ func GetTenantName(uuid string) (string, error) {
 	)
 
 	if tenant == "" {
-		log.Println("Tenant (UUID: %s) not found.", uuid)
+		log.Printf("Tenant (UUID: %s) not found.\n", uuid)
 		return "", util.ErrTenantNotFound
 	}
 
@@ -244,7 +244,7 @@ func GetTenantUUID(tenant string) (string, error) {
 	)
 
 	if uuid == "" {
-		log.Println("Tenant (Name: %s) not found.", tenant)
+		log.Printf("Tenant (Name: %s) not found.\n", tenant)
 		return "", util.ErrTenantNotFound
 	}
 

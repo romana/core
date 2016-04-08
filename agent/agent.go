@@ -96,7 +96,7 @@ func Run(rootServiceURL string, cred *common.Credential, testMode bool) (*common
 	clientConfig.TestMode = testMode
 	client, err := common.NewRestClient("", clientConfig)
 	clientConfig.Credential = cred
-	
+
 	if err != nil {
 		return nil, err
 	}

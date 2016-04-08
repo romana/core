@@ -32,9 +32,9 @@ func main() {
 	version := flag.Bool("version", false, "Build Information.")
 	username := flag.String("username", "", "Username")
 	password := flag.String("password", "", "Password")
-	
+
 	flag.Parse()
-	
+
 	if *version {
 		fmt.Println(common.BuildInfo())
 		return
@@ -53,7 +53,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	
+
 	for {
 		msg := <-svcInfo.Channel
 		fmt.Println(msg)

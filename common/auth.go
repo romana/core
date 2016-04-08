@@ -31,7 +31,7 @@ type CredentialType string
 const (
 	CredentialUsernamePassword = "userPass"
 	CredentialNone             = "none"
-	
+
 	PasswordEnvironmentVariable = "ROMANA_PASSWORD"
 )
 
@@ -58,4 +58,3 @@ func MakeCredentialFromCliArgs(username string, password string) *Credential {
 		return &Credential{Type: CredentialUsernamePassword, Username: username, Password: password}
 	}
 }
-
