@@ -118,7 +118,10 @@ func (tenantStore *tenantStore) findTenant(id uint64) (Tenant, error) {
 			return tenants[i], nil
 		}
 	}
+	// TODO make this a 404
 	return Tenant{}, errors.New("Not found")
+	// TODO
+	// Should move Where instead of iterating above.
 	//	tenant := Tenant{}
 	//	tenantStore.DB().Where("id = ?", id).First(&tenant)
 	//	err := common.MakeMultiError(tenantStore.DB().GetErrors())

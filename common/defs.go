@@ -26,6 +26,7 @@ const (
 	// 	 For passing in Gorilla Mux context the original body data
 	ContextKeyOriginalBody string = "OriginalBody"
 	ContextKeyMarshaller   string = "Marshaller"
+	ContextKeyRoles        string = "Roles"
 	// DefaultRestTimeout, in milliseconds.
 	DefaultRestTimeout    = 500
 	DefaultRestRetries    = 3
@@ -45,10 +46,19 @@ const (
 	// but there is an error so no point in returning any
 	// value.
 	ErrorNoValue = ""
+	
+	// Path for authentication; if this is what is used
+	// in the request we will not check the token (because
+	// we are attempting to get a token at this point).
+	AuthPath = "/auth"
 
 	// Body provided.
 	HookExecutableBodyArgument = "body"
 )
+
+type TokenMessage struct {
+	Token string
+}
 
 // LinkResponse structure represents the commonly occurring
 // {

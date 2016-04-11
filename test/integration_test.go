@@ -133,7 +133,7 @@ func (s *MySuite) SetUpSuite(c *check.C) {
 
 	// Start topology service
 	myLog(c, "STARTING TOPOLOGY SERVICE")
-	topoInfo, err := topology.Run(s.rootURL)
+	topoInfo, err := topology.Run(s.rootURL, nil)
 	if err != nil {
 		c.Error(err)
 	}
@@ -143,7 +143,7 @@ func (s *MySuite) SetUpSuite(c *check.C) {
 
 	// Start tenant service
 	myLog(c, "STARTING TENANT SERVICE")
-	tenantInfo, err := tenant.Run(s.rootURL)
+	tenantInfo, err := tenant.Run(s.rootURL, nil)
 	if err != nil {
 		c.Fatal(err)
 	}
@@ -152,7 +152,7 @@ func (s *MySuite) SetUpSuite(c *check.C) {
 	s.tenantURL = "http://" + tenantInfo.Address
 
 	myLog(c, "STARTING IPAM SERVICE")
-	ipamInfo, err := ipam.Run(s.rootURL)
+	ipamInfo, err := ipam.Run(s.rootURL, nil)
 	if err != nil {
 		c.Fatal(err)
 	}
@@ -162,7 +162,6 @@ func (s *MySuite) SetUpSuite(c *check.C) {
 
 	myLog(c, "Done with setup")
 }
-
 
 // Test that agent starts
 func (s *MySuite) TestAgentStart(c *check.C) {
@@ -223,7 +222,7 @@ func (s *MySuite) TestAgentStart(c *check.C) {
 	c.Assert(len(hostList2), check.Equals, 2)
 
 	myLog(c, "STARTING Agent SERVICE")
-	agentInfo, err := agent.Run(s.rootURL, true)
+	agentInfo, err := agent.Run(s.rootURL, nil, true)
 	if err != nil {
 		c.Error(err)
 	}

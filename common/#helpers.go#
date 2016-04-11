@@ -16,9 +16,6 @@
 package common
 
 import (
-	"bufio"
-	"errors"
-	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -44,33 +41,6 @@ func initEnviron() {
 		keyValue := strings.Split(kv, "=")
 		environ[keyValue[0]] = keyValue[1]
 	}
-}
-
-func PressEnterToContinue() {
-	fmt.Println("Press ENTER to continue")
-	scanner := bufio.NewScanner(os.Stdin)
-	scanner.Scan()
-}
-
-// MockPortsInConfig will take the config file specified
-// and replace the ports with 0 to use arbitrary ports
-// and write it out to /tmp/romana.yaml
-func MockPortsInConfig(fname string) error {
-	config, err := ReadConfig(fname)
-	if err != nil {
-		return err
-	}
-	services := []string{"root", "topology", "ipam", "agent", "tenant"}
-	for i := range services {
-		svc := services[i]
-		config.Services[svc].Common.Api.Port = 0
-		log.Printf("Set port for %s: %d\n", svc, config.Services[svc].Common.Api.Port)
-	}
-
-	outFile := "/tmp/romana.yaml"
-	err = WriteConfig(config, outFile)
-	log.Printf("Read %s, wrote %s: %v", fname, outFile, err)
-	return err
 }
 
 // toBool is a convenience function that's like ParseBool
@@ -108,4 +78,28 @@ func ToBool(val string) (bool, error) {
 		return false, nil
 	}
 	return false, errors.New(fmt.Sprintf("Cannot convert %s to boolean", val))
+}
+
+func PressEnterToContinue() {
+	fmt.Println("Press ENTER to continue")
+	scanner := bufio.NewScanner(os.Stdin)
+	scanner.Scan()
+}
+
+// MockPortsInConfig will take the config file specified
+// and replace the ports with 0 to use arbitrary ports
+// and write it out to /tmp/romana.yaml
+func MockPortsInConfig(fname string) error {
+	config, err := ReadConfig(fname)
+	if err != nil {
+		return err
+	}
+	services := []string{"root", "topology", "ipam", "agent", "tenant"}
+	for i := range services {
+		svc := services[i]
+		config.Services[svc].Common.Api.Port = 0
+		log.Printf("Set port for %s: %d\n", svc, config.Services[svc].Common.Api.Port)
+	}
+
+	return WriteConfig(config, "/tmp/romana.yaml")
 }
