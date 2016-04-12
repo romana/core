@@ -83,6 +83,9 @@ func (tsvc *TenantSvc) Routes() common.Routes {
 	return routes
 }
 
+// addTenant calls Tenant Service to create a tenant with the
+// specific details provided as input. It returns full details
+// about the created tenant or HTTP Error.
 func (tsvc *TenantSvc) addTenant(input interface{}, ctx common.RestContext) (interface{}, error) {
 	log.Println("In addTenant()")
 	newTenant := input.(*Tenant)

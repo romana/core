@@ -66,6 +66,8 @@ func (tenantStore *tenantStore) listTenants() ([]Tenant, error) {
 	return tenants, nil
 }
 
+// listSegments returns a list of segments for a specific tenant
+// whose tenantId is specified.
 func (tenantStore *tenantStore) listSegments(tenantId uint64) ([]Segment, error) {
 	var segments []Segment
 	log.Println("In listSegments()", &segments)
