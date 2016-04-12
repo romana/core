@@ -91,6 +91,10 @@ var tenantDeleteCmd = &cli.Command{
 	SilenceUsage: true,
 }
 
+// tenantCreate accepts tenant names as arguments for
+// creating new tenants for platform being set in
+// config file (~/.romana.yaml) or via command line
+// flags.
 func tenantCreate(cmd *cli.Command, args []string) error {
 	if len(args) < 1 {
 		return util.UsageError(cmd,
@@ -134,13 +138,13 @@ func tenantCreate(cmd *cli.Command, args []string) error {
 			}
 		}
 
-		data := tenant.Tenant{Name: tnt, UUID: tntUUID}
+		data := tenant.Tenant{Name: tnt, ExternalID: tntUUID}
 		var result map[string]interface{}
 		err = client.Post(tenantURL+"/tenants", data, &result)
 		if err != nil {
 			return err
 		}
-		_, tFound := result["UUID"]
+		_, tFound := result["ExternalID"]
 		if tFound {
 			var t tenant.Tenant
 			err := ms.Decode(result, &t)
@@ -182,12 +186,12 @@ func tenantCreate(cmd *cli.Command, args []string) error {
 		w.Init(os.Stdout, 0, 8, 0, '\t', 0)
 		fmt.Println("New Tenant(s) Added:")
 		fmt.Fprintln(w, "Id\t",
-			"Tenant UUID\t",
 			"Tenant Name\t",
+			"External ID\t",
 		)
 		for _, t := range tenants {
 			fmt.Fprintf(w, "%d \t %s \t %s \t", t.ID,
-				t.UUID, t.Name)
+				t.Name, t.ExternalID)
 			fmt.Fprintf(w, "\n")
 		}
 		w.Flush()
@@ -196,6 +200,8 @@ func tenantCreate(cmd *cli.Command, args []string) error {
 	return nil
 }
 
+// tenantShow displays tenant details using tenant name
+// or tenant external id as input.
 func tenantShow(cmd *cli.Command, args []string) error {
 	if len(args) < 1 {
 		return util.UsageError(cmd,
@@ -224,9 +230,9 @@ func tenantShow(cmd *cli.Command, args []string) error {
 
 	for _, t := range data {
 		for _, n := range args {
-			if t.Name == n || t.UUID == n {
+			if t.Name == n || t.ExternalID == n {
 				seg := []tenant.Segment{}
-				err = client.Get(tenantURL+"/tenants/"+t.UUID+"/segments", &seg)
+				err = client.Get(tenantURL+"/tenants/"+t.ExternalID+"/segments", &seg)
 				if err != nil {
 					return err
 				}
@@ -245,13 +251,13 @@ func tenantShow(cmd *cli.Command, args []string) error {
 		w := new(tabwriter.Writer)
 		w.Init(os.Stdout, 0, 8, 0, '\t', 0)
 		fmt.Fprintln(w, "ID\t",
-			"Tenant UUID\t",
 			"Tenant Name\t",
+			"External ID\t",
 			"Segments", "\t",
 		)
 		for _, t := range tenants {
 			fmt.Fprintf(w, "%d \t %s \t %s \t", t.Tenant.ID,
-				t.Tenant.UUID, t.Tenant.Name)
+				t.Tenant.Name, t.Tenant.ExternalID)
 			for _, s := range t.Segments {
 				fmt.Fprintf(w, "%s, ", s.Name)
 			}
@@ -263,6 +269,9 @@ func tenantShow(cmd *cli.Command, args []string) error {
 	return nil
 }
 
+// tenantList displays tenant list in either json or
+// tablular format depending on commanf line flags or
+// config file options.
 func tenantList(cmd *cli.Command, args []string) error {
 	rootURL := config.GetString("RootURL")
 
@@ -294,12 +303,13 @@ func tenantList(cmd *cli.Command, args []string) error {
 		w.Init(os.Stdout, 0, 8, 0, '\t', 0)
 		fmt.Println("Tenant List")
 		fmt.Fprintln(w, "Id\t",
-			"Tenant UUID\t",
 			"Tenant Name\t",
+			"External ID\t",
 		)
 		for _, t := range tenants {
 			fmt.Fprintln(w, t.ID, "\t",
-				t.UUID, "\t", t.Name, "\t",
+				t.Name, "\t",
+				t.ExternalID, "\t",
 			)
 		}
 		w.Flush()
@@ -308,6 +318,10 @@ func tenantList(cmd *cli.Command, args []string) error {
 	return nil
 }
 
+// tenantDelete takes tenant name as input for deleting a specific
+// romana tenant, the equivalent tenant for specific platform
+// still needs to be deleted manually until handled here via
+// adaptor.
 func tenantDelete(cmd *cli.Command, args []string) error {
 	fmt.Println("Unimplemented: Delete a specific tenant.")
 	return nil

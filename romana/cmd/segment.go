@@ -46,7 +46,7 @@ func init() {
 }
 
 var segmentAddCmd = &cli.Command{
-	Use:          "add [tenant name][segment name]",
+	Use:          "add [tenantName][segmentName]",
 	Short:        "Add a new segment.",
 	Long:         `Add a new segment.`,
 	RunE:         segmentAdd,
@@ -54,7 +54,7 @@ var segmentAddCmd = &cli.Command{
 }
 
 var segmentRemoveCmd = &cli.Command{
-	Use:          "remove",
+	Use:          "remove [tenantName][segmentName]",
 	Short:        "Remove a specific segment.",
 	Long:         `Remove a specific segment.`,
 	RunE:         segmentRemove,
@@ -62,7 +62,7 @@ var segmentRemoveCmd = &cli.Command{
 }
 
 var segmentListCmd = &cli.Command{
-	Use:          "list [tenant name]",
+	Use:          "list [tenantName][tenantName]...",
 	Short:        "List segments for a specific tenant.",
 	Long:         `List segments for a specific tenant.`,
 	RunE:         segmentList,
@@ -70,7 +70,7 @@ var segmentListCmd = &cli.Command{
 }
 
 func segmentAdd(cmd *cli.Command, args []string) error {
-	if len(args) < 2 {
+	if len(args) != 2 {
 		return util.UsageError(cmd, "TENANT and SEGMENT name should be provided.")
 	}
 
@@ -117,10 +117,6 @@ func segmentRemove(cmd *cli.Command, args []string) error {
 func segmentList(cmd *cli.Command, args []string) error {
 	if len(args) < 1 {
 		return util.UsageError(cmd, "TENANT name should be provided.")
-	}
-	if len(args) > 1 {
-		return util.UsageError(cmd,
-			"Extra arguments provided, only one TENANT name accepted.")
 	}
 
 	tenantShow(cmd, args)

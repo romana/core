@@ -215,8 +215,9 @@ func TenantExists(name string) bool {
 	return tenant
 }
 
-// GetTenantUUID returns openstack tenant UUID corresponding to the name.
-func GetTenantUUID(tenant string) (string, error) {
+// GetTenantUUID returns openstack tenant UUID
+// corresponding to the given tenantName.
+func GetTenantUUID(tenantName string) (string, error) {
 	var uuid string
 
 	c, err := getIdentityClient()
@@ -233,7 +234,7 @@ func GetTenantUUID(tenant string) (string, error) {
 			tenantList, _ := tenants.ExtractTenants(page)
 			for _, t := range tenantList {
 				// "t" is tenants.Tenant
-				if t.Name == tenant {
+				if t.Name == tenantName {
 					uuid = t.ID
 					// stop iterating and return tenant.Name
 					return false, nil
@@ -244,7 +245,7 @@ func GetTenantUUID(tenant string) (string, error) {
 	)
 
 	if uuid == "" {
-		log.Printf("Tenant (Name: %s) not found.\n", tenant)
+		log.Printf("Tenant (Name: %s) not found.\n", tenantName)
 		return "", util.ErrTenantNotFound
 	}
 

@@ -40,11 +40,11 @@ func (tenantStore *tenantStore) Entities() []interface{} {
 }
 
 type Tenant struct {
-	ID       uint64 `sql:"AUTO_INCREMENT"`
-	UUID     string `sql:"not null;unique"`
-	Name     string
-	Segments []Segment
-	Seq      uint64
+	ID         uint64 `sql:"AUTO_INCREMENT"`
+	ExternalID string `sql:"not null;unique"`
+	Name       string
+	Segments   []Segment
+	Seq        uint64
 }
 
 type Segment struct {
@@ -84,14 +84,14 @@ func (tenantStore *tenantStore) addTenant(tenant *Tenant) error {
 	var tenants []Tenant
 	tenantStore.DbStore.Db.Find(&tenants)
 
-	// Most UUID generators return , or "" if uuid is
-	// invalid thus len != 32 should be rejected.
-	// Create new UUID in case one is not provided.
-	if len(tenant.UUID) != 32 {
-		tenant.UUID = hex.EncodeToString(uuid.NewRandom())
+	// Most UUID generators return UUID or "". If uuid
+	// is invalid i.e len != 32, it should be rejected.
+	// Create new UUID in case one is not provided so
+	// that db is sane for all platforms.
+	if len(tenant.ExternalID) != 32 {
+		tenant.ExternalID = hex.EncodeToString(uuid.NewRandom())
 	}
 
-	// TODO(gg): better way of getting sequence
 	tenant.Seq = uint64(len(tenants) + 1)
 	db := tenantStore.DbStore.Db.Create(tenant)
 	if db.Error != nil {
@@ -114,9 +114,8 @@ func (tenantStore *tenantStore) findTenant(id uint64, uuid string) (Tenant, erro
 		return Tenant{}, err
 	}
 
-	// TODO(gg): change to WHERE.
 	for i := range tenants {
-		if tenants[i].ID == id || tenants[i].UUID == uuid {
+		if tenants[i].ID == id || tenants[i].ExternalID == uuid {
 			return tenants[i], nil
 		}
 	}
