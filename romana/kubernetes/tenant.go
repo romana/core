@@ -37,9 +37,6 @@ func TenantExists(name string) bool {
 // GetTenantUUID returns kubernetes tenant
 // UUID corresponding to the name.
 func GetTenantUUID(name string) (string, error) {
-	// Currently kubernetes doesn support tenants,
-	// so create uuid for the tenant requested.
-	// return hex.EncodeToString(uuid.NewRandom()), nil
 	return "", util.ErrUnimplementedFeature
 }
 
