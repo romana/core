@@ -30,15 +30,15 @@
                 {
                     "CidrBlock": "0.0.0.0/0", # IP from L3 header
                     "Protocol": "ICMP",
-                    "FromPort": 4000,
-                    "ToPort": 4001,
+                    "PortRangeStart": 4000,
+                    "PortRangeEnd": 4001,
                     "IcmpTypeCode": [0, 8], # we look for this only if protocol above is 17, else ignore.
                 },
                 {
                     "CidrBlock": "0.0.0.0/0", # IP from L3 header
                     "Protocol": "UDP",
-                    "FromPort": 8000,
-                    "ToPort": 8100,
+                    "PortRangeStart": 8000,
+                    "PortRangeEnd": 8100,
                     "IcmpTypeCode": [0, 8], # Ignore
                 },
             ],
@@ -60,8 +60,8 @@
             "Rules": [{
                 "CidrBlock": "0.0.0.0/0", # IP from L3 header
                 "Protocol": "TCP",
-                "FromPort": 80,
-                "ToPort": 80,
+                "PortRangeStart": 80,
+                "PortRangeEnd": 80,
                 "IcmpTypeCode": [], # ignore
             },],
             "IsStateful": true,
