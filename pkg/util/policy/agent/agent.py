@@ -21,6 +21,7 @@ import logging
 import simplejson
 from mimetools import Message
 from StringIO import StringIO
+HTTP_Unprocessable_Entity = 422
 
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(levelname)-8s %(message)s',
@@ -41,6 +42,16 @@ parser = OptionParser(usage="%prog --port")
 parser.add_option('--port', default=9630, dest="port", type="int",
                   help="Port number to listen for incoming requests")
 (options, args) = parser.parse_args()
+
+def filter_rules_idx(rules):
+    """
+    Returns 'sweet spot' in iptables rules, index in *filter table where chain
+    definition ends and rules definition begins.
+    """
+    filter_idx = rules.index('*filter')
+    for rule in rules[filter_idx + 1:]:
+        if not rule.startswith(":"):
+            return rules.index(rule) + 1
 
 # We want to receive json object as a POST.
 class AgentHandler(BaseHTTPRequestHandler):
@@ -70,8 +81,56 @@ class AgentHandler(BaseHTTPRequestHandler):
             logging.warning("Cannot parse %s" % raw_data)
             return
 
+        # TODO This endpoint shoud really go away, only used for prototyping
+        # while new policy fromat being discussed.
+        if self.path=="/ns-update":
+            logging.info("Request hit /ns-update")
+
+            tid = json_data.get('tid')
+            logging.info("tid is %s" % tid)
+
+            isolated = json_data.get('isolated')
+            logging.info("isolated is %s" % isolated)
+
+            iptables_rules = get_current_iptables()
+            TENANT_POLICY_VECTOR_CHAIN = "ROMANA-T%s" % tid
+            logging.info("TENANT_POLICY_VECTOR_CHAIN is %s" % TENANT_POLICY_VECTOR_CHAIN)
+
+            
+            # Parse out a list of chain names out of current rules,
+            # use it to avoid duplication when adding new chains.
+            existing_chains = [ k.split(" ")[0][1:] for k in iptables_rules if k.startswith(":") ]
+
+            tenant_vector_chain_exists = TENANT_POLICY_VECTOR_CHAIN in existing_chains
+            logging.info("tenant_vector_chain_exists is %s" % tenant_vector_chain_exists)
+
+            ALLOW_ANY_VECTOR = "-A %s -j ACCEPT" % TENANT_POLICY_VECTOR_CHAIN
+            logging.info("ALLOW_ANY_VECTOR is %s" % ALLOW_ANY_VECTOR)
+
+            allow_any_vector_exists = ALLOW_ANY_VECTOR in iptables_rules
+            logging.info("allow_any_vector_exists is %s" % allow_any_vector_exists)
+
+            filter_idx = iptables_rules.index('*filter')
+
+            if not tenant_vector_chain_exists:
+                logging.info("Tenant policy vector chain does not exist - creating")
+                iptables_rules.insert(filter_idx + 1, ":%s - [0:0]" % TENANT_POLICY_VECTOR_CHAIN)
+
+            if allow_any_vector_exists:
+                if isolated:
+                    logging.info("Enabling isolation")
+                    iptables_rules.remove(ALLOW_ANY_VECTOR)
+            else:
+                if not isolated:
+                    logging.info("Disabling isolation")
+                    iptables_rules.insert(filter_rules_idx(iptables_rules), ALLOW_ANY_VECTOR)
+            apply_new_ruleset(iptables_rules)
+            return
+
+
         method = json_data.get('method')
         policy_def = json_data.get('policy_definition')
+
         if method not in [ 'ADDED', 'DELETED' ] or not policy_def:
             # HTTP 422 - Unprocessable Entity seems to be relevant. We have verified that json is valid
             # but expected fields are missing
@@ -151,54 +210,57 @@ def make_new_full_ruleset(current_rules, new_rules):
     Return a new, augmented list of rules, ready to replace the old rules.
 
     """
-    # Start by creating the chains. They are all in the 'filter' section.  The
-    # only rules we need to define are the policy rules, which all end with a
-    # '_'. The other entries are for existing chains (such as
-    # 'ROMANA-T1S2-FORWARD'), so we don't need to define them again.
-    new_chains_to_declare = [ k for k in new_rules.keys() if k.endswith('_') ]
-    existing_chains = [ k for k in new_rules.keys() if not k.endswith('_') ]
+
+    # Some dirty logs. No need to run all this loops if logging level less then DEBUG
+    if logging.getLevelName(logging.getLogger().getEffectiveLevel()) == 'DEBUG':
+        logging.debug("In make_new_full_ruleset")
+        for i, line in enumerate(current_rules):
+            logging.debug("Current rules --> line %3d : %s" % (i,line))
+
+        for i, line in enumerate(new_rules):
+            logging.debug("New rules --> chain %3d : %s" % (i,line))
+            for j, rule in enumerate(new_rules[line]):
+                logging.debug("New rules ----> rule %3d : %s" % (j,rule))
+
+    # The goal here is to merge new rules with existing
+    # iptables rules.
+
+    # Parse out a list of chain names out of current rules,
+    # use it to avoid duplication when adding new chains.
+    existing_chains = [ k.split(" ")[0][1:] for k in current_rules if k.startswith(":") ]
+    logging.debug("Existing chains %s "  %existing_chains)
+
+    # In current rules find position in *filter table where chain
+    # definition ends and rule definition begins.
+    filter_idx = filter_rules_idx(current_rules)-1
 
     rules = []
-    new_chains_declared = False
-    new_rules_defined   = False
 
-    for r in current_rules:
-        # The definition of the new chains happens first, towards the top of
-        # the rules in the '*filter' section.
-        if not new_chains_declared:
-            rules.append(r)
-            if r == "*filter":
-                for c in new_chains_to_declare:
-                    rules.append(":%s - [0:0]" % c)
-                new_chains_declared = True
-            continue
+    # We only care about *filter table, copy everything before it.
+    for rule in current_rules[:filter_idx]:
+        rules.append(rule)
 
-        # Now continue and find the entries of those rules that
-        # existed already (such as 'ROMANA-T1S2-FORWARD').
-        for i, c in enumerate(existing_chains):
-            if r.startswith("-A %s" % c):
-                # This is a good place to define the rules for the new chains,
-                # if this wasn't done already.
-                if not new_rules_defined:
-                    for nc in new_chains_to_declare:
-                        # For each of the new chains we have a list of rules we
-                        # need to define.
-                        for nr in new_rules[nc]:
-                            rules.append(nr)
-                    new_rules_defined = True
-                # We pre-pend the rules we have for the existing rule.
-                for nr in new_rules[c]:
-                    rules.append(nr)
-                # We only need to perform any rule insertion at the first
-                # occurrence of the chain, so we keep track of whether we
-                # dealt with it already or not and skip if we have.
-                existing_chains.pop(i)  # We dealt with this chain already
-                break
+    # Insert new chains if they don't exist already.
+    for chain in new_rules.keys():
+        if chain not in existing_chains:
+            rules.append(":%s - [0:0]" % chain)
 
-        rules.append(r)
+    # Insert all the rules from all new chains, if they don't exist already.
+    for chain in new_rules.keys():
+        for rule in new_rules[chain]:
+            if rule not in current_rules:
+                rules.append(rule)
+
+    # Copy the rest of original *filter table.
+    for rule in current_rules[filter_idx:]:
+        rules.append(rule)
+
+    # Skip the loop if logging less then DEBUG
+    if logging.getLevelName(logging.getLogger().getEffectiveLevel()) == 'DEBUG':
+        for j, rule in enumerate(rules):
+            logging.debug("Result rules ----> rule %3d : %s" % (j,rule))
 
     return rules
-
 
 def make_rules(addr_scheme, policy_def, policy_id):
     """
@@ -217,18 +279,36 @@ def make_rules(addr_scheme, policy_def, policy_id):
     policy_chain_name = "ROMANA-T%dP-%s_" % \
         (policy_def['owner_tenant_id'], policy_def['policy_name'])
 
-    # This policy needs to be processed in the forward chain of both interfaces
+    # Traffic flows through per-tenant policy chain into
+    # per-segment policy chains and from there into policy chains.
+    # Unless one of policy chains will ACCEPT the packet it will RETURN
+    # to the per-tenant chain and will reach DROP at the end of the chain.
+
+    # Per tenant policy chain name.
+    tenant_policy_vector_chain = "ROMANA-T%s" % tenant
+
+    # Per-segment policy chain names for both incoming and outgoing segments
     # that are involved.
-    target_segment_forward_chain = "ROMANA-T%sS%s-FORWARD" % \
+    target_segment_forward_chain = "ROMANA-T%s-S%s" % \
         (tenant, target_segment)
-    from_segment_forward_chain = "ROMANA-T%sS%s-FORWARD" % \
+    from_segment_forward_chain = "ROMANA-T%s-S%s" % \
         (tenant, from_segment)
 
+    # Jump from per-tenant chain into per-segment chains and default DROP.
+    rules[tenant_policy_vector_chain] = [
+        _make_rule(tenant_policy_vector_chain, "-j %s" % target_segment_forward_chain),
+        _make_rule(tenant_policy_vector_chain, "-j %s" % from_segment_forward_chain),
+        _make_rule(tenant_policy_vector_chain, "-j DROP")
+    ]
+
+    # Jump from per-segment chain into policy chain
     rules[target_segment_forward_chain] = [
-        _make_rule(target_segment_forward_chain, "-j %s" % policy_chain_name)
+        _make_rule(target_segment_forward_chain, "-j %s" % policy_chain_name),
+        _make_rule(target_segment_forward_chain, '-m comment --comment POLICY_CHAIN_HEADER -j RETURN')
     ]
     rules[from_segment_forward_chain] = [
-        _make_rule(from_segment_forward_chain, "-j %s" % policy_chain_name)
+        _make_rule(from_segment_forward_chain, "-j %s" % policy_chain_name),
+        _make_rule(from_segment_forward_chain, '-m comment --comment POLICY_CHAIN_HEADER -j RETURN')
     ]
 
     # Assemble the rules for the top-level policy chain. These rules look at
