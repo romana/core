@@ -33,17 +33,15 @@
             ],
             "Rules": [
                 {
-                    "Protocol": "ICMP",
-                    "PortRangeStart": 4000, # optional and dependent on "Protocol" above.
-                    "PortRangeEnd": 4001,   # optional and dependent on "Protocol" above.
-                    "IcmpTypeCode": [0, 8], # optional and dependent on "Protocol" above.
-                    "IsStateful": true,     # optional
+                    "Protocol": "TCP",
+                    "Ports": [80,443],           # single port or ports
+                    "PortRange": [4000,4100],    # range
+                    "IsStateful": true,
                 },
                 {
                     "Protocol": "UDP",
-                    "PortRangeStart": 8000,
-                    "PortRangeEnd": 8100,
-                    "IcmpTypeCode": [0, 8],
+                    "Ports": [53],
+                    "PortRange": [16000,16100],
                     "IsStateful": false,
                 },
             ],
@@ -66,10 +64,8 @@
                 },
             ],
             "Rules": [{
-                "Protocol": "TCP",
-                "PortRangeStart": 80,
-                "PortRangeEnd": 80,
-                "IcmpTypeCode": [],
+                "Protocol": "ICMP",
+                "IcmpTypeCode": [0,8],
                 "IsStateful": true,
             },],
             "Description": "hello there, security policies are fun!",
