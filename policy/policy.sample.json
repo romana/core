@@ -1,7 +1,7 @@
 {
     "SecurityPolicies": [
         {
-            "Name": "policy1", # names can be same for multiple tenants thus use uuid.
+            "Name": "policy1",
             "PolicyID": "3710940D-FBC0-4A44-A95D-E549E628B4DF", # unique identifier across tenants, auto generated for POST.
             "AppliedTo": [ # can attach multiple tenants to which the policy can be applied to.
                 {
