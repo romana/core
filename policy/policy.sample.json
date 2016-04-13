@@ -3,7 +3,7 @@
         {
             "Name": "policy1", # names can be same for multiple tenants thus use uuid.
             "PolicyID": "3710940D-FBC0-4A44-A95D-E549E628B4DF", # unique identifier across tenants.
-            "Associations": [ # can attach multiple tenants associations in case you want blanket policy support.
+            "AppliedTo": [ # can attach multiple tenants to which the policy can be applied to.
                 {
                     "Tenant":"tenant1", #optional if TenantID below is provided 
                     "TenantID": "3A6E467F-370B-43EA-BCEC-C28912EDD752", # optional but good to have to relate things as names are not unique
@@ -48,7 +48,7 @@
             "Name": "policy2",
             "PolicyID": "", # if none is given, generate one here.
             "Tags": [],
-            "Associations": [ # can attach multiple tenants associations in case you want blanket policy support.
+            "AppliedTo": [ # can attach multiple tenants to which the policy can be applied to.
                 {
                     "Tenant":"tenant2",
                     "Segment": "Segment1",
