@@ -1,0 +1,70 @@
+{
+    "SecurityPolicies": [
+        {
+            "Name": "policy1", # names can be same for multiple tenants thus use uuid.
+            "PolicyID": "3710940D-FBC0-4A44-A95D-E549E628B4DF", # unique identifier across tenants.
+            "Associations": [ # can attach multiple tenants associations in case you want blanket policy support.
+                {
+                    "Tenant":"tenant1", #optional if TenantID below is provided 
+                    "TenantID": "3A6E467F-370B-43EA-BCEC-C28912EDD752", # optional but good to have to relate things as names are not unique
+                    "Segment": "Segment1", # optional
+                    "SegmentID": "01CA06A0-429B-4EE1-9185-F17D5CE4D0F2",
+                },
+                {
+                    "Tenant":"tenant1",
+                    "Segment": "Segment2",
+                },
+            ],
+            "Tags": [
+                {
+                    "Key": "Platform",
+                    "Value": "Openstack",
+                },
+                {
+                    "Key": "TenantID",
+                    "Value": "D46FD18B-A381-4297-A6D4-9DA594EE71C8",
+                },
+            ], # meta data attached to policies for various external enviorments like openstack/kybernetes
+            "Direction" : "Egress", # can be Egress or Ingress.
+            "CidrBlock": "0.0.0.0/0", # IP from L3 header
+            "Rules": [
+                {
+                    "Protocol": "ICMP",
+                    "FromPort": 4000,
+                    "ToPort": 4001,
+                    "IcmpTypeCode": [0, 8], # we look for this only if protocol above is 17, else ignore.
+                },
+                {
+                    "Protocol": "UDP",
+                    "FromPort": 8000,
+                    "ToPort": 8100,
+                    "IcmpTypeCode": [0, 8], # Ignore
+                },
+            ],
+            "IsStateful": true,
+            "Description": "hello there, security policies are fun!",
+        },
+        {
+            "Name": "policy2",
+            "PolicyID": "", # if none is given, generate one here.
+            "Tags": [],
+            "Associations": [ # can attach multiple tenants associations in case you want blanket policy support.
+                {
+                    "Tenant":"tenant2",
+                    "Segment": "Segment1",
+                },
+            ],
+            "Tags": [], # meta data attached to policies for various external enviorments like openstack/kybernetes
+            "Direction" : "Ingress", # can be Egress or Ingress.
+            "CidrBlock": "0.0.0.0/0", # IP from L3 header
+            "Rules": [{
+                "Protocol": "TCP",
+                "FromPort": 80,
+                "ToPort": 80,
+                "IcmpTypeCode": [], # ignore
+            },],
+            "IsStateful": true,
+            "Description": "hello there, security policies are fun!",
+        },
+    ]
+}
