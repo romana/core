@@ -26,29 +26,32 @@
                 },
             ], # meta data attached to policies for various external enviorments like openstack/kybernetes
             "Direction" : "Egress", # can be Egress or Ingress.
-            "Rules": [
+            "Peers": [
                 {
                     "CidrBlock": "0.0.0.0/0", # IP from L3 header
+                },
+            ],
+            "Rules": [
+                {
                     "Protocol": "ICMP",
                     "PortRangeStart": 4000,
                     "PortRangeEnd": 4001,
                     "IcmpTypeCode": [0, 8], # we look for this only if protocol above is 17, else ignore.
+                    "IsStateful": true,
                 },
                 {
-                    "CidrBlock": "0.0.0.0/0", # IP from L3 header
                     "Protocol": "UDP",
                     "PortRangeStart": 8000,
                     "PortRangeEnd": 8100,
                     "IcmpTypeCode": [0, 8], # Ignore
+                    "IsStateful": true,
                 },
             ],
-            "IsStateful": true,
             "Description": "hello there, security policies are fun!",
         },
         {
             "Name": "policy2",
             "PolicyID": "CF2D2BE2-4553-4C28-BD02-140CF83617A2", # unique identifier across tenants, auto generated for POST.
-            "Tags": [],
             "AppliedTo": [ # can attach multiple tenants to which the policy can be applied to.
                 {
                     "Tenant":"tenant2",
@@ -57,14 +60,18 @@
             ],
             "Tags": [], # meta data attached to policies for various external enviorments like openstack/kybernetes
             "Direction" : "Ingress", # can be Egress or Ingress.
+            "Peers": [
+                {
+                    "CidrBlock": "0.0.0.0/0", # IP from L3 header
+                },
+            ],
             "Rules": [{
-                "CidrBlock": "0.0.0.0/0", # IP from L3 header
                 "Protocol": "TCP",
                 "PortRangeStart": 80,
                 "PortRangeEnd": 80,
                 "IcmpTypeCode": [], # ignore
+                "IsStateful": true,
             },],
-            "IsStateful": true,
             "Description": "hello there, security policies are fun!",
         },
     ]
