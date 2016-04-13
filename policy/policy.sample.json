@@ -34,17 +34,17 @@
             "Rules": [
                 {
                     "Protocol": "ICMP",
-                    "PortRangeStart": 4000,
-                    "PortRangeEnd": 4001,
-                    "IcmpTypeCode": [0, 8], # we look for this only if protocol above is 17, else ignore.
-                    "IsStateful": true,
+                    "PortRangeStart": 4000, # optional and dependent on "Protocol" above.
+                    "PortRangeEnd": 4001,   # optional and dependent on "Protocol" above.
+                    "IcmpTypeCode": [0, 8], # optional and dependent on "Protocol" above.
+                    "IsStateful": true,     # optional
                 },
                 {
                     "Protocol": "UDP",
                     "PortRangeStart": 8000,
                     "PortRangeEnd": 8100,
-                    "IcmpTypeCode": [0, 8], # Ignore
-                    "IsStateful": true,
+                    "IcmpTypeCode": [0, 8],
+                    "IsStateful": false,
                 },
             ],
             "Description": "hello there, security policies are fun!",
@@ -69,7 +69,7 @@
                 "Protocol": "TCP",
                 "PortRangeStart": 80,
                 "PortRangeEnd": 80,
-                "IcmpTypeCode": [], # ignore
+                "IcmpTypeCode": [],
                 "IsStateful": true,
             },],
             "Description": "hello there, security policies are fun!",
