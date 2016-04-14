@@ -20,10 +20,9 @@
 package adaptor
 
 import (
-	"errors"
-
 	"github.com/romana/core/romana/kubernetes"
 	"github.com/romana/core/romana/openstack"
+	"github.com/romana/core/romana/util"
 
 	config "github.com/spf13/viper"
 )
@@ -35,9 +34,10 @@ func GetTenantName(uuid string) (string, error) {
 		return kubernetes.GetTenantName(uuid)
 	} else if platform == "openstack" {
 		return openstack.GetTenantName(uuid)
+	} else if platform == "mesos" {
+		return "", util.ErrUnimplementedPlatform
 	} else {
-		// Unimplemented Platform.
-		return "", errors.New("Unimplemented Platform.")
+		return "", util.ErrInvalidPlatform
 	}
 }
 
@@ -48,8 +48,11 @@ func TenantExists(name string) bool {
 		return kubernetes.TenantExists(name)
 	} else if platform == "openstack" {
 		return openstack.TenantExists(name)
-	} else {
+	} else if platform == "mesos" {
 		// Unimplemented Platform.
+		return false
+	} else {
+		// Error
 		return false
 	}
 }
@@ -61,9 +64,10 @@ func GetTenantUUID(name string) (string, error) {
 		return kubernetes.GetTenantUUID(name)
 	} else if platform == "openstack" {
 		return openstack.GetTenantUUID(name)
+	} else if platform == "mesos" {
+		return "", util.ErrUnimplementedPlatform
 	} else {
-		// Unimplemented Platform.
-		return "", errors.New("Unimplemented Platform.")
+		return "", util.ErrInvalidPlatform
 	}
 }
 
@@ -74,8 +78,9 @@ func CreateTenant(name string) error {
 		return kubernetes.CreateTenant(name)
 	} else if platform == "openstack" {
 		return openstack.CreateTenant(name)
+	} else if platform == "mesos" {
+		return util.ErrUnimplementedPlatform
 	} else {
-		// Unimplemented Platform.
-		return errors.New("Unimplemented Platform.")
+		return util.ErrInvalidPlatform
 	}
 }

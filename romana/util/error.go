@@ -13,19 +13,16 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-package cmd
+// Package util contains common utility functions.
+package util
 
 import (
-	"fmt"
-
-	cli "github.com/spf13/cobra"
+	"errors"
 )
 
-// UsageError shows command line help for errors caused due
-// to few or more arguments being passed to the commands or
-// sub-commands of romana command line tools.
-func UsageError(cmd *cli.Command, format string, args ...interface{}) error {
-	return fmt.Errorf("%s\nCheck '%s -h' for help",
-		fmt.Sprintf(format, args...),
-		cmd.CommandPath())
-}
+var (
+	ErrTenantNotFound        = errors.New("Tenant not found.")
+	ErrUnimplementedFeature  = errors.New("Unimplemented Feature.")
+	ErrInvalidPlatform       = errors.New("Invalid Platform.")
+	ErrUnimplementedPlatform = errors.New("Unimplemented Platform.")
+)

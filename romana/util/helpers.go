@@ -13,19 +13,20 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Command for running the IPAM service.
-package main
+// Package util contains common utility functions.
+package util
 
 import (
 	"fmt"
-	"os"
-	"strings"
+
+	cli "github.com/spf13/cobra"
 )
 
-// Main entry point for the IPAM microservice
-func main() {
-	for _, kv := range os.Environ() {
-		keyValue := strings.Split(kv, "=")
-		fmt.Printf("%s ==> %s", keyValue[0], keyValue[1])
-	}
+// UsageError shows command line help for errors caused due
+// to few or more arguments being passed to the commands or
+// sub-commands of romana command line tools.
+func UsageError(cmd *cli.Command, format string, args ...interface{}) error {
+	return fmt.Errorf("%s\nCheck '%s -h' for help",
+		fmt.Sprintf(format, args...),
+		cmd.CommandPath())
 }

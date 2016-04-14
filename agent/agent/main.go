@@ -30,7 +30,7 @@ func main() {
 	var version = flag.Bool("version", false, "Build Information.")
 	username := flag.String("username", "", "Username")
 	password := flag.String("password", "", "Password")
-	
+
 	flag.Parse()
 
 	if *version {

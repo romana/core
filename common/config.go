@@ -170,8 +170,8 @@ func ReadConfig(fname string) (Config, error) {
 			c := serviceConfigs[i]
 			api := Api{Host: c.Api.Host, Port: c.Api.Port, Hooks: c.Api.Hooks}
 			cleanedConfig := cleanupMap(c.Config)
-			commonConfig := CommonConfig{Api: &api, Credential: nil, PublicKey: nil,}
-			config.Services[c.Service] = ServiceConfig{Common: commonConfig, ServiceSpecific: cleanedConfig,}
+			commonConfig := CommonConfig{Api: &api, Credential: nil, PublicKey: nil}
+			config.Services[c.Service] = ServiceConfig{Common: commonConfig, ServiceSpecific: cleanedConfig}
 		}
 		log.Println("Read configuration from", fname)
 		return *config, nil

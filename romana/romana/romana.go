@@ -13,7 +13,10 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-package cmd
+// Package romana contains romana/core related features which
+// interact with the root/tenant/ipam/tenant and other related
+// romana services.
+package romana
 
 import (
 	"errors"
@@ -24,9 +27,9 @@ import (
 	config "github.com/spf13/viper"
 )
 
-// getRomanaTenantID return romana Tenant ID
+// GetTenantID return romana Tenant ID
 // corresponding to romana name.
-func getRomanaTenantID(name string) (uint64, error) {
+func GetTenantID(name string) (uint64, error) {
 	rootURL := config.GetString("RootURL")
 
 	client, err := common.NewRestClient(rootURL,
@@ -48,7 +51,7 @@ func getRomanaTenantID(name string) (uint64, error) {
 
 	for _, t := range tenants {
 		if t.Name == name {
-			return t.Id, nil
+			return t.ID, nil
 		}
 	}
 

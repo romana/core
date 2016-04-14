@@ -41,8 +41,8 @@ type Config struct {
 }
 
 type Root struct {
-	config     Config
-//	routes     common.Routes
+	config Config
+	//	routes     common.Routes
 	privateKey []byte
 	store      rootStore
 }

@@ -214,7 +214,7 @@ func Run(rootServiceURL string, cred *common.Credential) (*common.RestServiceInf
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return common.InitializeService(topSvc, *config)
 
 }
