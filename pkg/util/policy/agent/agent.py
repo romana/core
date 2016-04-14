@@ -60,7 +60,96 @@ class AgentHandler(BaseHTTPRequestHandler):
         self.send_header('Content-type','text/html')
         self.end_headers()
         self.wfile.write("Romana policy agent")
+
         return
+
+
+    def route(self):
+        if self.path=="/ns-update":
+            self.do_NS_update()
+        elif self.path=="/":
+            self.do_NP_update()
+        else:
+	    self.send_header('Content-type','text/html')
+	    self.end_headers()
+            self.send_response(401)
+            self.wfile.write(""" Not Found """)
+
+        return
+
+
+    def do_NP_update(self):
+        method = self.json_data.get('method')
+        policy_def = self.json_data.get('policy_definition')
+
+        if method not in [ 'ADDED', 'DELETED' ] or not policy_def:
+            # HTTP 422 - Unprocessable Entity seems to be relevant. We have verified that json is valid
+            # but expected fields are missing
+            self.send_response(HTTP_Unprocessable_Entity)
+            self.wfile.write("""Expected { "method" : "ADDED|DELETED", "policy_definition" : "NP" } """)
+
+        elif self.json_data['method'] == 'ADDED':
+            self.send_response(200)
+            self.wfile.write("Policy definition accepted")
+            logging.warning("Creating policy %s" % policy_def)
+            policy_update(addr_scheme, policy_def)
+
+        elif self.json_data['method'] == 'DELETED':
+            self.send_response(200)
+            self.wfile.write("Policy definition deleted")
+            logging.warning("Deleting policy %s" % policy_def)
+            policy_update(addr_scheme, policy_def, delete_policy=True)
+
+        return
+
+
+    def do_NS_update(self):
+        # TODO This endpoint shoud really go away, only used for prototyping
+        # while new policy fromat being discussed.
+		logging.info("Request hit /ns-update")
+
+		tid = self.json_data.get('tid')
+		logging.info("tid is %s" % tid)
+
+		isolated = self.json_data.get('isolated')
+		logging.info("isolated is %s" % isolated)
+
+		iptables_rules = get_current_iptables()
+		TENANT_POLICY_VECTOR_CHAIN = "ROMANA-T%s" % tid
+		logging.info("TENANT_POLICY_VECTOR_CHAIN is %s" % TENANT_POLICY_VECTOR_CHAIN)
+
+		
+		# Parse out a list of chain names out of current rules,
+		# use it to avoid duplication when adding new chains.
+		existing_chains = [ k.split(" ")[0][1:] for k in iptables_rules if k.startswith(":") ]
+
+		tenant_vector_chain_exists = TENANT_POLICY_VECTOR_CHAIN in existing_chains
+		logging.info("tenant_vector_chain_exists is %s" % tenant_vector_chain_exists)
+
+		ALLOW_ANY_VECTOR = "-A %s -j ACCEPT" % TENANT_POLICY_VECTOR_CHAIN
+		logging.info("ALLOW_ANY_VECTOR is %s" % ALLOW_ANY_VECTOR)
+
+		allow_any_vector_exists = ALLOW_ANY_VECTOR in iptables_rules
+		logging.info("allow_any_vector_exists is %s" % allow_any_vector_exists)
+
+		filter_idx = iptables_rules.index('*filter')
+
+		if not tenant_vector_chain_exists:
+			logging.info("Tenant policy vector chain does not exist - creating")
+			iptables_rules.insert(filter_idx + 1, ":%s - [0:0]" % TENANT_POLICY_VECTOR_CHAIN)
+
+		if allow_any_vector_exists:
+			if isolated:
+				logging.info("Enabling isolation")
+				iptables_rules.remove(ALLOW_ANY_VECTOR)
+		else:
+			if not isolated:
+				logging.info("Disabling isolation")
+				iptables_rules.insert(filter_rules_idx(iptables_rules), ALLOW_ANY_VECTOR)
+		apply_new_ruleset(iptables_rules)
+
+		return
+
 
     def do_POST(self):
         """
@@ -72,82 +161,15 @@ class AgentHandler(BaseHTTPRequestHandler):
 
         self.send_header('Content-type','text/html')
         self.end_headers()
-        # Send the html message
         headers = Message(StringIO(self.headers))
-        raw_data = self.rfile.read(int(headers["Content-Length"]))
+        self.raw_data = self.rfile.read(int(headers["Content-Length"]))
         try:
-            json_data = simplejson.loads(raw_data)
+            self.json_data = simplejson.loads(self.raw_data)
         except Exception, e:
-            logging.warning("Cannot parse %s" % raw_data)
+            logging.warning("Cannot parse %s" % self.raw_data)
             return
 
-        # TODO This endpoint shoud really go away, only used for prototyping
-        # while new policy fromat being discussed.
-        if self.path=="/ns-update":
-            logging.info("Request hit /ns-update")
-
-            tid = json_data.get('tid')
-            logging.info("tid is %s" % tid)
-
-            isolated = json_data.get('isolated')
-            logging.info("isolated is %s" % isolated)
-
-            iptables_rules = get_current_iptables()
-            TENANT_POLICY_VECTOR_CHAIN = "ROMANA-T%s" % tid
-            logging.info("TENANT_POLICY_VECTOR_CHAIN is %s" % TENANT_POLICY_VECTOR_CHAIN)
-
-            
-            # Parse out a list of chain names out of current rules,
-            # use it to avoid duplication when adding new chains.
-            existing_chains = [ k.split(" ")[0][1:] for k in iptables_rules if k.startswith(":") ]
-
-            tenant_vector_chain_exists = TENANT_POLICY_VECTOR_CHAIN in existing_chains
-            logging.info("tenant_vector_chain_exists is %s" % tenant_vector_chain_exists)
-
-            ALLOW_ANY_VECTOR = "-A %s -j ACCEPT" % TENANT_POLICY_VECTOR_CHAIN
-            logging.info("ALLOW_ANY_VECTOR is %s" % ALLOW_ANY_VECTOR)
-
-            allow_any_vector_exists = ALLOW_ANY_VECTOR in iptables_rules
-            logging.info("allow_any_vector_exists is %s" % allow_any_vector_exists)
-
-            filter_idx = iptables_rules.index('*filter')
-
-            if not tenant_vector_chain_exists:
-                logging.info("Tenant policy vector chain does not exist - creating")
-                iptables_rules.insert(filter_idx + 1, ":%s - [0:0]" % TENANT_POLICY_VECTOR_CHAIN)
-
-            if allow_any_vector_exists:
-                if isolated:
-                    logging.info("Enabling isolation")
-                    iptables_rules.remove(ALLOW_ANY_VECTOR)
-            else:
-                if not isolated:
-                    logging.info("Disabling isolation")
-                    iptables_rules.insert(filter_rules_idx(iptables_rules), ALLOW_ANY_VECTOR)
-            apply_new_ruleset(iptables_rules)
-            return
-
-
-        method = json_data.get('method')
-        policy_def = json_data.get('policy_definition')
-
-        if method not in [ 'ADDED', 'DELETED' ] or not policy_def:
-            # HTTP 422 - Unprocessable Entity seems to be relevant. We have verified that json is valid
-            # but expected fields are missing
-            self.send_response(HTTP_Unprocessable_Entity)
-            self.wfile.write("""Expected { "method" : "ADDED|DELETED", "policy_definition" : "NP" } """)
-
-        elif json_data['method'] == 'ADDED':
-            self.send_response(200)
-            self.wfile.write("Policy definition accepted")
-            logging.warning("Creating policy %s" % policy_def)
-            policy_update(addr_scheme, policy_def)
-
-        elif json_data['method'] == 'DELETED':
-            self.send_response(200)
-            self.wfile.write("Policy definition deleted")
-            logging.warning("Deleting policy %s" % policy_def)
-            policy_update(addr_scheme, policy_def, delete_policy=True)
+        self.route()
 
         return
 
