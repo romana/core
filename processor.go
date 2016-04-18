@@ -13,7 +13,7 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-package rsearch
+package kubernetes
 
 import (
 	"log"
@@ -23,92 +23,70 @@ import (
 {"type":"ADDED","object":{"apiVersion":"romana.io/demo/v1","kind":"NetworkPolicy","metadata":{"name":"pol1","namespace":"default","selfLink":"/apis/romana.io/demo/v1/namespaces/default/networkpolicys/pol1","uid":"d7036130-e119-11e5-aab8-0213e1312dc5","resourceVersion":"119875","creationTimestamp":"2016-03-03T08:28:00Z","labels":{"owner":"t1"}},"spec":{"allowIncoming":{"from":[{"pods":{"tier":"frontend"}}],"toPorts":[{"port":80,"protocol":"TCP"}]},"podSelector":{"tier":"backend"}}}}
 */
 
-// Process is a goroutine that consumes resource update events and maintains a searchable
-// cache of all known resources. It also accepts search requests and perform searches.
-func Process(in <-chan Event, done chan Done, config Config) chan<- SearchRequest {
-	// Channel to submit SearchRequest's into.
-	req := make(chan SearchRequest)
-
-	// storage map is a cache of known KubeObjects
-	// arranged by NPid.
-	storage := make(map[string]KubeObject)
-
-	// search map is a cache of known NPid's
-	// arranged by Selectors, where selector being
-	// a field by which we search.
-	search := make(map[string]map[string]bool)
-
+// Process is a goroutine that consumes resource update events and:
+// 1. On receiving an added or deleted event:
+//    a. If the Object Kind is NetworkPolicy, translates the body (Object of the event)
+//       to romana policy (common.Policy) using translateNetworkPolicy, and then
+//       calls applyNetworkPolicy with the appropriate action (add or delete)
+//    b. If the Object Kind is Namespace, attempts to add a new Tenant to Romana with that name.
+//       Logs an error if not possible.
+// 2. On receiving a done event, exit the goroutine
+func (l *kubeListener) process(in <-chan Event, done chan Done) chan<- SearchRequest {
 	go func() {
 		for {
 			select {
 			case e := <-in:
-				// On incoming event update caches.
-				updateStorage(e, storage, search, config)
-			case request := <-req:
-				// On incoming search request return a list
-				// of resources with matching Selectors.
-				processSearchRequest(storage, search, request, config)
+				NPid := e.Object.makeId()
+				Selector := e.Object.getSelector(config)
+				if e.Type == KubeEventAdded || e.Type == KubeEventDeleted {
+					if config.Server.Debug {
+						log.Printf("Processing %s request for %s", e.Type, e.Object.Metadata.Name)
+					}
+					if e.Object.Kind == "NetworkPolicy" {
+						var action string
+						if e.Type == KubeEventAdded {
+							action = networkPolicyActionAdd
+						} else {
+							action = networkPolicyActionDelete
+						}
+						policy, err := translateNetworkPolicy(e.Object)
+						if err == nil {
+							applyNetworkPolicy(action, policy)
+						} else {
+							log.Println(err)
+						}
+					} else if e.Object.Kind == "Namespace" {
+						if e.Type == KubeEventAdded {
+							tenantReq := tenant.Tenant{Name: e.Object.Metadata.Name}
+							tenantResp := tenant.Tenant{}
+							err = client.Post("/tenants", tenantReq, &tenantResp)
+							if err != nil {
+								log.Printf("Error adding tenant %s: %v", tenantReq.Name, err)
+							} else {
+								log.Printf("Added tenant: %v", tenantResp)
+							}
+						} else {
+							// TODO finish once UUID is merged
+							//							tenantReq := tenant.Tenant{Name: e.Object.Metadata.Name}
+							//							tenantResp := tenant.Tenant{}
+							//							err = client.Delete("/tenants", tenantReq, &tenantResp)
+							//							if err != nil {
+							//								log.Printf("Error adding tenant %s: %v", tenantReq.Name, err)
+							//							} else {
+							//								log.Printf("Added tenant: %v", tenantResp)
+							//							}
+						}
+
+					}
+				} else {
+					if config.Server.Debug {
+						log.Printf("Received unindentified request %s for %s", e.Type, e.Object.Metadata.Name)
+					}
+				}
 			case <-done:
 				return
 			}
 		}
 	}()
-
 	return req
-}
-
-// processSearchRequest looks up for KubeObjects with selector matching request.Tag and returns a list of matching objects.
-func processSearchRequest(storage map[string]KubeObject, search map[string]map[string]bool, req SearchRequest, config Config) SearchResponse {
-	if config.Server.Debug {
-		log.Println("Received request", req)
-	}
-
-	var resp []KubeObject
-
-	if config.Server.Debug {
-		log.Printf("Index map has following %s, request tag is %s ", search, req.Tag)
-	}
-
-	// Assembling response.
-	for NPid, _ := range search[string(req.Tag)] {
-		if config.Server.Debug {
-			log.Printf("Assembling response adding %s to %s", resp, storage[NPid])
-		}
-		resp = append(resp, storage[NPid])
-	}
-
-	if config.Server.Debug {
-		log.Printf("Dispatching final response %s", resp)
-	}
-
-	req.Resp <- resp // TODO see if it may hang up here
-	return resp
-}
-
-// updateStorage maintaines up to date state of search and storage maps.
-func updateStorage(e Event, storage map[string]KubeObject, search map[string]map[string]bool, config Config) {
-	NPid := e.Object.makeId()
-	Selector := e.Object.getSelector(config)
-
-	if e.Type == KubeEventAdded {
-		if config.Server.Debug {
-			log.Printf("Processing ADD request for %s", e.Object.Metadata.Name)
-		}
-		storage[NPid] = e.Object
-		if _, ok := search[Selector]; !ok {
-			m := make(map[string]bool)
-			search[Selector] = m
-		}
-		search[Selector][NPid] = true
-	} else if e.Type == KubeEventDeleted {
-		if config.Server.Debug {
-			log.Printf("Processing DELETE request for %s", e.Object.Metadata.Name)
-		}
-		delete(storage, NPid)
-		delete(search[Selector], NPid)
-	} else {
-		if config.Server.Debug {
-			log.Printf("Received unindentified request %s for %s", e.Type, e.Object.Metadata.Name)
-		}
-	}
 }

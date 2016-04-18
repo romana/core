@@ -13,7 +13,7 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-package rsearch
+package kubernetes
 
 import (
 	"log"
@@ -21,7 +21,7 @@ import (
 
 // manageResources manages map of termination channels and fires up new
 // per-namespace gorotines when needed.
-func manageResources(ns Event, terminators map[string]chan Done, config Config, out chan Event) {
+func (l *kubeListener) manageResources(ns Event, terminators map[string]chan Done, out chan Event) {
 	uid := ns.Object.Metadata.Uid
 	if ns.Type == KubeEventAdded {
 		if _, ok := terminators[uid]; ok {
@@ -29,15 +29,15 @@ func manageResources(ns Event, terminators map[string]chan Done, config Config, 
 			return
 		}
 
-		done := make(chan Done)
+		done := make(chan done)
 		terminators[uid] = done
-		ns.Object.Produce(out, terminators[uid], config)
+		ns.object.Produce(out, terminators[uid], config)
 	} else if ns.Type == KubeEventDeleted {
 		if _, ok := terminators[uid]; !ok {
 			log.Println("Received DELETED event for uid that is not known, ignoring ", uid)
 			return
 		}
-
+		
 		close(terminators[uid])
 		delete(terminators, uid)
 	} else if ns.Type == InternalEventDeleteAll {
@@ -49,14 +49,14 @@ func manageResources(ns Event, terminators map[string]chan Done, config Config, 
 }
 
 // Conductor manages a set of goroutines one per namespace.
-func Conductor(in <-chan Event, done <-chan Done, config Config) <-chan Event {
+func (l *kubeListener) conductor(in <-chan Event, done <-chan done) <-chan Event {
 	// done in arguments is a channel that can be used to stop Conductor itsefl
 	// while map of Done's below is for terminating managed gorotines.
 
 	// Idea of this map is to keep termination channels organized
 	// so when DELETED event occurs on a namespace it would be possible
 	// to terminater related goroutine.
-	terminators := map[string]chan Done{}
+	terminators := map[string]chan done{}
 
 	ns := Event{}
 	out := make(chan Event)

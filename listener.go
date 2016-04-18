@@ -118,26 +118,17 @@ func processChunk(chunk []byte) error {
 	} else if methodStr == "modified" {
 		applyNetworkPolicy(networkPolicyActioModify, romanaNetworkPolicy)
 	} else {
-		return common.NewError("Unexpected method '%s'", methodStr
+		return common.NewError("Unexpected method '%s'", methodStr)
 	}
 }
 
-func applyNetworkPolicy(action networkPolicyAction, romanaNetworkPolicy common.Policy) error {
-	topoUrl := restClient.GetServiceUrl("topology")
-	return nil
-}
 
-type kubeListener struct {
-	restClient common.RestClient
-}
 
 // Run implements the main loop, reconnecting as needed.
 func RunListener0(rootURL string, kubeURL string) {
 	l := kubeListener{kubeURL: kubeURL, restClient: common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))}
 	l.Run()
 }	
-
-
 
 func (l kubeListener) Run0() {
 	for {
@@ -170,220 +161,183 @@ const (
 	networkPolicyActionModify
 )
 
-func RunListener(rootURL string) {
-			log.Println("Starting server")
-		nsUrl := fmt.Sprintf("%s/%s", config.Api.Url, config.Api.NamespaceUrl)
-		nsEvents, err := search.NsWatch(done, nsUrl, config)
-		if err != nil {
-			log.Fatal("Namespace watcher failed to start", err)
-		}
-
-		events := search.Conductor(nsEvents, done, config)
-		req := search.Process(events, done, config)
-		log.Println("All routines started")
-		search.Serve(config, req)
-}
-
-
-// TopologySvc service
-type TopologySvc struct {
+type kubeListener struct {
 	config     common.ServiceConfig
-	datacenter *common.Datacenter
-	store      topoStore
-	routes     common.Route
+	restClient common.RestClient
+	kubeUrl string
+	urlPrefix string
+	segmentLabelName string
 }
 
-const (
-	infoListPath  = "/info"
-	agentListPath = "/agents"
-	hostListPath  = "/hosts"
-	torListPath   = "/tors"
-	spineListPath = "/spines"
-	dcPath        = "/datacenter"
-)
 
 // Routes returns various routes used in the service.
-func (topology *TopologySvc) Routes() common.Routes {
-	routes := common.Routes{
-		common.Route{
-			Method:          "GET",
-			Pattern:         "/",
-			Handler:         topology.handleIndex,
-			MakeMessage:     nil,
-			UseRequestToken: false,
-		},
-		common.Route{
-			Method:          "GET",
-			Pattern:         hostListPath,
-			Handler:         topology.handleHostListGet,
-			MakeMessage:     nil,
-			UseRequestToken: false,
-		},
-		common.Route{
-			Method:          "POST",
-			Pattern:         hostListPath,
-			Handler:         topology.handleHostListPost,
-			MakeMessage:     func() interface{} { return &common.HostMessage{} },
-			UseRequestToken: false,
-		},
-		common.Route{
-			Method:          "GET",
-			Pattern:         hostListPath + "/{hostId}",
-			Handler:         topology.handleHost,
-			MakeMessage:     nil,
-			UseRequestToken: false,
-		},
-		common.Route{
-			Method:          "GET",
-			Pattern:         dcPath,
-			Handler:         topology.handleDc,
-			MakeMessage:     nil,
-			UseRequestToken: false,
-		},
-	}
+func (l *kubeListener) Routes() common.Routes {
+	routes := common.Routes{}
 	return routes
 }
 
-// HostListMessage is just a list of common.HostMessage
-type HostListMessage []common.HostMessage
-
-// handleHost handles request for a specific host's info
-func (topology *TopologySvc) handleDc(input interface{}, ctx common.RestContext) (interface{}, error) {
-	// For now it's from config, later on we can use this to manage multiple dcs.
-	return topology.datacenter, nil
-}
 
 // Name implements method of Service interface.
-func (topology *TopologySvc) Name() string {
-	return "topology"
+func (l *kubeListener) Name() string {
+	return "kubernetes-listener"
 }
 
-// handleHost handles request for a specific host's info
-func (topology *TopologySvc) handleHost(input interface{}, ctx common.RestContext) (interface{}, error) {
-	log.Println("In handleHost()")
-	idStr := ctx.PathVariables["hostId"]
-	id, err := strconv.ParseUint(idStr, 10, 64)
-	if err != nil {
-		return nil, err
-	}
-	host, err := topology.store.findHost(id)
-	if err != nil {
-		return nil, err
-	}
-	agentURL := fmt.Sprintf("http://%s:%d", host.Ip, host.AgentPort)
-	agentLink := common.LinkResponse{Href: agentURL, Rel: "agent"}
-	hostLink := common.LinkResponse{Href: hostListPath + "/" + idStr, Rel: "self"}
-	collectionLink := common.LinkResponse{Href: hostListPath, Rel: "self"}
-
-	links := []common.LinkResponse{agentLink, hostLink, collectionLink}
-	hostIDStr := strconv.FormatUint(host.Id, 10)
-	hostMessage := common.HostMessage{Id: hostIDStr, RomanaIp: host.RomanaIp, Ip: host.Ip, Name: host.Name, AgentPort: int(host.AgentPort), Links: links}
-	return hostMessage, nil
-}
-
-func (topology *TopologySvc) handleHostListGet(input interface{}, ctx common.RestContext) (interface{}, error) {
-	log.Println("In handleHostListGet()")
-	hosts, err := topology.store.listHosts()
-	if err != nil {
-		return nil, err
-	}
-	// TODO nested structures or some sort of easy
-	// way of translating between string and auto-increment ID.
-	retval := make([]common.HostMessage, len(hosts))
-	for i := range hosts {
-		retval[i] = common.HostMessage{Ip: hosts[i].Ip, RomanaIp: hosts[i].RomanaIp, Name: hosts[i].Name, Id: strconv.FormatUint(hosts[i].Id, 10)}
-	}
-	return retval, nil
-}
-
-func (topology *TopologySvc) handleHostListPost(input interface{}, ctx common.RestContext) (interface{}, error) {
-	hostMessage := input.(*common.HostMessage)
-	host := Host{Ip: hostMessage.Ip, Name: hostMessage.Name, RomanaIp: hostMessage.RomanaIp, AgentPort: uint64(hostMessage.AgentPort)}
-	id, err := topology.store.addHost(&host)
-	if err != nil {
-		return nil, err
-	}
-	returnHostMessage := hostMessage
-	log.Println("Added host", hostMessage)
-	returnHostMessage.Id = id
-
-	return returnHostMessage, nil
-}
-
-func (topology *TopologySvc) handleIndex(input interface{}, ctx common.RestContext) (interface{}, error) {
-	retval := common.IndexResponse{}
-	retval.ServiceName = "topology"
-	myURL := strings.Join([]string{"http://", topology.config.Common.Api.Host, ":", strconv.FormatUint(topology.config.Common.Api.Port, 10)}, "")
-
-	selfLink := common.LinkResponse{Href: myURL, Rel: "self"}
-	aboutLink := common.LinkResponse{Href: infoListPath, Rel: "about"}
-	agentsLink := common.LinkResponse{Href: agentListPath, Rel: "agent-list"}
-	hostsLink := common.LinkResponse{Href: hostListPath, Rel: "host-list"}
-	torsLink := common.LinkResponse{Href: torListPath, Rel: "tor-list"}
-	spinesLink := common.LinkResponse{Href: spineListPath, Rel: "spine-list"}
-	dcLink := common.LinkResponse{Href: dcPath, Rel: "datacenter"}
-
-	retval.Links = []common.LinkResponse{selfLink, aboutLink, agentsLink, hostsLink, torsLink, spinesLink, dcLink}
-	return retval, nil
-}
 
 // SetConfig implements SetConfig function of the Service interface.
-// Returns an error if cannot connect to the data store
-func (topology *TopologySvc) SetConfig(config common.ServiceConfig) error {
-	log.Println(config)
-	topology.config = config
-	dcMap := config.ServiceSpecific["datacenter"].(map[string]interface{})
-	dc := common.Datacenter{}
-	dc.IpVersion = uint(dcMap["ip_version"].(float64))
-	dc.Cidr = dcMap["cidr"].(string)
-	_, ipNet, err := net.ParseCIDR(dc.Cidr)
-	if err != nil {
-		return err
-	}
-	prefixBits, _ := ipNet.Mask.Size()
-	dc.PrefixBits = uint(prefixBits)
-
-	dc.PortBits = uint(dcMap["host_bits"].(float64))
-	dc.TenantBits = uint(dcMap["tenant_bits"].(float64))
-	dc.SegmentBits = uint(dcMap["segment_bits"].(float64))
-	dc.EndpointBits = uint(dcMap["endpoint_bits"].(float64))
-	dc.EndpointSpaceBits = uint(dcMap["endpoint_space_bits"].(float64))
-	// TODO this should have worked but it doesn't...
-	//	err := mapstructure.Decode(dcMap, &dc)
-	//	if err != nil {
-	//		return err
-	//	}
-	log.Printf("Datacenter information: was %s, decoded to %#v\n", dcMap, dc)
-	topology.datacenter = &dc
-	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
-	topology.store = topoStore{}
-	topology.store.ServiceStore = &topology.store
-	return topology.store.SetConfig(storeConfig)
+func (l *kubeListener) SetConfig(config common.ServiceConfig) error {
+	m := config.config.ServiceSpecific
+	l.kubeUrl = m["kubernetes_url"]
+	l.urlPrefix = m["url_prefix"]
+	l.segmentLabelName = m["segment_label_name"]
+	return nil
 }
 
-// Run configures and runs topology service.
+// Run configures and runs listener service.
 func Run(rootServiceURL string) (*common.RestServiceInfo, error) {
 	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootServiceURL))
 	if err != nil {
 		return nil, err
 	}
-	topSvc := &TopologySvc{}
-	config, err := client.GetServiceConfig(rootServiceURL, topSvc)
+	kubeListener := &kubeListener{}
+	config, err := client.GetServiceConfig(rootServiceURL, kubeListener)
 	if err != nil {
 		return nil, err
 	}
-	return common.InitializeService(topSvc, *config)
-
+	return common.InitializeService(kubeListener, *config)
 }
 
-func (topology *TopologySvc) Initialize() error {
-	log.Println("Parsing", topology.datacenter)
-	ip, _, err := net.ParseCIDR(topology.datacenter.Cidr)
+// translateNetworkPolicy translates a Kubernetes policy into 
+// Romana policy (see common.Policy) with the following rules:
+// 1. Kubernetes Namespace corresponds to Romana Tenant
+// 2. If Romana Tenant does not exist it is an error (a tenant should
+//    automatically be created when a namespace is added, however), see
+// 
+func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Policy, error) {
+	romanaPolicy := &common.Policy{Direction: common.PolicyDirectionIngress}
+	ns := kubePolicy.Metadata.Namespace
+	tenantUrl := l.restClient.GetServiceUrl("tenant")
+	tenants = []common.Tenant{}
+	err := l.RestClient.Get(fmt.Sprintf("%s/tenants/%s", tenantUrl, ns), tenants)
 	if err != nil {
-		return err
+		return romanaPolicy, err
 	}
-	topology.datacenter.Prefix = common.IPv4ToInt(ip)
-	return topology.store.Connect()
+	if len(tenants) == 0 {
+		return romanaPolicy, common.NewError("No tenant found under %s", ns)
+	}
+	if len(tenants) > 1 {
+		return romanaPolicy, common.NewError("More than one tenant found under %s", ns)
+	}
+	tenantId := tenants[0].Id
+	
+	segmentName := kubePolicy.Spec.PodSelector[l.segmentLabelName]
+	if segmentName == "" {
+		return romanaPolicy, common.NewError("Expected segment to be specified in podSelector part as '%s'", l.segmentLabelName)
+	}
+	
+	segments := []common.Segment{}
+	err = l.RestClient.Get(fmt.Sprintf("%s/tenants/%s/segments/%s", tenantUrl, ns, segmentName), segments)
+	if err != nil {
+		switch err := err.(type) {
+			case common.HttpError:
+			  if err.StatusCode == 404 {
+			  	 // Create a segment
+			  	 segreq = Segment{Name: segName}
+			  	 segresp = &Segment{}
+			  	 err := l.RestClient.Post(fmt.Sprintf("%s/tenants/%s/segments", tenantUrl, ns), segresp)
+			  	 if err != nil {
+			  	 	return  romanaPolicy, err
+			  	 }
+			  	 log.Printf("Created segment %v", segresp)
+			  } else {
+			  	return romanaPolicy, err
+			  }
+			  default:
+			  return romanaPolicy, err
+		}
+		return romanaPolicy, err
+	}
+	if len(segments) == 0 {
+		// This is unexpected -- if no segments, we should have had a 404
+		return romanaPolicy, common.NewError("No segment found under %s", ns)
+	}
+	if len(segments) > 1 {
+		return romanaPolicy, common.NewError("More than one segment found under %s", segmentName)
+	}
+	segmentId := segments[0].Id
+	appliedTo:=common.SrcDest{TenantId: tenantId, SegmentId: segmentId}
+	romanaPolicy.AppliedTo = [...]Endpoint{ appliedTo }
+	romanaPolicy.Peers =[]common.Endpoint{}
+	from := kubePolicy.Spec.AllowIncoming.From
+	// This is subject to change once the network specification in Kubernetes is finalized.
+	// Right now it is a work in progress.
+	if from != nil {
+		for entry := range from {
+			pods := entry.Pods
+			fromSegmentName := kubePolicy.Spec.PodSelector[l.segmentLabelName]
+			if fromSegmentName == "" {
+				return romanaPolicy, common.NewError("Expected segment to be specified in podSelector part as '%s'", l.segmentLabelName)
+			}
+			fromSegments := []common.Segment{}
+			err := l.RestClient.Get(fmt.Sprintf("%s/tenants/%s/segments/%s", tenantUrl, ns, fromSegmentName), segments)
+			if err != nil {
+				return romanaPolicy, err
+			}
+			if len(fromSegments) == 0 {
+				// This is unexpected -- if no segments, we should have had a 404
+				return romanaPolicy, common.NewError("No segment found under %s", ns)
+			}
+			if len(fromSegments) > 1 {
+				return romanaPolicy, common.NewError("More than one segment found under %s: %v", fromSegmentName, fromSegments)
+			}
+			peer:=common.Endpoint{TenantId: tenantId, SegmentId: fromSegments[0].Id}
+			romanaPolicy.Peers = append(romanaPolicy.Peers, peer)
+	}
+	toPorts := kubePolicy.Spec.AllowIncoming.ToPorts
+	romanaPolicy.Rules = []common.Rules{}
+	for _, toPort := range toPorts {
+		proto := strings.ToLower(toPort.Protocol)
+		ports := [1]int{toPort.Port}
+		rule := common.Rule{Protocol: proto, Ports: ports}
+		romanaPolicy.Rules = append(romanaPolicy.Rules, rule)
+	}
+	return romanaPolicy, nil
+}
+
+
+func (l *kubeListener) applyNetworkPolicy(action networkPolicyAction, romanaNetworkPolicy common.Policy) error {
+	policyUrl := l.restClient.GetServiceUrl("policy")
+	policyUrl = fmt.Sprintf("%s/policies", policyUrl)
+	switch romanaNetworkPolicy {
+		case networkPolicyActionAdd:
+			err := l.restClient.Post(policyUrl, romanaNetworkPolicy, &romanaNetworkPolicy)
+			if err != nil {
+				return err
+			}
+			log.Println("Applied policy %v",  romanaNetworkPolicy)
+		case networkPolicyActionDelete:
+				policyUrl = fmt.Sprintf("%s/%s", policyUrl, romanaNetworkPolicy.Id)
+				err :=  l.restClient.Delete(policyUrl)
+				if err != nil {
+				return err
+			}
+				default:
+		return errors.New("Unsupported operation")
+	}
+	return nil
+}
+
+func (l *kubeListener) Initialize() error {
+		log.Println("Starting server")
+		nsUrl := fmt.Sprintf("%s/%s", l.kubeUrl, l.urlPrefix)
+		done := make(chan done)
+		nsEvents, err := l.nsWatch(done, nsUrl)
+		if err != nil {
+			log.Fatal("Namespace watcher failed to start", err)
+		}
+
+		events := l.conductor(nsEvents, done)
+		req := l.process(events, done)
+		log.Println("All routines started")
 }
 
 func CreateSchema(rootServiceURL string, overwrite bool) error {
