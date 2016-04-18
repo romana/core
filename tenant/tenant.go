@@ -131,13 +131,14 @@ func (tsvc *TenantSvc) findTenant(input interface{}, ctx common.RestContext) (in
 }
 
 func (tsvc *TenantSvc) findTenantsByName(input interface{}, ctx common.RestContext) (interface{}, error) {
-	idStr := ctx.QueryVariables[tenantNameQueryVar]
-	log.Printf("In findTenant(%s)\n", idStr)
-	id, err := strconv.ParseUint(idStr, 10, 64)
-	if err != nil {
-		return nil, err
+	nameArr := ctx.QueryVariables[tenantNameQueryVar]
+	if len(nameArr) != 1 {
+		return nil, common.NewError("Expected exactly one value in %s, got %v", tenantNameQueryVar, idArr)
 	}
-	tenants, err := tsvc.store.findTenantsByName(id)
+	nameStr := nameArr[0]
+	log.Printf("In findTenant(%s)\n", nameStr)
+	
+	tenants, err := tsvc.store.findTenantsByName(nameStr)
 	if err != nil {
 		return nil, err
 	}

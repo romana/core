@@ -16,7 +16,10 @@
 package common
 
 import (
+	"errors"
+	"fmt"
 	"net"
+	"strings"
 )
 
 // Here we only keep type definitions and struct definitions with no behavior.
@@ -76,33 +79,70 @@ type PortUpdateMessage struct {
 	Port uint64 `json:"port"`
 }
 
-type SrcDest struct {
-	Cidr string `json:"cidr,omitempty"`
-	// TODO this can be collapsed into Cidr but needs 
+type Endpoint struct {
+	CidrStr string `json:"cidr,omitempty"`
+	// TODO this can be collapsed into Cidr but needs
 	// work on JSON marshaller/unmarshaller to do that.
-	ParsedCidr net.IPNet `json:"-"`
-	TenantId string `json:"tenant_id,omitempty"`
-	SegmentId string `json:"segment_id,omitempty"`
-} 
-
-type Proto struct {
-	// TODO this can probably be an enum-like thing,
-	// but needs work on JSON marshaller/unmarshaller to do that.
-	Name string 
-	SourcePorts []PortRange
-	DestinationPorts []PortRange
+	Cidr      net.IPNet `json:"-"`
+	TenantId  string    `json:"tenant_id,omitempty"`
+	SegmentId string    `json:"segment_id,omitempty"`
 }
 
-type PortRange struct {
-	From uint 
-	To uint
+const (
+	PolicyDirectionIngress = "ingress"
+	PolicyDirectionEgress  = "egress"
+)
+
+type PortRange [2]uint
+
+type Rule struct {
+	Protocol   string
+	Ports      []uint
+	PortRanges []PortRange
+	IcmpType   uint
+	IcmpCode   uint
+	Stateful   bool
+}
+
+// Metadata attached to entities for various external environments like openstack/kybernetes
+type Tag struct {
+	Key   string
+	Value string
 }
 
 type Policy struct {
-	Sources []SrcDest
-	Destinations []SrcDest
-	Protos []Proto
-	Ingress bool
+	Direction   string     `json:"direction",omitempty`
+	Description string     `json:"description",omitempty`
+	Name        string     `json:"name",omitempty`
+	Id          string     `json:"id",omitempty`
+	AppliedTo   []Endpoint `json:"applied_to",omitempty`
+	Peers       []Endpoint `json:"peers",omitempty`
+	Rules       []Rule     `json:"rule",omitempty`
+	Tags        []Tag      `json:"tags",omitempty`
+}
+
+func (p *Policy) validate() error {
+	errMsg := ""
+	p.Direction = strings.ToLower(p.Direction)
+	if p.Direction != PolicyDirectionEgress && p.Direction != PolicyDirectionIngress {
+		errMsg += fmt.Sprintf("Unknown direction '%s', allowed '%s' or '%s'. ", p.Direction, PolicyDirectionEgress, PolicyDirectionIngress)
+	}
+	for _, r := range p.Rules {
+		r.Protocol = strings.ToLower(r.Protocol)
+		if r.Protocol == "tcp" {
+			r.Stateful = true
+		}
+		if r.Protocol != "icmp" {
+			if len(r.Ports) > 0 || len(r.PortRanges) > 0 {
+				errMsg += "ICMP protocol is specified but ports are also specified. "
+			}
+		}
+	}
+	if errMsg == "" {
+		return nil
+	} else {
+		return errors.New(errMsg)
+	}
 }
 
 type RestServiceInfo struct {

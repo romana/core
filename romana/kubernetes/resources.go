@@ -13,7 +13,7 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-package rsearch
+package kubernetes
 
 import (
 	"encoding/json"
@@ -23,9 +23,13 @@ import (
 )
 
 const (
-	namespaceUrl = "api/v1/namespaces/?watch=true"
+	urlPostfix = "api/v1/namespaces/?watch=true"
 	selector = "podSelector"
 )
+
+// Done is an alias for empty struct, used to make broadcast channels
+// for terminating goroutines.
+type done struct{}
 
 /*
 {"type":"ADDED","object":{"kind":"Namespace","apiVersion":"v1","metadata":{"name":"default","selfLink":"/api/v1/namespaces/default","uid":"d10db271-dc03-11e5-9c86-0213e1312dc5","resourceVersion":"6","creationTimestamp":"2016-02-25T21:07:45Z"},"spec":{"finalizers":["kubernetes"]},"status":{"phase":"Active"}}}
@@ -68,11 +72,29 @@ func (o KubeObject) getSelector(config Config) string {
 	return selector
 }
 
+type PodSelector map[string]string
+
+type FromEntry struct {
+	Pods PodSelector `json:"pods"`
+}
+
+type AllowIncoming  struct {
+	From []FromEntry `json:"from"`
+	ToPorts []ToPort `json:"toPorts"`
+}
+
+
+type ToPort struct {
+	Port uint64 `json:"port"`
+	Protocol string `json:"protocol"`
+}
+
 // TODO need to find a way to use different specs for different resources.
 type Spec struct {
-	AllowIncoming map[string]interface{} `json:"allowIncoming"`
-	PodSelector   map[string]string      `json:"podSelector"`
+	AllowIncoming AllowIncoming`json:"allowIncoming"`
+	PodSelector   PodSelector     `json:"podSelector"`
 }
+
 
 // Metadata is a representation of metadata in kubernetes object
 type Metadata struct {
@@ -86,7 +108,7 @@ type Metadata struct {
 }
 
 // watchEvents maintains goroutine fired by NsWatch, restarts it in case HTTP GET times out.
-func watchEvents(done <-chan Done, url string, config Config, resp *http.Response, out chan Event) {
+func (l *kubeListener) watchEvents(done <-chan Done, url string, resp *http.Response, out chan Event) {
 	if config.Server.Debug {
 		log.Println("Received namespace related event from kubernetes", resp.Body)
 	}
@@ -126,7 +148,7 @@ func watchEvents(done <-chan Done, url string, config Config, resp *http.Respons
 
 // NsWatch is a generator that watches namespace related events in
 // kubernetes API and publishes this events to a channel.
-func NsWatch(done <-chan Done, url string, config Config) (<-chan Event, error) {
+func nsWatch(done <-chan Done, url string, kubeListener *kubeListener Config) (<-chan Event, error) {
 	out := make(chan Event)
 
 	resp, err := http.Get(url)
@@ -134,15 +156,15 @@ func NsWatch(done <-chan Done, url string, config Config) (<-chan Event, error) 
 		return out, err
 	}
 
-	go watchEvents(done, url, config, resp, out)
+	go l.watchEvents(done, url, resp, out)
 
 	return out, nil
 }
 
 // Produce method listens for resource updates happening within givcen namespace
 // and publishes this updates in a channel
-func (ns KubeObject) Produce(out chan Event, done <-chan Done, config Config) error {
-	url := fmt.Sprintf("%s/%s/%s/%s", config.Api.Url, config.Resource.UrlPrefix, ns.Metadata.Name, config.Resource.UrlPostfix)
+func (ns KubeObject) produce(out chan Event, done <-chan Done, kubeListener *kubeListener) error {
+	url := fmt.Sprintf("%s/%s/%s/%s", config.Api.Url, l.UrlPrefix, ns.Metadata.Name, urlPostfix)
 	if config.Server.Debug {
 		log.Println("Launching producer to listen on ", url)
 	}
@@ -152,7 +174,7 @@ func (ns KubeObject) Produce(out chan Event, done <-chan Done, config Config) er
 		return err
 	}
 
-	go watchEvents(done, url, config, resp, out)
+	go l.watchEvents(done, url, resp, out)
 
 	return nil
 }
