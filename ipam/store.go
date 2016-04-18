@@ -64,7 +64,6 @@ func (ipamStore *ipamStore) deleteEndpoint(ip string) (Endpoint, error) {
 		log.Printf(errMsg)
 		return Endpoint{}, common.NewError500(errors.New(errMsg))
 	}
-
 	tx = tx.Model(Endpoint{}).Where("ip = ?", ip).Update("in_use", false)
 	err := common.MakeMultiError(tx.GetErrors())
 	if err != nil {
@@ -80,6 +79,7 @@ func (ipamStore *ipamStore) deleteEndpoint(ip string) (Endpoint, error) {
 func (ipamStore *ipamStore) addEndpoint(endpoint *Endpoint, upToEndpointIpInt uint64, stride uint) error {
 	var err error
 	tx := ipamStore.DbStore.Db.Begin()
+
 	hostId := endpoint.HostId
 	endpoint.InUse = true
 	tenantId := endpoint.TenantId

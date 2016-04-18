@@ -26,6 +26,7 @@ import (
 	"net"
 	"net/http"
 	//	"net/url"
+	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
@@ -123,6 +124,10 @@ type Service interface {
 
 	// Name returns the name of this service.
 	Name() string
+
+	//	// Middlewares returns an array of middleware handlers to add
+	//	// in addition to the default set.
+	//	Middlewares() []http.Handler
 }
 
 // InitializeService initializes the service with the
@@ -171,7 +176,6 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 			return nil, errors.New(fmt.Sprintf("%s is not an executable", hook.Executable))
 		}
 	}
-
 	err := service.SetConfig(config)
 	if err != nil {
 		return nil, err
@@ -182,9 +186,6 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 	}
 	// Create negroni
 	negroni := negroni.New()
-
-	// Add authentication middleware
-	negroni.Use(NewAuth())
 
 	// Add content-negotiation middleware.
 	// This is an example of using a middleware.
@@ -197,6 +198,17 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 	// Unmarshal data from the content-type format
 	// into a map
 	negroni.Use(NewUnmarshaller())
+	pubKeyLocation := config.Common.Api.AuthPublic
+	if pubKeyLocation != "" {
+		log.Printf("Reading public key from %s", pubKeyLocation)
+		config.Common.PublicKey, err = ioutil.ReadFile(pubKeyLocation)
+	}
+	if err != nil {
+		return nil, err
+	}
+	// We use the public key of root server to check the token.
+	authMiddleware := AuthMiddleware{PublicKey: config.Common.PublicKey}
+	negroni.Use(authMiddleware)
 
 	router := newRouter(routes)
 
@@ -313,16 +325,3 @@ func ListenAndServe(svr *http.Server) (*RestServiceInfo, error) {
 	}()
 	return &RestServiceInfo{Address: realAddr, Channel: channel}, nil
 }
-
-// TODO move here?
-//type Tenant struct {
-//	Id       uint64 `sql:"AUTO_INCREMENT"`
-//	Name     string
-//	Seq      uint64
-//}
-//
-//type Segment struct {
-//	Id       uint64 `sql:"AUTO_INCREMENT"`
-//	Name     string
-//	Seq      uint64
-//}

@@ -36,6 +36,7 @@ import (
 type RestClient struct {
 	url    *url.URL
 	client *http.Client
+	token  string
 	config *RestClientConfig
 }
 
@@ -43,6 +44,7 @@ type RestClient struct {
 type RestClientConfig struct {
 	TimeoutMillis int64
 	Retries       int
+	Credential    *Credential
 	TestMode      bool
 	RootURL       string
 }
@@ -231,6 +233,9 @@ func (rc *RestClient) modifyUrl(dest string, queryMod url.Values) error {
 //    to ensure idempotence or not.
 
 func (rc *RestClient) execMethod(method string, dest string, data interface{}, result interface{}) error {
+	// TODO check if token expired, if yes, reauthenticate... But this needs
+	// more state here (knowledge of Root service by Rest client...)
+
 	var queryMod url.Values
 	queryMod = nil
 	if method == "POST" && rc.config != nil && !rc.config.TestMode {
@@ -291,7 +296,9 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 			return err
 		}
 		req.Header.Set("accept", "application/json")
-
+		if rc.token != "" {
+			req.Header.Set("authorization", rc.token)
+		}
 		var resp *http.Response
 		for i := 0; i < rc.config.Retries; i++ {
 			log.Printf("Try %d for %s", (i + 1), rc.url)
@@ -322,9 +329,12 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 		body, err = ioutil.ReadAll(resp.Body)
 
 	} else if rc.url.Scheme == "file" {
-		log.Printf("Loading file %s, %s", rc.url.String(), rc.url.Path)
+		log.Printf("RestClient: Loading file %s, %s", rc.url.String(), rc.url.Path)
 		body, err = ioutil.ReadFile(rc.url.Path)
-
+		if err != nil {
+			log.Printf("RestClient: Error loading file %s: %v", rc.url.Path, err)
+			return err
+		}
 	} else {
 		return errors.New(fmt.Sprintf("Unsupported scheme %s", rc.url.Scheme))
 	}
@@ -392,11 +402,22 @@ func (rc *RestClient) GetServiceConfig(svc Service) (*ServiceConfig, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	if rc.config.Credential != nil && rc.config.Credential.Type != CredentialNone {
+		// First things first - authenticate
+		authUrl := rootIndexResponse.Links.FindByRel("auth")
+		log.Printf("Authenticating to %s", authUrl)
+		tokenMsg := &TokenMessage{}
+		err = rc.Post(authUrl, rc.config.Credential, tokenMsg)
+		if err != nil {
+			return nil, err
+		}
+		rc.token = tokenMsg.Token
+	}
+
 	config := &ServiceConfig{}
 	config.Common.Api = &Api{RootServiceUrl: rc.config.RootURL}
-
 	relName := svc.Name() + "-config"
-
 	configUrl := rootIndexResponse.Links.FindByRel(relName)
 	if configUrl == "" {
 		return nil, errors.New(fmt.Sprintf("Could not find %s at %s", relName, rc.config.RootURL))
@@ -406,6 +427,11 @@ func (rc *RestClient) GetServiceConfig(svc Service) (*ServiceConfig, error) {
 	if err != nil {
 		return nil, err
 	}
+	// Save the credential from the client in the resulting service config --
+	// if the resulting config is to be used in InitializeService(), it's useful;
+	// otherwise, it will be ignored.
+	config.Common.Credential = rc.config.Credential
+	log.Printf("Saved from %v to %v", rc.config.Credential, config.Common.Credential)
 	return config, nil
 }
 

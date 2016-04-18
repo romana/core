@@ -100,6 +100,49 @@ func TestHooks(t *testing.T) {
 }
 
 // Test the service list.
+func TestAuth(t *testing.T) {
+	fmt.Println("Entering TestServiceList")
+	dir, _ := os.Getwd()
+	fmt.Println("In", dir)
+
+	yamlFileName := "../common/testdata/romana.auth.yaml"
+	common.MockPortsInConfig(yamlFileName)
+	fmt.Println("Calling Run()")
+	svcInfo, err := Run("/tmp/romana.yaml")
+	if err != nil {
+		fmt.Println(err.Error())
+		t.FailNow()
+	}
+
+	fmt.Println("Waiting for message")
+	msg := <-svcInfo.Channel
+	fmt.Println("Root service said:", msg)
+	addr := fmt.Sprintf("http://%s", svcInfo.Address)
+
+	clientConfig := common.GetDefaultRestClientConfig()
+	clientConfig.Credential = &common.Credential{Type: common.CredentialUsernamePassword, Username: "admin", Password: "password"}
+	client, err := common.NewRestClient(addr, clientConfig)
+
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+	r := common.IndexResponse{}
+	err = client.Get("", &r)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+	fmt.Println("Received: ", r)
+	svcName := r.ServiceName
+	fmt.Printf("Service name: %s", svcName)
+
+	if svcName != "root" {
+		t.Errorf("Expected serviceName to be root, got %s", svcName)
+	}
+}
+
+// Test the service list.
 func TestServiceList(t *testing.T) {
 	fmt.Println("Entering TestServiceList")
 	dir, _ := os.Getwd()
@@ -137,7 +180,7 @@ func TestServiceList(t *testing.T) {
 	}
 	fmt.Println("Received: ", r)
 	svcName := r.ServiceName
-	fmt.Println("Service name:", svcName)
+	fmt.Printf("Service name: %s", svcName)
 
 	if svcName != "root" {
 		t.Errorf("Expected serviceName to be root, got %s", svcName)

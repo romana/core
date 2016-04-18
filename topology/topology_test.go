@@ -24,8 +24,8 @@ import (
 	//	"log"
 	"os"
 	"reflect"
-
 	"testing"
+	"time"
 )
 
 // Hook up gocheck into the "go test" runner.
@@ -120,7 +120,7 @@ func (s *MySuite) TestTopology(c *check.C) {
 	myLog(c, "In", dir)
 	myLog(c, "Starting topology service")
 
-	svcInfo, err := Run(s.rootURL)
+	svcInfo, err := Run(s.rootURL, nil)
 	if err != nil {
 		c.Error(err)
 	}
@@ -154,6 +154,9 @@ func (s *MySuite) TestTopology(c *check.C) {
 	newHostResp := common.HostMessage{}
 	client.Post(hostsRelURL, newHostReq, &newHostResp)
 	myLog(c, "Response: ", newHostResp)
+	myLog(c, "Waiting for....", time.Hour)
+	//	time.Sleep(time.Hour)
+
 	c.Assert(newHostResp.Ip, check.Equals, "10.10.10.10")
 	c.Assert(newHostResp.Id, check.Equals, "1")
 

@@ -24,8 +24,8 @@ import (
 	"net"
 )
 
-// IPAMSvc provides ipam service.
-type IPAMSvc struct {
+// IPAM provides ipam service.
+type IPAM struct {
 	config common.ServiceConfig
 	store  ipamStore
 	dc     common.Datacenter
@@ -36,7 +36,7 @@ const (
 )
 
 // Routes provided by ipam.
-func (ipam *IPAMSvc) Routes() common.Routes {
+func (ipam *IPAM) Routes() common.Routes {
 	routes := common.Routes{
 		common.Route{
 			Method:          "POST",
@@ -64,7 +64,7 @@ func (ipam *IPAMSvc) Routes() common.Routes {
 }
 
 // handleHost handles request for a specific host's info
-func (ipam *IPAMSvc) legacyAllocateIpByName(input interface{}, ctx common.RestContext) (interface{}, error) {
+func (ipam *IPAM) legacyAllocateIpByName(input interface{}, ctx common.RestContext) (interface{}, error) {
 	tenantName := ctx.QueryVariables["tenantName"][0]
 	segmentName := ctx.QueryVariables["segmentName"][0]
 	hostName := ctx.QueryVariables["hostName"][0]
@@ -133,15 +133,15 @@ func (ipam *IPAMSvc) legacyAllocateIpByName(input interface{}, ctx common.RestCo
 	for i = range tenants {
 		if tenants[i].Name == tenantName {
 			found = true
-			Endpoint.TenantId = fmt.Sprintf("%d", tenants[i].Id)
-			log.Printf("IPAM: Tenant name %s has ID %s, original %d\n", tenantName, Endpoint.TenantId, tenants[i].Id)
+			Endpoint.TenantId = fmt.Sprintf("%d", tenants[i].ID)
+			log.Printf("IPAM: Tenant name %s has ID %s, original %d\n", tenantName, Endpoint.TenantId, tenants[i].ID)
 			break
 		}
 	}
 	if !found {
 		return nil, errors.New("Tenant with name " + tenantName + " not found")
 	}
-	log.Printf("IPAM: Tenant name %s has ID %s, original %d\n", tenantName, Endpoint.TenantId, tenants[i].Id)
+	log.Printf("IPAM: Tenant name %s has ID %s, original %d\n", tenantName, Endpoint.TenantId, tenants[i].ID)
 
 	segmentsUrl := fmt.Sprintf("/tenants/%s/segments", Endpoint.TenantId)
 	var segments []tenant.Segment
@@ -166,7 +166,7 @@ func (ipam *IPAMSvc) legacyAllocateIpByName(input interface{}, ctx common.RestCo
 
 // addEndpoint handles request to add an endpoint and
 // allocate an IP address.
-func (ipam *IPAMSvc) addEndpoint(input interface{}, ctx common.RestContext) (interface{}, error) {
+func (ipam *IPAM) addEndpoint(input interface{}, ctx common.RestContext) (interface{}, error) {
 	Endpoint := input.(*Endpoint)
 	client, err := common.NewRestClient(common.GetRestClientConfig(ipam.config))
 	if err != nil {
@@ -208,7 +208,7 @@ func (ipam *IPAMSvc) addEndpoint(input interface{}, ctx common.RestContext) (int
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("IPAM received tenant %s ID %d, sequence %d\n", t.Name, t.Id, t.Seq)
+	log.Printf("IPAM received tenant %s ID %d, sequence %d\n", t.Name, t.ID, t.Seq)
 
 	segmentUrl := fmt.Sprintf("/tenants/%s/segments/%s", Endpoint.TenantId, Endpoint.SegmentId)
 	log.Printf("IPAM calling %s\n", segmentUrl)
@@ -244,18 +244,18 @@ func (ipam *IPAMSvc) addEndpoint(input interface{}, ctx common.RestContext) (int
 
 // deleteEndpoint releases the IP(s) owned by the endpoint into assignable
 // pool.
-func (ipam *IPAMSvc) deleteEndpoint(input interface{}, ctx common.RestContext) (interface{}, error) {
+func (ipam *IPAM) deleteEndpoint(input interface{}, ctx common.RestContext) (interface{}, error) {
 	return ipam.store.deleteEndpoint(ctx.PathVariables["ip"])
 }
 
 // Name provides name of this service.
-func (ipam *IPAMSvc) Name() string {
+func (ipam *IPAM) Name() string {
 	return "ipam"
 }
 
 // SetConfig implements SetConfig function of the Service interface.
 // Returns an error if cannot connect to the data store
-func (ipam *IPAMSvc) SetConfig(config common.ServiceConfig) error {
+func (ipam *IPAM) SetConfig(config common.ServiceConfig) error {
 	// TODO this is a copy-paste of topology service, to refactor
 	log.Println(config)
 	ipam.config = config
@@ -267,11 +267,12 @@ func (ipam *IPAMSvc) SetConfig(config common.ServiceConfig) error {
 
 }
 
-func (ipam *IPAMSvc) createSchema(overwrite bool) error {
+func (ipam *IPAM) createSchema(overwrite bool) error {
 	return ipam.store.CreateSchema(overwrite)
 }
 
 // Run mainly runs IPAM service.
+<<<<<<< HEAD
 func Run(rootServiceUrl string) (*common.RestServiceInfo, error) {
 	client, err := common.NewRestClient(common.GetDefaultRestClientConfig())
 	if err != nil {
@@ -279,6 +280,17 @@ func Run(rootServiceUrl string) (*common.RestServiceInfo, error) {
 	}
 	ipam := &IPAMSvc{}
 	config, err := client.GetServiceConfig(ipam)
+=======
+func Run(rootServiceUrl string, cred *common.Credential) (*common.RestServiceInfo, error) {
+	clientConfig := common.GetDefaultRestClientConfig()
+	clientConfig.Credential = cred
+	client, err := common.NewRestClient(rootServiceUrl, clientConfig)
+	if err != nil {
+		return nil, err
+	}
+	ipam := &IPAM{}
+	config, err := client.GetServiceConfig(rootServiceUrl, ipam)
+>>>>>>> master
 	if err != nil {
 		return nil, err
 	}
@@ -286,8 +298,8 @@ func Run(rootServiceUrl string) (*common.RestServiceInfo, error) {
 
 }
 
-func (ipam *IPAMSvc) Initialize() error {
-
+// Initialize implements Initialize method of Service interface
+func (ipam *IPAM) Initialize() error {
 	log.Println("Entering ipam.Initialize()")
 	err := ipam.store.Connect()
 	if err != nil {
@@ -325,21 +337,20 @@ func (ipam *IPAMSvc) Initialize() error {
 // CreateSchema creates schema for IPAM service.
 func CreateSchema(rootServiceUrl string, overwrite bool) error {
 	log.Println("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
-	ipamSvc := &IPAMSvc{}
+	IPAM := &IPAM{}
 
 	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootServiceUrl))
 	if err != nil {
 		return err
 	}
-
 	config, err := client.GetServiceConfig(ipamSvc)
 	if err != nil {
 		return err
 	}
 
-	err = ipamSvc.SetConfig(*config)
+	err = IPAM.SetConfig(*config)
 	if err != nil {
 		return err
 	}
-	return ipamSvc.store.CreateSchema(overwrite)
+	return IPAM.store.CreateSchema(overwrite)
 }

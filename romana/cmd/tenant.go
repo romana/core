@@ -16,16 +16,19 @@
 package cmd
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
-	"strconv"
 	"text/tabwriter"
 
 	"github.com/romana/core/common"
 	"github.com/romana/core/romana/adaptor"
+	"github.com/romana/core/romana/util"
 	"github.com/romana/core/tenant"
 
+	ms "github.com/mitchellh/mapstructure"
+	"github.com/pborman/uuid"
 	cli "github.com/spf13/cobra"
 	config "github.com/spf13/viper"
 )
@@ -34,7 +37,6 @@ import (
 // service and its corresponding name received from adaptors.
 type tenantData struct {
 	Tenant   tenant.Tenant
-	Name     string
 	Segments []tenant.Segment
 }
 
@@ -89,9 +91,13 @@ var tenantDeleteCmd = &cli.Command{
 	SilenceUsage: true,
 }
 
+// tenantCreate accepts tenant names as arguments for
+// creating new tenants for platform being set in
+// config file (~/.romana.yaml) or via command line
+// flags.
 func tenantCreate(cmd *cli.Command, args []string) error {
 	if len(args) < 1 {
-		return UsageError(cmd,
+		return util.UsageError(cmd,
 			fmt.Sprintf("expected at-least 1 argument, saw none"))
 	}
 
@@ -107,28 +113,65 @@ func tenantCreate(cmd *cli.Command, args []string) error {
 		return err
 	}
 
-	tenants := []tenantData{}
+	tenants := []tenant.Tenant{}
 	for _, tnt := range args {
-		if !adaptor.TenantExists(tnt) {
-			// uncomment this once creating tenant for all
-			// platforms are ready. Till then tenants needs
-			// to be manually created for every platform and
-			// then created using romana command line tools.
-			// if adaptor.CreateTenant(tnt) != nil {
-			return err
-			// }
-		}
+		// uncomment this once creating tenant for all
+		// platforms are ready. Till then tenants needs
+		// to be manually created for every platform and
+		// then created using romana command line tools.
+		// if adaptor.CreateTenant(tnt) != nil {
+		// 	return err
+		// }
+		// adaptor.GetTenantUUID below wouldn't be needed once
+		// adaptor.CreateTenant is supported.
 		tntUUID, err := adaptor.GetTenantUUID(tnt)
 		if err != nil {
-			return err
+			switch err {
+			case util.ErrUnimplementedFeature:
+				// kubernetes doesnt support tenants yet so
+				// exception for kubernetes till CreateTenant,
+				// GetTenantUUID, etc are supported for it.
+				tntUUID = hex.EncodeToString(uuid.NewRandom())
+			default:
+				return err
+			}
 		}
-		data := tenant.Tenant{Name: tntUUID}
-		result := tenant.Tenant{}
+
+		data := tenant.Tenant{Name: tnt, ExternalID: tntUUID}
+		var result map[string]interface{}
 		err = client.Post(tenantURL+"/tenants", data, &result)
 		if err != nil {
 			return err
 		}
-		tenants = append(tenants, tenantData{result, tnt, []tenant.Segment{}})
+		_, tFound := result["ExternalID"]
+		if tFound {
+			var t tenant.Tenant
+			err := ms.Decode(result, &t)
+			if err != nil {
+				return err
+			}
+			tenants = append(tenants, t)
+		} else {
+			var h common.HttpError
+			dc := &ms.DecoderConfig{TagName: "json", Result: &h}
+			decoder, err := ms.NewDecoder(dc)
+			if err != nil {
+				return err
+			}
+			err = decoder.Decode(result)
+			if err != nil {
+				return err
+			}
+			if config.GetString("Format") == "json" {
+				status, _ := json.MarshalIndent(h, "", "\t")
+				fmt.Println(string(status))
+				return fmt.Errorf("HTTP Error.")
+			} else {
+				return fmt.Errorf("HTTP Error.\nStatus Code: %d\n"+
+					"Status Text:%s\nMessage:%s",
+					h.StatusCode, h.StatusText, h.Message)
+			}
+		}
 	}
 
 	if config.GetString("Format") == "json" {
@@ -142,12 +185,12 @@ func tenantCreate(cmd *cli.Command, args []string) error {
 		w.Init(os.Stdout, 0, 8, 0, '\t', 0)
 		fmt.Println("New Tenant(s) Added:")
 		fmt.Fprintln(w, "Id\t",
-			"Tenant UUID\t",
 			"Tenant Name\t",
+			"External ID\t",
 		)
 		for _, t := range tenants {
-			fmt.Fprintf(w, "%d \t %s \t %s \t", t.Tenant.Id,
-				t.Tenant.Name, t.Name)
+			fmt.Fprintf(w, "%d \t %s \t %s \t", t.ID,
+				t.Name, t.ExternalID)
 			fmt.Fprintf(w, "\n")
 		}
 		w.Flush()
@@ -156,9 +199,11 @@ func tenantCreate(cmd *cli.Command, args []string) error {
 	return nil
 }
 
+// tenantShow displays tenant details using tenant name
+// or tenant external id as input.
 func tenantShow(cmd *cli.Command, args []string) error {
 	if len(args) < 1 {
-		return UsageError(cmd,
+		return util.UsageError(cmd,
 			fmt.Sprintf("expected at-least 1 argument, saw none"))
 	}
 
@@ -183,15 +228,13 @@ func tenantShow(cmd *cli.Command, args []string) error {
 
 	for _, t := range data {
 		for _, n := range args {
-			name, _ := adaptor.GetTenantName(t.Name)
-			if t.Name == n || name == n {
+			if t.Name == n || t.ExternalID == n {
 				seg := []tenant.Segment{}
-				tIDStr := strconv.FormatUint(t.Id, 10)
-				err = client.Get(tenantURL+"/tenants/"+tIDStr+"/segments", &seg)
+				err = client.Get(tenantURL+"/tenants/"+t.ExternalID+"/segments", &seg)
 				if err != nil {
 					return err
 				}
-				tenants = append(tenants, tenantData{t, name, seg})
+				tenants = append(tenants, tenantData{t, seg})
 			}
 		}
 	}
@@ -205,14 +248,14 @@ func tenantShow(cmd *cli.Command, args []string) error {
 	} else {
 		w := new(tabwriter.Writer)
 		w.Init(os.Stdout, 0, 8, 0, '\t', 0)
-		fmt.Fprintln(w, "Id\t",
-			"Tenant UUID\t",
+		fmt.Fprintln(w, "ID\t",
 			"Tenant Name\t",
+			"External ID\t",
 			"Segments", "\t",
 		)
 		for _, t := range tenants {
-			fmt.Fprintf(w, "%d \t %s \t %s \t", t.Tenant.Id,
-				t.Tenant.Name, t.Name)
+			fmt.Fprintf(w, "%d \t %s \t %s \t", t.Tenant.ID,
+				t.Tenant.Name, t.Tenant.ExternalID)
 			for _, s := range t.Segments {
 				fmt.Fprintf(w, "%s, ", s.Name)
 			}
@@ -224,6 +267,9 @@ func tenantShow(cmd *cli.Command, args []string) error {
 	return nil
 }
 
+// tenantList displays tenant list in either json or
+// tablular format depending on commanf line flags or
+// config file options.
 func tenantList(cmd *cli.Command, args []string) error {
 	rootURL := config.GetString("RootURL")
 
@@ -237,16 +283,10 @@ func tenantList(cmd *cli.Command, args []string) error {
 		return err
 	}
 
-	data := []tenant.Tenant{}
-	tenants := []tenantData{}
-	err = client.Get(tenantURL+"/tenants", &data)
+	tenants := []tenant.Tenant{}
+	err = client.Get(tenantURL+"/tenants", &tenants)
 	if err != nil {
 		return err
-	}
-
-	for _, t := range data {
-		name, _ := adaptor.GetTenantName(t.Name)
-		tenants = append(tenants, tenantData{t, name, []tenant.Segment{}})
 	}
 
 	if config.GetString("Format") == "json" {
@@ -260,12 +300,13 @@ func tenantList(cmd *cli.Command, args []string) error {
 		w.Init(os.Stdout, 0, 8, 0, '\t', 0)
 		fmt.Println("Tenant List")
 		fmt.Fprintln(w, "Id\t",
-			"Tenant UUID\t",
 			"Tenant Name\t",
+			"External ID\t",
 		)
 		for _, t := range tenants {
-			fmt.Fprintln(w, t.Tenant.Id, "\t",
-				t.Tenant.Name, "\t", t.Name, "\t",
+			fmt.Fprintln(w, t.ID, "\t",
+				t.Name, "\t",
+				t.ExternalID, "\t",
 			)
 		}
 		w.Flush()
@@ -274,6 +315,10 @@ func tenantList(cmd *cli.Command, args []string) error {
 	return nil
 }
 
+// tenantDelete takes tenant name as input for deleting a specific
+// romana tenant, the equivalent tenant for specific platform
+// still needs to be deleted manually until handled here via
+// adaptor.
 func tenantDelete(cmd *cli.Command, args []string) error {
 	fmt.Println("Unimplemented: Delete a specific tenant.")
 	return nil
