@@ -17,6 +17,8 @@
 package util
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 
 	cli "github.com/spf13/cobra"
@@ -29,4 +31,14 @@ func UsageError(cmd *cli.Command, format string, args ...interface{}) error {
 	return fmt.Errorf("%s\nCheck '%s -h' for help",
 		fmt.Sprintf(format, args...),
 		cmd.CommandPath())
+}
+
+// JSONIndent indents the JSON input string, return input string if it fails.
+func JSONIndent(inStr string) string {
+	var out bytes.Buffer
+	err := json.Indent(&out, []byte(inStr), "", "\t")
+	if err != nil {
+		return inStr
+	}
+	return out.String()
 }

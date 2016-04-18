@@ -67,6 +67,7 @@ func init() {
 	RootCmd.AddCommand(hostCmd)
 	RootCmd.AddCommand(tenantCmd)
 	RootCmd.AddCommand(segmentCmd)
+	RootCmd.AddCommand(policyCmd)
 
 	RootCmd.Flags().BoolVarP(&version, "version", "",
 		false, "Build and Versioning Information.")
@@ -88,17 +89,21 @@ func init() {
 
 // preConfig sanitizes URLs and sets up config with URLs.
 func preConfig(cmd *cli.Command, args []string) {
+	var baseURL string
+
 	// Add port details to rootURL else try localhost
 	// if nothing is given on command line or config.
 	if rootURL == "" {
 		rootURL = config.GetString("RootURL")
 	}
 	if rootURL != "" {
-		rootURL = strings.TrimSuffix(rootURL, "/")
-		rootURL = rootURL + ":9600/"
+		baseURL = strings.TrimSuffix(rootURL, "/")
+		baseURL = strings.TrimSuffix(baseURL, ":9600")
 	} else {
-		rootURL = "http://localhost:9600/"
+		baseURL = "http://localhost"
 	}
+	config.Set("BaseURL", baseURL)
+	rootURL = baseURL + ":9600/"
 	config.Set("RootURL", rootURL)
 
 	// Give command line options higher priority then
