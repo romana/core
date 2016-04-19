@@ -21,6 +21,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/romana/core/common"
@@ -33,6 +34,7 @@ import (
 var (
 	cfgFile  string
 	rootURL  string
+	rootPort string
 	version  bool
 	verbose  bool
 	format   string
@@ -76,10 +78,12 @@ func init() {
 		"c", "", "config file (default is $HOME/.romana.yaml)")
 	RootCmd.PersistentFlags().StringVarP(&rootURL, "rootURL",
 		"r", "", "root service url, e.g. http://192.168.0.1")
+	RootCmd.PersistentFlags().StringVarP(&rootPort, "rootPort",
+		"p", "", "root service port, e.g. 9600")
 	RootCmd.PersistentFlags().StringVarP(&format, "format",
 		"f", "", "enable formatting options like [json|table], etc.")
 	RootCmd.PersistentFlags().StringVarP(&platform, "platform",
-		"p", "", "Use platforms like [openstack|kubernetes], etc.")
+		"P", "", "Use platforms like [openstack|kubernetes], etc.")
 	RootCmd.PersistentFlags().BoolVarP(&verbose, "verbose",
 		"v", false, "Verbose output.")
 
@@ -96,14 +100,30 @@ func preConfig(cmd *cli.Command, args []string) {
 	if rootURL == "" {
 		rootURL = config.GetString("RootURL")
 	}
+	if rootPort == "" {
+		rootPort = config.GetString("RootPort")
+	}
+	if rootPort == "" {
+		re, _ := regexp.Compile(`:\d+/?`)
+		port := re.FindString(rootURL)
+		port = strings.TrimPrefix(port, ":")
+		port = strings.TrimSuffix(port, "/")
+		if port != "" {
+			rootPort = port
+		} else {
+			rootPort = "9600"
+		}
+	}
+	config.Set("RootPort", rootPort)
 	if rootURL != "" {
 		baseURL = strings.TrimSuffix(rootURL, "/")
 		baseURL = strings.TrimSuffix(baseURL, ":9600")
+		baseURL = strings.TrimSuffix(baseURL, ":"+rootPort)
 	} else {
 		baseURL = "http://localhost"
 	}
 	config.Set("BaseURL", baseURL)
-	rootURL = baseURL + ":9600/"
+	rootURL = baseURL + ":" + rootPort + "/"
 	config.Set("RootURL", rootURL)
 
 	// Give command line options higher priority then

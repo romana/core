@@ -4,6 +4,7 @@
     # please move it to ~/.romana.yaml
     #
     "RootURL": "http://192.168.99.10",
+    "RootPort": "9600",
     "LogFile": "/var/tmp/romana.log",
     "Format": "table", # options are table/json 
     "Platform": "openstack", # options are openstack/kubernetes 
