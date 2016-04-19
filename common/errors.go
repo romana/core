@@ -19,6 +19,7 @@ package common
 
 import (
 	"fmt"
+	"github.com/jinzhu/gorm"
 	"net/http"
 	"errors"
 )
@@ -118,6 +119,18 @@ func MakeMultiError(errors []error) error {
 		return nil
 	}
 	return &MultiError{errors}
+}
+
+
+func GetDbErrors(db *gorm.DB) error {
+	errors := MakeMultiError(db.GetErrors())
+	if errors == nil {
+		return nil
+	}
+	if db.Error != nil {
+		return db.Error
+	}
+	return nil
 }
 
 // Error satisfies Error method on error interface and returns

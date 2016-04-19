@@ -608,14 +608,14 @@ func (am AuthMiddleware) ServeHTTP(writer http.ResponseWriter, request *http.Req
 
 		if err != nil {
 			writer.WriteHeader(http.StatusForbidden)
-			httpErr := NewError(http.StatusForbidden, err.Error())
+			httpErr := NewHttpError(http.StatusForbidden, err.Error())
 			outData, _ := marshaller.Marshal(httpErr)
 			writer.Write(outData)
 			return
 		}
 		if !token.Valid {
 			writer.WriteHeader(http.StatusForbidden)
-			httpErr := NewError(http.StatusForbidden, "Invalid token.")
+			httpErr := NewHttpError(http.StatusForbidden, "Invalid token.")
 			outData, _ := marshaller.Marshal(httpErr)
 			writer.Write(outData)
 			return

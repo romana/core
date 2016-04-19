@@ -16,6 +16,7 @@
 package kubernetes
 
 import (
+	"github.com/romana/core/tenant"
 	"log"
 )
 
@@ -31,35 +32,32 @@ import (
 //    b. If the Object Kind is Namespace, attempts to add a new Tenant to Romana with that name.
 //       Logs an error if not possible.
 // 2. On receiving a done event, exit the goroutine
-func (l *kubeListener) process(in <-chan Event, done chan Done) chan<- SearchRequest {
+func (l *kubeListener) process(in <-chan Event, done chan Done) {
 	go func() {
 		for {
 			select {
 			case e := <-in:
-				NPid := e.Object.makeId()
-				Selector := e.Object.getSelector(config)
+//				NPid := e.Object.makeId()
 				if e.Type == KubeEventAdded || e.Type == KubeEventDeleted {
-					if config.Server.Debug {
-						log.Printf("Processing %s request for %s", e.Type, e.Object.Metadata.Name)
-					}
+					log.Printf("Processing %s request for %s", e.Type, e.Object.Metadata.Name)
 					if e.Object.Kind == "NetworkPolicy" {
-						var action string
+						var action networkPolicyAction
 						if e.Type == KubeEventAdded {
 							action = networkPolicyActionAdd
 						} else {
 							action = networkPolicyActionDelete
 						}
-						policy, err := translateNetworkPolicy(e.Object)
+						policy, err := l.translateNetworkPolicy(&e.Object)
 						if err == nil {
-							applyNetworkPolicy(action, policy)
+							l.applyNetworkPolicy(action, policy)
 						} else {
 							log.Println(err)
 						}
 					} else if e.Object.Kind == "Namespace" {
 						if e.Type == KubeEventAdded {
-							tenantReq := tenant.Tenant{Name: e.Object.Metadata.Name}
+							tenantReq := tenant.Tenant{Name: e.Object.Metadata.Name, ExternalID: e.Object.Metadata.Name}
 							tenantResp := tenant.Tenant{}
-							err = client.Post("/tenants", tenantReq, &tenantResp)
+							err := l.restClient.Post("/tenants", tenantReq, &tenantResp)
 							if err != nil {
 								log.Printf("Error adding tenant %s: %v", tenantReq.Name, err)
 							} else {
@@ -79,14 +77,12 @@ func (l *kubeListener) process(in <-chan Event, done chan Done) chan<- SearchReq
 
 					}
 				} else {
-					if config.Server.Debug {
-						log.Printf("Received unindentified request %s for %s", e.Type, e.Object.Metadata.Name)
-					}
+					log.Printf("Received unindentified request %s for %s", e.Type, e.Object.Metadata.Name)
 				}
 			case <-done:
 				return
 			}
 		}
 	}()
-	return req
+	return
 }

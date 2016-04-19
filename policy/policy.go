@@ -83,7 +83,7 @@ func (policy *PolicySvc) addPolicy(input interface{}, ctx common.RestContext) (i
 
 	found := false
 
-	tenantSvcUrl, err := client.GetServiceUrl(policy.config.Common.Api.RootServiceUrl, "tenant")
+	tenantSvcUrl, err := client.GetServiceUrl("tenant")
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +108,6 @@ func (policy *PolicySvc) addPolicy(input interface{}, ctx common.RestContext) (i
 	if !found {
 		return nil, errors.New("Tenant with name " + tenantName + " not found")
 	}
-	log.Printf("IPAM: Tenant name %s has ID %s, original %d\n", "", "", "")
 
 	segmentsUrl := fmt.Sprintf("/tenants/%s/segments", "")
 	var segments []tenant.Segment
@@ -132,7 +131,7 @@ func (policy *PolicySvc) addPolicy(input interface{}, ctx common.RestContext) (i
 
 func (policy *PolicySvc) deletePolicy(input interface{}, ctx common.RestContext) (interface{}, error) {
 	// TODO placeholder
-	idStr := ctx.PathVariables["id"]
+//	idStr := ctx.PathVariables["id"]
 	return nil, nil
 }
 
@@ -161,13 +160,16 @@ func (policy *PolicySvc) createSchema(overwrite bool) error {
 }
 
 // Run mainly runs IPAM service.
-func Run(rootServiceUrl string) (*common.RestServiceInfo, error) {
-	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootServiceUrl))
+func Run(rootServiceUrl string, cred *common.Credential) (*common.RestServiceInfo, error) {
+	clientConfig := common.GetDefaultRestClientConfig(rootServiceUrl)
+	clientConfig.Credential = cred
+	client, err := common.NewRestClient(clientConfig)
+	
 	if err != nil {
 		return nil, err
 	}
 	policy := &PolicySvc{}
-	config, err := client.GetServiceConfig(rootServiceUrl, policy)
+	config, err := client.GetServiceConfig(policy)
 	if err != nil {
 		return nil, err
 	}

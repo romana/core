@@ -94,8 +94,10 @@ type Endpoint struct {
 	// TODO this can be collapsed into Cidr but needs
 	// work on JSON marshaller/unmarshaller to do that.
 	Cidr      net.IPNet `json:"-"`
-	TenantId  string    `json:"tenant_id,omitempty"`
-	SegmentId string    `json:"segment_id,omitempty"`
+	TenantID  uint64    `json:"tenant_id,omitempty"`
+	TenantExternalID string  `json:"tenant_external_id,omitempty"`
+	SegmentID uint64    `json:"segment_id,omitempty"`
+	SegmentExternalID string `json:"segment_external_id,omitempty"`
 }
 
 const (
@@ -114,6 +116,8 @@ type Rule struct {
 	Stateful   bool
 }
 
+type Rules []Rule
+
 // Metadata attached to entities for various external environments like openstack/kybernetes
 type Tag struct {
 	Key   string
@@ -121,17 +125,17 @@ type Tag struct {
 }
 
 type Policy struct {
-	Direction   string     `json:"direction",omitempty`
-	Description string     `json:"description",omitempty`
-	Name        string     `json:"name",omitempty`
-	Id          string     `json:"id",omitempty`
-	AppliedTo   []Endpoint `json:"applied_to",omitempty`
-	Peers       []Endpoint `json:"peers",omitempty`
-	Rules       []Rule     `json:"rule",omitempty`
-	Tags        []Tag      `json:"tags",omitempty`
+	Direction   string     `json:"direction,omitempty"`
+	Description string     `json:"description,omitempty"`
+	Name        string     `json:"name,omitempty"`
+	Id          string     `json:"id,omitempty"`
+	AppliedTo   []Endpoint `json:"applied_to,omitempty"`
+	Peers       []Endpoint `json:"peers,omitempty"`
+	Rules       []Rule     `json:"rule,omitempty"`
+	Tags        []Tag      `json:"tags,omitempty"`
 }
 
-func (p *Policy) validate() error {
+func (p *Policy) Validate() error {
 	errMsg := ""
 	p.Direction = strings.ToLower(p.Direction)
 	if p.Direction != PolicyDirectionEgress && p.Direction != PolicyDirectionIngress {

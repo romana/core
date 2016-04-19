@@ -18,45 +18,35 @@ package kubernetes
 import (
 	"bytes"
 	"encoding/json"
-	"gopkg.in/gcfg.v1"
+	"github.com/romana/core/common"
+	//	"gopkg.in/gcfg.v1"
 	"testing"
 	"time"
 )
 
-func TestResoureProcessor(t *testing.T) {
-	config := Config{}
-	err := gcfg.ReadStringInto(&config, cfgStr)
-	if err != nil {
-		t.Errorf("Failed to parse gcfg data: %s", err)
-	}
+func TestResourceProcessor(t *testing.T) {
 
 	done := make(chan Done)
 	events := make(chan Event)
 
-	req := Process(events, done, config)
+	l := kubeListener{}
+	cfg := common.ServiceConfig{}
+	cfg.ServiceSpecific = make(map[string]interface{})
+	cfg.ServiceSpecific["url_prefix"] = "apis/romana.io/demo/v1/namespaces"
+	cfg.ServiceSpecific["segment_label_name"] = "tier"
+	cfg.ServiceSpecific["kubernetes_url"] = "http://192.168.0.10:8080"
+	err := l.SetConfig(cfg)
+	if err != nil {
+		t.Error(err.Error())
+	}
+	l.process(events, done)
 	time.Sleep(time.Duration(1 * time.Second))
 
 	var e Event
-	policyReader := bytes.NewBufferString(testPolicy)
+	policyReader := bytes.NewBufferString(addPolicy1)
 	dec := json.NewDecoder(policyReader)
 	dec.Decode(&e)
 
 	events <- e
 
-	responseChannel := make(chan SearchResponse)
-	searchRequest := SearchRequest{Tag: "tier=backend#", Resp: responseChannel}
-	req <- searchRequest
-
-	result, ok := <-searchRequest.Resp
-	if !ok {
-		t.Error("Response channel in SearchRequest object found unexpectedly closed")
-	}
-
-	if len(result) == 0 {
-		t.Error("Search request is empty - expecting one result")
-	}
-
-	if result[0].Metadata.Name != "pol1" {
-		t.Error("Unexpected search response = expect policy name = pol1, got ", result[0].Metadata.Name)
-	}
 }

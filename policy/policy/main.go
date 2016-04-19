@@ -28,15 +28,17 @@ import (
 func main() {
 	rootURL := flag.String("rootURL", "", "Root service URL")
 	version := flag.Bool("version", false, "Build Information.")
-	
+	username := flag.String("username", "", "Username")
+	password := flag.String("password", "", "Password")
+
 	flag.Parse()
 
 	if *version {
 		fmt.Println(common.BuildInfo())
 		return
 	}
-	
-	svcInfo, err := policy.Run(*rootURL)
+	cred := common.MakeCredentialFromCliArgs(*username, *password)
+	svcInfo, err := policy.Run(*rootURL, cred)
 	if err != nil {
 		panic(err)
 	}

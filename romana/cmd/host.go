@@ -203,12 +203,12 @@ func hostShow(cmd *cli.Command, args []string) error {
 }
 
 func hostList(cmd *cli.Command, args []string) error {
-	client, err := common.NewRestClient(common.GetDefaultRestClientConfig())
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
 	if err != nil {
 		return err
 	}
 
-	topologyURL, err := client.GetServiceUrl(rootURL, "topology")
+	topologyURL, err := client.GetServiceUrl("topology")
 	if err != nil {
 		return err
 	}

@@ -37,7 +37,7 @@ func GetTenantID(name string) (uint64, error) {
 		return 0, err
 	}
 
-	tenantURL, err := client.GetServiceUrl(rootURL, "tenant")
+	tenantURL, err := client.GetServiceUrl("tenant")
 	if err != nil {
 		return 0, err
 	}

@@ -108,7 +108,7 @@ func tenantCreate(cmd *cli.Command, args []string) error {
 		return err
 	}
 
-	tenantURL, err := client.GetServiceUrl(rootURL, "tenant")
+	tenantURL, err := client.GetServiceUrl("tenant")
 	if err != nil {
 		return err
 	}
@@ -214,7 +214,7 @@ func tenantShow(cmd *cli.Command, args []string) error {
 		return err
 	}
 
-	tenantURL, err := client.GetServiceUrl(rootURL, "tenant")
+	tenantURL, err := client.GetServiceUrl("tenant")
 	if err != nil {
 		return err
 	}
@@ -278,7 +278,7 @@ func tenantList(cmd *cli.Command, args []string) error {
 		return err
 	}
 
-	tenantURL, err := client.GetServiceUrl(rootURL, "tenant")
+	tenantURL, err := client.GetServiceUrl("tenant")
 	if err != nil {
 		return err
 	}
