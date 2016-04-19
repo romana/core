@@ -282,7 +282,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	}
 
 	// Add tenant t1
-	t1In := tenant.Tenant{Name: "t1"}
+	t1In := tenant.Tenant{Name: "t1", ExternalID: "t1"}
 	t1Out := tenant.Tenant{}
 	err = client.Post("/tenants", t1In, &t1Out)
 	if err != nil {
@@ -293,7 +293,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	myLog(c, "Tenant 1", t1Out)
 
 	// Add tenant t2
-	t2In := tenant.Tenant{Name: "t2"}
+	t2In := tenant.Tenant{Name: "t2", ExternalID: "t2"}
 	t2Out := tenant.Tenant{}
 	err = client.Post("/tenants", t2In, &t2Out)
 	if err != nil {
@@ -313,7 +313,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	myLog(c, "Found", t1OutFound)
 
 	// Add segment s1 to tenant t1
-	t1s1In := tenant.Segment{Name: "s1", TenantId: t1Id}
+	t1s1In := tenant.Segment{Name: "s1", ExternalID: "s1", TenantID: t1Id}
 	t1s1Out := tenant.Segment{}
 	err = client.Post(tenant1Path+"/segments", t1s1In, &t1s1Out)
 	if err != nil {
@@ -322,7 +322,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	myLog(c, "Added segment s1 to t1: ", t1s1Out)
 
 	// Add segment s2 to tenant t1
-	t1s2In := tenant.Segment{Name: "s2", TenantId: t1Id}
+	t1s2In := tenant.Segment{Name: "s2", ExternalID: "s2", TenantID: t1Id}
 	t1s2Out := tenant.Segment{}
 	err = client.Post(tenant1Path+"/segments", t1s2In, &t1s2Out)
 	if err != nil {
@@ -332,7 +332,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 
 	// Add segment s1 to tenant t2
 	tenant2Path := fmt.Sprintf("/tenants/%d", t2Id)
-	t2s1In := tenant.Segment{Name: "s1", TenantId: t2Id}
+	t2s1In := tenant.Segment{ExternalID: "s1", TenantID: t2Id}
 	t2s1Out := tenant.Segment{}
 	err = client.Post(tenant2Path+"/segments", t2s1In, &t2s1Out)
 	if err != nil {
@@ -341,7 +341,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	myLog(c, "Added segment s1 to t2: ", t2s1Out)
 
 	// Add segment s2 to tenant t2
-	t2s2In := tenant.Segment{Name: "s2", TenantId: t2Id}
+	t2s2In := tenant.Segment{ExternalID: "s2", TenantID: t2Id}
 	t2s2Out := tenant.Segment{}
 	err = client.Post(tenant2Path+"/segments", t2s2In, &t2s2Out)
 	if err != nil {
@@ -352,8 +352,8 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	// Get IP for t1, s1, h1
 	myLog(c, "IPAM Test: Get first IP")
 	tenantId := fmt.Sprintf("%d", t1Out.ID)
-	segmentId := fmt.Sprintf("%d", t1s1Out.Id)
-	t1s1h1EpIn := ipam.Endpoint{Name: "endpoint1", TenantId: tenantId, SegmentId: segmentId, HostId: host1.Id}
+	segmentId := fmt.Sprintf("%d", t1s1Out.ID)
+	t1s1h1EpIn := ipam.Endpoint{Name: "endpoint1", TenantID: tenantId, SegmentID: segmentId, HostId: host1.Id}
 	t1s1h1Ep1Out := ipam.Endpoint{}
 	client.NewUrl(s.ipamURL)
 	err = client.Post("/endpoints", t1s1h1EpIn, &t1s1h1Ep1Out)
@@ -403,8 +403,8 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 
 	// Get IP for t2, s2, h2
 	tenantId = fmt.Sprintf("%d", t2Out.ID)
-	segmentId = fmt.Sprintf("%d", t2s2Out.Id)
-	t2s2h2EpIn := ipam.Endpoint{Name: "endpoint1", TenantId: tenantId, SegmentId: segmentId, HostId: host2.Id}
+	segmentId = fmt.Sprintf("%d", t2s2Out.ID)
+	t2s2h2EpIn := ipam.Endpoint{Name: "endpoint1", TenantID: tenantId, SegmentID: segmentId, HostId: host2.Id}
 	t2s2h2EpOut := ipam.Endpoint{}
 	err = client.Post("/endpoints", t2s2h2EpIn, &t2s2h2EpOut)
 	if err != nil {
