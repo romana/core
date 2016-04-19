@@ -16,6 +16,7 @@
 package cmd
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -71,13 +72,23 @@ var policyListCmd = &cli.Command{
 // policyAdd adds kubernetes policy for a specific tenant
 // using the policyFile provided.
 func policyAdd(cmd *cli.Command, args []string) error {
-	if len(args) != 2 {
+	var buf *bytes.Reader
+	var policyFile string
+
+	if len(args) == 1 {
+		b, err := ioutil.ReadAll(os.Stdin)
+		if err != nil {
+			util.UsageError(cmd,
+				"POLICY FILE name or piped input from 'STDIN' expected.")
+			return fmt.Errorf("Cannot read 'STDIN': %s\n", err)
+		}
+		buf = bytes.NewReader(b)
+	} else if len(args) != 2 {
 		return util.UsageError(cmd,
 			"TENANT and POLICY FILE name should be provided.")
 	}
 
 	tenantName := args[0]
-	policyFile := args[1]
 	// Tenant check once adaptor add supports for it.
 	/*
 		if !adaptor.TenantExists(tnt) {
@@ -85,19 +96,28 @@ func policyAdd(cmd *cli.Command, args []string) error {
 		}
 	*/
 
-	f, err := os.Open(policyFile)
-	if err != nil {
-		return errors.New("Couldn't open Policy file: " + policyFile)
-	}
-	defer f.Close()
-
 	// TODO: handle user and versioning info according to
 	//       to policy service instead of encoding it in url.
 	kubeURL := (config.GetString("BaseURL") +
 		fmt.Sprintf(":8080/apis/romana.io/demo/v1") +
 		fmt.Sprintf("/namespaces/%s/networkpolicys", tenantName))
 
-	req, err := http.NewRequest("POST", kubeURL, f)
+	var req *http.Request
+	var err error
+	if len(args) == 2 {
+		var f *os.File
+		policyFile = args[1]
+
+		f, err = os.Open(policyFile)
+		if err != nil {
+			return errors.New("Couldn't open Policy file: " + policyFile)
+		}
+		defer f.Close()
+
+		req, err = http.NewRequest("POST", kubeURL, f)
+	} else {
+		req, err = http.NewRequest("POST", kubeURL, buf)
+	}
 	if err != nil {
 		return err
 	}
