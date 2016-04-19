@@ -68,6 +68,8 @@ var policyListCmd = &cli.Command{
 	SilenceUsage: true,
 }
 
+// policyAdd adds kubernetes policy for a specific tenant
+// using the policyFile provided.
 func policyAdd(cmd *cli.Command, args []string) error {
 	if len(args) != 2 {
 		return util.UsageError(cmd, "TENANT and POLICY FILE name should be provided.")
@@ -129,13 +131,15 @@ func policyAdd(cmd *cli.Command, args []string) error {
 	}
 }
 
+// policyRemove removes kubernetes policy for a specific tenant
+// using the policyName provided.
 func policyRemove(cmd *cli.Command, args []string) error {
-	if len(args) != 2 {
+	if len(args) < 2 {
 		return util.UsageError(cmd, "TENANT and POLICY name should be provided.")
 	}
 
 	tenantName := args[0]
-	policyName := args[1]
+	policyNames := args[1:]
 	// Tenant check once adaptor add supports for it.
 	/*
 		if !adaptor.TenantExists(tnt) {
@@ -143,46 +147,59 @@ func policyRemove(cmd *cli.Command, args []string) error {
 		}
 	*/
 
+	var errs []error
 	baseURL := config.GetString("BaseURL")
 	kubeURL := baseURL + fmt.Sprintf(":8080/apis/romana.io/demo/v1")
-	kubeURL = kubeURL + fmt.Sprintf("/namespaces/%s/networkpolicys/%s/", tenantName, policyName)
+	for _, policyName := range policyNames {
+		k := kubeURL + fmt.Sprintf("/namespaces/%s/networkpolicys/%s/", tenantName, policyName)
 
-	req, err := http.NewRequest("DELETE", kubeURL, nil)
-	if err != nil {
-		return err
-	}
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == 200 {
-		if config.GetString("Format") == "json" {
-			body, err := ioutil.ReadAll(resp.Body)
-			if err != nil {
-				return err
-			}
-			fmt.Printf(util.JSONIndent(string(body)))
-		} else {
-			fmt.Printf("Policy (%s) for Tenant (%s) successfully deleted.\n", policyName, tenantName)
+		req, err := http.NewRequest("DELETE", k, nil)
+		if err != nil {
+			return err
 		}
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			return err
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode == 200 {
+			if config.GetString("Format") == "json" {
+				body, err := ioutil.ReadAll(resp.Body)
+				if err != nil {
+					return err
+				}
+				fmt.Printf(util.JSONIndent(string(body)))
+			} else {
+				fmt.Printf("Policy (%s) for Tenant (%s) successfully deleted.\n", policyName, tenantName)
+			}
+		} else {
+			if config.GetString("Format") == "json" {
+				body, err := ioutil.ReadAll(resp.Body)
+				if err != nil {
+					return err
+				}
+				fmt.Printf(util.JSONIndent(string(body)))
+			} else {
+				errs = append(errs, fmt.Errorf("Error deleting Policy (%s) for Tenant (%s).", policyName, tenantName))
+			}
+		}
+	}
+
+	if len(errs) == 0 {
 		return nil
 	} else {
-		if config.GetString("Format") == "json" {
-			body, err := ioutil.ReadAll(resp.Body)
-			if err != nil {
-				return err
-			}
-			fmt.Printf(util.JSONIndent(string(body)))
-			return nil
-		} else {
-			return fmt.Errorf("Error deleting Policy (%s) for Tenant (%s).", policyName, tenantName)
+		lastErr := errs[len(errs)-1]
+		errs := errs[:len(errs)-1]
+		for _, e := range errs {
+			fmt.Printf("%v\n", e)
 		}
+		return lastErr
 	}
 }
 
+// policyList lists kubernetes policies for a specific tenant.
 func policyList(cmd *cli.Command, args []string) error {
 	fmt.Println("Unimplemented: List policies for a specific tenant.")
 	return nil
