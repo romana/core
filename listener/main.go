@@ -26,6 +26,8 @@ import (
 func main() {
 	rootURL := flag.String("rootURL", "", "Romana Root service URL")
 	version := flag.Bool("version", false, "Build Information.")
+	username := flag.String("username", "", "Username")
+	password := flag.String("password", "", "Password")
 
 	flag.Parse()
 
@@ -33,6 +35,6 @@ func main() {
 		fmt.Println(common.BuildInfo())
 		return
 	}
-	
-	kubernetes.RunListener(*rootURL)
+	cred := common.MakeCredentialFromCliArgs(*username, *password)
+	kubernetes.Run(*rootURL, cred)
 }

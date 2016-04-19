@@ -29,9 +29,9 @@ func (l *kubeListener) manageResources(ns Event, terminators map[string]chan Don
 			return
 		}
 
-		done := make(chan done)
+		done := make(chan Done)
 		terminators[uid] = done
-		ns.object.Produce(out, terminators[uid], config)
+		ns.Object.produce(out, terminators[uid], l)
 	} else if ns.Type == KubeEventDeleted {
 		if _, ok := terminators[uid]; !ok {
 			log.Println("Received DELETED event for uid that is not known, ignoring ", uid)
@@ -49,14 +49,14 @@ func (l *kubeListener) manageResources(ns Event, terminators map[string]chan Don
 }
 
 // Conductor manages a set of goroutines one per namespace.
-func (l *kubeListener) conductor(in <-chan Event, done <-chan done) <-chan Event {
+func (l *kubeListener) conductor(in <-chan Event, done <-chan Done) <-chan Event {
 	// done in arguments is a channel that can be used to stop Conductor itsefl
 	// while map of Done's below is for terminating managed gorotines.
 
 	// Idea of this map is to keep termination channels organized
 	// so when DELETED event occurs on a namespace it would be possible
 	// to terminater related goroutine.
-	terminators := map[string]chan done{}
+	terminators := map[string]chan Done{}
 
 	ns := Event{}
 	out := make(chan Event)
@@ -65,7 +65,7 @@ func (l *kubeListener) conductor(in <-chan Event, done <-chan done) <-chan Event
 		for {
 			select {
 			case ns = <-in:
-				manageResources(ns, terminators, config, out)
+				l.manageResources(ns, terminators, out)
 			case <-done:
 				return
 			}
