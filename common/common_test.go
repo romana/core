@@ -93,8 +93,8 @@ func TestToBool(t *testing.T) {
 // TestPolicyValidation tests Validate method of Policy.
 // TODO will be done in #307
 func TestPolicyValidation(t *testing.T) {
-	badPorts = make(
-	p := Policy{badPorts}
+//	badPorts = make(
+//	p := Policy{badPorts,}
 }
 
 // TestClientNoHost just tests that we don't hang forever

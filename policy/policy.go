@@ -73,30 +73,20 @@ func (policy *PolicySvc) addPolicy(input interface{}, ctx common.RestContext) (i
 		return nil, err
 	}
 
-	hostsURL := index.Links.FindByRel("host-list")
-	var hosts []common.HostMessage
-
-	err = client.Get(hostsURL, &hosts)
-	if err != nil {
-		return nil, err
-	}
-
-	found := false
-
 	tenantSvcUrl, err := client.GetServiceUrl("tenant")
 	if err != nil {
 		return nil, err
 	}
 
-	// TODO follow links once tenant service supports it. For now...
-
+//	for _, endpoint := range policyDoc.AppliedTo {
+//	}
 	tenantsUrl := fmt.Sprintf("%s/tenants", tenantSvcUrl)
 	var tenants []tenant.Tenant
 	err = client.Get(tenantsUrl, &tenants)
 	if err != nil {
 		return nil, err
 	}
-	found = false
+	found := false
 	var i int
 	tenantName := "TODO"
 	for i = range tenants {
