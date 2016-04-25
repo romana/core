@@ -31,7 +31,7 @@ services:
     config:
       store: 
         type: sqlite3
-        database: /var/tmp/topology.sqlite3
+        database: /tmp/topology.sqlite3
       datacenter: 
         ip_version: 4
         cidr: 10.0.0.0/8
@@ -47,9 +47,18 @@ services:
     config:
       lease_file : "/etc/ethers"
       wait_for_iface_try : 6
+  - service: policy
+    api:
+      host: localhost
+      port: 9605
+    config:
+      store: 
+        type: sqlite3
+       database: /var/tmp/policy.sqlite3      
   - service: kubernetesListener 
     api:
       host: 0.0.0.0
+      port: 9606
     config:
       kubernetes_url : "http://localhost"
       url_prefix="apis/romana.io/demo/v1/namespaces"

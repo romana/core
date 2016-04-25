@@ -49,16 +49,25 @@ type RestClientConfig struct {
 	RootURL       string
 }
 
+// GetDefaultRestClientConfig gets a RestClient with specified rootURL
+// and other values set to their defaults: DefaultRestTimeout, DefaultRestRetries.
 func GetDefaultRestClientConfig(rootURL string) RestClientConfig {
 	return RestClientConfig{TimeoutMillis: DefaultRestTimeout, Retries: DefaultRestRetries, RootURL: rootURL}
 }
 
-// GetRestClientConfig returns a RestClientConfig based on a ServiceConfig
+// GetRestClientConfig returns a RestClientConfig based on a ServiceConfig. That is,
+// the information provided in the service configuration is used for the client
+// configuration.
 func GetRestClientConfig(config ServiceConfig) RestClientConfig {
 	return RestClientConfig{TimeoutMillis: config.Common.Api.RestTimeoutMillis, Retries: config.Common.Api.RestRetries, RootURL: config.Common.Api.RootServiceUrl}
 }
 
-// NewRestClient creates a new Rest client.
+// NewRestClient creates a new Romana REST client. It provides convenience
+// methods to make REST calls. When configured with a root URL pointing
+// to Romana root service, it provides some common functionality useful
+// for Romana services (such as ListHosts, GetServiceConfig, etc.)
+// If the root URL does not point to the Romana service, the generic REST operations
+// still work, but Romana-specific functionality does not.
 func NewRestClient(config RestClientConfig) (*RestClient, error) {
 	rc := &RestClient{client: &http.Client{}, config: &config}
 	timeoutMillis := config.TimeoutMillis
@@ -108,7 +117,8 @@ func (rc *RestClient) NewUrl(dest string) error {
 	return rc.modifyUrl(dest, nil)
 }
 
-// ListHosts list host
+//ListHost queries the Topology service in order to return a list of currently
+// configured hosts in a Romana cluster.
 func (rc *RestClient) ListHosts() ([]HostMessage, error) {
 	// Save the current state of things, so we can restore after call to root.
 	savedUrl := rc.url
@@ -231,7 +241,6 @@ func (rc *RestClient) modifyUrl(dest string, queryMod url.Values) error {
 // 2. If the provided structure does not have that field, and the query does not either, we are going
 //    to generate a uuid and add it to the query as RequestToken=<UUID>. It will then be up to the service
 //    to ensure idempotence or not.
-
 func (rc *RestClient) execMethod(method string, dest string, data interface{}, result interface{}) error {
 	// TODO check if token expired, if yes, reauthenticate... But this needs
 	// more state here (knowledge of Root service by Rest client...)
@@ -368,19 +377,22 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 	return nil
 }
 
-// Post applies POST method to the specified URL
+// Post applies POST method to the specified URL,
+// putting the result into the provided interface
 func (rc *RestClient) Post(url string, data interface{}, result interface{}) error {
 	err := rc.execMethod("POST", url, data, result)
 	return err
 }
 
-// Delete applies DELETE method to the specified URL
+// Delete applies DELETE method to the specified URL,
+// putting the result into the provided interface
 func (rc *RestClient) Delete(url string, data interface{}, result interface{}) error {
 	err := rc.execMethod("DELETE", url, data, result)
 	return err
 }
 
-// Put applies PUT method to the specified URL
+// Put applies PUT method to the specified URL,
+// putting the result into the provided interface
 func (rc *RestClient) Put(url string, data interface{}, result interface{}) error {
 	err := rc.execMethod("PUT", url, data, result)
 	return err
@@ -434,4 +446,3 @@ func (rc *RestClient) GetServiceConfig(svc Service) (*ServiceConfig, error) {
 	log.Printf("Saved from %v to %v", rc.config.Credential, config.Common.Credential)
 	return config, nil
 }
-

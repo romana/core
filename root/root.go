@@ -153,7 +153,7 @@ func (root *Root) handleIndex(input interface{}, ctx common.RestContext) (interf
 }
 
 func (root *Root) Name() string {
-	return "root"
+	return ServiceRoot
 }
 
 // Handler for the /config

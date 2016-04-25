@@ -216,7 +216,6 @@ func Run(rootServiceURL string, cred *common.Credential) (*common.RestServiceInf
 	}
 
 	return common.InitializeService(topSvc, *config)
-
 }
 
 // Initialize the topology service

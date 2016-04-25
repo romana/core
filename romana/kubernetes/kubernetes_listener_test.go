@@ -50,7 +50,7 @@ func (s *mockSvc) SetConfig(config common.ServiceConfig) error {
 }
 
 func (s *mockSvc) Name() string {
-	return "mockPolicySvc"
+	return common.ServiceRoot
 }
 
 func (s *mockSvc) Initialize() error {
@@ -96,7 +96,7 @@ func (frc *fakeRestClient) GetServiceConfig(svc common.Service) (*common.Service
 		url, _ := url.Parse(frc.s.serviceURL)
 		hostPort := strings.Split(url.Host, ":")
 		port, _ := strconv.ParseUint(hostPort[1], 10, 64)
-		log.Printf("Looks like %s is running on %d", svc.Name(), port)
+		log.Printf("Test: Looks like %s is running on %d", svc.Name(), port)
 		api := &common.Api{Host: "localhost", Port: port, RootServiceUrl: frc.s.serviceURL}
 		commonConfig := common.CommonConfig{Api: api}
 		kubeListenerConfig := make(map[string]interface{})
@@ -104,6 +104,7 @@ func (frc *fakeRestClient) GetServiceConfig(svc common.Service) (*common.Service
 		kubeListenerConfig["url_prefix"] = "apis/romana.io/demo/v1/namespaces"
 		kubeListenerConfig["segment_label_name"] = "tier"
 		svcConfig := common.ServiceConfig{Common: commonConfig, ServiceSpecific: kubeListenerConfig}
+		log.Printf("Test: Returning KubernetesListener config %v", svcConfig.ServiceSpecific)
 		return &svcConfig, nil
 	} else {
 		return frc.RestClient.GetServiceConfig(svc)
@@ -121,7 +122,6 @@ func (s *MySuite) startListener() error {
 		return err
 	}
 	client1 := fakeRestClient{RestClient: *client0, s: s}
-
 	kubeListener := &kubeListener{}
 	config, err := client1.GetServiceConfig(kubeListener)
 	if err != nil {
@@ -143,25 +143,27 @@ func (s *MySuite) TestListener(c *check.C) {
 		c.Error(err)
 	}
 	s.kubeURL = fmt.Sprintf("http://%s", svcInfo.Address)
-	log.Printf("Kubernetes (mock) listening on %s", s.kubeURL)
+	log.Printf("Test: Kubernetes listening on %s", s.kubeURL)
 
-	// Start Policy server simulator
 	cfg := &common.ServiceConfig{Common: common.CommonConfig{Api: &common.Api{Port: 0, RestTimeoutMillis: 100}}}
-	log.Printf("Mock config: %v\n", cfg)
+	log.Printf("Test: Mock service config: %v %v\n", cfg.Common.Api, cfg.ServiceSpecific)
 	svc := &mockSvc{}
 	svcInfo, err = common.InitializeService(svc, *cfg)
 	if err != nil {
 		c.Error(err)
 	}
 	msg := <-svcInfo.Channel
-	log.Printf("Service says %s\n", msg)
+	log.Printf("Test: Mock service says %s\n", msg)
 	s.serviceURL = fmt.Sprintf("http://%s", svcInfo.Address)
+	log.Printf("Test: Mock service listens at %s\n", s.serviceURL)
 
 	// Start listener
 	err = s.startListener()
 	if err != nil {
 		c.Error(err)
 	}
+	log.Printf("Test: KubeListener started\n")
+
 }
 
 const (
