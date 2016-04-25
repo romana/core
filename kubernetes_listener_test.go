@@ -91,12 +91,12 @@ func (frc *fakeRestClient) GetServiceURL(name string) (string, error) {
 	return frc.s.serviceURL, nil
 }
 
-func (frc *fakeRestClient) GetServiceConfig(svc common.Service) (*common.ServiceConfig, error) {
-	if svc.Name() == "kubernetes-listener" {
+func (frc *fakeRestClient) GetServiceConfig(name string) (*common.ServiceConfig, error) {
+	if name == "kubernetes-listener" {
 		url, _ := url.Parse(frc.s.serviceURL)
 		hostPort := strings.Split(url.Host, ":")
 		port, _ := strconv.ParseUint(hostPort[1], 10, 64)
-		log.Printf("Test: Looks like %s is running on %d", svc.Name(), port)
+		log.Printf("Test: Looks like %s is running on %d", name, port)
 		api := &common.Api{Host: "localhost", Port: port, RootServiceUrl: frc.s.serviceURL}
 		commonConfig := common.CommonConfig{Api: api}
 		kubeListenerConfig := make(map[string]interface{})
@@ -107,7 +107,7 @@ func (frc *fakeRestClient) GetServiceConfig(svc common.Service) (*common.Service
 		log.Printf("Test: Returning KubernetesListener config %v", svcConfig.ServiceSpecific)
 		return &svcConfig, nil
 	} else {
-		return frc.RestClient.GetServiceConfig(svc)
+		return frc.RestClient.GetServiceConfig(name)
 	}
 }
 
@@ -123,7 +123,7 @@ func (s *MySuite) startListener() error {
 	}
 	client1 := fakeRestClient{RestClient: *client0, s: s}
 	kubeListener := &kubeListener{}
-	config, err := client1.GetServiceConfig(kubeListener)
+	config, err := client1.GetServiceConfig(kubeListener.Name())
 	if err != nil {
 		return err
 	}

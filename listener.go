@@ -206,7 +206,7 @@ func Run(rootServiceURL string, cred *common.Credential) (*common.RestServiceInf
 		return nil, err
 	}
 	kubeListener := &kubeListener{}
-	config, err := client.GetServiceConfig(kubeListener)
+	config, err := client.GetServiceConfig(kubeListener.Name())
 	if err != nil {
 		return nil, err
 	}
