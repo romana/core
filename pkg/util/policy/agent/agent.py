@@ -27,16 +27,7 @@ logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s %(levelname)-8s %(message)s',
                     datefmt='%a, %d %b %Y %H:%M:%S')
 
-# TODO should probably discover this from romana root
-addr_scheme = {
-    "network_width" : 8,
-    "host_width" : 8,
-    "tenant_width" : 4,
-    "segment_width" : 4,
-    "endpoint_width" : 8,
-
-    "network_value" : 10,
-}
+addr_scheme = {}
 
 parser = OptionParser(usage="%prog --port")
 parser.add_option('--port', default=9630, dest="port", type="int",
@@ -56,6 +47,9 @@ def filter_rules_idx(rules):
 # We want to receive json object as a POST.
 class AgentHandler(BaseHTTPRequestHandler):
     def do_GET(self):
+        """
+        We do not have a storage so GET is not really supported.
+        """
         self.send_response(200)
         self.send_header('Content-type','text/html')
         self.end_headers()
@@ -65,9 +59,7 @@ class AgentHandler(BaseHTTPRequestHandler):
 
 
     def route(self):
-        if self.path=="/ns-update":
-            self.do_NS_update()
-        elif self.path=="/":
+        if self.path=="/":
             self.do_NP_update()
         else:
 	    self.send_header('Content-type','text/html')
@@ -78,48 +70,92 @@ class AgentHandler(BaseHTTPRequestHandler):
         return
 
 
-    def do_NP_update(self):
-        method = self.json_data.get('method')
-        policy_def = self.json_data.get('policy_definition')
+    def do_DELETE(self):
+        self.http_method = "DELETE"
+        self.decode_request()
+        self.route()
 
-        if method not in [ 'ADDED', 'DELETED' ] or not policy_def:
-            # HTTP 422 - Unprocessable Entity seems to be relevant. We have verified that json is valid
-            # but expected fields are missing
-            self.send_response(HTTP_Unprocessable_Entity)
-            self.wfile.write("""Expected { "method" : "ADDED|DELETED", "policy_definition" : "NP" } """)
 
-        elif self.json_data['method'] == 'ADDED':
-            self.send_response(200)
-            self.wfile.write("Policy definition accepted")
-            logging.warning("Creating policy %s" % policy_def)
-            policy_update(addr_scheme, policy_def)
+    def do_POST(self):
+        """
+        Processes POST requests
+        extracts romana policy definition objects and passes it down for implementation
+    
+        Expected structure: { "method" : "ADDED|DELETED", "policy_definition" : "NP" }
+        """
 
-        elif self.json_data['method'] == 'DELETED':
-            self.send_response(200)
-            self.wfile.write("Policy definition deleted")
-            logging.warning("Deleting policy %s" % policy_def)
-            policy_update(addr_scheme, policy_def, delete_policy=True)
+        self.http_method = "POST"
+        self.decode_request()
+        self.route()
 
         return
 
 
-    def do_NS_update(self):
+    def do_NP_update(self):
+        """
+        Installs or deinstalls network policy rules from iptables
+        """
+        global addr_scheme
+
+        # Namespace isolation update is a special case
+        if self.is_ns_isolation(self.json_data):
+            self.do_NS_update(self.json_data)
+            return
+
+        policy_def = self.json_data
+        # if policy_def:
+        #     policy_def_valid = self.validate_policy(policy_def)
+        # else:
+        #     policy_def_valid = self.json_data.get("name")
+        #     policy_def = self.json_data
+        policy_def_valid = self.validate_policy(policy_def)
+        
+        logging.warning("In do_NP_update : policy_def_valid = %s" % policy_def_valid)
+
+        if policy_def_valid:
+            addr_scheme = policy_def.get("datacenter")
+
+            self.send_response(200)
+            self.wfile.write("Policy definition accepted")
+            logging.warning("Creating policy %s" % policy_def)
+
+            if self.http_method == "DELETE":
+                logging.warning("Deleting policy %s" % policy_def)
+            else:
+                logging.warning("Creating policy %s" % policy_def)
+
+            policy_update(addr_scheme, policy_def, delete_policy = ( self.http_method == "DELETE" ))
+
+            return
+        else:
+            self.send_response(HTTP_Unprocessable_Entity)
+            self.wfile.write(""" Failed to validate policy definition """)
+
+
+
+
+    def do_NS_update(self, policy_def):
         # TODO This endpoint shoud really go away, only used for prototyping
         # while new policy fromat being discussed.
-		logging.info("Request hit /ns-update")
+        # TODO Now it will take a lot of refactoring to support for empty segment_ids
+        # which are required to express network policy that selects all segments.
+        # But still must be done.
+		logging.info("Request for NS isolation update")
 
-		tid = self.json_data.get('tid')
+                applied_to = policy_def.get('applied_to')
+                tid = applied_to[0].get('tenant_network_id')
 		logging.info("tid is %s" % tid)
 
-		isolated = self.json_data.get('isolated')
+                # isolated flag in a policy spec can only be True.
+                # In order to disable one need to send DELETE request with
+		isolated = self.http_method == "POST"
 		logging.info("isolated is %s" % isolated)
 
 		iptables_rules = get_current_iptables()
 		TENANT_POLICY_VECTOR_CHAIN = "ROMANA-T%s" % tid
 		logging.info("TENANT_POLICY_VECTOR_CHAIN is %s" % TENANT_POLICY_VECTOR_CHAIN)
 
-		
-		# Parse out a list of chain names out of current rules,
+		# Parse a list of chain names out of current rules,
 		# use it to avoid duplication when adding new chains.
 		existing_chains = [ k.split(" ")[0][1:] for k in iptables_rules if k.startswith(":") ]
 
@@ -129,6 +165,10 @@ class AgentHandler(BaseHTTPRequestHandler):
 		ALLOW_ANY_VECTOR = "-A %s -j ACCEPT" % TENANT_POLICY_VECTOR_CHAIN
 		logging.info("ALLOW_ANY_VECTOR is %s" % ALLOW_ANY_VECTOR)
 
+                DEFAULT_DROP_RULE = "-A %s -j DROP" % TENANT_POLICY_VECTOR_CHAIN
+                default_drop_exists = DEFAULT_DROP_RULE in iptables_rules
+		logging.info("DEFAULT_DROP_RULE is %s" % ALLOW_ANY_VECTOR)
+
 		allow_any_vector_exists = ALLOW_ANY_VECTOR in iptables_rules
 		logging.info("allow_any_vector_exists is %s" % allow_any_vector_exists)
 
@@ -137,6 +177,15 @@ class AgentHandler(BaseHTTPRequestHandler):
 		if not tenant_vector_chain_exists:
 			logging.info("Tenant policy vector chain does not exist - creating")
 			iptables_rules.insert(filter_idx + 1, ":%s - [0:0]" % TENANT_POLICY_VECTOR_CHAIN)
+
+                if not default_drop_exists:
+			logging.info("Default drop rule for tenant does not exist - creating")
+                        last_commit_index = iptables_rules.index('COMMIT',
+                                iptables_rules.index('COMMIT',
+                                    iptables_rules.index('COMMIT')+1
+                                )+1
+                            )
+                        iptables_rules.insert(last_commit_index-1, DEFAULT_DROP_RULE)
 
 		if allow_any_vector_exists:
 			if isolated:
@@ -151,14 +200,50 @@ class AgentHandler(BaseHTTPRequestHandler):
 		return
 
 
-    def do_POST(self):
+    def is_ns_isolation(self, policy_def):
         """
-        Processes POST requests
-        extracts romana policy definition objects and passes it down for implementation
-    
-        Expected structure: { "method" : "ADDED|DELETED", "policy_definition" : "NP" }
+        Returns True if policy defenition is a Namespace policy defenition.
         """
+        # NS isloation request must have tenant_id in applied_to
+        # and must not have any segment_ids.
+        applied_to = policy_def.get('applied_to')
+        if applied_to and len(applied_to) > 0:
+            tenant_id = applied_to[0].get('tenant_network_id')
+            segment_id = applied_to[0].get('segment_network_id')
+            if segment_id:
+                # NS isolation must not have segment_network_id in applied_to
+                return False
 
+        # The only rule allowed for NS isolation rquest is 
+        # { "isolated" : True }
+        rules = policy_def.get('rules')
+        if rules and len(rules) > 0:
+            isolated = rules[0].get("isolated")
+            if not isolated:
+                return False
+
+        return True
+
+
+    def validate_policy(self, policy_def):
+        """
+        Checks that some top level sections are present in the policy.
+        """
+        policy_name = policy_def.get('name')
+        applied_to = policy_def.get('applied_to')
+        rules = policy_def.get('rules')
+        peers = policy_def.get('peers')
+        datacenter = policy_def.get('datacenter')
+        if not policy_name or not applied_to or not rules or not peers or not datacenter:
+            logging.warning("In validate_policy, policy invalid name=%s, applied_to=%s, Rules=%s, datacenter=%s" % (policy_name, applied_to, rules, datacenter))
+            return False
+        return True
+
+
+    def decode_request(self):
+        """
+        Parses json from POST
+        """
         self.send_header('Content-type','text/html')
         self.end_headers()
         headers = Message(StringIO(self.headers))
@@ -168,10 +253,6 @@ class AgentHandler(BaseHTTPRequestHandler):
         except Exception, e:
             logging.warning("Cannot parse %s" % self.raw_data)
             return
-
-        self.route()
-
-        return
 
 
 def policy_update(romana_address_scheme, policy_definition, delete_policy=False):
@@ -185,9 +266,9 @@ def policy_update(romana_address_scheme, policy_definition, delete_policy=False)
     implemented here. TODO!
 
     """
-
+    
     # PolicyId is a uniq tag that we are going to use to check if rule is applied already
-    policy_id      = "%s/%s" % ( policy_definition['policy_name'], policy_definition['policy_namespace'] )
+    policy_id      = policy_definition['name']
 
     # Create the new rules, based on the Romana addressing scheme and the
     # policy definition.
@@ -210,8 +291,8 @@ def policy_update(romana_address_scheme, policy_definition, delete_policy=False)
     # Remove ALL rules relating in any way to a policy of the specified name.
     clean_rules = \
         delete_all_rules_for_policy(iptables_rules,
-                                    policy_definition['policy_name'],
-                                    policy_definition['owner_tenant_id'])
+                                    policy_definition['name'],
+                                policy_definition['applied_to'][0]['tenant_network_id'])
 
     if delete_policy:
         apply_new_ruleset(clean_rules)
@@ -284,6 +365,7 @@ def make_new_full_ruleset(current_rules, new_rules):
 
     return rules
 
+
 def make_rules(addr_scheme, policy_def, policy_id):
     """
     Return dictionary with rules that should be pre-pended to given chains.
@@ -292,14 +374,15 @@ def make_rules(addr_scheme, policy_def, policy_id):
 
     """
     rules = {}
-    tenant         = policy_def['owner_tenant_id']
-    target_segment = policy_def['target_segment_id']
-    from_segment   = policy_def['allowFrom']['segment_id']
+    tenant         = policy_def['applied_to'][0].get('tenant_network_id')
+    target_segment = policy_def['applied_to'][0].get('segment_network_id')
+    from_segment   = policy_def['peers'][0].get('segment_network_id')
+    name           = policy_def['name']
 
-    # The name for the new policy's chain(s). Need to include the tenant ID to
-    # avoid name conflicts.
-    policy_chain_name = "ROMANA-T%dP-%s_" % \
-        (policy_def['owner_tenant_id'], policy_def['policy_name'])
+    
+    # TODO handle undefined segments here
+    # if not target_segment:
+    #    target_segment = "ALL"
 
     # Traffic flows through per-tenant policy chain into
     # per-segment policy chains and from there into policy chains.
@@ -308,6 +391,13 @@ def make_rules(addr_scheme, policy_def, policy_id):
 
     # Per tenant policy chain name.
     tenant_policy_vector_chain = "ROMANA-T%s" % tenant
+
+    # The name for the new policy's chain(s). Need to include the tenant ID to
+    # avoid name conflicts.
+    logging.warning("In make_rules with tenant = %s, target_segment_id = %s, from_segment = %s, name = %s" %
+            (tenant, target_segment, from_segment, name))
+    policy_chain_name = "ROMANA-T%dP-%s_" % \
+        (tenant, name)
 
     # Per-segment policy chain names for both incoming and outgoing segments
     # that are involved.
@@ -320,6 +410,7 @@ def make_rules(addr_scheme, policy_def, policy_id):
     rules[tenant_policy_vector_chain] = [
         _make_rule(tenant_policy_vector_chain, "-j %s" % target_segment_forward_chain),
         _make_rule(tenant_policy_vector_chain, "-j %s" % from_segment_forward_chain),
+#        _make_rule(tenant_policy_vector_chain, "-j %s" % tenant_wide_policy_chain),
         _make_rule(tenant_policy_vector_chain, "-j DROP")
     ]
 
@@ -332,6 +423,9 @@ def make_rules(addr_scheme, policy_def, policy_id):
         _make_rule(from_segment_forward_chain, "-j %s" % policy_chain_name),
         _make_rule(from_segment_forward_chain, '-m comment --comment POLICY_CHAIN_HEADER -j RETURN')
     ]
+#    rules[tenant_wide_policy_chain] = [
+#        _make_rule(from_segment_forward_chain, '-m comment --comment POLICY_CHAIN_HEADER -j RETURN')
+#    ]
 
     # Assemble the rules for the top-level policy chain. These rules look at
     # the IP addresses (source and dest) and figure out whether this is
@@ -352,29 +446,62 @@ def make_rules(addr_scheme, policy_def, policy_id):
         _make_rule(policy_chain_name, '-m comment --comment PolicyId=%s -j RETURN' % policy_id)
     ]
 
-    # Assemble the rules for the port/protocol portion of the policy.
-    # Note! We currently only support TCP with a given port. No ICMP and no
-    # UDP!
-
-    rules[in_chain_name] = [
-        _make_rule(in_chain_name,
-                   '-p tcp --dport %d --tcp-flags SYN SYN -j ACCEPT' %
-                   policy_def['allowFrom']['port']),
-        _make_rule(in_chain_name,
-                   '-m state --state ESTABLISHED -j ACCEPT'),
-        _make_rule(in_chain_name, '-j RETURN')
-    ]
-
-    rules[out_chain_name] = [
-        _make_rule(out_chain_name,
-                   '-p tcp --sport %d --tcp-flags SYN,ACK SYN,ACK -j ACCEPT' %
-                   policy_def['allowFrom']['port']),
-        _make_rule(out_chain_name,
-                   '-m state --state ESTABLISHED -j ACCEPT'),
-        _make_rule(out_chain_name, '-j RETURN')
-    ]
+    rules = _make_rules(in_chain_name, out_chain_name, rules, policy_def.get('rules'))
 
     return rules
+
+
+def _make_rules(in_chain_name, out_chain_name, iptables_rules, policy_rules):
+    """
+    For each rules in policy_rules creates in/out rules in iptables_rules.
+
+    Returns updated list of iptables_rules
+    """
+    if not iptables_rules.get(in_chain_name):
+        iptables_rules[in_chain_name] = []
+
+    if not iptables_rules.get(out_chain_name):
+        iptables_rules[out_chain_name] = []
+
+    # For each rule in the policy create iptables rules.
+    for r in policy_rules:
+        if r['protocol'] == 'TCP':
+            stateful = r.get("is_stateful")
+            if stateful:
+                in_rule = '-p tcp --dport %s --tcp-flags SYN SYN -j ACCEPT' % ':'.join(str(x) for x in r["ports"])
+                out_rule = '-p tcp --sport %s --tcp-flags SYN,ACK SYN,ACK -j ACCEPT' % ':'.join(str(x) for x in r["ports"])
+                state = '-m state --state ESTABLISHED -j ACCEPT'
+
+                iptables_rules[in_chain_name].append(_make_rule(in_chain_name, in_rule))
+                iptables_rules[in_chain_name].append(_make_rule(in_chain_name, state))
+                iptables_rules[out_chain_name].append(_make_rule(out_chain_name, out_rule))
+                iptables_rules[out_chain_name].append(_make_rule(out_chain_name, state))
+            else:
+                in_rule = '-p tcp --dport %s -j ACCEPT' % ':'.join(str(x) for x in r["ports"])
+                out_rule = '-p tcp --sport %s  -j ACCEPT' % ':'.join(str(x) for x in r["ports"])
+
+                iptables_rules[in_chain_name].append(_make_rule(in_chain_name, in_rule))
+                iptables_rules[out_chain_name].append(_make_rule(out_chain_name, out_rule))
+
+        elif r['protocol'] == 'UDP':
+            in_rule = '-p udp --dport %s -j ACCEPT' % ':'.join(str(x) for x in r["ports"])
+            out_rule = '-p udp --sport %s  -j ACCEPT' % ':'.join(str(x) for x in r["ports"])
+
+            iptables_rules[in_chain_name].append(_make_rule(in_chain_name, in_rule))
+            iptables_rules[out_chain_name].append(_make_rule(out_chain_name, out_rule))
+
+        #TODO elif r['protocol'] == 'ICMP', current policy format doesn't allow for different
+        # ICMP types on emitter and receiver. Do we allow specified types everywhere or apply
+        # some heuristic ?
+
+        else:
+            rule = '-m comment --comment error_unknownProtocol -j LOG'
+            state = '-m comment --comment error_unknownProtocol -j LOG'
+
+    iptables_rules[in_chain_name].append(_make_rule(in_chain_name, '-j RETURN'))
+    iptables_rules[out_chain_name].append(_make_rule(out_chain_name,  '-j RETURN'))
+
+    return iptables_rules
 
 def _make_rule(chain_name, text):
     """
@@ -395,22 +522,31 @@ def _make_u32_match(addr_scheme,
     """
     mask = src = dst = 0
 
+    # Take network bits from Romana CIDR. e.g. 10.0.0.0/8
+    #                                                   ^
+    network_width = int(addr_scheme["cidr"].split("/")[-1])
+
+    # Take first octet of Romana network e.g. 10.0.0.0/8
+    #                                         ^^
+    network_value = int(addr_scheme["cidr"].split(".")[0])
+
+
     # Full match on net portion.
-    mask = ((1<<addr_scheme['network_width'])-1) << 24
-    src  = addr_scheme['network_value'] << 24
-    dst  = addr_scheme['network_value'] << 24
+    mask = ((1<<network_width)-1) << 24
+    src  = network_value << 24
+    dst  = network_value << 24
 
     # Leaving the host portion empty...
 
     # Adding the mask and values for tenant
-    shift_by = addr_scheme['segment_width'] + addr_scheme['endpoint_width']
-    mask |= ((1<<addr_scheme['tenant_width'])-1) << shift_by
+    shift_by = addr_scheme['segment_bits'] + addr_scheme['endpoint_bits']
+    mask |= ((1<<addr_scheme['tenant_bits'])-1) << shift_by
     src  |= from_tenant << shift_by
     dst  |= to_tenant << shift_by
 
     # Adding the mask and values for segment
-    shift_by = addr_scheme['endpoint_width']
-    mask |= ((1<<addr_scheme['segment_width'])-1) << shift_by
+    shift_by = addr_scheme['endpoint_bits']
+    mask |= ((1<<addr_scheme['segment_bits'])-1) << shift_by
     src  |= from_segment << shift_by
     dst  |= to_segment << shift_by
 
@@ -455,7 +591,7 @@ def apply_new_ruleset(rules):
         logging.info("@@@ ERROR applying these rules...")
         for i, r in enumerate(rules):
             logging.info("%3d: %s" % (i+1, r))
-        logging.info("@@@ ERROR applying iptables: ", err)
+        logging.info("@@@ ERROR applying iptables: %s ", err)
         return False
     else:
         logging.info("@@@ iptables rules successfully applied.")
