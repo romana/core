@@ -18,53 +18,83 @@ package common
 // Various errors.
 
 import (
+//	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/jinzhu/gorm"
 	"net/http"
-	"errors"
 )
 
-// NewError constructs an error by formatting 
+// NewError constructs an error by formatting
 // text with arguments.
-func NewError(text string, args... interface{}) error {
+func NewError(text string, args ...interface{}) error {
 	return errors.New(fmt.Sprintf(text, args))
 }
 
-// HttpError is a structure that represents, well, an Http error.
+// HttpError is a structure that represents, well, an HTTP error.
 type HttpError struct {
-	StatusCode int    `json:"status_code"`
-	StatusText string `json:"status_text"`
-	Message    string `json:"message"`
-	SeeAlso    string `json:"see_also, omitempty"`
+	StatusCode int         `json:"status_code"`
+	Details    interface{} `json:"details,omitempty"`
+	// ResourceId specifies the relevant resource ID, if applicable
+	ResourceID string `json:"resource_id,omitempty"`
+	// ResourceId specifies the relevant resource type, if applicable
+	ResourceType string `json:"resource_id,omitempty"`
+	SeeAlso      string `json:"see_also, omitempty"`
 }
 
-func NewError500(err error) HttpError {
-	return NewHttpError(http.StatusInternalServerError, err.Error())
-}
-
-func NewError400(message string, request string) HttpError {
-	msg := fmt.Sprintf("Error parsing request \"%s\": %s", request, message)
-	return NewHttpError(http.StatusBadRequest, msg)
-}
-
-// NewError404 creates a 404 NOT FOUND message.
-func NewError404(resourceType string, resourceId string) HttpError {
-	msg := fmt.Sprintf("Resource '%s' at %s not found", resourceType, resourceId)
-	return NewHttpError(http.StatusNotFound, msg)
-}
-
-// NewError helps to construct new Error structure.
-func NewHttpError(code int, msg string) HttpError {
-	return HttpError{
-		StatusCode: code,
-		StatusText: http.StatusText(code),
-		Message:    msg,
+func (err HttpError) StatusText() string {
+	switch err.StatusCode {
+	case StatusUnprocessableEntity:
+		return "Unprocessable entity"
+	default:
+		return http.StatusText(err.StatusCode)
 	}
 }
 
-// Error is a method to satisfy error interface and returns a string representation of the error.
-func (e HttpError) Error() string {
-	return fmt.Sprintf("%d %s %s", e.StatusCode, e.StatusText, e.Message)
+const (
+	// 422 (unprocessable entity http://www.restpatterns.org/HTTP_Status_Codes/422_-_Unprocessable_Entity)
+	// is not in net/http yet.
+	StatusUnprocessableEntity = 422
+)
+
+func NewError500(details interface{}) HttpError {
+	return HttpError{StatusCode: http.StatusInternalServerError, Details: details}
+}
+
+func NewError400(details interface{}) HttpError {
+	return HttpError{StatusCode: http.StatusBadRequest, Details: details}
+}
+
+func NewUnprocessableEntityError(details interface{}) HttpError {
+	return HttpError{StatusCode: StatusUnprocessableEntity, Details: details}
+}
+
+// NewError404 creates a 404 NOT FOUND message.
+func NewError404(resourceType string, resourceID string) HttpError {
+	return HttpError{StatusCode: http.StatusNotFound, ResourceType: resourceType, ResourceID: resourceID}
+}
+
+// String returns formatted HTTP error for human consumption.
+func (httpErr HttpError) Error() string {
+	s := fmt.Sprintf("%d %s", httpErr.StatusCode, httpErr.StatusText())
+	if httpErr.ResourceType != "" {
+		s += fmt.Sprintf("\nResource type: %s", httpErr.ResourceType)
+	}
+	if httpErr.ResourceID != "" {
+		s += fmt.Sprintf("\nResource ID: %s", httpErr.ResourceID)
+	}
+	if httpErr.Details != nil {
+		s += fmt.Sprintf("\nDetails: %v", httpErr.Details)
+	}
+	return s
+}
+
+// NewError helps to construct new Error structure.
+func NewHttpError(code int, details interface{}) HttpError {
+	return HttpError{
+		StatusCode: code,
+		Details:    details,
+	}
 }
 
 // MultiError is a facility to collect multiple number of errors but
@@ -121,14 +151,20 @@ func MakeMultiError(errors []error) error {
 	return &MultiError{errors}
 }
 
-
+// GetDbErrors creates MultiError or error from DB.
 func GetDbErrors(db *gorm.DB) error {
-	errors := MakeMultiError(db.GetErrors())
+	errors := db.GetErrors()
 	if errors == nil {
-		return nil
-	}
-	if db.Error != nil {
-		return db.Error
+		if db.Error != nil {
+			return db.Error
+		} else {
+			return nil
+		}
+	} else {
+		if db.Error != nil {
+			errors = append(errors, db.Error)
+		}
+		return MakeMultiError(errors)
 	}
 	return nil
 }

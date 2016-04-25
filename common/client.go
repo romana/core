@@ -404,8 +404,8 @@ func (rc *RestClient) Get(url string, result interface{}) error {
 	return rc.execMethod("GET", url, nil, result)
 }
 
-// GetServiceConfig retrieves configuration for a given service from the root service.
-func (rc *RestClient) GetServiceConfig(svc Service) (*ServiceConfig, error) {
+
+func (rc *RestClient) GetServiceConfig(name string)  (*ServiceConfig, error) {
 	rootIndexResponse := &RootIndexResponse{}
 	if rc.config.RootURL == "" {
 		return nil, errors.New("RootURL not set")
@@ -429,7 +429,7 @@ func (rc *RestClient) GetServiceConfig(svc Service) (*ServiceConfig, error) {
 
 	config := &ServiceConfig{}
 	config.Common.Api = &Api{RootServiceUrl: rc.config.RootURL}
-	relName := svc.Name() + "-config"
+	relName := name + "-config"
 	configUrl := rootIndexResponse.Links.FindByRel(relName)
 	if configUrl == "" {
 		return nil, errors.New(fmt.Sprintf("Could not find %s at %s", relName, rc.config.RootURL))

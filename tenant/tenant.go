@@ -16,7 +16,7 @@
 package tenant
 
 import (
-	"fmt"
+//	"fmt"
 	"github.com/romana/core/common"
 	"log"
 	"strconv"
@@ -179,7 +179,7 @@ func (tsvc *TenantSvc) findSegments(input interface{}, ctx common.RestContext) (
 		return nil, err
 	}
 	if len(segments) == 0 {
-		return nil, common.NewError404("segment", fmt.Sprintf("%s for tenant %s", segmentIdStr, tenantIdStr))
+		return nil, common.NewError404("segment", segmentIdStr)
 	}
 	if len(segments) == 1 {
 		return segments[0], nil
@@ -215,7 +215,7 @@ func Run(rootServiceUrl string, cred *common.Credential) (*common.RestServiceInf
 	if err != nil {
 		return nil, err
 	}
-	config, err := client.GetServiceConfig(tsvc)
+	config, err := client.GetServiceConfig(tsvc.Name())
 	if err != nil {
 		return nil, err
 	}
@@ -266,7 +266,7 @@ func CreateSchema(rootServiceUrl string, overwrite bool) error {
 		return err
 	}
 
-	config, err := client.GetServiceConfig(tsvc)
+	config, err := client.GetServiceConfig(tsvc.Name())
 	if err != nil {
 		return err
 	}

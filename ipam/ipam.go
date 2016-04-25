@@ -108,6 +108,7 @@ func (ipam *IPAM) legacyAllocateIpByName(input interface{}, ctx common.RestConte
 			break
 		}
 	}
+	
 	if !found {
 		msg := fmt.Sprintf("Host with name %s not found", hostName)
 		log.Printf(msg)
@@ -280,7 +281,7 @@ func Run(rootServiceUrl string, cred *common.Credential) (*common.RestServiceInf
 		return nil, err
 	}
 	ipam := &IPAM{}
-	config, err := client.GetServiceConfig(ipam)
+	config, err := client.GetServiceConfig(ipam.Name())
 	if err != nil {
 		return nil, err
 	}
@@ -332,7 +333,7 @@ func CreateSchema(rootServiceUrl string, overwrite bool) error {
 	if err != nil {
 		return err
 	}
-	config, err := client.GetServiceConfig(ipam)
+	config, err := client.GetServiceConfig(ipam.Name())
 	if err != nil {
 		return err
 	}

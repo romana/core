@@ -167,9 +167,7 @@ func tenantCreate(cmd *cli.Command, args []string) error {
 				fmt.Println(string(status))
 				return fmt.Errorf("HTTP Error.")
 			} else {
-				return fmt.Errorf("HTTP Error.\nStatus Code: %d\n"+
-					"Status Text:%s\nMessage:%s",
-					h.StatusCode, h.StatusText, h.Message)
+				return fmt.Errorf(h)
 			}
 		}
 	}

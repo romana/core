@@ -134,9 +134,9 @@ func write500(writer http.ResponseWriter, m Marshaller, err error) {
 }
 
 // write400 writes out a 400 error based on provided err
-func write400(writer http.ResponseWriter, m Marshaller, request string, err error) {
+func write400(writer http.ResponseWriter, m Marshaller, err error) {
 	writer.WriteHeader(http.StatusInternalServerError)
-	httpErr := NewError400(err.Error(), request)
+	httpErr := NewError400(err)
 	// Should never error out - it's a struct we know.
 	outData, _ := m.Marshal(httpErr)
 	writer.Write(outData)
@@ -298,7 +298,7 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 					err = unmarshaller.Unmarshal(buf, inData)
 					if err != nil {
 						// Error unmarshalling...
-						write400(writer, marshaller, string(buf), err)
+						write400(writer, marshaller, err)
 						return
 					}
 				} else {
@@ -313,7 +313,7 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 			err = request.ParseForm()
 			if err != nil {
 				// Cannot parse form...
-				write400(writer, marshaller, request.RequestURI, err)
+				write400(writer, marshaller, err)
 				return
 			}
 			var token string

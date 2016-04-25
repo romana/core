@@ -16,17 +16,18 @@
 package policy
 
 import (
-	"errors"
 	"fmt"
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
 	"log"
-	//	"net"
+	"strconv"
 )
 
 // Policy provides Policy service.
 type PolicySvc struct {
+	client *common.RestClient
 	config common.ServiceConfig
+	store  policyStore
 }
 
 const (
@@ -44,8 +45,15 @@ func (policy *PolicySvc) Routes() common.Routes {
 		},
 		common.Route{
 			Method:          "DELETE",
-			Pattern:         "/policies/{id}",
+			Pattern:         "/policies/{policyID}",
 			Handler:         policy.deletePolicy,
+			MakeMessage:     nil,
+			UseRequestToken: false,
+		},
+		common.Route{
+			Method:          "GET",
+			Pattern:         "/policies",
+			Handler:         policy.listPolicies,
 			MakeMessage:     nil,
 			UseRequestToken: false,
 		},
@@ -53,76 +61,182 @@ func (policy *PolicySvc) Routes() common.Routes {
 	return routes
 }
 
-// handleHost handles request for a specific host's info
+// augmentEndpoint augments the endpoint provided with appropriate information
+// by looking it up in the appropriate service.
+func (policy *PolicySvc) augmentEndpoint(endpoint *common.Endpoint) error {
+	tenantSvcUrl, err := policy.client.GetServiceUrl("tenant")
+	if err != nil {
+		return err
+	}
+
+	// TODO this will have to be changed once we implement
+	// https://paninetworks.kanbanize.com/ctrl_board/3/cards/319/details
+	var tenantIDToUse string
+	ten := &tenant.Tenant{}
+	if endpoint.TenantID != 0 {
+		tenantIDToUse = string(endpoint.TenantID)
+	} else if endpoint.TenantExternalID != "" {
+		tenantIDToUse = endpoint.TenantExternalID
+	}
+	if tenantIDToUse != "" {
+		tenantsUrl := fmt.Sprintf("%s/tenants/%s", tenantSvcUrl, tenantIDToUse)
+		err = policy.client.Get(tenantsUrl, &ten)
+		if err != nil {
+			return err
+		}
+		endpoint.TenantNetworkID = ten.Seq
+	}
+
+	var segmentIDToUse string
+	if endpoint.SegmentID != 0 {
+		segmentIDToUse = string(endpoint.SegmentID)
+	} else if endpoint.SegmentExternalID != "" {
+		segmentIDToUse = endpoint.SegmentExternalID
+	}
+	if segmentIDToUse != "" {
+		tenantsUrl := fmt.Sprintf("%s/tenants/%s/segment/%s", tenantSvcUrl, ten.ID, segmentIDToUse)
+		segment := &tenant.Segment{}
+		err = policy.client.Get(tenantsUrl, &segment)
+		if err != nil {
+			return err
+		}
+		endpoint.SegmentNetworkID = segment.Seq
+	}
+	return nil
+}
+
+// augmentPolicy augments the provided policy with information gotten from
+// various services.
+func (policy *PolicySvc) augmentPolicy(policyDoc *common.Policy) error {
+	// Get info from topology service
+	topoUrl, err := policy.client.GetServiceUrl("topology")
+	if err != nil {
+		return err
+	}
+
+	// Query topology for data center information
+	// TODO move this to root
+	index := common.IndexResponse{}
+	err = policy.client.Get(topoUrl, &index)
+	if err != nil {
+		return err
+	}
+
+	dcURL := index.Links.FindByRel("datacenter")
+	dc := common.Datacenter{}
+	err = policy.client.Get(dcURL, &dc)
+	if err != nil {
+		return err
+	}
+	log.Printf("Policy server received datacenter information from topology service: %v\n", dc)
+	policyDoc.Datacenter = dc
+
+	for _, endpoint := range policyDoc.AppliedTo {
+		err = policy.augmentEndpoint(&endpoint)
+		if err != nil {
+			return err
+		}
+	}
+
+	for _, endpoint := range policyDoc.Peers {
+		err = policy.augmentEndpoint(&endpoint)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// distributePolicy distributes policy to all agents.
+// TODO how should error handling work here really?
+func (policy *PolicySvc) distributePolicy(policyDoc *common.Policy) error {
+	hosts, err := policy.client.ListHosts()
+	if err != nil {
+		return err
+	}
+	errStr := make([]string, 0)
+	for _, host := range hosts {
+		// TODO make schema configurable
+		url := fmt.Sprintf("http://%s:%d/policies", host.Ip, host.AgentPort)
+		result := make(map[string]interface{})
+		err = policy.client.Post(url, policyDoc, result)
+		log.Printf("Agent at %s returned %v", host.Ip, result)
+		if err != nil {
+			errStr = append(errStr, fmt.Sprintf("Error applying policy %d to host %s: %v. ", policyDoc.ID, host.Ip, err))
+		}
+	}
+	if len(errStr) > 0 {
+		return common.NewError500(errStr)
+	}
+	return nil
+}
+
+// deletePolicy deletes policy...
+func (policy *PolicySvc) deletePolicy(input interface{}, ctx common.RestContext) (interface{}, error) {
+	idStr := ctx.PathVariables["policyID"]
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		return nil, common.NewError404("policy", idStr)
+	}
+	err = policy.store.inactivatePolicy(id)
+	if err != nil {
+		return nil, err
+	}
+
+	hosts, err := policy.client.ListHosts()
+	if err != nil {
+		return nil, err
+	}
+	errStr := make([]string, 0)
+	for _, host := range hosts {
+		// TODO make schema configurable
+		url := fmt.Sprintf("http://%s:%d/policies", host.Ip, host.AgentPort)
+		result := make(map[string]interface{})
+		err = policy.client.Delete(url, nil, result)
+		log.Printf("Agent at %s returned %v", host.Ip, result)
+		if err != nil {
+			errStr = append(errStr, fmt.Sprintf("Error deleting policy %d from host %s: %v. ", idStr, host.Ip, err))
+		}
+	}
+	if len(errStr) > 0 {
+		return nil, common.NewError500(errStr)
+	}
+	err = policy.store.deletePolicy(id)
+	if err != nil {
+		return nil, err
+	}
+	return nil, nil
+
+}
+
+// deletePolicy deletes policy...
+func (policy *PolicySvc) listPolicies(input interface{}, ctx common.RestContext) (interface{}, error) {
+	return policy.store.listPolicies()
+}
+
+// addPolicy stores the new policy and sends it to all agents.
 func (policy *PolicySvc) addPolicy(input interface{}, ctx common.RestContext) (interface{}, error) {
 	policyDoc := input.(*common.Policy)
 	log.Printf("Request for a new policy to be added: %v", policyDoc)
-	client, err := common.NewRestClient(common.GetRestClientConfig(policy.config))
-	if err != nil {
-		return nil, err
-	}
-	// Get host info from topology service
-	topoUrl, err := client.GetServiceUrl("topology")
+	err := policyDoc.Validate()
 	if err != nil {
 		return nil, err
 	}
 
-	index := common.IndexResponse{}
-	err = client.Get(topoUrl, &index)
+	err = policy.augmentPolicy(policyDoc)
 	if err != nil {
 		return nil, err
 	}
-
-	tenantSvcUrl, err := client.GetServiceUrl("tenant")
+	// Save it
+	err = policy.store.addPolicy(policyDoc)
 	if err != nil {
 		return nil, err
 	}
-
-//	for _, endpoint := range policyDoc.AppliedTo {
-//	}
-	tenantsUrl := fmt.Sprintf("%s/tenants", tenantSvcUrl)
-	var tenants []tenant.Tenant
-	err = client.Get(tenantsUrl, &tenants)
+	err = policy.distributePolicy(policyDoc)
 	if err != nil {
 		return nil, err
 	}
-	found := false
-	var i int
-	tenantName := "TODO"
-	for i = range tenants {
-		if tenants[i].Name == tenantName {
-			found = true
-			break
-		}
-	}
-	if !found {
-		return nil, errors.New("Tenant with name " + tenantName + " not found")
-	}
-
-	segmentsUrl := fmt.Sprintf("/tenants/%s/segments", "")
-	var segments []tenant.Segment
-	err = client.Get(segmentsUrl, &segments)
-	if err != nil {
-		return nil, err
-	}
-	found = false
-	segmentName := "TODO"
-	for _, s := range segments {
-		if s.Name == segmentName {
-			found = true
-			break
-		}
-	}
-	if !found {
-		return nil, errors.New("Segment with name " + segmentName + " not found")
-	}
-	return nil, nil
-}
-
-func (policy *PolicySvc) deletePolicy(input interface{}, ctx common.RestContext) (interface{}, error) {
-	// TODO placeholder
-//	idStr := ctx.PathVariables["id"]
-	return nil, nil
+	return policyDoc, nil
 }
 
 // Name provides name of this service.
@@ -138,11 +252,10 @@ func (policy *PolicySvc) SetConfig(config common.ServiceConfig) error {
 	policy.config = config
 	//	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
 	log.Printf("Policy port: %d", config.Common.Api.Port)
-	//	policy.store = policyStore{}
-	//	policy.store.ServiceStore = &policy.store
-	//	return policy.store.SetConfig(storeConfig)
-	return nil
-
+	policy.store = policyStore{}
+	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
+	policy.store.ServiceStore = &policy.store
+	return policy.store.SetConfig(storeConfig)
 }
 
 func (policy *PolicySvc) createSchema(overwrite bool) error {
@@ -154,12 +267,12 @@ func Run(rootServiceUrl string, cred *common.Credential) (*common.RestServiceInf
 	clientConfig := common.GetDefaultRestClientConfig(rootServiceUrl)
 	clientConfig.Credential = cred
 	client, err := common.NewRestClient(clientConfig)
-	
+
 	if err != nil {
 		return nil, err
 	}
-	policy := &PolicySvc{}
-	config, err := client.GetServiceConfig(policy)
+	policy := &PolicySvc{client: client}
+	config, err := client.GetServiceConfig(policy.Name())
 	if err != nil {
 		return nil, err
 	}
@@ -177,6 +290,22 @@ func (policy *PolicySvc) Initialize() error {
 }
 
 // CreateSchema creates schema for Policy service.
-func CreateSchema(rootServiceUrl string, overwrite bool) error {
-	return nil
+func CreateSchema(rootServiceURL string, overwrite bool) error {
+	log.Println("In CreateSchema(", rootServiceURL, ",", overwrite, ")")
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootServiceURL))
+	if err != nil {
+		return err
+	}
+
+	policySvc := &PolicySvc{}
+	config, err := client.GetServiceConfig(policySvc.Name())
+	if err != nil {
+		return err
+	}
+
+	err = policySvc.SetConfig(*config)
+	if err != nil {
+		return err
+	}
+	return policySvc.store.CreateSchema(overwrite)
 }

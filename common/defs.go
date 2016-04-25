@@ -16,7 +16,6 @@
 package common
 
 import (
-	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -65,9 +64,8 @@ const (
 	// Max port number for TCP/UDP
 	MaxPortNumber = 65535
 	MaxIcmpType   = 255
-	
+
 	ServiceRoot = "root"
-	
 )
 
 type TokenMessage struct {
@@ -151,7 +149,7 @@ type Policy struct {
 	// Name is human-readable name for this policy.
 	Name string `json:"name,omitempty"`
 	// ID is Romana-generated unique (within Romana deployment) ID of this policy,
-	// to be used in REST requests.
+	// to be used in REST requests. It will be ignored when set by user.
 	ID uint64 `json:"id,omitempty",sql:"AUTO_INCREMENT"`
 	// ExternalID is an optional identifier of this policy in an external system working
 	// with Romana in this deployment (e.g., Open Stack).
@@ -173,18 +171,22 @@ func isValidProto(proto string) bool {
 	return false
 }
 
-// Validate validates the policy and returns an error if the policy
+// Validate validates the policy and returns an Unprocessable Entity (422) HttpError if the policy
 // is invalid.
 func (p *Policy) Validate() error {
-	errMsg := ""
-	p.Direction = strings.ToLower(p.Direction)
+	errMsg := make([]string, 0)
+	p.Direction = strings.TrimSpace(strings.ToLower(p.Direction))
 	if p.Direction != PolicyDirectionEgress && p.Direction != PolicyDirectionIngress {
-		errMsg += fmt.Sprintf("Unknown direction '%s', allowed '%s' or '%s'. ", p.Direction, PolicyDirectionEgress, PolicyDirectionIngress)
+		s := fmt.Sprintf("Unknown direction '%s', allowed '%s' or '%s'.", p.Direction, PolicyDirectionEgress, PolicyDirectionIngress)
+		errMsg = append(errMsg, s)
 	}
-	for _, r := range p.Rules {
-		r.Protocol = strings.ToLower(r.Protocol)
-		if !isValidProto(r.Protocol) {
-			errMsg += fmt.Sprintf("Invalid protocol %s. ", r.Protocol)
+	for i, r := range p.Rules {
+		ruleNo := i + 1
+		r.Protocol = strings.TrimSpace(strings.ToLower(r.Protocol))
+		if r.Protocol == "" {
+			errMsg = append(errMsg, fmt.Sprintf("Rule #%d: No protocol specified.", ruleNo))
+		} else if !isValidProto(r.Protocol) {
+			errMsg = append(errMsg, fmt.Sprintf("Rule #%d: Invalid protocol: %s.", ruleNo, r.Protocol))
 		}
 		if r.Protocol == "tcp" {
 			r.IsStateful = true
@@ -197,58 +199,74 @@ func (p *Policy) Validate() error {
 				}
 			}
 			if len(badRanges) > 0 {
-				errMsg += fmt.Sprintf("The following port ranges are invalid: %s. ", strings.Join(badRanges, ", "))
+				errMsg = append(errMsg, fmt.Sprintf("Rule #%d: The following port ranges are invalid: %s.", ruleNo, strings.Join(badRanges, ", ")))
 			}
 			badPorts := make([]string, 0)
 			for _, port := range r.Ports {
 				if port < 0 || port > MaxPortNumber {
-					badPorts = append(badPorts, string(port))
+					badPorts = append(badPorts, fmt.Sprintf("%d", port))
 				}
 			}
 			if len(badPorts) > 0 {
-				errMsg += fmt.Sprintf("The following ports are invalid: %s. ", strings.Join(badPorts, ", "))
+				errMsg = append(errMsg, fmt.Sprintf("Rule #%d: The following ports are invalid: %s.", ruleNo, strings.Join(badPorts, ", ")))
 			}
 		}
-		if r.Protocol == "icmp" {
+		if r.Protocol != "icmp" {
 			if r.IcmpCode > 0 || r.IcmpType > 0 {
-				errMsg += "ICMP protocol is not specified but ICMP Code and/or ICMP Type are also specified. "
-			} else {
-				if len(r.Ports) > 0 || len(r.PortRanges) > 0 {
-					errMsg += "ICMP protocol is specified but ports are also specified. "
+				errMsg = append(errMsg, fmt.Sprintf("Rule #%d: ICMP protocol is not specified but ICMP Code and/or ICMP Type are also specified.", ruleNo))
+			}
+		} else {
+			if len(r.Ports) > 0 || len(r.PortRanges) > 0 {
+				errMsg = append(errMsg, fmt.Sprintf("Rule #%d: ICMP protocol is specified but ports are also specified.", ruleNo))
+			}
+			if r.IcmpType < 0 || r.IcmpType > MaxIcmpType {
+				errMsg = append(errMsg, fmt.Sprintf("Rule #%d: Invalid ICMP type: %d.", ruleNo, r.IcmpType))
+			}
+			switch r.IcmpType {
+			case 3: // Destination unreachable
+				if r.IcmpCode < 0 || r.IcmpCode > 15 {
+					errMsg = append(errMsg, fmt.Sprintf("Rule #%d: Invalid ICMP code for type %d: %d.", ruleNo, r.IcmpType, r.IcmpCode))
 				}
-				if r.IcmpType < 0 || r.IcmpType > MaxIcmpType {
-					errMsg += fmt.Sprintf("Invalid ICMP type: %d. ", r.IcmpType)
+			case 4: // Source quench
+				if r.IcmpCode != 0 {
+					errMsg = append(errMsg, fmt.Sprintf("Rule #%d: Invalid ICMP code for type %d: %d.", ruleNo, r.IcmpType, r.IcmpCode))
 				}
-				switch r.IcmpType {
-				case 3: // Destination unreachable
-					if r.IcmpCode < 0 || r.IcmpCode > 15 {
-						errMsg += fmt.Sprintf("Invalid ICMP code for type %d: %d", r.IcmpType, r.IcmpCode)
-					}
-				case 4: // Source quench
-					if r.IcmpCode != 0 {
-						errMsg += fmt.Sprintf("Invalid ICMP code for type %d: %d", r.IcmpType, r.IcmpCode)
-					}
-				case 5: // Redirect
-					if r.IcmpCode < 0 || r.IcmpCode > 3 {
-						errMsg += fmt.Sprintf("Invalid ICMP code for type %d: %d", r.IcmpType, r.IcmpCode)
-					}
-				case 11: // Time exceeded
-					if r.IcmpCode < 0 || r.IcmpCode > 1 {
-						errMsg += fmt.Sprintf("Invalid ICMP code for type %d: %d", r.IcmpType, r.IcmpCode)
-					}
-				default:
-					if r.IcmpCode != 0 {
-						errMsg += fmt.Sprintf("Invalid ICMP code for type %d: %d", r.IcmpType, r.IcmpCode)
-					}
+			case 5: // Redirect
+				if r.IcmpCode < 0 || r.IcmpCode > 3 {
+					errMsg = append(errMsg, fmt.Sprintf("Rule #%d: Invalid ICMP code for type %d: %d.", ruleNo, r.IcmpType, r.IcmpCode))
+				}
+			case 11: // Time exceeded
+				if r.IcmpCode < 0 || r.IcmpCode > 1 {
+					errMsg = append(errMsg, fmt.Sprintf("Rule #%d: Invalid ICMP code for type %d: %d.", ruleNo, r.IcmpType, r.IcmpCode))
+				}
+			default:
+				if r.IcmpCode != 0 {
+					errMsg = append(errMsg, fmt.Sprintf("Rule #%d: Invalid ICMP code for type %d: %d.", ruleNo, r.IcmpType, r.IcmpCode))
+				}
 
-				}
+			}
+
+		}
+	}
+	for i, endpoint := range p.AppliedTo {
+		epNo := i + 1
+		if endpoint.TenantExternalID == "" && endpoint.TenantID == 0 {
+			errMsg = append(errMsg, fmt.Sprintf("In applied_to entry at %d, at least one of tenant_id or tenant_external_id must be specified.", epNo))
+		}
+	}
+	for i, endpoint := range p.Peers {
+		epNo := i + 1
+		if endpoint.SegmentID != 0 || endpoint.SegmentExternalID != "" {
+			if endpoint.TenantExternalID == "" && endpoint.TenantID == 0 {
+				errMsg = append(errMsg, fmt.Sprintf("In peers entry at %d, since segment_external_id is specified, at least one of tenant_id or tenant_external_id must be specified.", epNo))
 			}
 		}
 	}
-	if errMsg == "" {
+	if len(errMsg) == 0 {
 		return nil
 	} else {
-		return errors.New(errMsg)
+		return NewUnprocessableEntityError(errMsg)
+
 	}
 }
 

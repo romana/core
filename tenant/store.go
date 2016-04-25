@@ -94,7 +94,8 @@ func (tenantStore *tenantStore) addTenant(tenant *Tenant) error {
 	}
 
 	tenant.Seq = uint64(len(tenants) + 1)
-	db := tenantStore.DbStore.Db.Create(tenant)
+	db := tenantStore.DbStore.Db
+	tenantStore.DbStore.Db.Create(tenant)
 	if db.Error != nil {
 		return db.Error
 	}
