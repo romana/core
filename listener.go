@@ -217,7 +217,7 @@ func Run(rootServiceURL string, cred *common.Credential) (*common.RestServiceInf
 // Romana policy (see common.Policy) with the following rules:
 // 1. Kubernetes Namespace corresponds to Romana Tenant
 // 2. If Romana Tenant does not exist it is an error (a tenant should
-//    automatically be created when a namespace is added, however)
+//    automatically have been created when the namespace was added)
 func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Policy, error) {
 	romanaPolicy := &common.Policy{Direction: common.PolicyDirectionIngress}
 	ns := kubePolicy.Metadata.Namespace
@@ -231,14 +231,14 @@ func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Po
 		return *romanaPolicy, err
 	}
 	if len(tenants) == 0 {
-		return *romanaPolicy, common.NewError("No tenant found under %s", ns)
+		return *romanaPolicy, common.NewError("Cannot find Romana tenant matching namespace '%s'", ns)
 	}
 	if len(tenants) > 1 {
-		return *romanaPolicy, common.NewError("More than one tenant found under %s", ns)
+		return *romanaPolicy, common.NewError("More than one Romana tenant found matching namespace '%s'", ns)
 	}
 	tenantId := tenants[0].ID
 	tenantExternalId := tenants[0].ExternalID
-	
+
 	segmentName := kubePolicy.Spec.PodSelector[l.segmentLabelName]
 	if segmentName == "" {
 		return *romanaPolicy, common.NewError("Expected segment to be specified in podSelector part as '%s'", l.segmentLabelName)
@@ -247,6 +247,7 @@ func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Po
 	segments := []tenant.Segment{}
 	err = l.restClient.Get(fmt.Sprintf("%s/tenants/%s/segments/%s", tenantUrl, ns, segmentName), segments)
 	if err != nil {
+		segmentCreated := false
 		switch err := err.(type) {
 		case common.HttpError:
 			if err.StatusCode == 404 {
@@ -258,13 +259,16 @@ func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Po
 					return *romanaPolicy, err
 				}
 				log.Printf("Created segment %v", segresp)
+				segmentCreated = true
 			} else {
 				return *romanaPolicy, err
 			}
 		default:
 			return *romanaPolicy, err
 		}
-		return *romanaPolicy, err
+		if !segmentCreated {
+			return *romanaPolicy, err
+		}
 	}
 	if len(segments) == 0 {
 		// This is unexpected -- if no segments, we should have had a 404
@@ -333,7 +337,7 @@ func (l *kubeListener) applyNetworkPolicy(action networkPolicyAction, romanaNetw
 		}
 		log.Printf("Applied policy %v", romanaNetworkPolicy)
 	case networkPolicyActionDelete:
-		policyUrl = fmt.Sprintf("%s/%s", policyUrl, romanaNetworkPolicy.Id)
+		policyUrl = fmt.Sprintf("%s/%s", policyUrl, romanaNetworkPolicy.ID)
 		err := l.restClient.Delete(policyUrl, nil, &romanaNetworkPolicy)
 		if err != nil {
 			return err
