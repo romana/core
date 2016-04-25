@@ -20,7 +20,7 @@ such as OpenStack, to map their tenants to Romana tenants.
 * *[Topology](https://godoc.org/github.com/romana/core/topology)*: Keeps track of the network topology in which we are deployed,
 knows about hosts, racks, spines, etc. This information is the used by the IPAM
 service.
-* *[IPAM](https://godoc.org/github.com/romana/core/ipam)*: Generates and manages the IP addresses Romana assigns to network
+* *[IPAM](https://godoc.org/github.com/romana/core/ipam))*: Generates and manages the IP addresses Romana assigns to network
 endpoints. Uses the topology service to be able to create topology aware
 addresses.
 * *[Agent](https://godoc.org/github.com/romana/core/agent)*: Lives on hosts and there performs actions on behalf of Romana, such
