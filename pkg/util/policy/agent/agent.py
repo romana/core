@@ -80,8 +80,6 @@ class AgentHandler(BaseHTTPRequestHandler):
         """
         Processes POST requests
         extracts romana policy definition objects and passes it down for implementation
-    
-        Expected structure: { "method" : "ADDED|DELETED", "policy_definition" : "NP" }
         """
 
         self.http_method = "POST"
@@ -140,69 +138,70 @@ class AgentHandler(BaseHTTPRequestHandler):
         # TODO Now it will take a lot of refactoring to support for empty segment_ids
         # which are required to express network policy that selects all segments.
         # But still must be done.
-		logging.info("Request for NS isolation update")
 
-                applied_to = policy_def.get('applied_to')
-                tid = applied_to[0].get('tenant_network_id')
-		logging.info("tid is %s" % tid)
+        logging.info("Request for NS isolation update")
 
-                # isolated flag in a policy spec can only be True.
-                # In order to disable one need to send DELETE request with
-		isolated = self.http_method == "POST"
-		logging.info("isolated is %s" % isolated)
+        applied_to = policy_def.get('applied_to')
+        tid = applied_to[0].get('tenant_network_id')
+        logging.info("tid is %s" % tid)
 
-		iptables_rules = get_current_iptables()
-		TENANT_POLICY_VECTOR_CHAIN = "ROMANA-T%s" % tid
-		logging.info("TENANT_POLICY_VECTOR_CHAIN is %s" % TENANT_POLICY_VECTOR_CHAIN)
+        # isolated flag in a policy spec can only be True.
+        # In order to disable one need to send DELETE request with
+        isolated = self.http_method == "POST"
+        logging.info("isolated is %s" % isolated)
 
-		# Parse a list of chain names out of current rules,
-		# use it to avoid duplication when adding new chains.
-		existing_chains = [ k.split(" ")[0][1:] for k in iptables_rules if k.startswith(":") ]
+        iptables_rules = get_current_iptables()
+        TENANT_POLICY_VECTOR_CHAIN = "ROMANA-T%s" % tid
+        logging.info("TENANT_POLICY_VECTOR_CHAIN is %s" % TENANT_POLICY_VECTOR_CHAIN)
 
-		tenant_vector_chain_exists = TENANT_POLICY_VECTOR_CHAIN in existing_chains
-		logging.info("tenant_vector_chain_exists is %s" % tenant_vector_chain_exists)
+        # Parse a list of chain names out of current rules,
+        # use it to avoid duplication when adding new chains.
+        existing_chains = [ k.split(" ")[0][1:] for k in iptables_rules if k.startswith(":") ]
 
-		ALLOW_ANY_VECTOR = "-A %s -j ACCEPT" % TENANT_POLICY_VECTOR_CHAIN
-		logging.info("ALLOW_ANY_VECTOR is %s" % ALLOW_ANY_VECTOR)
+        tenant_vector_chain_exists = TENANT_POLICY_VECTOR_CHAIN in existing_chains
+        logging.info("tenant_vector_chain_exists is %s" % tenant_vector_chain_exists)
 
-                DEFAULT_DROP_RULE = "-A %s -j DROP" % TENANT_POLICY_VECTOR_CHAIN
-                default_drop_exists = DEFAULT_DROP_RULE in iptables_rules
-		logging.info("DEFAULT_DROP_RULE is %s" % ALLOW_ANY_VECTOR)
+        ALLOW_ANY_VECTOR = "-A %s -j ACCEPT" % TENANT_POLICY_VECTOR_CHAIN
+        logging.info("ALLOW_ANY_VECTOR is %s" % ALLOW_ANY_VECTOR)
 
-		allow_any_vector_exists = ALLOW_ANY_VECTOR in iptables_rules
-		logging.info("allow_any_vector_exists is %s" % allow_any_vector_exists)
+        DEFAULT_DROP_RULE = "-A %s -j DROP" % TENANT_POLICY_VECTOR_CHAIN
+        default_drop_exists = DEFAULT_DROP_RULE in iptables_rules
+        logging.info("DEFAULT_DROP_RULE is %s" % ALLOW_ANY_VECTOR)
 
-		filter_idx = iptables_rules.index('*filter')
+        allow_any_vector_exists = ALLOW_ANY_VECTOR in iptables_rules
+        logging.info("allow_any_vector_exists is %s" % allow_any_vector_exists)
 
-		if not tenant_vector_chain_exists:
-			logging.info("Tenant policy vector chain does not exist - creating")
-			iptables_rules.insert(filter_idx + 1, ":%s - [0:0]" % TENANT_POLICY_VECTOR_CHAIN)
+        filter_idx = iptables_rules.index('*filter')
 
-                if not default_drop_exists:
-			logging.info("Default drop rule for tenant does not exist - creating")
-                        last_commit_index = iptables_rules.index('COMMIT',
-                                iptables_rules.index('COMMIT',
-                                    iptables_rules.index('COMMIT')+1
-                                )+1
-                            )
-                        iptables_rules.insert(last_commit_index-1, DEFAULT_DROP_RULE)
+        if not tenant_vector_chain_exists:
+            logging.info("Tenant policy vector chain does not exist - creating")
+            iptables_rules.insert(filter_idx + 1, ":%s - [0:0]" % TENANT_POLICY_VECTOR_CHAIN)
 
-		if allow_any_vector_exists:
-			if isolated:
-				logging.info("Enabling isolation")
-				iptables_rules.remove(ALLOW_ANY_VECTOR)
-		else:
-			if not isolated:
-				logging.info("Disabling isolation")
-				iptables_rules.insert(filter_rules_idx(iptables_rules), ALLOW_ANY_VECTOR)
-		apply_new_ruleset(iptables_rules)
+        if not default_drop_exists:
+            logging.info("Default drop rule for tenant does not exist - creating")
+            last_commit_index = iptables_rules.index('COMMIT',
+                iptables_rules.index('COMMIT',
+                iptables_rules.index('COMMIT')+1
+                )+1
+            )
+            iptables_rules.insert(last_commit_index-1, DEFAULT_DROP_RULE)
 
-		return
+        if allow_any_vector_exists:
+            if isolated:
+                logging.info("Enabling isolation")
+                iptables_rules.remove(ALLOW_ANY_VECTOR)
+        else:
+                if not isolated:
+                    logging.info("Disabling isolation")
+                    iptables_rules.insert(filter_rules_idx(iptables_rules), ALLOW_ANY_VECTOR)
+        apply_new_ruleset(iptables_rules)
+
+        return
 
 
     def is_ns_isolation(self, policy_def):
         """
-        Returns True if policy defenition is a Namespace policy defenition.
+        Returns True if policy definition is a Namespace policy definition.
         """
         # NS isloation request must have tenant_id in applied_to
         # and must not have any segment_ids.
