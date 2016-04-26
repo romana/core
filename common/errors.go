@@ -166,7 +166,6 @@ func GetDbErrors(db *gorm.DB) error {
 		}
 		return MakeMultiError(errors)
 	}
-	return nil
 }
 
 // Error satisfies Error method on error interface and returns

@@ -195,7 +195,7 @@ func (policy *PolicySvc) deletePolicy(input interface{}, ctx common.RestContext)
 		err = policy.client.Delete(url, nil, result)
 		log.Printf("Agent at %s returned %v", host.Ip, result)
 		if err != nil {
-			errStr = append(errStr, fmt.Sprintf("Error deleting policy %d from host %s: %v. ", idStr, host.Ip, err))
+			errStr = append(errStr, fmt.Sprintf("Error deleting policy %s from host %s: %v. ", idStr, host.Ip, err))
 		}
 	}
 	if len(errStr) > 0 {
