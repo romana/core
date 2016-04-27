@@ -391,6 +391,9 @@ def make_rules(addr_scheme, policy_def, policy_id):
     # Per tenant policy chain name.
     tenant_policy_vector_chain = "ROMANA-T%s" % tenant
 
+    # Tenant wide policy chain name
+    tenant_wide_policy_chain = "ROMANA-T%s-W" % tenant
+
     # The name for the new policy's chain(s). Need to include the tenant ID to
     # avoid name conflicts.
     logging.warning("In make_rules with tenant = %s, target_segment_id = %s, from_segment = %s, name = %s" %
@@ -409,7 +412,7 @@ def make_rules(addr_scheme, policy_def, policy_id):
     rules[tenant_policy_vector_chain] = [
         _make_rule(tenant_policy_vector_chain, "-j %s" % target_segment_forward_chain),
         _make_rule(tenant_policy_vector_chain, "-j %s" % from_segment_forward_chain),
-#        _make_rule(tenant_policy_vector_chain, "-j %s" % tenant_wide_policy_chain),
+        _make_rule(tenant_policy_vector_chain, "-j %s" % tenant_wide_policy_chain),
         _make_rule(tenant_policy_vector_chain, "-j DROP")
     ]
 
@@ -422,9 +425,10 @@ def make_rules(addr_scheme, policy_def, policy_id):
         _make_rule(from_segment_forward_chain, "-j %s" % policy_chain_name),
         _make_rule(from_segment_forward_chain, '-m comment --comment POLICY_CHAIN_HEADER -j RETURN')
     ]
-#    rules[tenant_wide_policy_chain] = [
-#        _make_rule(from_segment_forward_chain, '-m comment --comment POLICY_CHAIN_HEADER -j RETURN')
-#    ]
+    rules[tenant_wide_policy_chain] = [
+        _make_rule(tenant_wide_policy_chain, '-m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT'),
+        _make_rule(tenant_wide_policy_chain, '-m comment --comment POLICY_CHAIN_HEADER -j RETURN')
+    ]
 
     # Assemble the rules for the top-level policy chain. These rules look at
     # the IP addresses (source and dest) and figure out whether this is
@@ -468,26 +472,19 @@ def _make_rules(in_chain_name, out_chain_name, iptables_rules, policy_rules):
             stateful = r.get("is_stateful")
             if stateful:
                 in_rule = '-p tcp --dport %s --tcp-flags SYN SYN -j ACCEPT' % ':'.join(str(x) for x in r["ports"])
-                out_rule = '-p tcp --sport %s --tcp-flags SYN,ACK SYN,ACK -j ACCEPT' % ':'.join(str(x) for x in r["ports"])
-                state = '-m state --state ESTABLISHED -j ACCEPT'
+                state = '-m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT'
 
                 iptables_rules[in_chain_name].append(_make_rule(in_chain_name, in_rule))
                 iptables_rules[in_chain_name].append(_make_rule(in_chain_name, state))
-                iptables_rules[out_chain_name].append(_make_rule(out_chain_name, out_rule))
-                iptables_rules[out_chain_name].append(_make_rule(out_chain_name, state))
             else:
                 in_rule = '-p tcp --dport %s -j ACCEPT' % ':'.join(str(x) for x in r["ports"])
-                out_rule = '-p tcp --sport %s  -j ACCEPT' % ':'.join(str(x) for x in r["ports"])
 
                 iptables_rules[in_chain_name].append(_make_rule(in_chain_name, in_rule))
-                iptables_rules[out_chain_name].append(_make_rule(out_chain_name, out_rule))
 
         elif r['protocol'] == 'UDP':
             in_rule = '-p udp --dport %s -j ACCEPT' % ':'.join(str(x) for x in r["ports"])
-            out_rule = '-p udp --sport %s  -j ACCEPT' % ':'.join(str(x) for x in r["ports"])
 
             iptables_rules[in_chain_name].append(_make_rule(in_chain_name, in_rule))
-            iptables_rules[out_chain_name].append(_make_rule(out_chain_name, out_rule))
 
         #TODO elif r['protocol'] == 'ICMP', current policy format doesn't allow for different
         # ICMP types on emitter and receiver. Do we allow specified types everywhere or apply
