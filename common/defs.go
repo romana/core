@@ -61,10 +61,13 @@ const (
 	// Body provided.
 	HookExecutableBodyArgument = "body"
 
-	// Max port number for TCP/UDP
+	// Max port number for TCP/UDP.
 	MaxPortNumber = 65535
 	MaxIcmpType   = 255
 
+	// Wildcard for any protocol.
+	ProtoWildcard = "any"
+	// Name of root service
 	ServiceRoot = "root"
 )
 
@@ -118,6 +121,13 @@ func (p PortRange) String() string {
 	return fmt.Sprintf("%d-%d", p[0], p[1])
 }
 
+// Rule describes a rule of the policy. The following requirements apply
+// (the policy would not be validated otherwise):
+// 1. Protocol must be specified.
+// 2. Protocol must be one of those validated by isValidProto().
+// 3. Ports cannot be negative or greater than 65535.
+// 4. If Protocol specified is "icmp", Ports and PortRanges fields should be blank.
+// 5. If Protocol specified is not "icmp", Icmptype and IcmpCode should be unspecified.
 type Rule struct {
 	Protocol   string
 	Ports      []uint
@@ -142,7 +152,8 @@ type Tag struct {
 // 1. https://github.com/romana/core/blob/master/policy/policy.sample.json
 // 2. https://github.com/romana/core/blob/master/policy/policy.example.agent.json
 type Policy struct {
-	// Direction is one of "ingress" or "egress"
+	// Direction is one of common.PolicyDirectionIngress or common.PolicyDirectionIngress,
+	// otherwise common.Validate will return an error.
 	Direction string `json:"direction,omitempty"`
 	// Description is human-redable description of the policy.
 	Description string `json:"description,omitempty"`
@@ -159,28 +170,35 @@ type Policy struct {
 	AppliedTo  []Endpoint `json:"applied_to,omitempty"`
 	Peers      []Endpoint `json:"peers,omitempty"`
 	Rules      []Rule     `json:"rule,omitempty"`
-	Tags       []Tag      `json:"tags,omitempty"`
+	//	Tags       []Tag      `json:"tags,omitempty"`
 }
 
 // isValidProto checks if the Protocol specified in Rule is valid.
+// The following protocols are recognized:
+// - any -- wildcard
+// - tcp
+// - udp
+// - icmp
 func isValidProto(proto string) bool {
 	switch proto {
 	case "icmp", "tcp", "udp":
+		return true
+	// Wildcard
+	case ProtoWildcard:
 		return true
 	}
 	return false
 }
 
-// Validate validates the policy and returns an Unprocessable Entity (422) HttpError if the policy
-// is invalid.
-func (p *Policy) Validate() error {
+// validate validates Rules.
+func (r *Rules) validate() []string {
 	errMsg := make([]string, 0)
-	p.Direction = strings.TrimSpace(strings.ToLower(p.Direction))
-	if p.Direction != PolicyDirectionEgress && p.Direction != PolicyDirectionIngress {
-		s := fmt.Sprintf("Unknown direction '%s', allowed '%s' or '%s'.", p.Direction, PolicyDirectionEgress, PolicyDirectionIngress)
-		errMsg = append(errMsg, s)
+	if rules == nil || len(rules) == 0 {
+		errMsg = append(errMsg, "No rules specified.")
+		return errMsg
 	}
-	for i, r := range p.Rules {
+	for i, r := range rules {
+		// ruleNo is used for error messages.
 		ruleNo := i + 1
 		r.Protocol = strings.TrimSpace(strings.ToLower(r.Protocol))
 		if r.Protocol == "" {
@@ -248,6 +266,34 @@ func (p *Policy) Validate() error {
 
 		}
 	}
+	if len(errMsg) == nil {
+		return nil
+	}
+	return errMsg
+}
+
+// Validate validates the policy and returns an Unprocessable Entity (422) HttpError if the policy
+// is invalid. The following would lead to errors if they are not specified elsewhere:
+// 1. Rules must be specified.
+// TODO As a reference I'm using
+// https://docs.google.com/spreadsheets/d/1vN-EnZqJnIp8krY1cRf6VzRPkO9_KNYLW0QOfw2k1Mo/edit
+// which we'll remove from this comment once finalized.
+func (p *Policy) Validate() error {
+	errMsg := make([]string, 0)
+	// 1. Validate that direction is one of the allowed two values.
+	p.Direction = strings.TrimSpace(strings.ToLower(p.Direction))
+	if p.Direction != PolicyDirectionEgress && p.Direction != PolicyDirectionIngress {
+		s := fmt.Sprintf("Unknown direction '%s', allowed '%s' or '%s'.", p.Direction, PolicyDirectionEgress, PolicyDirectionIngress)
+		errMsg = append(errMsg, s)
+	}
+	// 2. Validate rules
+	rulesMsg := p.Rules.validate()
+	if rulesMsg != nil {
+		errMsg = append(errMsg, rulesMsg...)
+	}
+
+	// 3. Validate AppliedTo
+
 	for i, endpoint := range p.AppliedTo {
 		epNo := i + 1
 		if endpoint.TenantExternalID == "" && endpoint.TenantID == 0 {

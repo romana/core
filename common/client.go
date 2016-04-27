@@ -404,7 +404,8 @@ func (rc *RestClient) Get(url string, result interface{}) error {
 	return rc.execMethod("GET", url, nil, result)
 }
 
-
+// GetServiceConfig retrieves configuration 
+// for the given service from the root service.
 func (rc *RestClient) GetServiceConfig(name string)  (*ServiceConfig, error) {
 	rootIndexResponse := &RootIndexResponse{}
 	if rc.config.RootURL == "" {
