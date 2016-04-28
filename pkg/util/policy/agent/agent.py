@@ -86,8 +86,6 @@ class AgentHandler(BaseHTTPRequestHandler):
         self.decode_request()
         self.route()
 
-        return
-
 
     def do_NP_update(self):
         """
@@ -95,17 +93,7 @@ class AgentHandler(BaseHTTPRequestHandler):
         """
         global addr_scheme
 
-        # Namespace isolation update is a special case
-        if self.is_ns_isolation(self.json_data):
-            self.do_NS_update(self.json_data)
-            return
-
         policy_def = self.json_data
-        # if policy_def:
-        #     policy_def_valid = self.validate_policy(policy_def)
-        # else:
-        #     policy_def_valid = self.json_data.get("name")
-        #     policy_def = self.json_data
         policy_def_valid = self.validate_policy(policy_def)
         
         logging.warning("In do_NP_update : policy_def_valid = %s" % policy_def_valid)
@@ -128,100 +116,6 @@ class AgentHandler(BaseHTTPRequestHandler):
         else:
             self.send_response(HTTP_Unprocessable_Entity)
             self.wfile.write(""" Failed to validate policy definition """)
-
-
-
-
-    def do_NS_update(self, policy_def):
-        # TODO This endpoint shoud really go away, only used for prototyping
-        # while new policy fromat being discussed.
-        # TODO Now it will take a lot of refactoring to support for empty segment_ids
-        # which are required to express network policy that selects all segments.
-        # But still must be done.
-
-        logging.info("Request for NS isolation update")
-
-        applied_to = policy_def.get('applied_to')
-        tid = applied_to[0].get('tenant_network_id')
-        logging.info("tid is %s" % tid)
-
-        # isolated flag in a policy spec can only be True.
-        # In order to disable one need to send DELETE request with
-        isolated = self.http_method == "POST"
-        logging.info("isolated is %s" % isolated)
-
-        iptables_rules = get_current_iptables()
-        TENANT_POLICY_VECTOR_CHAIN = "ROMANA-T%s" % tid
-        logging.info("TENANT_POLICY_VECTOR_CHAIN is %s" % TENANT_POLICY_VECTOR_CHAIN)
-
-        # Parse a list of chain names out of current rules,
-        # use it to avoid duplication when adding new chains.
-        existing_chains = [ k.split(" ")[0][1:] for k in iptables_rules if k.startswith(":") ]
-
-        tenant_vector_chain_exists = TENANT_POLICY_VECTOR_CHAIN in existing_chains
-        logging.info("tenant_vector_chain_exists is %s" % tenant_vector_chain_exists)
-
-        ALLOW_ANY_VECTOR = "-A %s -j ACCEPT" % TENANT_POLICY_VECTOR_CHAIN
-        logging.info("ALLOW_ANY_VECTOR is %s" % ALLOW_ANY_VECTOR)
-
-        DEFAULT_DROP_RULE = "-A %s -j DROP" % TENANT_POLICY_VECTOR_CHAIN
-        default_drop_exists = DEFAULT_DROP_RULE in iptables_rules
-        logging.info("DEFAULT_DROP_RULE is %s" % ALLOW_ANY_VECTOR)
-
-        allow_any_vector_exists = ALLOW_ANY_VECTOR in iptables_rules
-        logging.info("allow_any_vector_exists is %s" % allow_any_vector_exists)
-
-        filter_idx = iptables_rules.index('*filter')
-
-        if not tenant_vector_chain_exists:
-            logging.info("Tenant policy vector chain does not exist - creating")
-            iptables_rules.insert(filter_idx + 1, ":%s - [0:0]" % TENANT_POLICY_VECTOR_CHAIN)
-
-        if not default_drop_exists:
-            logging.info("Default drop rule for tenant does not exist - creating")
-            last_commit_index = iptables_rules.index('COMMIT',
-                iptables_rules.index('COMMIT',
-                iptables_rules.index('COMMIT')+1
-                )+1
-            )
-            iptables_rules.insert(last_commit_index-1, DEFAULT_DROP_RULE)
-
-        if allow_any_vector_exists:
-            if isolated:
-                logging.info("Enabling isolation")
-                iptables_rules.remove(ALLOW_ANY_VECTOR)
-        else:
-                if not isolated:
-                    logging.info("Disabling isolation")
-                    iptables_rules.insert(filter_rules_idx(iptables_rules), ALLOW_ANY_VECTOR)
-        apply_new_ruleset(iptables_rules)
-
-        return
-
-
-    def is_ns_isolation(self, policy_def):
-        """
-        Returns True if policy definition is a Namespace policy definition.
-        """
-        # NS isloation request must have tenant_id in applied_to
-        # and must not have any segment_ids.
-        applied_to = policy_def.get('applied_to')
-        if applied_to and len(applied_to) > 0:
-            tenant_id = applied_to[0].get('tenant_network_id')
-            segment_id = applied_to[0].get('segment_network_id')
-            if segment_id:
-                # NS isolation must not have segment_network_id in applied_to
-                return False
-
-        # The only rule allowed for NS isolation rquest is 
-        # { "isolated" : True }
-        rules = policy_def.get('rules')
-        if rules and len(rules) > 0:
-            isolated = rules[0].get("isolated")
-            if not isolated:
-                return False
-
-        return True
 
 
     def validate_policy(self, policy_def):
@@ -291,7 +185,7 @@ def policy_update(romana_address_scheme, policy_definition, delete_policy=False)
     clean_rules = \
         delete_all_rules_for_policy(iptables_rules,
                                     policy_definition['name'],
-                                policy_definition['applied_to'][0]['tenant_network_id'])
+                                policy_definition['applied_to'])
 
     if delete_policy:
         apply_new_ruleset(clean_rules)
@@ -327,7 +221,7 @@ def make_new_full_ruleset(current_rules, new_rules):
     # The goal here is to merge new rules with existing
     # iptables rules.
 
-    # Parse out a list of chain names out of current rules,
+    # Parse a list of chain names out of current rules,
     # use it to avoid duplication when adding new chains.
     existing_chains = [ k.split(" ")[0][1:] for k in current_rules if k.startswith(":") ]
     logging.debug("Existing chains %s "  %existing_chains)
@@ -372,132 +266,162 @@ def make_rules(addr_scheme, policy_def, policy_id):
     The chain names are the keys to the dict, the values are lists of rules.
 
     """
+
     rules = {}
-    tenant         = policy_def['applied_to'][0].get('tenant_network_id')
-    target_segment = policy_def['applied_to'][0].get('segment_network_id')
-    from_segment   = policy_def['peers'][0].get('segment_network_id')
-    name           = policy_def['name']
 
-    
-    # TODO handle undefined segments here
-    # if not target_segment:
-    #    target_segment = "ALL"
+    # We really need a list of chains but using dict here
+    # to avoid extra checks for item in list.
+    policy_chains = {}
 
-    # Traffic flows through per-tenant policy chain into
-    # per-segment policy chains and from there into policy chains.
-    # Unless one of policy chains will ACCEPT the packet it will RETURN
-    # to the per-tenant chain and will reach DROP at the end of the chain.
+    # Create chain names for each target and stuff them with default rules
+    name = policy_def['name']
+    for target in policy_def.get('applied_to'):
+        tenant         = target.get('tenant_network_id')
+        target_segment = target.get('segment_network_id')
 
-    # Per tenant policy chain name.
-    tenant_policy_vector_chain = "ROMANA-T%s" % tenant
+        logging.warning("In make_rules with tenant = %s, target_segment_id = %s, name = %s" %
+                (tenant, target_segment, name))
 
-    # Tenant wide policy chain name
-    tenant_wide_policy_chain = "ROMANA-T%s-W" % tenant
+        # Traffic flows through per-tenant policy chain into
+        # per-segment policy chains and from there into policy chains.
+        # Unless one of policy chains will ACCEPT the packet it will RETURN
+        # to the per-tenant chain and will reach DROP at the end of the chain.
 
-    # The name for the new policy's chain(s). Need to include the tenant ID to
-    # avoid name conflicts.
-    logging.warning("In make_rules with tenant = %s, target_segment_id = %s, from_segment = %s, name = %s" %
-            (tenant, target_segment, from_segment, name))
-    policy_chain_name = "ROMANA-T%dP-%s_" % \
-        (tenant, name)
+        # Per tenant policy chain name.
+        tenant_policy_vector_chain = "ROMANA-T%s" % tenant
 
-    # Per-segment policy chain names for both incoming and outgoing segments
-    # that are involved.
-    target_segment_forward_chain = "ROMANA-T%s-S%s" % \
-        (tenant, target_segment)
-    from_segment_forward_chain = "ROMANA-T%s-S%s" % \
-        (tenant, from_segment)
+        # Tenant wide policy vector chain hosts jumps to the policies
+        # applied to att tenant traffic as well as default rules.
+        tenant_wide_policy_vector_chain = "ROMANA-T%s-W" % tenant
 
-    # Jump from per-tenant chain into per-segment chains and default DROP.
-    rules[tenant_policy_vector_chain] = [
-        _make_rule(tenant_policy_vector_chain, "-j %s" % target_segment_forward_chain),
-        _make_rule(tenant_policy_vector_chain, "-j %s" % from_segment_forward_chain),
-        _make_rule(tenant_policy_vector_chain, "-j %s" % tenant_wide_policy_chain),
-        _make_rule(tenant_policy_vector_chain, "-j DROP")
-    ]
+        # The name for the new policy's chain(s). Need to include the tenant ID to
+        # avoid name conflicts.
+        policy_chain_name = "ROMANA-T%dP-%s_" % \
+            (tenant, name)
 
-    # Jump from per-segment chain into policy chain
-    rules[target_segment_forward_chain] = [
-        _make_rule(target_segment_forward_chain, "-j %s" % policy_chain_name),
-        _make_rule(target_segment_forward_chain, '-m comment --comment POLICY_CHAIN_HEADER -j RETURN')
-    ]
-    rules[from_segment_forward_chain] = [
-        _make_rule(from_segment_forward_chain, "-j %s" % policy_chain_name),
-        _make_rule(from_segment_forward_chain, '-m comment --comment POLICY_CHAIN_HEADER -j RETURN')
-    ]
-    rules[tenant_wide_policy_chain] = [
-        _make_rule(tenant_wide_policy_chain, '-m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT'),
-        _make_rule(tenant_wide_policy_chain, '-m comment --comment POLICY_CHAIN_HEADER -j RETURN')
-    ]
+        # Policy chain only hosts match conditions, rules themselves are
+        # applied in this auxiliary chain
+        in_chain_name  = policy_chain_name[:-1] + "-IN_"
 
-    # Assemble the rules for the top-level policy chain. These rules look at
-    # the IP addresses (source and dest) and figure out whether this is
-    # incoming our outgoing traffic.
-    u32_in_match  = _make_u32_match(addr_scheme, tenant, from_segment,
-                                    tenant, target_segment)
-    u32_out_match = _make_u32_match(addr_scheme, tenant, target_segment,
-                                    tenant, from_segment)
+        # Per segment policy chain to host jumps to the actuall policy chains.
+        if target_segment:
+            target_segment_forward_chain = "ROMANA-T%s-S%s" % \
+                (tenant, target_segment)
+        else:
+            # If segment_network_id not provided in the policy,
+            # consider policy to be tenant wide.
+            target_segment_forward_chain = tenant_wide_policy_vector_chain
 
-    in_chain_name  = policy_chain_name[:-1] + "-IN_"
-    out_chain_name = policy_chain_name[:-1] + "-OUT_"
+        # Chain names are going to be used later to fill in the rules. Store them.
+        policy_chains[in_chain_name] = True
 
-    rules[policy_chain_name] = [
-        _make_rule(policy_chain_name, '-m u32 --u32 "%s" -j %s' %
-                                           (u32_in_match, in_chain_name)),
-        _make_rule(policy_chain_name, '-m u32 --u32 "%s" -j %s' %
-                                           (u32_out_match, out_chain_name)),
-        _make_rule(policy_chain_name, '-m comment --comment PolicyId=%s -j RETURN' % policy_id)
-    ]
+        # Jump from per-tenant chain into per-segment chains and default DROP.
+        rules[tenant_policy_vector_chain] = [
+            _make_rule(tenant_policy_vector_chain, "-j %s" % target_segment_forward_chain),
+            _make_rule(tenant_policy_vector_chain, "-j %s" % tenant_wide_policy_vector_chain),
+            _make_rule(tenant_policy_vector_chain, "-j DROP")
+        ]
 
-    rules = _make_rules(in_chain_name, out_chain_name, rules, policy_def.get('rules'))
+        # Jump from per-segment chain into policy chain
+        if target_segment_forward_chain not in rules:
+            rules[target_segment_forward_chain] = []
+            rules[target_segment_forward_chain].append(
+                    _make_rule(target_segment_forward_chain, '-m comment --comment POLICY_CHAIN_HEADER -j RETURN'))
+        rules[target_segment_forward_chain].insert(0,
+                _make_rule(target_segment_forward_chain, "-j %s" % policy_chain_name))
+
+        # Default rules per tenant.
+        if tenant_wide_policy_vector_chain not in rules:
+            rules[tenant_wide_policy_vector_chain] = []
+            rules[tenant_wide_policy_vector_chain].append(
+                _make_rule(tenant_wide_policy_vector_chain, '-m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT'))
+            rules[tenant_wide_policy_vector_chain].append(
+                _make_rule(tenant_wide_policy_vector_chain, '-m comment --comment POLICY_CHAIN_HEADER -j RETURN'))
+
+        # Loop over peers and fill top level policy chains with source matching rules
+        for peer in policy_def.get('peers'):
+            # Possible peers are
+            # CIDR - detected by cidr field
+            # peer - detected by peer type
+            # tid/sid - detected by tenant_network_id and segment_network_id
+            pr = peer.get('peer')
+            cidr = peer.get('cidr')
+            from_tenant = peer.get('tenant_network_id')
+            from_segment = peer.get('segment_network_id')
+
+            if pr:
+                if pr == "any":
+                    jump_rules = [ _make_rule(policy_chain_name, "-j %s") % in_chain_name ]
+                else:
+                    raise Exception("Unsupported value of peer %s" % pr)
+
+            elif cidr:
+                jump_rules = [ _make_rule(policy_chain_name, "-s %s -j %s") % (cidr, in_chain_name) ]
+
+            elif from_segment and from_tenant:
+                u32_in_match = _make_u32_match(addr_scheme, tenant, from_segment)
+                jump_rules = [
+                    _make_rule(policy_chain_name, '-m u32 --u32 "%s" -j %s' %
+                                                       (u32_in_match, in_chain_name))
+                ]
+
+            else:
+                raise Exception("Unknown peer type %s" % pr)
+
+            if not policy_chain_name in rules:
+                rules[policy_chain_name] = []
+                rules[policy_chain_name].append(
+                    _make_rule(policy_chain_name, '-m comment --comment PolicyId=%s -j RETURN' % policy_id))
+
+            for r in jump_rules:
+                rules[policy_chain_name].insert(0,r)
+
+    # Loop over rules and render protocol + action part of each rules
+    for r in _make_rules(policy_def.get('rules')):
+        for pc in policy_chains:
+            if not pc in rules:
+                rules[pc] = []
+        # and stuff copy of the rule into each policy chain
+        rules[pc].append(_make_rule(pc,r))
 
     return rules
 
 
-def _make_rules(in_chain_name, out_chain_name, iptables_rules, policy_rules):
+def _make_rules(policy_rules):
     """
     For each rules in policy_rules creates in/out rules in iptables_rules.
 
     Returns updated list of iptables_rules
     """
-    if not iptables_rules.get(in_chain_name):
-        iptables_rules[in_chain_name] = []
-
-    if not iptables_rules.get(out_chain_name):
-        iptables_rules[out_chain_name] = []
-
     # For each rule in the policy create iptables rules.
     for r in policy_rules:
         if r['protocol'] == 'TCP':
             stateful = r.get("is_stateful")
             if stateful:
-                in_rule = '-p tcp --dport %s --tcp-flags SYN SYN -j ACCEPT' % ':'.join(str(x) for x in r["ports"])
-                state = '-m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT'
-
-                iptables_rules[in_chain_name].append(_make_rule(in_chain_name, in_rule))
-                iptables_rules[in_chain_name].append(_make_rule(in_chain_name, state))
+                raise Exception("Flag is_stateful not implemented")
             else:
-                in_rule = '-p tcp --dport %s -j ACCEPT' % ':'.join(str(x) for x in r["ports"])
-
-                iptables_rules[in_chain_name].append(_make_rule(in_chain_name, in_rule))
+                in_rules = [ '-p tcp --dport %s -j ACCEPT' % ':'.join(str(x) for x in r["ports"]) ]
 
         elif r['protocol'] == 'UDP':
-            in_rule = '-p udp --dport %s -j ACCEPT' % ':'.join(str(x) for x in r["ports"])
+            in_rules =[ '-p udp --dport %s -j ACCEPT' % ':'.join(str(x) for x in r["ports"]) ]
 
-            iptables_rules[in_chain_name].append(_make_rule(in_chain_name, in_rule))
+        elif r['protocol'] == 'ICMP':
+            icmp_types = r.get('icmp_type_code')
+            in_rules = []
+            if icmp_types:
+                for icmp_type in icmp_types:
+                    in_rules.append('-p icmp --icmp-type %s -j ACCEPT' % icmp_type)
+            in_rules.append('-p icmp -j ACCEPT')
 
-        #TODO elif r['protocol'] == 'ICMP', current policy format doesn't allow for different
-        # ICMP types on emitter and receiver. Do we allow specified types everywhere or apply
-        # some heuristic ?
+        elif r['protocol'] == 'any':
+            in_rules = [ '-j ACCEPT' ]
 
         else:
-            rule = '-m comment --comment error_unknownProtocol -j LOG'
-            state = '-m comment --comment error_unknownProtocol -j LOG'
+            in_rules = [ '-m comment --comment error_unknownProtocol -j LOG' ]
 
-    iptables_rules[in_chain_name].append(_make_rule(in_chain_name, '-j RETURN'))
-    iptables_rules[out_chain_name].append(_make_rule(out_chain_name,  '-j RETURN'))
+        for in_rule in in_rules:
+            yield in_rule
 
-    return iptables_rules
 
 def _make_rule(chain_name, text):
     """
@@ -506,14 +430,19 @@ def _make_rule(chain_name, text):
     """
     return "-A %s %s" % (chain_name, text)
 
+
 def _make_u32_match(addr_scheme,
-                    from_tenant, from_segment, to_tenant, to_segment):
+                    from_tenant, from_segment, to_tenant=None, to_segment=None):
     """
     Creates the obscure u32 match string with bitmasks and all that's needed.
 
-    Something like this:
+    Something like this if all parameters are given:
 
     "0xc&0xff00ff00=0xa001200&&0x10&0xff00ff00=0xa001200"
+
+    and something like this if to_tenant and to_segment are missing
+
+    "0xc&0xff00ff00=0xa001200"
 
     """
     mask = src = dst = 0
@@ -538,16 +467,22 @@ def _make_u32_match(addr_scheme,
     shift_by = addr_scheme['segment_bits'] + addr_scheme['endpoint_bits']
     mask |= ((1<<addr_scheme['tenant_bits'])-1) << shift_by
     src  |= from_tenant << shift_by
-    dst  |= to_tenant << shift_by
+    if to_tenant:
+        dst  |= to_tenant << shift_by
 
     # Adding the mask and values for segment
     shift_by = addr_scheme['endpoint_bits']
     mask |= ((1<<addr_scheme['segment_bits'])-1) << shift_by
     src  |= from_segment << shift_by
-    dst  |= to_segment << shift_by
+    if to_segment:
+        dst  |= to_segment << shift_by
 
-    return "0xc&0x%(mask)x=0x%(src)x&&0x10&0x%(mask)x=0x%(dst)x" % \
-        { "mask" : mask, "src" : src, "dst" : dst }
+    res = "0xc&0x%(mask)x=0x%(src)x" % { "mask" : mask, "src" : src }
+
+    if to_tenant and to_segment:
+        res += "&&0x10&0x%(mask)x=0x%(dst)x" % { "mask" : mask, "dst" : dst }
+
+    return res
 
 def get_current_iptables():
     """
@@ -557,15 +492,19 @@ def get_current_iptables():
     rules = subprocess.check_output(["iptables-save"]).split("\n")
     return rules
 
-def delete_all_rules_for_policy(iptables_rules, policy_name, tenant_id):
+def delete_all_rules_for_policy(iptables_rules, policy_name, tenants):
     """
     Specify the policy name, such as 'foo'. This will delete all the rules that
     refer to anything related to this rule, such as 'ROMANA-P-foo_',
     'ROMANA-P-foo-IN_', etc.
 
     """
-    full_names = [ 'ROMANA-T%dP-%s%s_' % (tenant_id, policy_name, p)
-                        for p in [ "", "-IN", "-OUT" ] ]
+    full_names = []
+
+    for tenant in tenants:
+        tenant_id = tenant.get('tenant_network_id')
+        full_names += [ 'ROMANA-T%dP-%s%s_' % (tenant_id, policy_name, p)
+                            for p in [ "", "-IN", "-OUT" ] ]
 
     # Only transcribe those lines that don't mention any of the chains
     # related to the policy.
