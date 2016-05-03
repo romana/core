@@ -99,9 +99,9 @@ class AgentHandler(BaseHTTPRequestHandler):
         logging.warning("In do_NP_update : policy_def_valid = %s" % policy_def_valid)
 
         if policy_def_valid:
-            addr_scheme = policy_def.get("datacenter")
+            addr_scheme = policy_def["datacenter"]
 
-            self.send_response(200)
+            self.send_response(202)
             self.wfile.write("Policy definition accepted")
             logging.warning("Creating policy %s" % policy_def)
 
@@ -122,13 +122,9 @@ class AgentHandler(BaseHTTPRequestHandler):
         """
         Checks that some top level sections are present in the policy.
         """
-        policy_name = policy_def.get('name')
-        applied_to = policy_def.get('applied_to')
-        rules = policy_def.get('rules')
-        peers = policy_def.get('peers')
-        datacenter = policy_def.get('datacenter')
-        if not policy_name or not applied_to or not rules or not peers or not datacenter:
-            logging.warning("In validate_policy, policy invalid name=%s, applied_to=%s, Rules=%s, datacenter=%s" % (policy_name, applied_to, rules, datacenter))
+        expected_fields = [ "name", "applied_to", "rules", "peers", "datacenter" ]
+        if not all([ policy_def.get(k) for k in expected_fields ]):
+            logging.warning("In validate_policy, policy is invalid - some of expected fields are missing, %s" % expected_fields)
             return False
         return True
 
@@ -140,8 +136,8 @@ class AgentHandler(BaseHTTPRequestHandler):
         self.send_header('Content-type','text/html')
         self.end_headers()
         headers = Message(StringIO(self.headers))
-        self.raw_data = self.rfile.read(int(headers["Content-Length"]))
         try:
+            self.raw_data = self.rfile.read(int(headers["Content-Length"]))
             self.json_data = simplejson.loads(self.raw_data)
         except Exception, e:
             logging.warning("Cannot parse %s" % self.raw_data)
@@ -184,7 +180,7 @@ def policy_update(romana_address_scheme, policy_definition, delete_policy=False)
     # Remove ALL rules relating in any way to a policy of the specified name.
     clean_rules = \
         delete_all_rules_for_policy(iptables_rules,
-                                    policy_definition['name'],
+                                policy_definition['name'],
                                 policy_definition['applied_to'])
 
     if delete_policy:
@@ -275,8 +271,8 @@ def make_rules(addr_scheme, policy_def, policy_id):
 
     # Create chain names for each target and stuff them with default rules
     name = policy_def['name']
-    for target in policy_def.get('applied_to'):
-        tenant         = target.get('tenant_network_id')
+    for target in policy_def['applied_to']:
+        tenant         = target['tenant_network_id']
         target_segment = target.get('segment_network_id')
 
         logging.warning("In make_rules with tenant = %s, target_segment_id = %s, name = %s" %
@@ -291,7 +287,7 @@ def make_rules(addr_scheme, policy_def, policy_id):
         tenant_policy_vector_chain = "ROMANA-T%s" % tenant
 
         # Tenant wide policy vector chain hosts jumps to the policies
-        # applied to att tenant traffic as well as default rules.
+        # applied to a tenant traffic as well as default rules.
         tenant_wide_policy_vector_chain = "ROMANA-T%s-W" % tenant
 
         # The name for the new policy's chain(s). Need to include the tenant ID to
@@ -303,7 +299,7 @@ def make_rules(addr_scheme, policy_def, policy_id):
         # applied in this auxiliary chain
         in_chain_name  = policy_chain_name[:-1] + "-IN_"
 
-        # Per segment policy chain to host jumps to the actuall policy chains.
+        # Per segment policy chain to host jumps to the actual policy chains.
         if target_segment:
             target_segment_forward_chain = "ROMANA-T%s-S%s" % \
                 (tenant, target_segment)
@@ -326,7 +322,7 @@ def make_rules(addr_scheme, policy_def, policy_id):
         if target_segment_forward_chain not in rules:
             rules[target_segment_forward_chain] = []
             rules[target_segment_forward_chain].append(
-                    _make_rule(target_segment_forward_chain, '-m comment --comment POLICY_CHAIN_HEADER -j RETURN'))
+                _make_rule(target_segment_forward_chain, '-m comment --comment POLICY_CHAIN_HEADER -j RETURN'))
         rules[target_segment_forward_chain].insert(0,
                 _make_rule(target_segment_forward_chain, "-j %s" % policy_chain_name))
 
@@ -339,7 +335,7 @@ def make_rules(addr_scheme, policy_def, policy_id):
                 _make_rule(tenant_wide_policy_vector_chain, '-m comment --comment POLICY_CHAIN_HEADER -j RETURN'))
 
         # Loop over peers and fill top level policy chains with source matching rules
-        for peer in policy_def.get('peers'):
+        for peer in policy_def['peers']:
             # Possible peers are
             # CIDR - detected by cidr field
             # peer - detected by peer type
@@ -366,7 +362,7 @@ def make_rules(addr_scheme, policy_def, policy_id):
                 ]
 
             else:
-                raise Exception("Unknown peer type %s" % pr)
+                raise Exception("Unknown peer type %s" % peer)
 
             if not policy_chain_name in rules:
                 rules[policy_chain_name] = []
@@ -376,8 +372,8 @@ def make_rules(addr_scheme, policy_def, policy_id):
             for r in jump_rules:
                 rules[policy_chain_name].insert(0,r)
 
-    # Loop over rules and render protocol + action part of each rules
-    for r in _make_rules(policy_def.get('rules')):
+    # Loop over rules and render protocol + action part of each rule
+    for r in _make_rules(policy_def['rules']):
         for pc in policy_chains:
             if not pc in rules:
                 rules[pc] = []
@@ -389,21 +385,38 @@ def make_rules(addr_scheme, policy_def, policy_id):
 
 def _make_rules(policy_rules):
     """
-    For each rules in policy_rules creates in/out rules in iptables_rules.
+    For each rule in policy_rules creates in/out rules in iptables_rules.
 
     Returns updated list of iptables_rules
     """
     # For each rule in the policy create iptables rules.
+    in_rules = []
     for r in policy_rules:
         if r['protocol'] == 'TCP':
             stateful = r.get("is_stateful")
             if stateful:
                 raise Exception("Flag is_stateful not implemented")
-            else:
-                in_rules = [ '-p tcp --dport %s -j ACCEPT' % ':'.join(str(x) for x in r["ports"]) ]
+
+            for port in r.get("ports"):
+                in_rules += [ '-p tcp --dport %s -j ACCEPT' % port ]
+
+            port_range = r.get('port_range')
+            if port_range:
+                if len(port_range) == 2:
+                    in_rules += [ '-p tcp --dport %s:%s -j ACCEPT' % (port_range[0], port_range[1]) ]
+                else:
+                    raise Exception("Protocol option port_range must be a list of 2 elements - got %s" % port_range)
 
         elif r['protocol'] == 'UDP':
-            in_rules =[ '-p udp --dport %s -j ACCEPT' % ':'.join(str(x) for x in r["ports"]) ]
+            for port in r.get("ports"):
+                in_rules += [ '-p udp --dport %s -j ACCEPT' % port ]
+
+            port_range = r.get('port_range')
+            if port_range:
+                if len(port_range) == 2:
+                    in_rules += [ '-p udp --dport %s:%s -j ACCEPT' % (port_range[0], port_range[1]) ]
+                else:
+                    raise Exception("Protocol option port_range must be a list of 2 elements - got %s" % port_range)
 
         elif r['protocol'] == 'ICMP':
             icmp_types = r.get('icmp_type_code')
@@ -417,7 +430,7 @@ def _make_rules(policy_rules):
             in_rules = [ '-j ACCEPT' ]
 
         else:
-            in_rules = [ '-m comment --comment error_unknownProtocol -j LOG' ]
+            raise Exception("Unknown protocol - known protocols are UDP,TCP,ICMP - got %s" % r['protocol'])
 
         for in_rule in in_rules:
             yield in_rule
@@ -494,9 +507,9 @@ def get_current_iptables():
 
 def delete_all_rules_for_policy(iptables_rules, policy_name, tenants):
     """
-    Specify the policy name, such as 'foo'. This will delete all the rules that
-    refer to anything related to this rule, such as 'ROMANA-P-foo_',
-    'ROMANA-P-foo-IN_', etc.
+    Specify the policy name, such as 'foo' and a list of tenants.
+    This will delete all the rules that refer to anything related
+    to this rule, such as 'ROMANA-P-foo_', 'ROMANA-P-foo-IN_' for each tenant.
 
     """
     full_names = []
@@ -526,7 +539,7 @@ def apply_new_ruleset(rules):
         logging.info("@@@ ERROR applying these rules...")
         for i, r in enumerate(rules):
             logging.info("%3d: %s" % (i+1, r))
-        logging.info("@@@ ERROR applying iptables: %s ", err)
+        logging.info("@@@ ERROR applying iptables: %s " % err)
         return False
     else:
         logging.info("@@@ iptables rules successfully applied.")
