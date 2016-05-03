@@ -360,7 +360,10 @@ def get_tenants():
     Returns romana tenants description
 
     Example:
-        [{"ID":1,"ExternalID":"7c4ea980b31e4cdb98f5747397953798","Name":"default","Segments":null,"Seq":1},{"ID":2,"ExternalID":"87b932e256ce4c0494438346653fce6e","Name":"tenant-a","Segments":null,"Seq":2}]
+     [
+       {"ID":1,"ExternalID":"7c4ea980b31e4cdb98f5747397953798","Name":"default","Segments":null,"Seq":1},
+       {"ID":2,"ExternalID":"87b932e256ce4c0494438346653fce6e","Name":"tenant-a","Segments":null,"Seq":2}
+     ]
     """
     try:
         r = requests.get(tenant_url)
