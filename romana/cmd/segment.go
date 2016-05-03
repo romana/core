@@ -21,7 +21,6 @@ import (
 	"strconv"
 
 	"github.com/romana/core/common"
-	"github.com/romana/core/romana/adaptor"
 	"github.com/romana/core/romana/romana"
 	"github.com/romana/core/romana/util"
 	"github.com/romana/core/tenant"
@@ -76,12 +75,7 @@ func segmentAdd(cmd *cli.Command, args []string) error {
 
 	tnt := args[0]
 	seg := args[1]
-	tenantUUID, err := adaptor.GetTenantUUID(tnt)
-	if err != nil {
-		return errors.New("Tenant doesn't exists: " + tnt)
-	}
-
-	romanaID, err := romana.GetTenantID(tenantUUID)
+	romanaID, err := romana.GetTenantID(tnt)
 	if err != nil {
 		return errors.New("Romana Tenant doesn't exists: " + tnt)
 	}
