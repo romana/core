@@ -97,7 +97,7 @@ func TestToBool(t *testing.T) {
 // that all attempts to send a packet there fails, no RST or anything
 // ever comes back? Do we wait the full TCP timeout?
 func TestClientNoHost(t *testing.T) {
-	client, err := NewRestClient("http://no.such.host", GetDefaultRestClientConfig())
+	client, err := NewRestClient("http://no.such.host.really", GetDefaultRestClientConfig())
 	if err != nil {
 		t.Error(err)
 	}

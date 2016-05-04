@@ -91,10 +91,11 @@ func (a *Agent) Routes() common.Routes {
 }
 
 // Run starts the agent service.
-func Run(rootServiceURL string, testMode bool) (*common.RestServiceInfo, error) {
+func Run(rootServiceURL string, cred *common.Credential, testMode bool) (*common.RestServiceInfo, error) {
 	clientConfig := common.GetDefaultRestClientConfig()
 	clientConfig.TestMode = testMode
 	client, err := common.NewRestClient("", clientConfig)
+	clientConfig.Credential = cred
 
 	if err != nil {
 		return nil, err

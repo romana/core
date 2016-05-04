@@ -80,7 +80,10 @@ func (topoStore *topoStore) listHosts() ([]Host, error) {
 
 func (topoStore *topoStore) addHost(host *Host) (string, error) {
 	topoStore.DbStore.Db.NewRecord(*host)
-	topoStore.DbStore.Db.Create(host)
+	db := topoStore.DbStore.Db.Create(host)
+	if db.Error != nil {
+		return "", db.Error
+	}
 	err := common.MakeMultiError(topoStore.DbStore.Db.GetErrors())
 	if err != nil {
 		return "", err

@@ -202,8 +202,10 @@ func (topology *TopologySvc) SetConfig(config common.ServiceConfig) error {
 }
 
 // Run configures and runs topology service.
-func Run(rootServiceURL string) (*common.RestServiceInfo, error) {
-	client, err := common.NewRestClient(rootServiceURL, common.GetDefaultRestClientConfig())
+func Run(rootServiceURL string, cred *common.Credential) (*common.RestServiceInfo, error) {
+	clientConfig := common.GetDefaultRestClientConfig()
+	clientConfig.Credential = cred
+	client, err := common.NewRestClient(rootServiceURL, clientConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -212,6 +214,7 @@ func Run(rootServiceURL string) (*common.RestServiceInfo, error) {
 	if err != nil {
 		return nil, err
 	}
+
 	return common.InitializeService(topSvc, *config)
 
 }

@@ -133,7 +133,7 @@ func (s *MySuite) SetUpSuite(c *check.C) {
 
 	// Start topology service
 	myLog(c, "STARTING TOPOLOGY SERVICE")
-	topoInfo, err := topology.Run(s.rootURL)
+	topoInfo, err := topology.Run(s.rootURL, nil)
 	if err != nil {
 		c.Error(err)
 	}
@@ -143,7 +143,7 @@ func (s *MySuite) SetUpSuite(c *check.C) {
 
 	// Start tenant service
 	myLog(c, "STARTING TENANT SERVICE")
-	tenantInfo, err := tenant.Run(s.rootURL)
+	tenantInfo, err := tenant.Run(s.rootURL, nil)
 	if err != nil {
 		c.Fatal(err)
 	}
@@ -152,7 +152,7 @@ func (s *MySuite) SetUpSuite(c *check.C) {
 	s.tenantURL = "http://" + tenantInfo.Address
 
 	myLog(c, "STARTING IPAM SERVICE")
-	ipamInfo, err := ipam.Run(s.rootURL)
+	ipamInfo, err := ipam.Run(s.rootURL, nil)
 	if err != nil {
 		c.Fatal(err)
 	}
@@ -162,7 +162,6 @@ func (s *MySuite) SetUpSuite(c *check.C) {
 
 	myLog(c, "Done with setup")
 }
-
 
 // Test that agent starts
 func (s *MySuite) TestAgentStart(c *check.C) {
@@ -223,7 +222,7 @@ func (s *MySuite) TestAgentStart(c *check.C) {
 	c.Assert(len(hostList2), check.Equals, 2)
 
 	myLog(c, "STARTING Agent SERVICE")
-	agentInfo, err := agent.Run(s.rootURL, true)
+	agentInfo, err := agent.Run(s.rootURL, nil, true)
 	if err != nil {
 		c.Error(err)
 	}
@@ -289,7 +288,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	if err != nil {
 		c.Error(err)
 	}
-	t1Id := t1Out.Id
+	t1Id := t1Out.ID
 	c.Assert(t1Out.Seq, check.Equals, uint64(1))
 	myLog(c, "Tenant 1", t1Out)
 
@@ -300,7 +299,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	if err != nil {
 		c.Error(err)
 	}
-	t2Id := t2Out.Id
+	t2Id := t2Out.ID
 	c.Assert(t2Out.Seq, check.Equals, uint64(2))
 	myLog(c, "Tenant 2", t2Out)
 
@@ -352,7 +351,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 
 	// Get IP for t1, s1, h1
 	myLog(c, "IPAM Test: Get first IP")
-	tenantId := fmt.Sprintf("%d", t1Out.Id)
+	tenantId := fmt.Sprintf("%d", t1Out.ID)
 	segmentId := fmt.Sprintf("%d", t1s1Out.Id)
 	t1s1h1EpIn := ipam.Endpoint{Name: "endpoint1", TenantId: tenantId, SegmentId: segmentId, HostId: host1.Id}
 	t1s1h1Ep1Out := ipam.Endpoint{}
@@ -403,7 +402,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	myLog(c, "IPAM Test: Response from IPAM for %v is %v", t1s1h1EpIn, t1s1h1Ep4Out)
 
 	// Get IP for t2, s2, h2
-	tenantId = fmt.Sprintf("%d", t2Out.Id)
+	tenantId = fmt.Sprintf("%d", t2Out.ID)
 	segmentId = fmt.Sprintf("%d", t2s2Out.Id)
 	t2s2h2EpIn := ipam.Endpoint{Name: "endpoint1", TenantId: tenantId, SegmentId: segmentId, HostId: host2.Id}
 	t2s2h2EpOut := ipam.Endpoint{}
