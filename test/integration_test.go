@@ -416,7 +416,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 
 	// Try legacy request
 	endpointOut := ipam.Endpoint{}
-	legacyURL := "/allocateIpByName?tenantName=t1&segmentName=s1&hostName=HOST2000&instanceName=bla"
+	legacyURL := "/allocateIpByName?tenantID=t1&segmentName=s1&hostName=HOST2000&instanceName=bla"
 	myLog(c, "Calling legacy URL", legacyURL)
 
 	err = client.Get(legacyURL, &endpointOut)
