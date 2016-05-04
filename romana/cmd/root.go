@@ -21,6 +21,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"regexp"
 	"strings"
 
 	"github.com/romana/core/common"
@@ -33,6 +34,7 @@ import (
 var (
 	cfgFile  string
 	rootURL  string
+	rootPort string
 	version  bool
 	verbose  bool
 	format   string
@@ -67,6 +69,7 @@ func init() {
 	RootCmd.AddCommand(hostCmd)
 	RootCmd.AddCommand(tenantCmd)
 	RootCmd.AddCommand(segmentCmd)
+	RootCmd.AddCommand(policyCmd)
 
 	RootCmd.Flags().BoolVarP(&version, "version", "",
 		false, "Build and Versioning Information.")
@@ -75,10 +78,12 @@ func init() {
 		"c", "", "config file (default is $HOME/.romana.yaml)")
 	RootCmd.PersistentFlags().StringVarP(&rootURL, "rootURL",
 		"r", "", "root service url, e.g. http://192.168.0.1")
+	RootCmd.PersistentFlags().StringVarP(&rootPort, "rootPort",
+		"p", "", "root service port, e.g. 9600")
 	RootCmd.PersistentFlags().StringVarP(&format, "format",
 		"f", "", "enable formatting options like [json|table], etc.")
 	RootCmd.PersistentFlags().StringVarP(&platform, "platform",
-		"p", "", "Use platforms like [openstack|kubernetes], etc.")
+		"P", "", "Use platforms like [openstack|kubernetes], etc.")
 	RootCmd.PersistentFlags().BoolVarP(&verbose, "verbose",
 		"v", false, "Verbose output.")
 
@@ -88,17 +93,37 @@ func init() {
 
 // preConfig sanitizes URLs and sets up config with URLs.
 func preConfig(cmd *cli.Command, args []string) {
+	var baseURL string
+
 	// Add port details to rootURL else try localhost
 	// if nothing is given on command line or config.
 	if rootURL == "" {
 		rootURL = config.GetString("RootURL")
 	}
-	if rootURL != "" {
-		rootURL = strings.TrimSuffix(rootURL, "/")
-		rootURL = rootURL + ":9600/"
-	} else {
-		rootURL = "http://localhost:9600/"
+	if rootPort == "" {
+		rootPort = config.GetString("RootPort")
 	}
+	if rootPort == "" {
+		re, _ := regexp.Compile(`:\d+/?`)
+		port := re.FindString(rootURL)
+		port = strings.TrimPrefix(port, ":")
+		port = strings.TrimSuffix(port, "/")
+		if port != "" {
+			rootPort = port
+		} else {
+			rootPort = "9600"
+		}
+	}
+	config.Set("RootPort", rootPort)
+	if rootURL != "" {
+		baseURL = strings.TrimSuffix(rootURL, "/")
+		baseURL = strings.TrimSuffix(baseURL, ":9600")
+		baseURL = strings.TrimSuffix(baseURL, ":"+rootPort)
+	} else {
+		baseURL = "http://localhost"
+	}
+	config.Set("BaseURL", baseURL)
+	rootURL = baseURL + ":" + rootPort + "/"
 	config.Set("RootURL", rootURL)
 
 	// Give command line options higher priority then
