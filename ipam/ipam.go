@@ -65,7 +65,7 @@ func (ipam *IPAM) Routes() common.Routes {
 
 // handleHost handles request for a specific host's info
 func (ipam *IPAM) legacyAllocateIpByName(input interface{}, ctx common.RestContext) (interface{}, error) {
-	tenantName := ctx.QueryVariables["tenantName"][0]
+	tenantID := ctx.QueryVariables["tenantID"][0]
 	segmentName := ctx.QueryVariables["segmentName"][0]
 	hostName := ctx.QueryVariables["hostName"][0]
 	names := ctx.QueryVariables["instanceName"]
@@ -131,17 +131,17 @@ func (ipam *IPAM) legacyAllocateIpByName(input interface{}, ctx common.RestConte
 	found = false
 	var i int
 	for i = range tenants {
-		if tenants[i].Name == tenantName {
+		if tenants[i].ExternalID == tenantID {
 			found = true
 			Endpoint.TenantId = fmt.Sprintf("%d", tenants[i].ID)
-			log.Printf("IPAM: Tenant name %s has ID %s, original %d\n", tenantName, Endpoint.TenantId, tenants[i].ID)
+			log.Printf("IPAM: Tenant name %s has ID %s, original %d\n", tenantID, Endpoint.TenantId, tenants[i].ID)
 			break
 		}
 	}
 	if !found {
-		return nil, errors.New("Tenant with name " + tenantName + " not found")
+		return nil, errors.New("Tenant with name " + tenantID + " not found")
 	}
-	log.Printf("IPAM: Tenant name %s has ID %s, original %d\n", tenantName, Endpoint.TenantId, tenants[i].ID)
+	log.Printf("IPAM: Tenant name %s has ID %s, original %d\n", tenantID, Endpoint.TenantId, tenants[i].ID)
 
 	segmentsUrl := fmt.Sprintf("/tenants/%s/segments", Endpoint.TenantId)
 	var segments []tenant.Segment
