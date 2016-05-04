@@ -60,6 +60,13 @@ func (a *Agent) SetConfig(config common.ServiceConfig) error {
 
 	a.waitForIfaceTry = int(config.ServiceSpecific["wait_for_iface_try"].(float64))
 	a.networkConfig = &NetworkConfig{}
+
+	// Ensure we have all the routes to our neighbours
+	log.Print("Agent: ensuring interhost routes exist")
+	if err := a.Helper.ensureInterHostRoutes(); err != nil {
+		log.Print("Agent: ", agentError(err))
+		return agentError(err)
+	}
 	log.Printf("Agent.SetConfig() finished.")
 	return nil
 }
@@ -110,6 +117,7 @@ func Run(rootServiceURL string, cred *common.Credential, testMode bool) (*common
 	if err != nil {
 		return nil, err
 	}
+
 	return common.InitializeService(agent, *config)
 }
 
@@ -160,9 +168,8 @@ func (a *Agent) index(input interface{}, ctx common.RestContext) (interface{}, e
 // k8sPodUpHandle does a number of operations on given endpoint to ensure
 // it's connected:
 // 1. Ensures interface is ready
-// 2. Ensures interhost routes are in place
-// 3. Creates ip route pointing new interface
-// 4. Provisions firewall rules
+// 2. Creates ip route pointing new interface
+// 3. Provisions firewall rules
 func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 	log.Println("Agent: Entering k8sPodUpHandle()")
 	namespaceIsolation, err := common.ToBool(netReq.Options[namespaceIsolationOption])
@@ -186,12 +193,6 @@ func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 		return agentErrorString(msg)
 	}
 
-	// Ensure we have all the routes to our neighbours
-	log.Print("Agent: ensuring interhost routes exist")
-	if err := a.Helper.ensureInterHostRoutes(); err != nil {
-		log.Print("Agent: ", agentError(err))
-		return agentError(err)
-	}
 	log.Print("Agent: creating endpoint routes")
 	if err := a.Helper.ensureRouteToEndpoint(&netif); err != nil {
 		log.Print(agentError(err))
@@ -211,11 +212,10 @@ func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 // interfaceHandle does a number of operations on given endpoint to ensure
 // it's connected:
 // 1. Ensures interface is ready
-// 2. Ensures interhost routes are in place
-// 3. Checks if DHCP is running
-// 4. Creates ip route pointing new interface
-// 5. Provisions static DHCP lease for new interface
-// 6. Provisions firewall rules
+// 2. Checks if DHCP is running
+// 3. Creates ip route pointing new interface
+// 4. Provisions static DHCP lease for new interface
+// 5. Provisions firewall rules
 func (a *Agent) interfaceHandle(netif NetIf) error {
 	log.Print("Agent: processing request to provision new interface")
 	if !a.Helper.waitForIface(netif.Name) {
@@ -225,12 +225,6 @@ func (a *Agent) interfaceHandle(netif NetIf) error {
 		return agentErrorString(fmt.Sprintf("Requested interface not available in time - %s", netif.Name))
 	}
 
-	// Ensure we have all the routes to our neighbours
-	log.Print("Agent: ensuring interhost routes exist")
-	if err := a.Helper.ensureInterHostRoutes(); err != nil {
-		log.Print(agentError(err))
-		return agentError(err)
-	}
 	// dhcpPid is only needed here for fail fast check
 	// will try to poll the pid again in provisionLease
 	log.Print("Agent: checking if DHCP is running")
