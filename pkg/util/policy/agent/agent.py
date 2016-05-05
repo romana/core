@@ -354,7 +354,7 @@ def make_rules(addr_scheme, policy_def, policy_id):
             elif cidr:
                 jump_rules = [ _make_rule(policy_chain_name, "-s %s -j %s") % (cidr, in_chain_name) ]
 
-            elif from_segment and from_tenant:
+            elif not None in [ from_segment, from_tenant ]:
                 u32_in_match = _make_u32_match(addr_scheme, tenant, from_segment)
                 jump_rules = [
                     _make_rule(policy_chain_name, '-m u32 --u32 "%s" -j %s' %
