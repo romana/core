@@ -8,7 +8,7 @@
 // http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
-//  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
 // WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 // License for the specific language governing permissions and limitations
 // under the License.
@@ -133,15 +133,15 @@ func (ipam *IPAM) legacyAllocateIpByName(input interface{}, ctx common.RestConte
 	for i = range tenants {
 		if tenants[i].Name == tenantName {
 			found = true
-			Endpoint.TenantId = fmt.Sprintf("%d", tenants[i].Id)
-			log.Printf("IPAM: Tenant name %s has ID %s, original %d\n", tenantName, Endpoint.TenantId, tenants[i].Id)
+			Endpoint.TenantId = fmt.Sprintf("%d", tenants[i].ID)
+			log.Printf("IPAM: Tenant name %s has ID %s, original %d\n", tenantName, Endpoint.TenantId, tenants[i].ID)
 			break
 		}
 	}
 	if !found {
 		return nil, errors.New("Tenant with name " + tenantName + " not found")
 	}
-	log.Printf("IPAM: Tenant name %s has ID %s, original %d\n", tenantName, Endpoint.TenantId, tenants[i].Id)
+	log.Printf("IPAM: Tenant name %s has ID %s, original %d\n", tenantName, Endpoint.TenantId, tenants[i].ID)
 
 	segmentsUrl := fmt.Sprintf("/tenants/%s/segments", Endpoint.TenantId)
 	var segments []tenant.Segment
@@ -208,7 +208,7 @@ func (ipam *IPAM) addEndpoint(input interface{}, ctx common.RestContext) (interf
 	if err != nil {
 		return nil, err
 	}
-	log.Printf("IPAM received tenant %s ID %d, sequence %d\n", t.Name, t.Id, t.Seq)
+	log.Printf("IPAM received tenant %s ID %d, sequence %d\n", t.Name, t.ID, t.Seq)
 
 	segmentUrl := fmt.Sprintf("/tenants/%s/segments/%s", Endpoint.TenantId, Endpoint.SegmentId)
 	log.Printf("IPAM calling %s\n", segmentUrl)

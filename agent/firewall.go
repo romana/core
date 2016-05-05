@@ -42,10 +42,11 @@ import (
 )
 
 const (
-	numberOfDefaultChains = 3 // INPUT,OUTPUT,FORWARD
+	numberOfDefaultChains = 4 // INPUT,OUTPUT,FORWARD_IN,FORWARD_OUT,TENANT_VECTOR
 	inputChainIndex       = 0
 	outputChainIndex      = 1
-	forwardChainIndex     = 2
+	forwardInChainIndex   = 2
+	forwardOutChainIndex  = 3
 
 	targetDrop   = "DROP"
 	targetAccept = "ACCEPT"
@@ -113,23 +114,24 @@ func (fw *Firewall) Init(netif NetIf) error {
 	// Allow ICMP, DHCP and SSH between host and instances.
 	hostAddr := fw.Agent.networkConfig.romanaGW
 	inputRules := []string{
-		fmt.Sprintf("-d %s/32 -p icmp -m icmp --icmp-type 0 -m state --state RELATED,ESTABLISHED", hostAddr),
-		fmt.Sprintf("-d %s/32 -p tcp -m tcp --sport 22", hostAddr),
 		"-d 255.255.255.255/32 -p udp -m udp --sport 68 --dport 67",
 	}
 
 	outputRules := []string{
-		fmt.Sprintf("-s %s/32 -p icmp -m icmp --icmp-type 8 -m state --state NEW,RELATED,ESTABLISHED", hostAddr),
-		fmt.Sprintf("-s %s/32 -p icmp -m icmp --icmp-type 11", hostAddr),
 		fmt.Sprintf("-s %s/32 -p udp -m udp --sport 67 --dport 68", hostAddr),
-		fmt.Sprintf("-s %s/32 -p tcp -m tcp --dport 22", hostAddr),
 	}
 
-	forwardRules := []string{}
+	forwardRules := []string{
+		"-m comment --comment Outgoing",
+	}
+
+	tenantVectorChainName := fmt.Sprintf("ROMANA-T%d", fw.extractTenantID(ipToInt(netif.IP)))
+	tenantVectorRules := []string{}
 
 	fw.chains[inputChainIndex] = FirewallChain{"INPUT", []string{"i"}, inputRules, fw.prepareChainName("INPUT")}
 	fw.chains[outputChainIndex] = FirewallChain{"OUTPUT", []string{"o"}, outputRules, fw.prepareChainName("OUTPUT")}
-	fw.chains[forwardChainIndex] = FirewallChain{"FORWARD", []string{"i", "o"}, forwardRules, fw.prepareChainName("FORWARD")}
+	fw.chains[forwardInChainIndex] = FirewallChain{"FORWARD", []string{"i"}, forwardRules, fw.prepareChainName("FORWARD")}
+	fw.chains[forwardOutChainIndex] = FirewallChain{"FORWARD", []string{"o"}, tenantVectorRules, tenantVectorChainName}
 
 	return nil
 }
@@ -517,7 +519,7 @@ func (fw *Firewall) deleteChains() error {
 // provisionFirewallRules provisions rules for a new pod in Kubernetes.
 // Depending on the fullIsolation flag, the rule is specified to either
 // DROP or ALLOW all traffic.
-func provisionK8SFirewallRules(netReq NetworkRequest, agent *Agent, namespaceIsolation bool) error {
+func provisionK8SFirewallRules(netReq NetworkRequest, agent *Agent) error {
 	log.Print("Firewall: Initializing")
 	fw, err := NewFirewall(netReq.NetIf, agent)
 	if err != nil {
@@ -534,14 +536,11 @@ func provisionK8SFirewallRules(netReq NetworkRequest, agent *Agent, namespaceIso
 	if err != nil {
 		return err
 	}
-	var target string
-	for chain := range fw.chains {
-		if namespaceIsolation {
-			target = targetDrop
-		} else {
-			target = targetAccept
+	for chain := range missingChains {
+		if err := fw.CreateRules(chain); err != nil {
+			return err
 		}
-		if err := fw.CreateDefaultRule(chain, target); err != nil {
+		if err := fw.CreateDefaultDropRule(chain); err != nil {
 			return err
 		}
 	}
@@ -576,11 +575,6 @@ func provisionFirewallRules(netif NetIf, agent *Agent) error {
 	for chain := range missingChains {
 		if err := fw.CreateRules(chain); err != nil {
 			return err
-		}
-		if chain == forwardChainIndex {
-			if err := fw.CreateU32Rules(chain); err != nil {
-				return err
-			}
 		}
 		if err := fw.CreateDefaultDropRule(chain); err != nil {
 			return err

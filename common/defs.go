@@ -46,7 +46,7 @@ const (
 	// but there is an error so no point in returning any
 	// value.
 	ErrorNoValue = ""
-	
+
 	// Path for authentication; if this is what is used
 	// in the request we will not check the token (because
 	// we are attempting to get a token at this point).

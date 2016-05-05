@@ -18,11 +18,12 @@ package agent
 
 import (
 	"fmt"
-	"github.com/romana/core/common"
-	"log"
-	"net"
 	"os"
 	"testing"
+	// Dependencies for disabled test below
+	// "github.com/romana/core/common"
+	// "log"
+	// "net"
 )
 
 func startAgent(t *testing.T) {
@@ -34,12 +35,16 @@ func startAgent(t *testing.T) {
 	rootURL := fmt.Sprintf("file://%s/testdata/root.json", cwd)
 	svcInfo, err := Run(rootURL, nil, true)
 	if err != nil {
-			t.Fatal(err)
+		t.Fatal(err)
 	}
 	msg := <-svcInfo.Channel
 	t.Log("Service says", msg)
 	fmt.Println(msg)
 }
+
+/*
+Disabled since only thing it was testing is isolation flag, which is deprecated.
+Left here as a template for future tests, maybe
 
 // TestK8SHandler will test K8S handler
 func TestK8SHandler(t *testing.T) {
@@ -58,3 +63,4 @@ func TestK8SHandler(t *testing.T) {
 	restClient.Post("http://localhost:8899/kubernetes-pod-up", nr, &result)
 	log.Printf("Sent to agent %v, agent returned %v", nr, result)
 }
+*/
