@@ -127,7 +127,7 @@ ipam_allocate_ip () {
 	tenant=$1
 	segment=$2
 	node=$3
-	IP=$(curl -s "http://$ROMANA_MASTER_IP:9601/allocateIpByName?tenantName=${tenant}&segmentName=${segment}&hostName=${node}&instanceId=0" | get_json_kv | get_ip)
+	IP=$(curl -s "http://$ROMANA_MASTER_IP:9601/allocateIP?tenantName=${tenant}&segmentName=${segment}&hostName=${node}" | get_json_kv | get_ip)
 	echo $IP
 }
 
