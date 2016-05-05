@@ -42,7 +42,7 @@ func TestNewChains(t *testing.T) {
 
 	newChains := fw.detectMissingChains()
 
-	if len(newChains) != 3 {
+	if len(newChains) != 4 {
 		t.Error("TestNewChains failed")
 	}
 
@@ -152,8 +152,6 @@ func TestCreateRules(t *testing.T) {
 	fw.CreateRules(0)
 
 	expect := strings.Join([]string{
-		"/sbin/iptables -A ROMANA-T0S0-INPUT -d 172.17.0.1/32 -p icmp -m icmp --icmp-type 0 -m state --state RELATED,ESTABLISHED -j ACCEPT",
-		"/sbin/iptables -A ROMANA-T0S0-INPUT -d 172.17.0.1/32 -p tcp -m tcp --sport 22 -j ACCEPT",
 		"/sbin/iptables -A ROMANA-T0S0-INPUT -d 255.255.255.255/32 -p udp -m udp --sport 68 --dport 67 -j ACCEPT",
 	}, "\n")
 

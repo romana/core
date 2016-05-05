@@ -172,14 +172,7 @@ func (a *Agent) index(input interface{}, ctx common.RestContext) (interface{}, e
 // 3. Provisions firewall rules
 func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 	log.Println("Agent: Entering k8sPodUpHandle()")
-	namespaceIsolation, err := common.ToBool(netReq.Options[namespaceIsolationOption])
-	if err != nil {
-		msg := fmt.Sprintf("Invalid value in %s: %s", namespaceIsolationOption, err.Error())
-		log.Println(msg)
-		return agentErrorString(msg)
-	}
 
-	log.Printf("Isolation is %t", namespaceIsolation)
 	netif := netReq.NetIf
 	if netif.Name == "" {
 		return agentErrorString("Agent: Interface name required")
@@ -200,7 +193,7 @@ func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 	}
 	log.Print("Agent: provisioning firewall")
 
-	if err := provisionK8SFirewallRules(netReq, a, namespaceIsolation); err != nil {
+	if err := provisionK8SFirewallRules(netReq, a); err != nil {
 		log.Print(agentError(err))
 		return agentError(err)
 	}
@@ -259,23 +252,3 @@ func (a *Agent) Initialize() error {
 	log.Printf("Entering Agent.Initialize()")
 	return a.identifyCurrentHost()
 }
-
-/* development code
-func DryRun() {
-	tif := NetIf{"eth0", "B", "10.0.0.1"}
-	firewall, _ := NewFirewall(tif)
-	err := firewall.ParseNetIf(tif)
-	if err != nil {
-		fmt.Println(err)
-	}
-	fmt.Println(firewall.u32Filter)
-	// for chain := range firewall.chains {
-	// 	fmt.Println(firewall.chains[chain])
-	// }
-	firewall.CreateChains([]int{1, 2, 3})
-	a.Helper.ensureInterHostRoutes()
-	if _, err := a.Helper.DhcpPid(); err != nil {
-		fmt.Println(err)
-	}
-}
-*/
