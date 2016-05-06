@@ -416,7 +416,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 
 	// Try legacy request using tenantName
 	endpointOut := ipam.Endpoint{}
-	legacyURL := "/allocateIP?clusterType=kubernetes&tenantName=t1&segmentName=s1&hostName=HOST2000&instanceName=bla"
+	legacyURL := "/allocateIP?tenantName=t1&segmentName=s1&hostName=HOST2000&instanceName=bla"
 	myLog(c, "Calling legacy URL", legacyURL)
 
 	err = client.Get(legacyURL, &endpointOut)
@@ -429,7 +429,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	myLog(c, "Legacy IP:", endpointOut.Ip)
 
 	// Try legacy request using tenantID
-	legacyURL = "/allocateIP?clusterType=openstack&tenantID=t1&segmentName=s1&hostName=HOST2000&instanceName=bla"
+	legacyURL = "/allocateIP?tenantID=t1&segmentName=s1&hostName=HOST2000&instanceName=bla"
 	myLog(c, "Calling legacy URL", legacyURL)
 
 	err = client.Get(legacyURL, &endpointOut)

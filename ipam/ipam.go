@@ -63,41 +63,38 @@ func (ipam *IPAM) Routes() common.Routes {
 	return routes
 }
 
-// allocateIP finds internal Romana information based on clusterType and provided parameters, then adds
+// allocateIP finds internal Romana information based on tenantID/tenantName and other provided parameters, then adds
 // that endpoint to IPAM, and passes through the allocated IP
 func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interface{}, error) {
-	clusterType := ctx.QueryVariables.Get("clusterType")
-	var tenantParam, segmentName, hostName, instanceName string
-	switch clusterType {
-	case "kubernetes":
-		tenantParam = ctx.QueryVariables.Get("tenantName")
-		segmentName = ctx.QueryVariables.Get("segmentName")
-		hostName = ctx.QueryVariables.Get("hostName")
-		instanceName = ctx.QueryVariables.Get("instanceName")
-	case "openstack":
-		tenantParam = ctx.QueryVariables.Get("tenantID")
-		segmentName = ctx.QueryVariables.Get("segmentName")
-		hostName = ctx.QueryVariables.Get("hostName")
-		instanceName = ctx.QueryVariables.Get("instanceName")
-	case "": // Missing or empty
-		return nil, errors.New("Missing or empty clusterType parameter")
-	default:  // Invalid
-		return nil, fmt.Errorf("Invalid clusterType '%s'", clusterType)
+	tenantParam := ""
+	tenantLookupField := ""
+
+	if tenantID := ctx.QueryVariables.Get("tenantID"); tenantID != "" {
+		tenantParam = tenantID
+		tenantLookupField = "ExternalID"
+	} else if tenantName := ctx.QueryVariables.Get("tenantName"); tenantName != "" {
+		tenantParam = tenantName
+		tenantLookupField = "Name"
 	}
 
 	// check for missing/empty required parameters
 	if tenantParam == "" {
 		return nil, errors.New("Missing or empty tenantName/tenantID parameter")
 	}
+	segmentName := ctx.QueryVariables.Get("segmentName")
 	if segmentName == "" {
 		return nil, errors.New("Missing or empty segmentName parameter")
 	}
+	hostName := ctx.QueryVariables.Get("hostName")
 	if hostName == "" {
 		return nil, errors.New("Missing or empty hostName parameter")
 	}
 
 	endpoint := Endpoint{}
-	endpoint.Name = instanceName // not required, may be empty
+	instanceName := ctx.QueryVariables.Get("instanceName")
+	if instanceName != "" {
+		endpoint.Name = instanceName
+	}
 
 	client, err := common.NewRestClient("", common.GetRestClientConfig(ipam.config))
 	if err != nil {
@@ -153,12 +150,12 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 	}
 	found = false
 	for _, t := range tenants {
-		switch clusterType {
-		case "kubernetes":
+		switch tenantLookupField {
+		case "Name":
 			if t.Name == tenantParam {
 				found = true
 			}
-		case "openstack":
+		case "ExternalID":
 			if t.ExternalID == tenantParam {
 				found = true
 			}
