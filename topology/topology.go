@@ -203,20 +203,19 @@ func (topology *TopologySvc) SetConfig(config common.ServiceConfig) error {
 
 // Run configures and runs topology service.
 func Run(rootServiceURL string, cred *common.Credential) (*common.RestServiceInfo, error) {
-	clientConfig := common.GetDefaultRestClientConfig()
+	clientConfig := common.GetDefaultRestClientConfig(rootServiceURL)
 	clientConfig.Credential = cred
-	client, err := common.NewRestClient(rootServiceURL, clientConfig)
+	client, err := common.NewRestClient(clientConfig)
 	if err != nil {
 		return nil, err
 	}
 	topSvc := &TopologySvc{}
-	config, err := client.GetServiceConfig(rootServiceURL, topSvc)
+	config, err := client.GetServiceConfig(topSvc)
 	if err != nil {
 		return nil, err
 	}
 
 	return common.InitializeService(topSvc, *config)
-
 }
 
 // Initialize the topology service
@@ -233,13 +232,13 @@ func (topology *TopologySvc) Initialize() error {
 // CreateSchema creates schema for topology service.
 func CreateSchema(rootServiceURL string, overwrite bool) error {
 	log.Println("In CreateSchema(", rootServiceURL, ",", overwrite, ")")
-	client, err := common.NewRestClient("", common.GetDefaultRestClientConfig())
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootServiceURL))
 	if err != nil {
 		return err
 	}
 
 	topologyService := &TopologySvc{}
-	config, err := client.GetServiceConfig(rootServiceURL, topologyService)
+	config, err := client.GetServiceConfig(topologyService)
 	if err != nil {
 		return err
 	}

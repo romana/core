@@ -244,21 +244,23 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 			port, _ := strconv.Atoi(addr[idx+1:])
 			port64 := uint64(port)
 			config.Common.Api.Port = port64
-			// Also register this with root service
-			url := fmt.Sprintf("%s/config/%s/port", config.Common.Api.RootServiceUrl, service.Name())
-			result := make(map[string]interface{})
-			portMsg := PortUpdateMessage{Port: port64}
-			retries := config.Common.Api.RestRetries
-			if retries <= 0 {
-				retries = DefaultRestRetries
+			// Also register this with root service if we are not root ourselves.
+			if service.Name() != ServiceRoot {
+				result := make(map[string]interface{})
+				portMsg := PortUpdateMessage{Port: port64}
+				retries := config.Common.Api.RestRetries
+				if retries <= 0 {
+					retries = DefaultRestRetries
+				}
+				clientConfig := RestClientConfig{TimeoutMillis: timeoutMillis, Retries: retries, RootURL: config.Common.Api.RootServiceUrl, TestMode: config.Common.Api.RestTestMode}
+				log.Printf("InitializeService() : Initializing Rest client with %v", clientConfig)
+				client, err := NewRestClient(clientConfig)
+				if err != nil {
+					return svcInfo, err
+				}
+				url := fmt.Sprintf("/config/%s/port", service.Name())
+				err = client.Post(url, portMsg, &result)
 			}
-			clientConfig := RestClientConfig{TimeoutMillis: timeoutMillis, Retries: retries, TestMode: config.Common.Api.RestTestMode}
-			log.Printf("InitializeService() : Initializing Rest client with %v", clientConfig)
-			client, err := NewRestClient("", clientConfig)
-			if err != nil {
-				return svcInfo, err
-			}
-			err = client.Post(url, portMsg, &result)
 		}
 	}
 	return svcInfo, err

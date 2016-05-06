@@ -45,5 +45,21 @@ services:
       host: 0.0.0.0
       port: 9604
     config:
-      lease_file : /etc/ethers"
+      lease_file : "/etc/ethers"
       wait_for_iface_try : 6
+  - service: policy
+    api:
+      host: localhost
+      port: 9605
+    config:
+      store: 
+        type: sqlite3
+       database: /var/tmp/policy.sqlite3      
+  - service: kubernetesListener 
+    api:
+      host: 0.0.0.0
+      port: 9606
+    config:
+      kubernetes_url : "http://localhost"
+      url_prefix="apis/romana.io/demo/v1/namespaces"
+      segment_label_name="tier"

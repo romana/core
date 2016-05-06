@@ -103,13 +103,12 @@ func tenantCreate(cmd *cli.Command, args []string) error {
 
 	rootURL := config.GetString("RootURL")
 
-	client, err := common.NewRestClient(rootURL,
-		common.GetDefaultRestClientConfig())
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
 	if err != nil {
 		return err
 	}
 
-	tenantURL, err := client.GetServiceUrl(rootURL, "tenant")
+	tenantURL, err := client.GetServiceUrl("tenant")
 	if err != nil {
 		return err
 	}
@@ -210,13 +209,12 @@ func tenantShow(cmd *cli.Command, args []string) error {
 
 	rootURL := config.GetString("RootURL")
 
-	client, err := common.NewRestClient(rootURL,
-		common.GetDefaultRestClientConfig())
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
 	if err != nil {
 		return err
 	}
 
-	tenantURL, err := client.GetServiceUrl(rootURL, "tenant")
+	tenantURL, err := client.GetServiceUrl("tenant")
 	if err != nil {
 		return err
 	}
@@ -275,13 +273,12 @@ func tenantShow(cmd *cli.Command, args []string) error {
 func tenantList(cmd *cli.Command, args []string) error {
 	rootURL := config.GetString("RootURL")
 
-	client, err := common.NewRestClient(rootURL,
-		common.GetDefaultRestClientConfig())
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
 	if err != nil {
 		return err
 	}
 
-	tenantURL, err := client.GetServiceUrl(rootURL, "tenant")
+	tenantURL, err := client.GetServiceUrl("tenant")
 	if err != nil {
 		return err
 	}

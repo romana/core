@@ -19,8 +19,16 @@ package common
 
 import (
 	"fmt"
+	"github.com/jinzhu/gorm"
 	"net/http"
+	"errors"
 )
+
+// NewError constructs an error by formatting 
+// text with arguments.
+func NewError(text string, args... interface{}) error {
+	return errors.New(fmt.Sprintf(text, args))
+}
 
 // HttpError is a structure that represents, well, an Http error.
 type HttpError struct {
@@ -31,22 +39,22 @@ type HttpError struct {
 }
 
 func NewError500(err error) HttpError {
-	return NewError(http.StatusInternalServerError, err.Error())
+	return NewHttpError(http.StatusInternalServerError, err.Error())
 }
 
 func NewError400(message string, request string) HttpError {
 	msg := fmt.Sprintf("Error parsing request \"%s\": %s", request, message)
-	return NewError(http.StatusBadRequest, msg)
+	return NewHttpError(http.StatusBadRequest, msg)
 }
 
 // NewError404 creates a 404 NOT FOUND message.
 func NewError404(resourceType string, resourceId string) HttpError {
 	msg := fmt.Sprintf("Resource '%s' at %s not found", resourceType, resourceId)
-	return NewError(http.StatusNotFound, msg)
+	return NewHttpError(http.StatusNotFound, msg)
 }
 
 // NewError helps to construct new Error structure.
-func NewError(code int, msg string) HttpError {
+func NewHttpError(code int, msg string) HttpError {
 	return HttpError{
 		StatusCode: code,
 		StatusText: http.StatusText(code),
@@ -110,8 +118,19 @@ func MakeMultiError(errors []error) error {
 	if len(errors) == 0 {
 		return nil
 	}
-
 	return &MultiError{errors}
+}
+
+
+func GetDbErrors(db *gorm.DB) error {
+	errors := MakeMultiError(db.GetErrors())
+	if errors == nil {
+		return nil
+	}
+	if db.Error != nil {
+		return db.Error
+	}
+	return nil
 }
 
 // Error satisfies Error method on error interface and returns
