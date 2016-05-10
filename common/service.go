@@ -275,6 +275,7 @@ func RunNegroni(n *negroni.Negroni, addr string, timeout time.Duration) (*RestSe
 	l := log.New(os.Stdout, "[negroni] ", 0)
 	svr.Handler = n
 	svr.ErrorLog = l
+	log.Printf("Calling ListenAndServe(%p)", svr)
 	return ListenAndServe(svr)
 }
 
@@ -303,6 +304,7 @@ func (ln tcpKeepAliveListener) Accept() (c net.Conn, err error) {
 // arbitrary ports).
 // See https://github.com/golang/go/blob/master/src/net/http/server.go
 func ListenAndServe(svr *http.Server) (*RestServiceInfo, error) {
+	log.Printf("Entering ListenAndServe(%p)", svr)
 	if svr.Addr == "" {
 		svr.Addr = ":0"
 	}
@@ -311,14 +313,16 @@ func ListenAndServe(svr *http.Server) (*RestServiceInfo, error) {
 		return nil, err
 	}
 	realAddr := ln.Addr().String()
+	log.Printf("ListenAndServe(%p): Hmm 1", svr)
 	channel := make(chan ServiceMessage)
 	l := svr.ErrorLog
 	if l == nil {
 		l = log.New(os.Stdout, "", 0)
 	}
 	go func() {
+		l.Printf("ListenAndServe(%p): Hmm 2", svr)
 		channel <- Starting
-		l.Printf("listening on %s (asked for %s) with configuration %v\n", realAddr, svr.Addr, svr)
+		l.Printf("ListenAndServe(%p): listening on %s (asked for %s) with configuration %v, handler %v\n", svr, realAddr, svr.Addr, svr, svr.Handler)
 		err := svr.Serve(tcpKeepAliveListener{ln.(*net.TCPListener)})
 		if err != nil {
 			log.Printf("RestService: Fatal error %v", err)

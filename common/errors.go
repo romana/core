@@ -18,11 +18,12 @@ package common
 // Various errors.
 
 import (
-//	"encoding/json"
+	//	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/jinzhu/gorm"
 	"net/http"
+	"os/exec"
 )
 
 // NewError constructs an error by formatting
@@ -57,12 +58,29 @@ const (
 	StatusUnprocessableEntity = 422
 )
 
+type ExecErrorDetails struct {
+	Error  string
+	Stderr string
+}
+
 func NewError500(details interface{}) HttpError {
-	return HttpError{StatusCode: http.StatusInternalServerError, Details: details}
+	retval := HttpError{StatusCode: http.StatusInternalServerError}
+	switch details := details.(type) {
+	case *exec.ExitError:
+		retval.Details = ExecErrorDetails{Error: details.Error(), Stderr: string(details.Stderr)}
+	default:
+		retval.Details = details
+	}
+	return retval
+
 }
 
 func NewError400(details interface{}) HttpError {
 	return HttpError{StatusCode: http.StatusBadRequest, Details: details}
+}
+
+func NewErrorConflict(details interface{}) HttpError {
+	return HttpError{StatusCode: http.StatusConflict, Details: details}
 }
 
 func NewUnprocessableEntityError(details interface{}) HttpError {

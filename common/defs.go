@@ -15,6 +15,8 @@
 
 package common
 
+// Definitions of common structures.
+
 import (
 	"fmt"
 	"net"
@@ -65,8 +67,8 @@ const (
 	MaxPortNumber = 65535
 	MaxIcmpType   = 255
 
-	// Wildcard for any protocol.
-	ProtoWildcard = "any"
+	// Wildcard
+	Wildcard = "any"
 	// Name of root service
 	ServiceRoot = "root"
 )
@@ -98,6 +100,7 @@ type PortUpdateMessage struct {
 }
 
 type Endpoint struct {
+	Any     string
 	CidrStr string `json:"cidr,omitempty"`
 	// TODO this can be collapsed into Cidr but needs
 	// work on JSON marshaller/unmarshaller to do that.
@@ -184,14 +187,14 @@ func isValidProto(proto string) bool {
 	case "icmp", "tcp", "udp":
 		return true
 	// Wildcard
-	case ProtoWildcard:
+	case Wildcard:
 		return true
 	}
 	return false
 }
 
 // validate validates Rules.
-func (r *Rules) validate() []string {
+func validateRules(rules Rules) []string {
 	errMsg := make([]string, 0)
 	if rules == nil || len(rules) == 0 {
 		errMsg = append(errMsg, "No rules specified.")
@@ -266,7 +269,7 @@ func (r *Rules) validate() []string {
 
 		}
 	}
-	if len(errMsg) == nil {
+	if len(errMsg) == 0 {
 		return nil
 	}
 	return errMsg
@@ -279,7 +282,7 @@ func (r *Rules) validate() []string {
 // https://docs.google.com/spreadsheets/d/1vN-EnZqJnIp8krY1cRf6VzRPkO9_KNYLW0QOfw2k1Mo/edit
 // which we'll remove from this comment once finalized.
 func (p *Policy) Validate() error {
-	errMsg := make([]string, 0)
+	var errMsg []string
 	// 1. Validate that direction is one of the allowed two values.
 	p.Direction = strings.TrimSpace(strings.ToLower(p.Direction))
 	if p.Direction != PolicyDirectionEgress && p.Direction != PolicyDirectionIngress {
@@ -287,7 +290,7 @@ func (p *Policy) Validate() error {
 		errMsg = append(errMsg, s)
 	}
 	// 2. Validate rules
-	rulesMsg := p.Rules.validate()
+	rulesMsg := validateRules(p.Rules)
 	if rulesMsg != nil {
 		errMsg = append(errMsg, rulesMsg...)
 	}
@@ -297,14 +300,18 @@ func (p *Policy) Validate() error {
 	for i, endpoint := range p.AppliedTo {
 		epNo := i + 1
 		if endpoint.TenantExternalID == "" && endpoint.TenantID == 0 {
-			errMsg = append(errMsg, fmt.Sprintf("In applied_to entry at %d, at least one of tenant_id or tenant_external_id must be specified.", epNo))
+			errMsg = append(errMsg, fmt.Sprintf("applied_to entry #%d: at least one of tenant_id or tenant_external_id must be specified.", epNo))
 		}
 	}
 	for i, endpoint := range p.Peers {
 		epNo := i + 1
+		if endpoint.Any != "" && endpoint.Any != Wildcard {
+			errMsg = append(errMsg, fmt.Sprintf("peers entry #%d: Invalid value for Any: '%s', only '' and %s allowed.", epNo, endpoint.Any, Wildcard))
+		}
 		if endpoint.SegmentID != 0 || endpoint.SegmentExternalID != "" {
 			if endpoint.TenantExternalID == "" && endpoint.TenantID == 0 {
-				errMsg = append(errMsg, fmt.Sprintf("In peers entry at %d, since segment_external_id is specified, at least one of tenant_id or tenant_external_id must be specified.", epNo))
+				errMsg = append(errMsg, fmt.Sprintf("peers entry #%d: since segment_external_id is specified, at least one of tenant_id or tenant_external_id must be specified.", epNo))
+
 			}
 		}
 	}
@@ -312,7 +319,6 @@ func (p *Policy) Validate() error {
 		return nil
 	} else {
 		return NewUnprocessableEntityError(errMsg)
-
 	}
 }
 

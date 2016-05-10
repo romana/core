@@ -167,7 +167,7 @@ func TestPolicyValidation(t *testing.T) {
 	err2 = err.(HttpError)
 	log.Printf("Bad tenant: %v", err2)
 	det = (err2.Details).([]string)
-	expect(t, det[0], "In applied_to entry at 2, at least one of tenant_id or tenant_external_id must be specified.")
+	expect(t, det[0], "applied_to entry #2: at least one of tenant_id or tenant_external_id must be specified.")
 }
 
 // TestClientNoHost just tests that we don't hang forever
@@ -404,6 +404,7 @@ func doTestTimeout(timeout int, t *testing.T) {
 		ReadTimeout:  100 * time.Millisecond,
 		WriteTimeout: 100 * time.Millisecond,
 	}
+	log.Printf("doTestTimeout(): Calling ListenAndServe(%p)", s)
 	svcInfo, err := ListenAndServe(s)
 	msg := <-svcInfo.Channel
 	log.Println(msg)

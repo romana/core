@@ -143,6 +143,8 @@ func (topology *TopologySvc) handleHostListGet(input interface{}, ctx common.Res
 func (topology *TopologySvc) handleHostListPost(input interface{}, ctx common.RestContext) (interface{}, error) {
 	hostMessage := input.(*common.HostMessage)
 	var port uint64
+	// If no agent port is specfied in the creation of new host, 
+	// get the agent port from root service.
 	if hostMessage.AgentPort == 0 {
 		// Get the one from configuration
 		agentConfig, err := topology.client.GetServiceConfig("agent")

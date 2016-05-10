@@ -18,6 +18,7 @@ package kubernetes
 import (
 	"github.com/romana/core/tenant"
 	"log"
+	"fmt"
 )
 
 /*
@@ -37,7 +38,7 @@ func (l *kubeListener) process(in <-chan Event, done chan Done) {
 		for {
 			select {
 			case e := <-in:
-//				NPid := e.Object.makeId()
+				//				NPid := e.Object.makeId()
 				if e.Type == KubeEventAdded || e.Type == KubeEventDeleted {
 					log.Printf("Processing %s request for %s", e.Type, e.Object.Metadata.Name)
 					if e.Object.Kind == "NetworkPolicy" {
@@ -57,11 +58,17 @@ func (l *kubeListener) process(in <-chan Event, done chan Done) {
 						if e.Type == KubeEventAdded {
 							tenantReq := tenant.Tenant{Name: e.Object.Metadata.Name, ExternalID: e.Object.Metadata.Name}
 							tenantResp := tenant.Tenant{}
-							err := l.restClient.Post("/tenants", tenantReq, &tenantResp)
+							log.Printf("processor: Posting to /tenants: %#v", tenantReq)
+							tenantUrl, err := l.restClient.GetServiceUrl("tenant")
 							if err != nil {
-								log.Printf("Error adding tenant %s: %v", tenantReq.Name, err)
+								log.Printf("Error adding tenant %s: %#v", tenantReq.Name, err)
 							} else {
-								log.Printf("Added tenant: %v", tenantResp)
+								err := l.restClient.Post(fmt.Sprintf("%s/tenants", tenantUrl), tenantReq, &tenantResp)
+								if err != nil {
+									log.Printf("Error adding tenant %s: %#v", tenantReq.Name, err)
+								} else {
+									log.Printf("Added tenant: %#v", tenantResp)
+								}
 							}
 						} else {
 							// TODO finish once UUID is merged
@@ -69,16 +76,17 @@ func (l *kubeListener) process(in <-chan Event, done chan Done) {
 							//							tenantResp := tenant.Tenant{}
 							//							err = client.Delete("/tenants", tenantReq, &tenantResp)
 							//							if err != nil {
-							//								log.Printf("Error adding tenant %s: %v", tenantReq.Name, err)
+							//								log.Printf("Error adding tenant %s: %#v", tenantReq.Name, err)
 							//							} else {
-							//								log.Printf("Added tenant: %v", tenantResp)
+							//								log.Printf("Added tenant: %#v", tenantResp)
 							//							}
 						}
 
 					}
-				} else {
-					log.Printf("Received unindentified request %s for %s", e.Type, e.Object.Metadata.Name)
 				}
+				//				else {
+				//					log.Printf("Received unindentified request %s for %s", e.Type, e.Object.Metadata.Name)
+				//				}
 			case <-done:
 				return
 			}

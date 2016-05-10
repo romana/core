@@ -94,7 +94,7 @@ func (policy *PolicySvc) augmentEndpoint(endpoint *common.Endpoint) error {
 		segmentIDToUse = endpoint.SegmentExternalID
 	}
 	if segmentIDToUse != "" {
-		tenantsUrl := fmt.Sprintf("%s/tenants/%s/segment/%s", tenantSvcUrl, ten.ID, segmentIDToUse)
+		tenantsUrl := fmt.Sprintf("%s/tenants/%d/segment/%s", tenantSvcUrl, ten.ID, segmentIDToUse)
 		segment := &tenant.Segment{}
 		err = policy.client.Get(tenantsUrl, &segment)
 		if err != nil {

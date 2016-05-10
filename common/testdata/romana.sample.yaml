@@ -4,11 +4,10 @@ services:
       host: localhost
       port: 9600
     config:
-      auth: no
       store: 
         type: sqlite3
         database: /var/tmp/auth.sqlite3
- - service: ipam
+  - service: ipam
     api:
       host: localhost
       port: 9601
@@ -23,7 +22,7 @@ services:
     config:
       store: 
         type: sqlite3
-       database: /var/tmp/tenant.sqlite3
+        database: /var/tmp/tenant.sqlite3
   - service: topology
     api:
       host: localhost
@@ -54,12 +53,12 @@ services:
     config:
       store: 
         type: sqlite3
-       database: /var/tmp/policy.sqlite3      
+        database: /var/tmp/policy.sqlite3      
   - service: kubernetesListener 
     api:
       host: 0.0.0.0
       port: 9606
     config:
       kubernetes_url : "http://localhost"
-      url_prefix="apis/romana.io/demo/v1/namespaces"
-      segment_label_name="tier"
+      url_prefix: "apis/romana.io/demo/v1/namespaces"
+      segment_label_name: "tier"
