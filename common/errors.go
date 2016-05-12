@@ -60,14 +60,15 @@ const (
 
 type ExecErrorDetails struct {
 	Error  string
-	Stderr string
+	// TODO add when we move to Go 1.6
+//	Stderr string
 }
 
 func NewError500(details interface{}) HttpError {
 	retval := HttpError{StatusCode: http.StatusInternalServerError}
 	switch details := details.(type) {
 	case *exec.ExitError:
-		retval.Details = ExecErrorDetails{Error: details.Error(), Stderr: string(details.Stderr)}
+		retval.Details = ExecErrorDetails{Error: details.Error()} //, Stderr: string(details.Stderr)}
 	default:
 		retval.Details = details
 	}
