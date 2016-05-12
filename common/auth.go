@@ -13,8 +13,9 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Package common authentication related code.
 package common
+
+// Authentication-related code.
 
 type Role interface {
 	Name() string
@@ -31,7 +32,7 @@ type CredentialType string
 const (
 	CredentialUsernamePassword = "userPass"
 	CredentialNone             = "none"
-	
+
 	PasswordEnvironmentVariable = "ROMANA_PASSWORD"
 )
 
@@ -58,4 +59,3 @@ func MakeCredentialFromCliArgs(username string, password string) *Credential {
 		return &Credential{Type: CredentialUsernamePassword, Username: username, Password: password}
 	}
 }
-

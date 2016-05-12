@@ -56,7 +56,7 @@ For more information, please check http://romana.io
 // to commands/subcommands evoked.
 func Execute() {
 	if err := RootCmd.Execute(); err != nil {
-		fmt.Println(err)
+		log.Println(err)
 		os.Exit(-1)
 	}
 }

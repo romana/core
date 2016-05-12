@@ -41,8 +41,8 @@ func TestHooks(t *testing.T) {
 	fmt.Println("Waiting for message")
 	msg := <-svcInfo.Channel
 	fmt.Println("Root service said:", msg)
-	addr := fmt.Sprintf("http://%s", svcInfo.Address)
-	client, err := common.NewRestClient(addr, common.GetDefaultRestClientConfig())
+	rootURL := fmt.Sprintf("http://%s", svcInfo.Address)
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
 	if err != nil {
 		t.Error(err)
 
@@ -72,12 +72,13 @@ func TestHooks(t *testing.T) {
 		t.Error(fmt.Sprintf("Expected %s, received %s", expect, str))
 	}
 
-	url := fmt.Sprintf("%s/config/ipam/port", addr)
+	url := fmt.Sprintf("%s/config/ipam/port", rootURL)
 	result2 := make(map[string]interface{})
 	portMsg := common.PortUpdateMessage{Port: 12345}
 	err = client.Post(url, portMsg, &result2)
-	if err != nil {
-		t.Error(err)
+	fmt.Printf("Got %v", err)
+	if err == nil {
+		t.Error("Expected error, got nothing")
 		t.FailNow()
 	}
 	fmt.Println("Received: ", result2)
@@ -119,9 +120,9 @@ func TestAuth(t *testing.T) {
 	fmt.Println("Root service said:", msg)
 	addr := fmt.Sprintf("http://%s", svcInfo.Address)
 
-	clientConfig := common.GetDefaultRestClientConfig()
+	clientConfig := common.GetDefaultRestClientConfig(addr)
 	clientConfig.Credential = &common.Credential{Type: common.CredentialUsernamePassword, Username: "admin", Password: "password"}
-	client, err := common.NewRestClient(addr, clientConfig)
+	client, err := common.NewRestClient(clientConfig)
 
 	if err != nil {
 		t.Error(err)
@@ -166,8 +167,8 @@ func TestServiceList(t *testing.T) {
 		t.Error(err)
 		t.FailNow()
 	}
-	addr := fmt.Sprintf("http://%s", svcInfo.Address)
-	client, err := common.NewRestClient(addr, common.GetDefaultRestClientConfig())
+	rootURL := fmt.Sprintf("http://%s", svcInfo.Address)
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
 	if err != nil {
 		t.Error(err)
 		t.FailNow()

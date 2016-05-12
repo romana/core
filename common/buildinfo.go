@@ -13,8 +13,9 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Package common build information support.
 package common
+
+// Build information support.
 
 import (
 	"fmt"

@@ -16,7 +16,7 @@ package root
 
 import (
 	"fmt"
-	//	"github.com/jinzhu/gorm"
+
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/romana/core/common"
 	"log"

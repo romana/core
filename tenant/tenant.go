@@ -16,6 +16,7 @@
 package tenant
 
 import (
+//	"fmt"
 	"github.com/romana/core/common"
 	"log"
 	"strconv"
@@ -29,45 +30,46 @@ type TenantSvc struct {
 }
 
 const (
-	tenantsPath  = "/tenants"
-	segmentsPath = "/segments"
+	findPath           = "/find"
+	tenantsPath        = "/tenants"
+	segmentsPath       = "/segments"
+	tenantNameQueryVar = "tenantName"
 )
 
 // Routes provides route for tenant service.
 func (tsvc *TenantSvc) Routes() common.Routes {
 	routes := common.Routes{
 		common.Route{
-			Method:          "POST",
-			Pattern:         tenantsPath,
-			Handler:         tsvc.addTenant,
-			MakeMessage:     func() interface{} { return &Tenant{} },
-			UseRequestToken: false,
+			Method:      "POST",
+			Pattern:     tenantsPath,
+			Handler:     tsvc.addTenant,
+			MakeMessage: func() interface{} { return &Tenant{} },
 		},
 		common.Route{
-			Method:          "GET",
-			Pattern:         tenantsPath + "/{tenantId}",
-			Handler:         tsvc.findTenant,
-			MakeMessage:     nil,
-			UseRequestToken: false,
+			Method:  "GET",
+			Pattern: tenantsPath + "/{tenantId}",
+			Handler: tsvc.findTenants,
 		},
 		common.Route{
-			Method:          "GET",
-			Pattern:         tenantsPath,
-			Handler:         tsvc.listTenants,
-			MakeMessage:     nil,
-			UseRequestToken: false,
+			Method:  "GET",
+			Pattern: findPath + tenantsPath,
+			Handler: tsvc.findTenantsByName,
 		},
 		common.Route{
-			Method:          "POST",
-			Pattern:         tenantsPath + "/{tenantId}" + segmentsPath,
-			Handler:         tsvc.addSegment,
-			MakeMessage:     func() interface{} { return &Segment{} },
-			UseRequestToken: false,
+			Method:  "GET",
+			Pattern: tenantsPath,
+			Handler: tsvc.listTenants,
+		},
+		common.Route{
+			Method:      "POST",
+			Pattern:     tenantsPath + "/{tenantId}" + segmentsPath,
+			Handler:     tsvc.addSegment,
+			MakeMessage: func() interface{} { return &Segment{} },
 		},
 		common.Route{
 			Method:          "GET",
 			Pattern:         tenantsPath + "/{tenantId}" + segmentsPath + "/{segmentId}",
-			Handler:         tsvc.findSegment,
+			Handler:         tsvc.findSegments,
 			MakeMessage:     nil,
 			UseRequestToken: false,
 		},
@@ -82,7 +84,9 @@ func (tsvc *TenantSvc) Routes() common.Routes {
 	return routes
 }
 
-
+// addTenant calls Tenant Service to create a tenant with the
+// specific details provided as input. It returns full details
+// about the created tenant or HTTP Error.
 func (tsvc *TenantSvc) addTenant(input interface{}, ctx common.RestContext) (interface{}, error) {
 	log.Println("In addTenant()")
 	newTenant := input.(*Tenant)
@@ -105,29 +109,48 @@ func (tsvc *TenantSvc) listTenants(input interface{}, ctx common.RestContext) (i
 func (tsvc *TenantSvc) listSegments(input interface{}, ctx common.RestContext) (interface{}, error) {
 	log.Println("In listSegments()")
 	idStr := ctx.PathVariables["tenantId"]
-	id, err := strconv.ParseUint(idStr, 10, 64)
+	segments, err := tsvc.store.listSegments(idStr)
 	if err != nil {
 		return nil, err
 	}
-	segments, err := tsvc.store.listSegments(id)
-	if err != nil {
-		return nil, err
+	if len(segments) == 0 {
+		return nil, common.NewError404("segment", "ALL")
+	}
+	if len(segments) == 1 {
+		return segments[0], nil
 	}
 	return segments, nil
 }
 
-func (tsvc *TenantSvc) findTenant(input interface{}, ctx common.RestContext) (interface{}, error) {
+func (tsvc *TenantSvc) findTenants(input interface{}, ctx common.RestContext) (interface{}, error) {
 	idStr := ctx.PathVariables["tenantId"]
 	log.Printf("In findTenant(%s)\n", idStr)
-	id, err := strconv.ParseUint(idStr, 10, 64)
+	tenants, err := tsvc.store.findTenants(idStr)
 	if err != nil {
 		return nil, err
 	}
-	tenant, err := tsvc.store.findTenant(id)
+	if len(tenants) == 0 {
+		return nil, common.NewError404("tenant", idStr)
+	}
+	if len(tenants) == 1 {
+		return tenants[0], nil
+	}
+	return tenants, nil
+}
+
+func (tsvc *TenantSvc) findTenantsByName(input interface{}, ctx common.RestContext) (interface{}, error) {
+	nameArr := ctx.QueryVariables[tenantNameQueryVar]
+	if len(nameArr) != 1 {
+		return nil, common.NewError("Expected exactly one value in %s, got %v", tenantNameQueryVar, nameArr)
+	}
+	nameStr := nameArr[0]
+	log.Printf("In findTenant(%s)\n", nameStr)
+
+	tenants, err := tsvc.store.findTenantsByName(nameStr)
 	if err != nil {
 		return nil, err
 	}
-	return tenant, nil
+	return tenants, nil
 }
 
 func (tsvc *TenantSvc) addSegment(input interface{}, ctx common.RestContext) (interface{}, error) {
@@ -146,27 +169,22 @@ func (tenant *TenantSvc) Name() string {
 	return "tenant"
 }
 
-func (tsvc *TenantSvc) findSegment(input interface{}, ctx common.RestContext) (interface{}, error) {
+func (tsvc *TenantSvc) findSegments(input interface{}, ctx common.RestContext) (interface{}, error) {
 	log.Println("In findSegment()")
 	tenantIdStr := ctx.PathVariables["tenantId"]
-	tenantId, err := strconv.ParseUint(tenantIdStr, 10, 64)
-
-	if err != nil {
-		return nil, err
-	}
 	segmentIdStr := ctx.PathVariables["segmentId"]
 
-	segmentId, err := strconv.ParseUint(segmentIdStr, 10, 64)
-
+	segments, err := tsvc.store.findSegments(tenantIdStr, segmentIdStr)
 	if err != nil {
 		return nil, err
 	}
-
-	segment, err := tsvc.store.findSegment(tenantId, segmentId)
-	if err != nil {
-		return nil, err
+	if len(segments) == 0 {
+		return nil, common.NewError404("segment", segmentIdStr)
 	}
-	return segment, nil
+	if len(segments) == 1 {
+		return segments[0], nil
+	}
+	return segments, nil
 }
 
 // SetConfig implements SetConfig function of the Service interface.
@@ -191,13 +209,13 @@ func (tsvc *TenantSvc) createSchema(overwrite bool) error {
 // Run configures and runs tenant service.
 func Run(rootServiceUrl string, cred *common.Credential) (*common.RestServiceInfo, error) {
 	tsvc := &TenantSvc{}
-	clientConfig := common.GetDefaultRestClientConfig()
+	clientConfig := common.GetDefaultRestClientConfig(rootServiceUrl)
 	clientConfig.Credential = cred
-	client, err := common.NewRestClient(rootServiceUrl, clientConfig)
+	client, err := common.NewRestClient(clientConfig)
 	if err != nil {
 		return nil, err
 	}
-	config, err := client.GetServiceConfig(rootServiceUrl, tsvc)
+	config, err := client.GetServiceConfig(tsvc.Name())
 	if err != nil {
 		return nil, err
 	}
@@ -211,12 +229,12 @@ func (tsvc *TenantSvc) Initialize() error {
 		return err
 	}
 
-	client, err := common.NewRestClient("", common.GetRestClientConfig(tsvc.config))
+	client, err := common.NewRestClient(common.GetRestClientConfig(tsvc.config))
 	if err != nil {
 		return err
 	}
 
-	topologyURL, err := client.GetServiceUrl(tsvc.config.Common.Api.RootServiceUrl, "topology")
+	topologyURL, err := client.GetServiceUrl("topology")
 	if err != nil {
 		return err
 	}
@@ -243,12 +261,12 @@ func CreateSchema(rootServiceUrl string, overwrite bool) error {
 	log.Println("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
 	tsvc := &TenantSvc{}
 
-	client, err := common.NewRestClient("", common.GetDefaultRestClientConfig())
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootServiceUrl))
 	if err != nil {
 		return err
 	}
 
-	config, err := client.GetServiceConfig(rootServiceUrl, tsvc)
+	config, err := client.GetServiceConfig(tsvc.Name())
 	if err != nil {
 		return err
 	}

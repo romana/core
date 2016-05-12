@@ -41,8 +41,8 @@ type Config struct {
 }
 
 type Root struct {
-	config     Config
-//	routes     common.Routes
+	config Config
+	//	routes     common.Routes
 	privateKey []byte
 	store      rootStore
 }
@@ -153,7 +153,7 @@ func (root *Root) handleIndex(input interface{}, ctx common.RestContext) (interf
 }
 
 func (root *Root) Name() string {
-	return "root"
+	return common.ServiceRoot
 }
 
 // Handler for the /config

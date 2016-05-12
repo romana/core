@@ -23,6 +23,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/romana/core/common"
+	"github.com/romana/core/romana/util"
 
 	cli "github.com/spf13/cobra"
 	config "github.com/spf13/viper"
@@ -81,7 +82,7 @@ var hostRemoveCmd = &cli.Command{
 
 func hostAdd(cmd *cli.Command, args []string) error {
 	if len(args) < 3 || len(args) > 4 {
-		return UsageError(cmd,
+		return util.UsageError(cmd,
 			fmt.Sprintf("expected 3 or 4 arguments, saw %d: %s", len(args), args))
 	}
 
@@ -93,20 +94,19 @@ func hostAdd(cmd *cli.Command, args []string) error {
 		var err error
 		agentport, err = strconv.Atoi(args[3])
 		if err != nil {
-			return UsageError(cmd,
+			return util.UsageError(cmd,
 				fmt.Sprintf("Agent Port number error, saw %s", args[3]))
 		}
 	} else {
 		agentport, _ = strconv.Atoi("9606")
 	}
 
-	client, err := common.NewRestClient(rootURL,
-		common.GetDefaultRestClientConfig())
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
 	if err != nil {
 		return err
 	}
 
-	topologyURL, err := client.GetServiceUrl(rootURL, "topology")
+	topologyURL, err := client.GetServiceUrl("topology")
 	if err != nil {
 		return err
 	}
@@ -138,17 +138,16 @@ func hostAdd(cmd *cli.Command, args []string) error {
 
 func hostShow(cmd *cli.Command, args []string) error {
 	if len(args) < 1 {
-		return UsageError(cmd,
+		return util.UsageError(cmd,
 			fmt.Sprintf("expected at-least 1 argument, saw none"))
 	}
 
-	client, err := common.NewRestClient(rootURL,
-		common.GetDefaultRestClientConfig())
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
 	if err != nil {
 		return err
 	}
 
-	topologyURL, err := client.GetServiceUrl(rootURL, "topology")
+	topologyURL, err := client.GetServiceUrl( "topology")
 	if err != nil {
 		return err
 	}
@@ -204,13 +203,12 @@ func hostShow(cmd *cli.Command, args []string) error {
 }
 
 func hostList(cmd *cli.Command, args []string) error {
-	client, err := common.NewRestClient(rootURL,
-		common.GetDefaultRestClientConfig())
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
 	if err != nil {
 		return err
 	}
 
-	topologyURL, err := client.GetServiceUrl(rootURL, "topology")
+	topologyURL, err := client.GetServiceUrl("topology")
 	if err != nil {
 		return err
 	}
