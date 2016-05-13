@@ -32,13 +32,12 @@ import (
 func GetTenantID(name string) (uint64, error) {
 	rootURL := config.GetString("RootURL")
 
-	client, err := common.NewRestClient(rootURL,
-		common.GetDefaultRestClientConfig())
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
 	if err != nil {
 		return 0, err
 	}
 
-	tenantURL, err := client.GetServiceUrl(rootURL, "tenant")
+	tenantURL, err := client.GetServiceUrl("tenant")
 	if err != nil {
 		return 0, err
 	}

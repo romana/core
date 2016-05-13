@@ -86,15 +86,34 @@ func (a *Agent) Routes() common.Routes {
 			// TODO this is for the future so we ensure idempotence.
 			UseRequestToken: true,
 		},
+		common.Route{
+			Method:  "POST",
+			Pattern: "/policies",
+			Handler: a.addPolicy,
+			MakeMessage: func() interface{} {
+				return &common.Policy{}
+			},
+			UseRequestToken: false,
+		},
+		common.Route{
+			Method:  "DELETE",
+			Pattern: "/policies/{policyID}",
+			Handler: a.deletePolicy,
+		},
+		common.Route{
+			Method:  "GET",
+			Pattern: "/policies",
+			Handler: a.listPolicies,
+		},
 	}
 	return routes
 }
 
 // Run starts the agent service.
 func Run(rootServiceURL string, cred *common.Credential, testMode bool) (*common.RestServiceInfo, error) {
-	clientConfig := common.GetDefaultRestClientConfig()
+	clientConfig := common.GetDefaultRestClientConfig(rootServiceURL)
 	clientConfig.TestMode = testMode
-	client, err := common.NewRestClient("", clientConfig)
+	client, err := common.NewRestClient(clientConfig)
 	clientConfig.Credential = cred
 
 	if err != nil {
@@ -106,7 +125,7 @@ func Run(rootServiceURL string, cred *common.Credential, testMode bool) (*common
 	agent.Helper = &helper
 	log.Printf("Agent: Getting configuration from %s", rootServiceURL)
 
-	config, err := client.GetServiceConfig(rootServiceURL, agent)
+	config, err := client.GetServiceConfig(agent.Name())
 	if err != nil {
 		return nil, err
 	}
@@ -116,6 +135,23 @@ func Run(rootServiceURL string, cred *common.Credential, testMode bool) (*common
 // Name implements method of Service interface.
 func (a *Agent) Name() string {
 	return "agent"
+}
+
+// addPolicy is a placeholder. TODO
+func (a *Agent) addPolicy(input interface{}, ctx common.RestContext) (interface{}, error) {
+//	policy := input.(*common.Policy)
+	return nil, nil
+}
+
+// deletePolicy is a placeholder. TODO
+func (a *Agent) deletePolicy(input interface{}, ctx common.RestContext) (interface{}, error) {
+//	policyId := ctx.PathVariables["policyID"]
+	return nil, nil
+}
+
+// listPolicies is a placeholder. TODO.
+func (a *Agent) listPolicies(input interface{}, ctx common.RestContext) (interface{}, error) {
+	return nil, nil
 }
 
 // k8sPodUpHandler handles HTTP requests for endpoints provisioning.

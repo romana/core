@@ -13,8 +13,9 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Package common authentication related code.
 package common
+
+// Authentication-related code.
 
 type Role interface {
 	Name() string

@@ -103,13 +103,12 @@ func tenantCreate(cmd *cli.Command, args []string) error {
 
 	rootURL := config.GetString("RootURL")
 
-	client, err := common.NewRestClient(rootURL,
-		common.GetDefaultRestClientConfig())
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
 	if err != nil {
 		return err
 	}
 
-	tenantURL, err := client.GetServiceUrl(rootURL, "tenant")
+	tenantURL, err := client.GetServiceUrl("tenant")
 	if err != nil {
 		return err
 	}
@@ -168,9 +167,7 @@ func tenantCreate(cmd *cli.Command, args []string) error {
 				fmt.Println(string(status))
 				return fmt.Errorf("HTTP Error.")
 			} else {
-				return fmt.Errorf("HTTP Error.\nStatus Code: %d\n"+
-					"Status Text:%s\nMessage:%s",
-					h.StatusCode, h.StatusText, h.Message)
+				return fmt.Errorf(h.Error())
 			}
 		}
 	}
@@ -210,13 +207,12 @@ func tenantShow(cmd *cli.Command, args []string) error {
 
 	rootURL := config.GetString("RootURL")
 
-	client, err := common.NewRestClient(rootURL,
-		common.GetDefaultRestClientConfig())
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
 	if err != nil {
 		return err
 	}
 
-	tenantURL, err := client.GetServiceUrl(rootURL, "tenant")
+	tenantURL, err := client.GetServiceUrl("tenant")
 	if err != nil {
 		return err
 	}
@@ -275,13 +271,12 @@ func tenantShow(cmd *cli.Command, args []string) error {
 func tenantList(cmd *cli.Command, args []string) error {
 	rootURL := config.GetString("RootURL")
 
-	client, err := common.NewRestClient(rootURL,
-		common.GetDefaultRestClientConfig())
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
 	if err != nil {
 		return err
 	}
 
-	tenantURL, err := client.GetServiceUrl(rootURL, "tenant")
+	tenantURL, err := client.GetServiceUrl("tenant")
 	if err != nil {
 		return err
 	}

@@ -49,7 +49,7 @@ Left here as a template for future tests, maybe
 // TestK8SHandler will test K8S handler
 func TestK8SHandler(t *testing.T) {
 	startAgent(t)
-	restClient, err := common.NewRestClient("", common.GetDefaultRestClientConfig())
+	restClient, err := common.NewRestClient(common.GetDefaultRestClientConfig(""))
 	if err != nil {
 		t.Error(err)
 		return

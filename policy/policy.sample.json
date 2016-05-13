@@ -24,7 +24,7 @@
                     "Key": "TenantID",
                     "Value": "D46FD18B-A381-4297-A6D4-9DA594EE71C8",
                 },
-            ], # meta data attached to policies for various external enviorments like openstack/kybernetes
+            ], # meta data attached to policies for various external environments like openstack/kybernetes
             "Direction" : "Egress", # can be Egress or Ingress.
             "Peers": [
                 {
