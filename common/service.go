@@ -101,7 +101,7 @@ func (links Links) FindByRel(rel string) string {
 // HostMessage is a structure representing information
 // about the host for the purposes of REST communications
 type HostMessage struct {
-	Id        string `json:"id"`
+	Id        uint64 `json:"id"`
 	Name      string `json:"name"`
 	Ip        string `json:"ip"`
 	RomanaIp  string `json:"romana_ip"`

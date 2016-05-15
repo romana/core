@@ -22,16 +22,15 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 
 	"github.com/romana/core/common"
-
-	"strconv"
 )
 
 type Host struct {
-	Id        uint64 `sql:"AUTO_INCREMENT" json:"id"`
-	Name      string `json:"name"`
-	Ip        string `json:"ip" sql:"unique"`
-	RomanaIp  string `json:"romana_ip" sql:"unique"`
-	AgentPort uint64 `json:"agent_port"`
+	Id              uint64 `sql:"AUTO_INCREMENT" json:"id"`
+	Name            string `json:"name"`
+	Ip              []byte `json:"ip" sql:"type:varbinary(16);unique"`
+	RomanaIp        []byte `json:"romana_ip" sql:"type:varbinary(16);unique"`
+	RomanaPrefixLen uint8  `json:"romana_net"`
+	AgentPort       uint64 `json:"agent_port"`
 	//	tor         *Tor
 }
 
@@ -78,15 +77,15 @@ func (topoStore *topoStore) listHosts() ([]Host, error) {
 	return hosts, nil
 }
 
-func (topoStore *topoStore) addHost(host *Host) (string, error) {
+func (topoStore *topoStore) addHost(host *Host) (uint64, error) {
 	topoStore.DbStore.Db.NewRecord(*host)
 	db := topoStore.DbStore.Db.Create(host)
 	if db.Error != nil {
-		return "", db.Error
+		return 0, db.Error
 	}
 	err := common.MakeMultiError(topoStore.DbStore.Db.GetErrors())
 	if err != nil {
-		return "", err
+		return 0, err
 	}
-	return strconv.FormatUint(host.Id, 10), nil
+	return host.Id, nil
 }
