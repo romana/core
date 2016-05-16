@@ -13,8 +13,9 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Package common contains the implementation of HttpClient and related utilities.
 package common
+
+// Contains the implementation of HttpClient and related utilities.
 
 import (
 	"bytes"
@@ -291,6 +292,7 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 
 	var body []byte
 	// We allow also file scheme, for testing purposes.
+	var resp *http.Response
 	if rc.url.Scheme == "http" || rc.url.Scheme == "https" {
 		var req *http.Request
 		if reqBodyReader == nil {
@@ -308,7 +310,6 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 		if rc.token != "" {
 			req.Header.Set("authorization", rc.token)
 		}
-		var resp *http.Response
 		for i := 0; i < rc.config.Retries; i++ {
 			log.Printf("Try %d for %s", (i + 1), rc.url)
 			if i > 0 {
@@ -331,6 +332,7 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 				}
 			}
 		}
+
 		if err != nil {
 			return err
 		}
@@ -338,6 +340,8 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 		body, err = ioutil.ReadAll(resp.Body)
 
 	} else if rc.url.Scheme == "file" {
+		resp = &http.Response{}
+		resp.StatusCode = http.StatusOK
 		log.Printf("RestClient: Loading file %s, %s", rc.url.String(), rc.url.Path)
 		body, err = ioutil.ReadFile(rc.url.Path)
 		if err != nil {
@@ -365,14 +369,43 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 	if err != nil {
 		return err
 	}
-
-	if result == nil {
-		return nil
+	var unmarshalBodyErr error
+	if result != nil {
+		unmarshalBodyErr = json.Unmarshal(body, &result)
 	}
-
-	err = json.Unmarshal(body, &result)
-	if err != nil {
-		return errors.New(fmt.Sprintf("Error %s (%T) when parsing %s", err.Error(), err, body))
+	if resp.StatusCode >= 400 {
+		// The body should be an HTTP error
+		httpError := &HttpError{}
+		unmarshalBodyErr = json.Unmarshal(body, httpError)
+		httpError.StatusCode = resp.StatusCode
+		if unmarshalBodyErr == nil {
+			if resp.StatusCode == http.StatusConflict {
+				// In case of conflict, we actually expect the object that caused
+				// conflict to appear in details... So we want to marshal this back to JSON
+				// and unmarshal into what we know should be...
+				j, err := json.Marshal(httpError.Details)
+				if err != nil {
+					httpError.Details = errors.New(fmt.Sprintf("Error parsing '%v': %s", httpError.Details, err))
+					return httpError
+				}
+				err = json.Unmarshal(j, &result)
+				if err != nil {
+					httpError.Details = errors.New(fmt.Sprintf("Error parsing '%s': %s", j, err))
+					return httpError
+				}
+				httpError.Details = result
+			}
+			return *httpError
+		} else {
+			// Error unmarshaling body...
+			httpError.Details = errors.New(fmt.Sprintf("Error parsing '%v': %s", bodyStr, err))
+			return *httpError
+		}
+	} else {
+		// OK response...
+		if unmarshalBodyErr != nil {
+			return errors.New(fmt.Sprintf("Error %s (%T) when parsing %s", unmarshalBodyErr.Error(), err, body))
+		}
 	}
 	return nil
 }
@@ -404,8 +437,9 @@ func (rc *RestClient) Get(url string, result interface{}) error {
 	return rc.execMethod("GET", url, nil, result)
 }
 
-// GetServiceConfig retrieves configuration for a given service from the root service.
-func (rc *RestClient) GetServiceConfig(svc Service) (*ServiceConfig, error) {
+// GetServiceConfig retrieves configuration
+// for the given service from the root service.
+func (rc *RestClient) GetServiceConfig(name string) (*ServiceConfig, error) {
 	rootIndexResponse := &RootIndexResponse{}
 	if rc.config.RootURL == "" {
 		return nil, errors.New("RootURL not set")
@@ -429,7 +463,7 @@ func (rc *RestClient) GetServiceConfig(svc Service) (*ServiceConfig, error) {
 
 	config := &ServiceConfig{}
 	config.Common.Api = &Api{RootServiceUrl: rc.config.RootURL}
-	relName := svc.Name() + "-config"
+	relName := name + "-config"
 	configUrl := rootIndexResponse.Links.FindByRel(relName)
 	if configUrl == "" {
 		return nil, errors.New(fmt.Sprintf("Could not find %s at %s", relName, rc.config.RootURL))

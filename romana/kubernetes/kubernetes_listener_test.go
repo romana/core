@@ -3,6 +3,7 @@ package kubernetes
 import (
 	"fmt"
 	"github.com/romana/core/common"
+	"github.com/romana/core/tenant"
 	//	"github.com/romana/core/policy"
 	"github.com/go-check/check"
 	"log"
@@ -19,9 +20,10 @@ func Test(t *testing.T) {
 }
 
 type MySuite struct {
-	serviceURL string
-	kubeURL    string
-	c          *check.C
+	serviceURL  string
+	servicePort int
+	kubeURL     string
+	c           *check.C
 }
 
 var _ = check.Suite(&MySuite{})
@@ -30,6 +32,7 @@ var _ = check.Suite(&MySuite{})
 func (ks kubeSimulator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	//	w.Header().Set("Connection", "Keep-Alive")
 	//	w.Header().Set("Transfer-Encoding", "chunked")
+	log.Println("Test: Entered kubeSimulator ServeHTTP()")
 	flusher, _ := w.(http.Flusher)
 
 	fmt.Fprintf(w, addPolicy1)
@@ -43,7 +46,19 @@ func (ks kubeSimulator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // mockSvc is a Romana Service used in tests.
-type mockSvc struct{}
+type mockSvc struct {
+	mySuite *MySuite
+	// To simulate tenant/segment database.
+	// tenantCounter will provide tenant IDs
+	tenantCounter uint64
+	// Map of tenant ID to external ID
+	tenants map[uint64]string
+	// Map of External ID to tenant ID
+	tenantsStr     map[string]uint64
+	segmentCounter uint64
+	segments       map[uint64]string
+	segmentsStr    map[string]uint64
+}
 
 func (s *mockSvc) SetConfig(config common.ServiceConfig) error {
 	return nil
@@ -61,54 +76,192 @@ func (s *mockSvc) Routes() common.Routes {
 	addPolicyRoute := common.Route{
 		Method:  "POST",
 		Pattern: "/policies",
-
 		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
-			log.Printf("Received %v", input)
+			log.Printf("Received %#v", input)
 			switch input := input.(type) {
 			case *common.Policy:
 				return input, nil
 			default:
-				return nil, common.NewError("Expected common.Policy, got %v", input)
+				return nil, common.NewError("Expected common.Policy, got %#v", input)
 			}
 		},
 		MakeMessage: func() interface{} { return &common.Policy{} },
 	}
+
+	kubeListenerConfigRoute := common.Route{
+		Method:  "GET",
+		Pattern: "/config/kubernetesListener",
+		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
+			json := `{"common":{"api":{"host":"0.0.0.0","port":9606}},
+			"config":{"kubernetes_url":"http://localhost",
+			"segment_label_name":"tier",
+			"url_prefix":"apis/romana.io/demo/v1/namespaces"}}`
+			return common.Raw{Body: json}, nil
+		},
+	}
+
+	tenantAddRoute := common.Route{
+		Method:  "POST",
+		Pattern: "/tenants",
+		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
+			log.Println("In addTenant()")
+			newTenant := input.(*tenant.Tenant)
+			if s.tenantsStr[newTenant.ExternalID] != 0 {
+				newTenant.ID = s.tenantsStr[newTenant.ExternalID]
+				return nil, common.NewErrorConflict(newTenant)
+			}
+			s.tenantCounter += 1
+			s.tenants[s.tenantCounter] = newTenant.ExternalID
+			s.tenantsStr[newTenant.ExternalID] = s.tenantCounter
+			newTenant.ID = s.tenantCounter
+			log.Printf("In tenantAddRoute\n\t%#v\n\t%#v", s.tenants, s.tenantsStr)
+
+			return newTenant, nil
+		},
+		MakeMessage: func() interface{} { return &tenant.Tenant{} },
+	}
+
+	tenantGetRoute := common.Route{
+		Method:  "GET",
+		Pattern: "/tenants/{tenantID}",
+		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
+			log.Printf("In tenantGetRoute\n\t%#v\n\t%#v", s.tenants, s.tenantsStr)
+			idStr := ctx.PathVariables["tenantID"]
+			id, err := strconv.ParseUint(idStr, 10, 64)
+			if err != nil {
+				if s.tenantsStr[idStr] == 0 {
+					return nil, common.NewError404("tenant", idStr)
+				}
+				id = s.tenantsStr[idStr]
+				return &tenant.Tenant{ID: id, Name: idStr, ExternalID: idStr}, nil
+			}
+			if id < 1 || id > s.tenantCounter {
+				return nil, common.NewError404("tenant", idStr)
+			}
+			name := s.tenants[s.tenantCounter]
+			return &tenant.Tenant{ID: id, Name: name, ExternalID: name}, nil
+		},
+	}
+
+	segmentAddRoute := common.Route{
+		Method:  "POST",
+		// For the purpose of this test, we are going to ignore tenantID and pretend
+		// it's the correct one.
+		Pattern: "/tenants/{tenantID}/segments",
+		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
+			log.Println("In addSegment()")
+			newSegment := input.(*tenant.Segment)
+			newSegment.TenantID = 1
+			if s.segmentsStr[newSegment.ExternalID] != 0 {
+				newSegment.ID = s.segmentsStr[newSegment.ExternalID]
+				return nil, common.NewErrorConflict(newSegment)
+			}
+			s.segmentCounter += 1
+			s.segments[s.segmentCounter] = newSegment.ExternalID
+			s.segmentsStr[newSegment.ExternalID] = s.segmentCounter
+			newSegment.ID = s.segmentCounter
+			log.Printf("In segmentAddRoute\n\t%#v\n\t%#v", s.segments, s.segmentsStr)
+			return newSegment, nil
+		},
+		MakeMessage: func() interface{} { return &tenant.Segment{} },
+	}
+
+	segmentGetRoute := common.Route{
+		Method:  "GET",
+		Pattern: "/tenants/{tenantID}/segments/{segmentID}",
+		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
+			log.Printf("In segmentGetRoute\n\t%#v\n\t%#v", s.segments, s.segmentsStr)
+			idStr := ctx.PathVariables["segmentID"]
+			id, err := strconv.ParseUint(idStr, 10, 64)
+			if err != nil {
+				if s.segmentsStr[idStr] == 0 {
+					return nil, common.NewError404("segment", idStr)
+				}
+				id = s.segmentsStr[idStr]
+				return &tenant.Segment{ID: id, Name: idStr, ExternalID: idStr}, nil
+			}
+			if id < 1 || id > s.segmentCounter {
+				return nil, common.NewError404("segment", idStr)
+			}
+			name := s.segments[s.segmentCounter]
+			return &tenant.Segment{ID: id, Name: name, ExternalID: name}, nil
+		},
+	}
+
+	rootRoute := common.Route{
+		Method:  "GET",
+		Pattern: "/",
+		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
+			json := `{"serviceName":"root",
+			"Links":
+			[
+			{"Href":"/config/root","Rel":"root-config"},
+			{"Href":"/config/ipam","Rel":"ipam-config"},
+			{"Href":"/config/tenant","Rel":"tenant-config"},
+			{"Href":"/config/topology","Rel":"topology-config"},
+			{"Href":"/config/agent","Rel":"agent-config"},
+			{"Href":"/config/policy","Rel":"policy-config"},
+			{"Href":"/config/kubernetesListener","Rel":"kubernetesListener-config"},
+			{"Href":"SERVICE_URL","Rel":"self"}
+			], 
+			"Services":
+			[
+			{"Name":"root","Links":[{"Href":"SERVICE_URL","Rel":"service"}]},
+			{"Name":"ipam","Links":[{"Href":"SERVICE_URL","Rel":"service"}]},
+			{"Name":"tenant","Links":[{"Href":"SERVICE_URL","Rel":"service"}]},
+			{"Name":"topology","Links":[{"Href":"SERVICE_URL","Rel":"service"}]},
+			{"Name":"agent","Links":[{"Href":"SERVICE_URL:PORT","Rel":"service"}]},
+			{"Name":"policy","Links":[{"Href":"SERVICE_URL","Rel":"service"}]},
+			{"Name":"kubernetesListener","Links":[{"Href":"SERVICE_URL","Rel":"service"}]}
+			]
+			}
+			`
+			retval := fmt.Sprintf(strings.Replace(json, "SERVICE_URL", s.mySuite.serviceURL, -1))
+			//			log.Printf("Using %s->SERVICE_URL, replaced\n\t%swith\n\t%s", s.mySuite.serviceURL, json, retval)
+			return common.Raw{Body: retval}, nil
+		},
+	}
+
+	registerPortRoute := common.Route{
+		Method:  "POST",
+		Pattern: "/config/kubernetes-listener/port",
+		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
+			log.Printf("Received %#v", input)
+			return "OK", nil
+		},
+	}
+
 	routes := common.Routes{
 		addPolicyRoute,
+		rootRoute,
+		tenantAddRoute,
+		tenantGetRoute,
+		segmentGetRoute,
+		segmentAddRoute,
+		kubeListenerConfigRoute,
+		registerPortRoute,
 	}
+	log.Printf("mockService: Set up routes: %#v", routes)
 	return routes
 }
 
 type kubeSimulator struct {
 }
 
-type fakeRestClient struct {
-	common.RestClient
-	s *MySuite
-}
+func (s *MySuite) getKubeListenerServiceConfig() *common.ServiceConfig {
+	url, _ := url.Parse(s.serviceURL)
+	hostPort := strings.Split(url.Host, ":")
+	port, _ := strconv.ParseUint(hostPort[1], 10, 64)
+	api := &common.Api{Host: "localhost", Port: port, RootServiceUrl: s.serviceURL}
+	commonConfig := common.CommonConfig{Api: api}
+	kubeListenerConfig := make(map[string]interface{})
+	kubeListenerConfig["kubernetes_url"] = s.kubeURL
+	kubeListenerConfig["url_prefix"] = "apis/romana.io/demo/v1/namespaces"
+	kubeListenerConfig["segment_label_name"] = "tier"
+	svcConfig := common.ServiceConfig{Common: commonConfig, ServiceSpecific: kubeListenerConfig}
+	log.Printf("Test: Returning KubernetesListener config %#v", svcConfig.ServiceSpecific)
+	return &svcConfig
 
-func (frc *fakeRestClient) GetServiceURL(name string) (string, error) {
-	return frc.s.serviceURL, nil
-}
-
-func (frc *fakeRestClient) GetServiceConfig(svc common.Service) (*common.ServiceConfig, error) {
-	if svc.Name() == "kubernetes-listener" {
-		url, _ := url.Parse(frc.s.serviceURL)
-		hostPort := strings.Split(url.Host, ":")
-		port, _ := strconv.ParseUint(hostPort[1], 10, 64)
-		log.Printf("Test: Looks like %s is running on %d", svc.Name(), port)
-		api := &common.Api{Host: "localhost", Port: port, RootServiceUrl: frc.s.serviceURL}
-		commonConfig := common.CommonConfig{Api: api}
-		kubeListenerConfig := make(map[string]interface{})
-		kubeListenerConfig["kubernetes_url"] = frc.s.kubeURL
-		kubeListenerConfig["url_prefix"] = "apis/romana.io/demo/v1/namespaces"
-		kubeListenerConfig["segment_label_name"] = "tier"
-		svcConfig := common.ServiceConfig{Common: commonConfig, ServiceSpecific: kubeListenerConfig}
-		log.Printf("Test: Returning KubernetesListener config %v", svcConfig.ServiceSpecific)
-		return &svcConfig, nil
-	} else {
-		return frc.RestClient.GetServiceConfig(svc)
-	}
 }
 
 type RomanaT struct {
@@ -117,16 +270,14 @@ type RomanaT struct {
 
 func (s *MySuite) startListener() error {
 	clientConfig := common.GetDefaultRestClientConfig(s.serviceURL)
-	client0, err := common.NewRestClient(clientConfig)
+	client, err := common.NewRestClient(clientConfig)
 	if err != nil {
 		return err
 	}
-	client1 := fakeRestClient{RestClient: *client0, s: s}
 	kubeListener := &kubeListener{}
-	config, err := client1.GetServiceConfig(kubeListener)
-	if err != nil {
-		return err
-	}
+	kubeListener.restClient = client
+	config := s.getKubeListenerServiceConfig()
+
 	_, err = common.InitializeService(kubeListener, *config)
 	if err != nil {
 		return err
@@ -136,23 +287,30 @@ func (s *MySuite) startListener() error {
 
 func (s *MySuite) TestListener(c *check.C) {
 	// Start Kubernetes simulator
-	svr := http.Server{}
-	svr.Handler = kubeSimulator{}
-	svcInfo, err := common.ListenAndServe(&svr)
-	if err != nil {
-		c.Error(err)
-	}
-	s.kubeURL = fmt.Sprintf("http://%s", svcInfo.Address)
-	log.Printf("Test: Kubernetes listening on %s", s.kubeURL)
-
-	cfg := &common.ServiceConfig{Common: common.CommonConfig{Api: &common.Api{Port: 0, RestTimeoutMillis: 100}}}
-	log.Printf("Test: Mock service config: %v %v\n", cfg.Common.Api, cfg.ServiceSpecific)
-	svc := &mockSvc{}
-	svcInfo, err = common.InitializeService(svc, *cfg)
+	svr := &http.Server{}
+	svr.Handler = &kubeSimulator{}
+	log.Printf("TestListener: Calling ListenAndServe(%p)", svr)
+	svcInfo, err := common.ListenAndServe(svr)
 	if err != nil {
 		c.Error(err)
 	}
 	msg := <-svcInfo.Channel
+	log.Printf("TestListener: Kubernetes said %s", msg)
+	s.kubeURL = fmt.Sprintf("http://%s", svcInfo.Address)
+	log.Printf("Test: Kubernetes listening on %s (%s)", s.kubeURL, svcInfo.Address)
+
+	cfg := &common.ServiceConfig{Common: common.CommonConfig{Api: &common.Api{Port: 0, RestTimeoutMillis: 100}}}
+	log.Printf("Test: Mock service config:\n\t%#v\n\t%#v\n", cfg.Common.Api, cfg.ServiceSpecific)
+	svc := &mockSvc{mySuite: s}
+	svc.tenants = make(map[uint64]string)
+	svc.tenantsStr = make(map[string]uint64)
+	svc.segments = make(map[uint64]string)
+	svc.segmentsStr = make(map[string]uint64)
+	svcInfo, err = common.InitializeService(svc, *cfg)
+	if err != nil {
+		c.Error(err)
+	}
+	msg = <-svcInfo.Channel
 	log.Printf("Test: Mock service says %s\n", msg)
 	s.serviceURL = fmt.Sprintf("http://%s", svcInfo.Address)
 	log.Printf("Test: Mock service listens at %s\n", s.serviceURL)

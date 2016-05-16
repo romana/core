@@ -32,8 +32,10 @@ type tenantStore struct {
 // Service interface.
 func (tenantStore *tenantStore) Entities() []interface{} {
 	retval := make([]interface{}, 2)
-	retval[0] = &Tenant{}
-	retval[1] = &Segment{}
+	t := Tenant{}
+	retval[0] = &t
+	s := Segment{}
+	retval[1] = &s
 	return retval
 }
 
@@ -94,7 +96,8 @@ func (tenantStore *tenantStore) addTenant(tenant *Tenant) error {
 	}
 
 	tenant.Seq = uint64(len(tenants) + 1)
-	db := tenantStore.DbStore.Db.Create(tenant)
+	db := tenantStore.DbStore.Db
+	tenantStore.DbStore.Db.Create(tenant)
 	if db.Error != nil {
 		return db.Error
 	}

@@ -15,8 +15,9 @@
 
 package common
 
+// Definitions of common structures.
+
 import (
-	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -62,12 +63,14 @@ const (
 	// Body provided.
 	HookExecutableBodyArgument = "body"
 
-	// Max port number for TCP/UDP
+	// Max port number for TCP/UDP.
 	MaxPortNumber = 65535
 	MaxIcmpType   = 255
-	
+
+	// Wildcard
+	Wildcard = "any"
+	// Name of root service
 	ServiceRoot = "root"
-	
 )
 
 type TokenMessage struct {
@@ -97,6 +100,7 @@ type PortUpdateMessage struct {
 }
 
 type Endpoint struct {
+	Any     string
 	CidrStr string `json:"cidr,omitempty"`
 	// TODO this can be collapsed into Cidr but needs
 	// work on JSON marshaller/unmarshaller to do that.
@@ -120,6 +124,13 @@ func (p PortRange) String() string {
 	return fmt.Sprintf("%d-%d", p[0], p[1])
 }
 
+// Rule describes a rule of the policy. The following requirements apply
+// (the policy would not be validated otherwise):
+// 1. Protocol must be specified.
+// 2. Protocol must be one of those validated by isValidProto().
+// 3. Ports cannot be negative or greater than 65535.
+// 4. If Protocol specified is "icmp", Ports and PortRanges fields should be blank.
+// 5. If Protocol specified is not "icmp", Icmptype and IcmpCode should be unspecified.
 type Rule struct {
 	Protocol   string
 	Ports      []uint
@@ -144,14 +155,15 @@ type Tag struct {
 // 1. https://github.com/romana/core/blob/master/policy/policy.sample.json
 // 2. https://github.com/romana/core/blob/master/policy/policy.example.agent.json
 type Policy struct {
-	// Direction is one of "ingress" or "egress"
+	// Direction is one of common.PolicyDirectionIngress or common.PolicyDirectionIngress,
+	// otherwise common.Validate will return an error.
 	Direction string `json:"direction,omitempty"`
 	// Description is human-redable description of the policy.
 	Description string `json:"description,omitempty"`
 	// Name is human-readable name for this policy.
 	Name string `json:"name,omitempty"`
 	// ID is Romana-generated unique (within Romana deployment) ID of this policy,
-	// to be used in REST requests.
+	// to be used in REST requests. It will be ignored when set by user.
 	ID uint64 `json:"id,omitempty",sql:"AUTO_INCREMENT"`
 	// ExternalID is an optional identifier of this policy in an external system working
 	// with Romana in this deployment (e.g., Open Stack).
@@ -161,30 +173,41 @@ type Policy struct {
 	AppliedTo  []Endpoint `json:"applied_to,omitempty"`
 	Peers      []Endpoint `json:"peers,omitempty"`
 	Rules      []Rule     `json:"rule,omitempty"`
-	Tags       []Tag      `json:"tags,omitempty"`
+	//	Tags       []Tag      `json:"tags,omitempty"`
 }
 
 // isValidProto checks if the Protocol specified in Rule is valid.
+// The following protocols are recognized:
+// - any -- wildcard
+// - tcp
+// - udp
+// - icmp
 func isValidProto(proto string) bool {
 	switch proto {
 	case "icmp", "tcp", "udp":
+		return true
+	// Wildcard
+	case Wildcard:
 		return true
 	}
 	return false
 }
 
-// Validate validates the policy and returns an error if the policy
-// is invalid.
-func (p *Policy) Validate() error {
-	errMsg := ""
-	p.Direction = strings.ToLower(p.Direction)
-	if p.Direction != PolicyDirectionEgress && p.Direction != PolicyDirectionIngress {
-		errMsg += fmt.Sprintf("Unknown direction '%s', allowed '%s' or '%s'. ", p.Direction, PolicyDirectionEgress, PolicyDirectionIngress)
+// validate validates Rules.
+func validateRules(rules Rules) []string {
+	errMsg := make([]string, 0)
+	if rules == nil || len(rules) == 0 {
+		errMsg = append(errMsg, "No rules specified.")
+		return errMsg
 	}
-	for _, r := range p.Rules {
-		r.Protocol = strings.ToLower(r.Protocol)
-		if !isValidProto(r.Protocol) {
-			errMsg += fmt.Sprintf("Invalid protocol %s. ", r.Protocol)
+	for i, r := range rules {
+		// ruleNo is used for error messages.
+		ruleNo := i + 1
+		r.Protocol = strings.TrimSpace(strings.ToLower(r.Protocol))
+		if r.Protocol == "" {
+			errMsg = append(errMsg, fmt.Sprintf("Rule #%d: No protocol specified.", ruleNo))
+		} else if !isValidProto(r.Protocol) {
+			errMsg = append(errMsg, fmt.Sprintf("Rule #%d: Invalid protocol: %s.", ruleNo, r.Protocol))
 		}
 		if r.Protocol == "tcp" {
 			r.IsStateful = true
@@ -197,58 +220,105 @@ func (p *Policy) Validate() error {
 				}
 			}
 			if len(badRanges) > 0 {
-				errMsg += fmt.Sprintf("The following port ranges are invalid: %s. ", strings.Join(badRanges, ", "))
+				errMsg = append(errMsg, fmt.Sprintf("Rule #%d: The following port ranges are invalid: %s.", ruleNo, strings.Join(badRanges, ", ")))
 			}
 			badPorts := make([]string, 0)
 			for _, port := range r.Ports {
 				if port < 0 || port > MaxPortNumber {
-					badPorts = append(badPorts, string(port))
+					badPorts = append(badPorts, fmt.Sprintf("%d", port))
 				}
 			}
 			if len(badPorts) > 0 {
-				errMsg += fmt.Sprintf("The following ports are invalid: %s. ", strings.Join(badPorts, ", "))
+				errMsg = append(errMsg, fmt.Sprintf("Rule #%d: The following ports are invalid: %s.", ruleNo, strings.Join(badPorts, ", ")))
 			}
 		}
-		if r.Protocol == "icmp" {
+		if r.Protocol != "icmp" {
 			if r.IcmpCode > 0 || r.IcmpType > 0 {
-				errMsg += "ICMP protocol is not specified but ICMP Code and/or ICMP Type are also specified. "
-			} else {
-				if len(r.Ports) > 0 || len(r.PortRanges) > 0 {
-					errMsg += "ICMP protocol is specified but ports are also specified. "
+				errMsg = append(errMsg, fmt.Sprintf("Rule #%d: ICMP protocol is not specified but ICMP Code and/or ICMP Type are also specified.", ruleNo))
+			}
+		} else {
+			if len(r.Ports) > 0 || len(r.PortRanges) > 0 {
+				errMsg = append(errMsg, fmt.Sprintf("Rule #%d: ICMP protocol is specified but ports are also specified.", ruleNo))
+			}
+			if r.IcmpType < 0 || r.IcmpType > MaxIcmpType {
+				errMsg = append(errMsg, fmt.Sprintf("Rule #%d: Invalid ICMP type: %d.", ruleNo, r.IcmpType))
+			}
+			switch r.IcmpType {
+			case 3: // Destination unreachable
+				if r.IcmpCode < 0 || r.IcmpCode > 15 {
+					errMsg = append(errMsg, fmt.Sprintf("Rule #%d: Invalid ICMP code for type %d: %d.", ruleNo, r.IcmpType, r.IcmpCode))
 				}
-				if r.IcmpType < 0 || r.IcmpType > MaxIcmpType {
-					errMsg += fmt.Sprintf("Invalid ICMP type: %d. ", r.IcmpType)
+			case 4: // Source quench
+				if r.IcmpCode != 0 {
+					errMsg = append(errMsg, fmt.Sprintf("Rule #%d: Invalid ICMP code for type %d: %d.", ruleNo, r.IcmpType, r.IcmpCode))
 				}
-				switch r.IcmpType {
-				case 3: // Destination unreachable
-					if r.IcmpCode < 0 || r.IcmpCode > 15 {
-						errMsg += fmt.Sprintf("Invalid ICMP code for type %d: %d", r.IcmpType, r.IcmpCode)
-					}
-				case 4: // Source quench
-					if r.IcmpCode != 0 {
-						errMsg += fmt.Sprintf("Invalid ICMP code for type %d: %d", r.IcmpType, r.IcmpCode)
-					}
-				case 5: // Redirect
-					if r.IcmpCode < 0 || r.IcmpCode > 3 {
-						errMsg += fmt.Sprintf("Invalid ICMP code for type %d: %d", r.IcmpType, r.IcmpCode)
-					}
-				case 11: // Time exceeded
-					if r.IcmpCode < 0 || r.IcmpCode > 1 {
-						errMsg += fmt.Sprintf("Invalid ICMP code for type %d: %d", r.IcmpType, r.IcmpCode)
-					}
-				default:
-					if r.IcmpCode != 0 {
-						errMsg += fmt.Sprintf("Invalid ICMP code for type %d: %d", r.IcmpType, r.IcmpCode)
-					}
+			case 5: // Redirect
+				if r.IcmpCode < 0 || r.IcmpCode > 3 {
+					errMsg = append(errMsg, fmt.Sprintf("Rule #%d: Invalid ICMP code for type %d: %d.", ruleNo, r.IcmpType, r.IcmpCode))
+				}
+			case 11: // Time exceeded
+				if r.IcmpCode < 0 || r.IcmpCode > 1 {
+					errMsg = append(errMsg, fmt.Sprintf("Rule #%d: Invalid ICMP code for type %d: %d.", ruleNo, r.IcmpType, r.IcmpCode))
+				}
+			default:
+				if r.IcmpCode != 0 {
+					errMsg = append(errMsg, fmt.Sprintf("Rule #%d: Invalid ICMP code for type %d: %d.", ruleNo, r.IcmpType, r.IcmpCode))
+				}
 
-				}
+			}
+
+		}
+	}
+	if len(errMsg) == 0 {
+		return nil
+	}
+	return errMsg
+}
+
+// Validate validates the policy and returns an Unprocessable Entity (422) HttpError if the policy
+// is invalid. The following would lead to errors if they are not specified elsewhere:
+// 1. Rules must be specified.
+// TODO As a reference I'm using
+// https://docs.google.com/spreadsheets/d/1vN-EnZqJnIp8krY1cRf6VzRPkO9_KNYLW0QOfw2k1Mo/edit
+// which we'll remove from this comment once finalized.
+func (p *Policy) Validate() error {
+	var errMsg []string
+	// 1. Validate that direction is one of the allowed two values.
+	p.Direction = strings.TrimSpace(strings.ToLower(p.Direction))
+	if p.Direction != PolicyDirectionEgress && p.Direction != PolicyDirectionIngress {
+		s := fmt.Sprintf("Unknown direction '%s', allowed '%s' or '%s'.", p.Direction, PolicyDirectionEgress, PolicyDirectionIngress)
+		errMsg = append(errMsg, s)
+	}
+	// 2. Validate rules
+	rulesMsg := validateRules(p.Rules)
+	if rulesMsg != nil {
+		errMsg = append(errMsg, rulesMsg...)
+	}
+
+	// 3. Validate AppliedTo
+
+	for i, endpoint := range p.AppliedTo {
+		epNo := i + 1
+		if endpoint.TenantExternalID == "" && endpoint.TenantID == 0 {
+			errMsg = append(errMsg, fmt.Sprintf("applied_to entry #%d: at least one of tenant_id or tenant_external_id must be specified.", epNo))
+		}
+	}
+	for i, endpoint := range p.Peers {
+		epNo := i + 1
+		if endpoint.Any != "" && endpoint.Any != Wildcard {
+			errMsg = append(errMsg, fmt.Sprintf("peers entry #%d: Invalid value for Any: '%s', only '' and %s allowed.", epNo, endpoint.Any, Wildcard))
+		}
+		if endpoint.SegmentID != 0 || endpoint.SegmentExternalID != "" {
+			if endpoint.TenantExternalID == "" && endpoint.TenantID == 0 {
+				errMsg = append(errMsg, fmt.Sprintf("peers entry #%d: since segment_external_id is specified, at least one of tenant_id or tenant_external_id must be specified.", epNo))
+
 			}
 		}
 	}
-	if errMsg == "" {
+	if len(errMsg) == 0 {
 		return nil
 	} else {
-		return errors.New(errMsg)
+		return NewUnprocessableEntityError(errMsg)
 	}
 }
 

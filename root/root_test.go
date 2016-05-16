@@ -76,8 +76,9 @@ func TestHooks(t *testing.T) {
 	result2 := make(map[string]interface{})
 	portMsg := common.PortUpdateMessage{Port: 12345}
 	err = client.Post(url, portMsg, &result2)
-	if err != nil {
-		t.Error(err)
+	fmt.Printf("Got %v", err)
+	if err == nil {
+		t.Error("Expected error, got nothing")
 		t.FailNow()
 	}
 	fmt.Println("Received: ", result2)

@@ -55,7 +55,7 @@ func (ipamStore *ipamStore) deleteEndpoint(ip string) (Endpoint, error) {
 	tx.Where(&Endpoint{Ip: ip}).Find(&results)
 	if len(results) == 0 {
 		tx.Rollback()
-		return Endpoint{}, common.NewError404("Endpoint", ip)
+		return Endpoint{}, common.NewError404("endpoint", ip)
 	}
 	if len(results) > 1 {
 		// This cannot happen by constraints...

@@ -24,6 +24,7 @@ import (
 	"github.com/romana/core/tenant"
 	"io"
 	"log"
+	"net/http"
 	"strings"
 	//	"encoding/json"
 	//	"time"
@@ -57,7 +58,7 @@ func readChunk(reader io.Reader) ([]byte, error) {
 //	log.Printf("Listening to %s, currently %d goroutines are running", kubernetesURL, runtime.NumGoroutine())
 //	resp, err := http.Get(kubernetesURL)
 //	if err != nil {
-//		log.Printf("Error connecting: %v", err)
+//		log.Printf("Error connecting: %#v", err)
 //		log.Println("Closing channel")
 //		close(ch)
 //		log.Println("Exiting goroutine")
@@ -68,7 +69,7 @@ func readChunk(reader io.Reader) ([]byte, error) {
 //		chunk, err := readChunk(resp.Body)
 //		if err != nil {
 //			if err != io.EOF {
-//				log.Printf("Error reading chunk: %v", err)
+//				log.Printf("Error reading chunk: %#v", err)
 //			}
 //			if len(chunk) != 0 {
 //				ch <- chunk
@@ -134,11 +135,11 @@ func readChunk(reader io.Reader) ([]byte, error) {
 //			chunk, ok := <-ch
 //			log.Println(ok)
 //			if chunk != "" {
-//				log.Printf("Read chunk %v\n%s\n------------", ok, string(chunk))
+//				log.Printf("Read chunk %#v\n%s\n------------", ok, string(chunk))
 //				err = processChunk(chunk)
 //				if err != nil {
 //					// TODO is there any other way to handle this?
-//					log.Printf("Error processing chunk %s: %v", string(chunk), err)
+//					log.Printf("Error processing chunk %s: %#v", string(chunk), err)
 //				}
 //			}
 //			if !ok {
@@ -160,7 +161,7 @@ const (
 
 type kubeListener struct {
 	config           common.ServiceConfig
-	restClient       common.RestClient
+	restClient       *common.RestClient
 	kubeUrl          string
 	urlPrefix        string
 	segmentLabelName string
@@ -174,7 +175,7 @@ func (l *kubeListener) Routes() common.Routes {
 
 // Name implements method of Service interface.
 func (l *kubeListener) Name() string {
-	return "kubernetes-listener"
+	return "kubernetesListener"
 }
 
 // SetConfig implements SetConfig function of the Service interface.
@@ -206,11 +207,61 @@ func Run(rootServiceURL string, cred *common.Credential) (*common.RestServiceInf
 		return nil, err
 	}
 	kubeListener := &kubeListener{}
-	config, err := client.GetServiceConfig(kubeListener)
+	kubeListener.restClient = client
+	config, err := client.GetServiceConfig(kubeListener.Name())
 	if err != nil {
 		return nil, err
 	}
 	return common.InitializeService(kubeListener, *config)
+}
+
+// getOrAddSegment finds a segment (based on segment selector)
+//
+func (l *kubeListener) getOrAddSegment(tenantServiceURL string, namespace string, kubeSegmentID string) (*tenant.Segment, error) {
+	segment := &tenant.Segment{}
+	segmentsURL := fmt.Sprintf("%s/tenants/%s/segments", tenantServiceURL, namespace)
+	err := l.restClient.Get(fmt.Sprintf("%s/%s", segmentsURL, kubeSegmentID), segment)
+	if err == nil {
+		return segment, nil
+	}
+	switch err := err.(type) {
+	case common.HttpError:
+		if err.StatusCode == http.StatusNotFound {
+			// Not found, so let's create a segment.
+			segreq := tenant.Segment{Name: kubeSegmentID, ExternalID: kubeSegmentID}
+			err2 := l.restClient.Post(segmentsURL, segreq, segment)
+			if err2 == nil {
+				// Successful creation.
+				return segment, nil
+			}
+			// Creation of non-existing segment gave an error.
+			switch err2 := err2.(type) {
+			case common.HttpError:
+				// Maybe someone else just created a segment between the original
+				// lookup and now?
+				if err2.StatusCode == http.StatusConflict {
+					switch details := err2.Details.(type) {
+					case tenant.Segment:
+						// We expect the existing segment to be returned in the details field.
+						return &details, nil
+					default:
+						// This is unexpected...
+						return nil, err
+					}
+				}
+				// Any other HTTP error other than a Conflict here - return it.
+				return nil, err2
+			default:
+				// Any other error - return it
+				return nil, err2
+			}
+		}
+		// Any other HTTP error other than a Not found here - return it
+		return nil, err
+	default:
+		// Any other error - return it
+		return nil, err
+	}
 }
 
 // translateNetworkPolicy translates a Kubernetes policy into
@@ -219,65 +270,32 @@ func Run(rootServiceURL string, cred *common.Credential) (*common.RestServiceInf
 // 2. If Romana Tenant does not exist it is an error (a tenant should
 //    automatically have been created when the namespace was added)
 func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Policy, error) {
+	log.Printf("translateNetworkPolicy(): Received %#v", kubePolicy)
 	romanaPolicy := &common.Policy{Direction: common.PolicyDirectionIngress}
 	ns := kubePolicy.Metadata.Namespace
-	tenantUrl, err := l.restClient.GetServiceUrl("tenant")
+	tenantURL, err := l.restClient.GetServiceUrl("tenant")
 	if err != nil {
 		return *romanaPolicy, err
 	}
-	tenants := []tenant.Tenant{}
-	err = l.restClient.Get(fmt.Sprintf("%s/tenants/%s", tenantUrl, ns), tenants)
+	t := &tenant.Tenant{}
+	err = l.restClient.Get(fmt.Sprintf("%s/tenants/%s", tenantURL, ns), t)
+	log.Printf("translateNetworkPolicy(): For namespace %s got %#v / %#v", ns, t, err)
 	if err != nil {
 		return *romanaPolicy, err
 	}
-	if len(tenants) == 0 {
-		return *romanaPolicy, common.NewError("Cannot find Romana tenant matching namespace '%s'", ns)
-	}
-	if len(tenants) > 1 {
-		return *romanaPolicy, common.NewError("More than one Romana tenant found matching namespace '%s'", ns)
-	}
-	tenantId := tenants[0].ID
-	tenantExternalId := tenants[0].ExternalID
+	tenantId := t.ID
+	tenantExternalId := t.ExternalID
 
-	segmentName := kubePolicy.Spec.PodSelector[l.segmentLabelName]
-	if segmentName == "" {
+	kubeSegmentID := kubePolicy.Spec.PodSelector[l.segmentLabelName]
+	if kubeSegmentID == "" {
 		return *romanaPolicy, common.NewError("Expected segment to be specified in podSelector part as '%s'", l.segmentLabelName)
 	}
 
-	segments := []tenant.Segment{}
-	err = l.restClient.Get(fmt.Sprintf("%s/tenants/%s/segments/%s", tenantUrl, ns, segmentName), segments)
+	segment, err := l.getOrAddSegment(tenantURL, ns, kubeSegmentID)
 	if err != nil {
-		segmentCreated := false
-		switch err := err.(type) {
-		case common.HttpError:
-			if err.StatusCode == 404 {
-				// Not found, so let's create a segment.
-				segreq := tenant.Segment{Name: segmentName}
-				segresp := &tenant.Segment{}
-				err := l.restClient.Post(fmt.Sprintf("%s/tenants/%s/segments", tenantUrl, ns), segreq, segresp)
-				if err != nil {
-					return *romanaPolicy, err
-				}
-				log.Printf("Created segment %v", segresp)
-				segmentCreated = true
-			} else {
-				return *romanaPolicy, err
-			}
-		default:
-			return *romanaPolicy, err
-		}
-		if !segmentCreated {
-			return *romanaPolicy, err
-		}
+		return *romanaPolicy, err
 	}
-	if len(segments) == 0 {
-		// This is unexpected -- if no segments, we should have had a 404
-		return *romanaPolicy, common.NewError("No segment found under %s", ns)
-	}
-	if len(segments) > 1 {
-		return *romanaPolicy, common.NewError("More than one segment found under %s", segmentName)
-	}
-	segmentId := segments[0].ID
+	segmentId := segment.ID
 	appliedTo := common.Endpoint{TenantID: tenantId, SegmentID: segmentId}
 	romanaPolicy.AppliedTo = make([]common.Endpoint, 1)
 	romanaPolicy.AppliedTo[0] = appliedTo
@@ -288,23 +306,15 @@ func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Po
 	if from != nil {
 		for _, entry := range from {
 			pods := entry.Pods
-			fromSegmentName := pods[l.segmentLabelName]
-			if fromSegmentName == "" {
+			fromKubeSegmentID := pods[l.segmentLabelName]
+			if fromKubeSegmentID == "" {
 				return *romanaPolicy, common.NewError("Expected segment to be specified in podSelector part as '%s'", l.segmentLabelName)
 			}
-			fromSegments := []tenant.Segment{}
-			err := l.restClient.Get(fmt.Sprintf("%s/tenants/%s/segments/%s", tenantUrl, ns, fromSegmentName), segments)
+			fromSegment, err := l.getOrAddSegment(tenantURL, ns, fromKubeSegmentID)
 			if err != nil {
 				return *romanaPolicy, err
 			}
-			if len(fromSegments) == 0 {
-				// This is unexpected -- if no segments, we should have had a 404
-				return *romanaPolicy, common.NewError("No segment found under %s", ns)
-			}
-			if len(fromSegments) > 1 {
-				return *romanaPolicy, common.NewError("More than one segment found under %s: %v", fromSegmentName, fromSegments)
-			}
-			peer := common.Endpoint{TenantID: tenantId, TenantExternalID: tenantExternalId, SegmentID: fromSegments[0].ID, SegmentExternalID: fromSegments[0].ExternalID}
+			peer := common.Endpoint{TenantID: tenantId, TenantExternalID: tenantExternalId, SegmentID: fromSegment.ID, SegmentExternalID: fromSegment.ExternalID}
 			romanaPolicy.Peers = append(romanaPolicy.Peers, peer)
 		}
 		toPorts := kubePolicy.Spec.AllowIncoming.ToPorts
@@ -335,9 +345,9 @@ func (l *kubeListener) applyNetworkPolicy(action networkPolicyAction, romanaNetw
 		if err != nil {
 			return err
 		}
-		log.Printf("Applied policy %v", romanaNetworkPolicy)
+		log.Printf("Applied policy %#v", romanaNetworkPolicy)
 	case networkPolicyActionDelete:
-		policyUrl = fmt.Sprintf("%s/%s", policyUrl, romanaNetworkPolicy.ID)
+		policyUrl = fmt.Sprintf("%s/%d", policyUrl, romanaNetworkPolicy.ID)
 		err := l.restClient.Delete(policyUrl, nil, &romanaNetworkPolicy)
 		if err != nil {
 			return err
@@ -349,7 +359,7 @@ func (l *kubeListener) applyNetworkPolicy(action networkPolicyAction, romanaNetw
 }
 
 func (l *kubeListener) Initialize() error {
-	log.Println("Starting server")
+	log.Printf("%s: Starting server", l.Name())
 	nsUrl := fmt.Sprintf("%s/%s", l.kubeUrl, l.urlPrefix)
 	done := make(chan Done)
 	nsEvents, err := l.nsWatch(done, nsUrl)

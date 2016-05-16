@@ -15,6 +15,8 @@
 
 package common
 
+// Configuration-related code.
+
 import (
 	"errors"
 	"fmt"
