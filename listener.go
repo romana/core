@@ -163,6 +163,7 @@ type kubeListener struct {
 	config           common.ServiceConfig
 	restClient       *common.RestClient
 	kubeUrl          string
+	nsUrl            string
 	urlPrefix        string
 	segmentLabelName string
 }
@@ -192,6 +193,10 @@ func (l *kubeListener) SetConfig(config common.ServiceConfig) error {
 	l.segmentLabelName = m["segment_label_name"].(string)
 	if l.segmentLabelName == "" {
 		return errors.New("segment_label_name required.")
+	}
+	l.nsUrl = m["namespaces_url"].(string)
+	if l.nsUrl == "" {
+		return errors.New("namespaces_url required.")
 	}
 
 	return nil
@@ -360,7 +365,7 @@ func (l *kubeListener) applyNetworkPolicy(action networkPolicyAction, romanaNetw
 
 func (l *kubeListener) Initialize() error {
 	log.Printf("%s: Starting server", l.Name())
-	nsUrl := fmt.Sprintf("%s/%s", l.kubeUrl, l.urlPrefix)
+	nsUrl := fmt.Sprintf("%s/%s", l.kubeUrl, l.nsUrl)
 	done := make(chan Done)
 	nsEvents, err := l.nsWatch(done, nsUrl)
 	if err != nil {

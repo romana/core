@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	urlPostfix = "api/v1/namespaces/?watch=true"
+	urlPostfix = "networkpolicys/?watch=true"
 	selector   = "podSelector"
 )
 
