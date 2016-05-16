@@ -36,5 +36,12 @@ func main() {
 		return
 	}
 	cred := common.MakeCredentialFromCliArgs(*username, *password)
-	kubernetes.Run(*rootURL, cred)
+	svcInfo, err := kubernetes.Run(*rootURL, cred)
+	if err != nil {
+		panic(err)
+	}
+	for {
+		msg := <-svcInfo.Channel
+		fmt.Println(msg)
+	}
 }
