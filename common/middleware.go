@@ -13,14 +13,16 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Package common contains things related to the REST framework.
 package common
+
+// Things related to the REST framework.
 
 import (
 	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/K-Phoen/negotiation"
+	"github.com/dgrijalva/jwt-go"
 	"github.com/gorilla/context"
 	"github.com/gorilla/mux"
 	"github.com/pborman/uuid"
@@ -46,6 +48,7 @@ type RestContext struct {
 	QueryVariables url.Values
 	// Unique identifier for a request.
 	RequestToken string
+	Roles        []Role
 	// Output of the hook if any run before the execution of the handler.
 	HookOutput string
 }
@@ -132,9 +135,9 @@ func write500(writer http.ResponseWriter, m Marshaller, err error) {
 }
 
 // write400 writes out a 400 error based on provided err
-func write400(writer http.ResponseWriter, m Marshaller, request string, err error) {
+func write400(writer http.ResponseWriter, m Marshaller, err error) {
 	writer.WriteHeader(http.StatusInternalServerError)
-	httpErr := NewError400(err.Error(), request)
+	httpErr := NewError400(err)
 	// Should never error out - it's a struct we know.
 	outData, _ := m.Marshal(httpErr)
 	writer.Write(outData)
@@ -147,16 +150,14 @@ func write400(writer http.ResponseWriter, m Marshaller, request string, err erro
 func doHook(before bool, route Route, restContext RestContext, body string) (string, error) {
 	hook := route.Hook
 	if hook == nil {
-		log.Printf("doHook(): No hook for %s %s", route.Method, route.Pattern)
+		//		log.Printf("doHook(): No hook for %s %s", route.Method, route.Pattern)
 		return "", nil
 	}
 	hookInfo := fmt.Sprintf("Hook for %s %s: %s", route.Method, route.Pattern, hook.Executable)
 	if before && strings.ToLower(hook.When) != "before" {
-		log.Printf("doHook(): We are in before and %s is for after", hookInfo)
 		return "", nil
 	}
 	if !before && strings.ToLower(hook.When) != "after" {
-		log.Printf("doHook(): We are in after and %s is for before", hookInfo)
 		return "", nil
 	}
 	// Path variables (e.g., id in /foo/{id}) will be passed to the executable as a
@@ -196,9 +197,9 @@ func doHook(before bool, route Route, restContext RestContext, body string) (str
 	} else {
 		log.Printf("doHook(): No output specified for %s", hookInfo)
 	}
-	log.Printf("doHook(): Running hook %s with %s", hook.Executable, clArgs)
 	cmd := exec.Command(hook.Executable, clArgs...)
 	out, errProcess := cmd.CombinedOutput()
+	log.Printf("doHook(): Running hook %s with %s: %s / %v %T", hook.Executable, clArgs, string(out), errProcess, errProcess)
 	outStr := string(out)
 	log.Printf("\n---------------------------------\n%s\n---------------------------------\n", outStr)
 	if writer != nil {
@@ -296,7 +297,7 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 					err = unmarshaller.Unmarshal(buf, inData)
 					if err != nil {
 						// Error unmarshalling...
-						write400(writer, marshaller, string(buf), err)
+						write400(writer, marshaller, err)
 						return
 					}
 				} else {
@@ -311,7 +312,7 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 			err = request.ParseForm()
 			if err != nil {
 				// Cannot parse form...
-				write400(writer, marshaller, request.RequestURI, err)
+				write400(writer, marshaller, err)
 				return
 			}
 			var token string
@@ -359,7 +360,13 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 					write500(writer, marshaller, err)
 					return
 				}
-				wireData, err := marshaller.Marshal(outData)
+				var wireData []byte
+				switch outData := outData.(type) {
+				case Raw:
+					wireData = []byte(outData.Body)
+				default:
+					wireData, err = marshaller.Marshal(outData)
+				}
 				//				log.Printf("Out data: %s, wire data: %s, error %s\n", outData, wireData, err)
 				if err == nil {
 					writer.WriteHeader(http.StatusOK)
@@ -567,6 +574,12 @@ func (f formMarshaller) Unmarshal(data []byte, v interface{}) error {
 	return err
 }
 
+// Raw is a type that can be returned from any service's
+// route and the middleware will not try to marshal it.
+type Raw struct {
+	Body string
+}
+
 // ContentTypeMarshallers maps MIME type to Marshaller instances
 var ContentTypeMarshallers map[string]Marshaller = map[string]Marshaller{
 	// If no content type is sent, we will still assume it's JSON
@@ -579,48 +592,49 @@ var ContentTypeMarshallers map[string]Marshaller = map[string]Marshaller{
 	//	"*/*": jsonMarshaller{},
 }
 
-// Authenticator is the interface that will be used by AuthMiddleware
-// to provide authentication. Details to be worked out later.
-type Authenticator interface {
-	// As this is a placeholder, we are not dealing with
-	// details yet, tokens vs credentials, principals vs roles, etc.
-	Authenticate() Principal
-}
-
-type PlaceholderAuth struct {
-}
-
-func (p PlaceholderAuth) Authenticate() Principal {
-	return Principal{"asdf", []string{"read", "write", "execute"}}
-}
-
-// Principal is a placeholder for a Principal structure
-// for authentication. We'll leave roles and
-// other stuff for later.
-type Principal struct {
-	Id string
-	// This really is a placeholder
-	Rights []string
-}
-
 // AuthMiddleware wrapper for auth.
 type AuthMiddleware struct {
-	Authenticator Authenticator
+	PublicKey []byte
 }
 
-// NewAuth creates AuthMiddleware
-func NewAuth() *AuthMiddleware {
-	// Should we keep this global?
-	auth := PlaceholderAuth{}
-	return &AuthMiddleware{auth}
-}
+// If the path of request is common.AuthPath, this does nothing, as
+// the request is for authentication in the first place. Otherwise,
+// checks token from request. If the token is not valid, returns a
+// 403 FORBIDDEN status.
+func (am AuthMiddleware) ServeHTTP(writer http.ResponseWriter, request *http.Request, next http.HandlerFunc) {
+	if request.URL.Path == AuthPath {
+		// Let this one through, no token yet.
+		next(writer, request)
+		return
+	}
+	contentType := writer.Header().Get("Content-Type")
+	marshaller := ContentTypeMarshallers[contentType]
 
-func (am AuthMiddleware) ServeHTTP(rw http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
-	p := am.Authenticator.Authenticate()
-	rights := p.Rights
-	context.Set(r, "Rights", rights)
-	// Call the next middleware handler
-	next(rw, r)
+	if am.PublicKey != nil {
+		f := func(token *jwt.Token) (interface{}, error) {
+			return am.PublicKey, nil
+		}
+		log.Printf("Parsing request for auth token\n")
+		token, err := jwt.ParseFromRequest(request, f)
+
+		if err != nil {
+			writer.WriteHeader(http.StatusForbidden)
+			httpErr := NewHttpError(http.StatusForbidden, err.Error())
+			outData, _ := marshaller.Marshal(httpErr)
+			writer.Write(outData)
+			return
+		}
+		if !token.Valid {
+			writer.WriteHeader(http.StatusForbidden)
+			httpErr := NewHttpError(http.StatusForbidden, "Invalid token.")
+			outData, _ := marshaller.Marshal(httpErr)
+			writer.Write(outData)
+			return
+		}
+
+		context.Set(request, ContextKeyRoles, token.Claims["roles"].([]string))
+	}
+	next(writer, request)
 }
 
 type UnmarshallerMiddleware struct {

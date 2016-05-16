@@ -13,22 +13,18 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Command to launch topology service
+// Main entry point for Kubernetes listener
 package main
 
 import (
 	"flag"
 	"fmt"
-
 	"github.com/romana/core/common"
-	"github.com/romana/core/topology"
+	"github.com/romana/core/romana/kubernetes"
 )
 
-// Main entry point for the topology microservice
 func main() {
-	createSchema := flag.Bool("createSchema", false, "Create schema")
-	overwriteSchema := flag.Bool("overwriteSchema", false, "Overwrite schema")
-	rootURL := flag.String("rootURL", "", "Root service URL")
+	rootURL := flag.String("rootURL", "", "Romana Root service URL")
 	version := flag.Bool("version", false, "Build Information.")
 	username := flag.String("username", "", "Username")
 	password := flag.String("password", "", "Password")
@@ -39,21 +35,11 @@ func main() {
 		fmt.Println(common.BuildInfo())
 		return
 	}
-	if *createSchema || *overwriteSchema {
-		err := topology.CreateSchema(*rootURL, *overwriteSchema)
-		if err != nil {
-			panic(err)
-		}
-		fmt.Println("Schema created.")
-		return
-	}
-
 	cred := common.MakeCredentialFromCliArgs(*username, *password)
-	svcInfo, err := topology.Run(*rootURL, cred)
+	svcInfo, err := kubernetes.Run(*rootURL, cred)
 	if err != nil {
 		panic(err)
 	}
-
 	for {
 		msg := <-svcInfo.Channel
 		fmt.Println(msg)

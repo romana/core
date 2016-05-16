@@ -27,6 +27,7 @@ import (
 
 // TopologySvc service
 type TopologySvc struct {
+	client     *common.RestClient
 	config     common.ServiceConfig
 	datacenter *common.Datacenter
 	store      topoStore
@@ -136,9 +137,28 @@ func (topology *TopologySvc) handleHostListGet(input interface{}, ctx common.Res
 	return retval, nil
 }
 
+// handleHostListPost handles addition of a host to the current datacenter.
+// If the HostMessage.AgentPort is not specified, root service is queried for
+// the default Agent port.
 func (topology *TopologySvc) handleHostListPost(input interface{}, ctx common.RestContext) (interface{}, error) {
 	hostMessage := input.(*common.HostMessage)
-	host := Host{Ip: hostMessage.Ip, Name: hostMessage.Name, RomanaIp: hostMessage.RomanaIp, AgentPort: uint64(hostMessage.AgentPort)}
+	var port uint64
+	// If no agent port is specfied in the creation of new host, 
+	// get the agent port from root service.
+	if hostMessage.AgentPort == 0 {
+		// Get the one from configuration
+		agentConfig, err := topology.client.GetServiceConfig("agent")
+		if err != nil {
+			return nil, err
+		}
+		port = agentConfig.Common.Api.Port
+		if port == 0 {
+			return nil, common.NewError500("Cannot determine port for agent")
+		}
+	} else {
+		port = uint64(hostMessage.AgentPort)
+	}
+	host := Host{Ip: hostMessage.Ip, Name: hostMessage.Name, RomanaIp: hostMessage.RomanaIp, AgentPort: port}
 	id, err := topology.store.addHost(&host)
 	if err != nil {
 		return nil, err
@@ -202,18 +222,21 @@ func (topology *TopologySvc) SetConfig(config common.ServiceConfig) error {
 }
 
 // Run configures and runs topology service.
-func Run(rootServiceURL string) (*common.RestServiceInfo, error) {
-	client, err := common.NewRestClient(rootServiceURL, common.GetDefaultRestClientConfig())
+func Run(rootServiceURL string, cred *common.Credential) (*common.RestServiceInfo, error) {
+	clientConfig := common.GetDefaultRestClientConfig(rootServiceURL)
+	clientConfig.Credential = cred
+	client, err := common.NewRestClient(clientConfig)
 	if err != nil {
 		return nil, err
 	}
 	topSvc := &TopologySvc{}
-	config, err := client.GetServiceConfig(rootServiceURL, topSvc)
+	topSvc.client = client
+	config, err := client.GetServiceConfig(topSvc.Name())
 	if err != nil {
 		return nil, err
 	}
-	return common.InitializeService(topSvc, *config)
 
+	return common.InitializeService(topSvc, *config)
 }
 
 // Initialize the topology service
@@ -230,13 +253,13 @@ func (topology *TopologySvc) Initialize() error {
 // CreateSchema creates schema for topology service.
 func CreateSchema(rootServiceURL string, overwrite bool) error {
 	log.Println("In CreateSchema(", rootServiceURL, ",", overwrite, ")")
-	client, err := common.NewRestClient("", common.GetDefaultRestClientConfig())
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootServiceURL))
 	if err != nil {
 		return err
 	}
 
 	topologyService := &TopologySvc{}
-	config, err := client.GetServiceConfig(rootServiceURL, topologyService)
+	config, err := client.GetServiceConfig(topologyService.Name())
 	if err != nil {
 		return err
 	}

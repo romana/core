@@ -28,8 +28,8 @@ import (
 // that is to get an IP address.
 type Endpoint struct {
 	Ip           string         `json:"ip,omitempty"`
-	TenantId     string         `json:"tenant_id,omitempty"`
-	SegmentId    string         `json:"segment_id,omitempty"`
+	TenantID     string         `json:"tenant_id,omitempty"`
+	SegmentID    string         `json:"segment_id,omitempty"`
 	HostId       string         `json:"host_id,omitempty"`
 	Name         string         `json:"name,omitempty"`
 	RequestToken sql.NullString `json:"request_token" sql:"unique"`
@@ -55,7 +55,7 @@ func (ipamStore *ipamStore) deleteEndpoint(ip string) (Endpoint, error) {
 	tx.Where(&Endpoint{Ip: ip}).Find(&results)
 	if len(results) == 0 {
 		tx.Rollback()
-		return Endpoint{}, common.NewError404("Endpoint", ip)
+		return Endpoint{}, common.NewError404("endpoint", ip)
 	}
 	if len(results) > 1 {
 		// This cannot happen by constraints...
@@ -64,7 +64,6 @@ func (ipamStore *ipamStore) deleteEndpoint(ip string) (Endpoint, error) {
 		log.Printf(errMsg)
 		return Endpoint{}, common.NewError500(errors.New(errMsg))
 	}
-
 	tx = tx.Model(Endpoint{}).Where("ip = ?", ip).Update("in_use", false)
 	err := common.MakeMultiError(tx.GetErrors())
 	if err != nil {
@@ -80,21 +79,22 @@ func (ipamStore *ipamStore) deleteEndpoint(ip string) (Endpoint, error) {
 func (ipamStore *ipamStore) addEndpoint(endpoint *Endpoint, upToEndpointIpInt uint64, stride uint) error {
 	var err error
 	tx := ipamStore.DbStore.Db.Begin()
+
 	hostId := endpoint.HostId
 	endpoint.InUse = true
-	tenantId := endpoint.TenantId
-	segId := endpoint.SegmentId
+	tenantId := endpoint.TenantID
+	segId := endpoint.SegmentID
 	filter := "host_id = ? AND tenant_id = ? AND segment_id = ? "
 	// First, see if there is a formerly allocated IP already that has been released
 	// (marked "in_use")
 	where := filter + "AND in_use = 0"
 	sel := "min(seq), ip"
-	log.Printf("Calling SELECT %s FROM endpoints WHERE %s;", sel, fmt.Sprintf(strings.Replace(where, "?", "%s", 3), hostId, tenantId, segId))
+	log.Printf("IpamStore: Calling SELECT %s FROM endpoints WHERE %s;", sel, fmt.Sprintf(strings.Replace(where, "?", "%s", 3), hostId, tenantId, segId))
 	row := tx.Model(Endpoint{}).Where(where, hostId, tenantId, segId).Select(sel).Row()
 	seq := sql.NullInt64{}
 	var ip string
 	row.Scan(&seq, &ip)
-	log.Printf("minseq: %v, IP: %s", seq, ip)
+	log.Printf("IpamStore: minseq: %v, IP: %s", seq, ip)
 	if seq.Valid {
 		endpoint.Ip = ip
 		tx = tx.Model(Endpoint{}).Where("ip = ?", ip).Update("in_use", true)
@@ -110,20 +110,20 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *Endpoint, upToEndpointIpInt ui
 	// TODO can this be done in a single query?
 	where = filter + "AND in_use = 1"
 	sel = "ifnull(max(seq),-1)+1"
-	log.Printf("Calling SELECT %s FROM endpoints WHERE %s;", sel, fmt.Sprintf(strings.Replace(where, "?", "%s", 3), hostId, tenantId, segId))
+	log.Printf("IpamStore: Calling SELECT %s FROM endpoints WHERE %s;", sel, fmt.Sprintf(strings.Replace(where, "?", "%s", 3), hostId, tenantId, segId))
 	row = tx.Model(Endpoint{}).Where(where, hostId, tenantId, segId).Select(sel).Row()
 	seq = sql.NullInt64{}
 	row.Scan(&seq)
-	log.Printf("maxseq: %v", seq)
+	log.Printf("IpamStore: maxseq: %v", seq)
 
 	endpoint.Seq = uint64(seq.Int64)
 
-	log.Printf("New sequence is %d\n", endpoint.Seq)
+	log.Printf("IpamStore: New sequence is %d\n", endpoint.Seq)
 
 	endpoint.EffectiveSeq = getEffectiveSeq(endpoint.Seq, stride)
-	log.Printf("Effective sequence for seq %d (stride %d): %d\n", endpoint.Seq, stride, endpoint.EffectiveSeq)
-
+	log.Printf("IpamStore: Effective sequence for seq %d (stride %d): %d\n", endpoint.Seq, stride, endpoint.EffectiveSeq)
 	ipInt := upToEndpointIpInt | endpoint.EffectiveSeq
+	log.Printf("IpamStore: %d | %d = %d", upToEndpointIpInt, endpoint.EffectiveSeq, ipInt)
 	endpoint.Ip = common.IntToIPv4(ipInt).String()
 	tx = tx.Create(endpoint)
 	log.Printf("IpamStore: Creating %v", endpoint)

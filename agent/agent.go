@@ -86,15 +86,35 @@ func (a *Agent) Routes() common.Routes {
 			// TODO this is for the future so we ensure idempotence.
 			UseRequestToken: true,
 		},
+		common.Route{
+			Method:  "POST",
+			Pattern: "/policies",
+			Handler: a.addPolicy,
+			MakeMessage: func() interface{} {
+				return &common.Policy{}
+			},
+			UseRequestToken: false,
+		},
+		common.Route{
+			Method:  "DELETE",
+			Pattern: "/policies/{policyID}",
+			Handler: a.deletePolicy,
+		},
+		common.Route{
+			Method:  "GET",
+			Pattern: "/policies",
+			Handler: a.listPolicies,
+		},
 	}
 	return routes
 }
 
 // Run starts the agent service.
-func Run(rootServiceURL string, testMode bool) (*common.RestServiceInfo, error) {
-	clientConfig := common.GetDefaultRestClientConfig()
+func Run(rootServiceURL string, cred *common.Credential, testMode bool) (*common.RestServiceInfo, error) {
+	clientConfig := common.GetDefaultRestClientConfig(rootServiceURL)
 	clientConfig.TestMode = testMode
-	client, err := common.NewRestClient("", clientConfig)
+	client, err := common.NewRestClient(clientConfig)
+	clientConfig.Credential = cred
 
 	if err != nil {
 		return nil, err
@@ -105,7 +125,7 @@ func Run(rootServiceURL string, testMode bool) (*common.RestServiceInfo, error) 
 	agent.Helper = &helper
 	log.Printf("Agent: Getting configuration from %s", rootServiceURL)
 
-	config, err := client.GetServiceConfig(rootServiceURL, agent)
+	config, err := client.GetServiceConfig(agent.Name())
 	if err != nil {
 		return nil, err
 	}
@@ -115,6 +135,23 @@ func Run(rootServiceURL string, testMode bool) (*common.RestServiceInfo, error) 
 // Name implements method of Service interface.
 func (a *Agent) Name() string {
 	return "agent"
+}
+
+// addPolicy is a placeholder. TODO
+func (a *Agent) addPolicy(input interface{}, ctx common.RestContext) (interface{}, error) {
+//	policy := input.(*common.Policy)
+	return nil, nil
+}
+
+// deletePolicy is a placeholder. TODO
+func (a *Agent) deletePolicy(input interface{}, ctx common.RestContext) (interface{}, error) {
+//	policyId := ctx.PathVariables["policyID"]
+	return nil, nil
+}
+
+// listPolicies is a placeholder. TODO.
+func (a *Agent) listPolicies(input interface{}, ctx common.RestContext) (interface{}, error) {
+	return nil, nil
 }
 
 // k8sPodUpHandler handles HTTP requests for endpoints provisioning.
@@ -164,14 +201,7 @@ func (a *Agent) index(input interface{}, ctx common.RestContext) (interface{}, e
 // 4. Provisions firewall rules
 func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 	log.Println("Agent: Entering k8sPodUpHandle()")
-	namespaceIsolation, err := common.ToBool(netReq.Options[namespaceIsolationOption])
-	if err != nil {
-		msg := fmt.Sprintf("Invalid value in %s: %s", namespaceIsolationOption, err.Error())
-		log.Println(msg)
-		return agentErrorString(msg)
-	}
 
-	log.Printf("Isolation is %t", namespaceIsolation)
 	netif := netReq.NetIf
 	if netif.Name == "" {
 		return agentErrorString("Agent: Interface name required")
@@ -198,7 +228,7 @@ func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 	}
 	log.Print("Agent: provisioning firewall")
 
-	if err := provisionK8SFirewallRules(netReq, a, namespaceIsolation); err != nil {
+	if err := provisionK8SFirewallRules(netReq, a); err != nil {
 		log.Print(agentError(err))
 		return agentError(err)
 	}
@@ -264,23 +294,3 @@ func (a *Agent) Initialize() error {
 	log.Printf("Entering Agent.Initialize()")
 	return a.identifyCurrentHost()
 }
-
-/* development code
-func DryRun() {
-	tif := NetIf{"eth0", "B", "10.0.0.1"}
-	firewall, _ := NewFirewall(tif)
-	err := firewall.ParseNetIf(tif)
-	if err != nil {
-		fmt.Println(err)
-	}
-	fmt.Println(firewall.u32Filter)
-	// for chain := range firewall.chains {
-	// 	fmt.Println(firewall.chains[chain])
-	// }
-	firewall.CreateChains([]int{1, 2, 3})
-	a.Helper.ensureInterHostRoutes()
-	if _, err := a.Helper.DhcpPid(); err != nil {
-		fmt.Println(err)
-	}
-}
-*/

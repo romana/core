@@ -26,6 +26,7 @@ import (
 	"net"
 	"net/http"
 	//	"net/url"
+	"io/ioutil"
 	"os"
 	"strconv"
 	"strings"
@@ -123,6 +124,10 @@ type Service interface {
 
 	// Name returns the name of this service.
 	Name() string
+
+	//	// Middlewares returns an array of middleware handlers to add
+	//	// in addition to the default set.
+	//	Middlewares() []http.Handler
 }
 
 // InitializeService initializes the service with the
@@ -171,7 +176,6 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 			return nil, errors.New(fmt.Sprintf("%s is not an executable", hook.Executable))
 		}
 	}
-
 	err := service.SetConfig(config)
 	if err != nil {
 		return nil, err
@@ -182,9 +186,6 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 	}
 	// Create negroni
 	negroni := negroni.New()
-
-	// Add authentication middleware
-	negroni.Use(NewAuth())
 
 	// Add content-negotiation middleware.
 	// This is an example of using a middleware.
@@ -197,6 +198,17 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 	// Unmarshal data from the content-type format
 	// into a map
 	negroni.Use(NewUnmarshaller())
+	pubKeyLocation := config.Common.Api.AuthPublic
+	if pubKeyLocation != "" {
+		log.Printf("Reading public key from %s", pubKeyLocation)
+		config.Common.PublicKey, err = ioutil.ReadFile(pubKeyLocation)
+	}
+	if err != nil {
+		return nil, err
+	}
+	// We use the public key of root server to check the token.
+	authMiddleware := AuthMiddleware{PublicKey: config.Common.PublicKey}
+	negroni.Use(authMiddleware)
 
 	router := newRouter(routes)
 
@@ -232,21 +244,23 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 			port, _ := strconv.Atoi(addr[idx+1:])
 			port64 := uint64(port)
 			config.Common.Api.Port = port64
-			// Also register this with root service
-			url := fmt.Sprintf("%s/config/%s/port", config.Common.Api.RootServiceUrl, service.Name())
-			result := make(map[string]interface{})
-			portMsg := PortUpdateMessage{Port: port64}
-			retries := config.Common.Api.RestRetries
-			if retries <= 0 {
-				retries = DefaultRestRetries
+			// Also register this with root service if we are not root ourselves.
+			if service.Name() != ServiceRoot {
+				result := make(map[string]interface{})
+				portMsg := PortUpdateMessage{Port: port64}
+				retries := config.Common.Api.RestRetries
+				if retries <= 0 {
+					retries = DefaultRestRetries
+				}
+				clientConfig := RestClientConfig{TimeoutMillis: timeoutMillis, Retries: retries, RootURL: config.Common.Api.RootServiceUrl, TestMode: config.Common.Api.RestTestMode}
+				log.Printf("InitializeService() : Initializing Rest client with %v", clientConfig)
+				client, err := NewRestClient(clientConfig)
+				if err != nil {
+					return svcInfo, err
+				}
+				url := fmt.Sprintf("/config/%s/port", service.Name())
+				err = client.Post(url, portMsg, &result)
 			}
-			clientConfig := RestClientConfig{TimeoutMillis: timeoutMillis, Retries: retries, TestMode: config.Common.Api.RestTestMode}
-			log.Printf("InitializeService() : Initializing Rest client with %v", clientConfig)
-			client, err := NewRestClient("", clientConfig)
-			if err != nil {
-				return svcInfo, err
-			}
-			err = client.Post(url, portMsg, &result)
 		}
 	}
 	return svcInfo, err
@@ -261,6 +275,7 @@ func RunNegroni(n *negroni.Negroni, addr string, timeout time.Duration) (*RestSe
 	l := log.New(os.Stdout, "[negroni] ", 0)
 	svr.Handler = n
 	svr.ErrorLog = l
+	log.Printf("Calling ListenAndServe(%p)", svr)
 	return ListenAndServe(svr)
 }
 
@@ -289,6 +304,7 @@ func (ln tcpKeepAliveListener) Accept() (c net.Conn, err error) {
 // arbitrary ports).
 // See https://github.com/golang/go/blob/master/src/net/http/server.go
 func ListenAndServe(svr *http.Server) (*RestServiceInfo, error) {
+	log.Printf("Entering ListenAndServe(%p)", svr)
 	if svr.Addr == "" {
 		svr.Addr = ":0"
 	}
@@ -297,14 +313,16 @@ func ListenAndServe(svr *http.Server) (*RestServiceInfo, error) {
 		return nil, err
 	}
 	realAddr := ln.Addr().String()
+	log.Printf("ListenAndServe(%p): Hmm 1", svr)
 	channel := make(chan ServiceMessage)
 	l := svr.ErrorLog
 	if l == nil {
 		l = log.New(os.Stdout, "", 0)
 	}
 	go func() {
+		l.Printf("ListenAndServe(%p): Hmm 2", svr)
 		channel <- Starting
-		l.Printf("listening on %s (asked for %s) with configuration %v\n", realAddr, svr.Addr, svr)
+		l.Printf("ListenAndServe(%p): listening on %s (asked for %s) with configuration %v, handler %v\n", svr, realAddr, svr.Addr, svr, svr.Handler)
 		err := svr.Serve(tcpKeepAliveListener{ln.(*net.TCPListener)})
 		if err != nil {
 			log.Printf("RestService: Fatal error %v", err)
@@ -313,16 +331,3 @@ func ListenAndServe(svr *http.Server) (*RestServiceInfo, error) {
 	}()
 	return &RestServiceInfo{Address: realAddr, Channel: channel}, nil
 }
-
-// TODO move here?
-//type Tenant struct {
-//	Id       uint64 `sql:"AUTO_INCREMENT"`
-//	Name     string
-//	Seq      uint64
-//}
-//
-//type Segment struct {
-//	Id       uint64 `sql:"AUTO_INCREMENT"`
-//	Name     string
-//	Seq      uint64
-//}

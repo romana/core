@@ -17,11 +17,14 @@
 // helper functions.
 package kubernetes
 
+import (
+	"github.com/romana/core/romana/util"
+)
+
 // GetTenantName returns kubernetes tenant name corresponding
 // to the UUID being used in romana tenants.
-func GetTenantName(uuid string) (string, error) {
-	// Unimplemented
-	return uuid, nil
+func GetTenantName(uid string) (string, error) {
+	return "", util.ErrUnimplementedFeature
 }
 
 // TenantExists returns true/false depending on
@@ -34,13 +37,11 @@ func TenantExists(name string) bool {
 // GetTenantUUID returns kubernetes tenant
 // UUID corresponding to the name.
 func GetTenantUUID(name string) (string, error) {
-	// Unimplemented
-	return name, nil
+	return "", util.ErrUnimplementedFeature
 }
 
 // CreateTenant creates kubernetes specific tenant
 // corresponding to the name given.
 func CreateTenant(name string) error {
-	// Unimplemented
-	return nil
+	return util.ErrUnimplementedFeature
 }

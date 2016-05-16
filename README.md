@@ -20,7 +20,7 @@ such as OpenStack, to map their tenants to Romana tenants.
 * *[Topology](https://godoc.org/github.com/romana/core/topology)*: Keeps track of the network topology in which we are deployed,
 knows about hosts, racks, spines, etc. This information is the used by the IPAM
 service.
-* *[IPAM](https://godoc.org/github.com/romana/core/ipam)*: Generates and manages the IP addresses Romana assigns to network
+* *[IPAM](https://godoc.org/github.com/romana/core/ipam))*: Generates and manages the IP addresses Romana assigns to network
 endpoints. Uses the topology service to be able to create topology aware
 addresses.
 * *[Agent](https://godoc.org/github.com/romana/core/agent)*: Lives on hosts and there performs actions on behalf of Romana, such
@@ -106,8 +106,8 @@ Previous Releases can be found [here][github-release].
 
 [License-Url]: LICENSE
 [License-Image]: https://img.shields.io/badge/license-Apache--2-blue.svg
-[Release-Url]: https://github.com/romana/core/releases/tag/v0.6.4-1
-[Release-image]: https://img.shields.io/badge/release-0.6.4--1-blue.svg
+[Release-Url]: https://github.com/romana/core/releases/tag/v0.8.1
+[Release-image]: https://img.shields.io/badge/release-0.8.1-blue.svg
 [ReportCard-Url]: https://goreportcard.com/report/romana/core
 [ReportCard-Image]: https://goreportcard.com/badge/romana/core
 [github-release]: https://github.com/romana/core/releases/
