@@ -32,9 +32,12 @@ func TestResourceProcessor(t *testing.T) {
 	l := kubeListener{}
 	cfg := common.ServiceConfig{}
 	cfg.ServiceSpecific = make(map[string]interface{})
-	cfg.ServiceSpecific["url_prefix"] = "apis/romana.io/demo/v1/namespaces"
-	cfg.ServiceSpecific["segment_label_name"] = "tier"
 	cfg.ServiceSpecific["kubernetes_url"] = "http://192.168.0.10:8080"
+	cfg.ServiceSpecific["namespace_notification_path"] = "/api/v1/namespaces/?watch=true"
+	cfg.ServiceSpecific["policy_notification_path_prefix"] = "/apis/romana.io/demo/v1/namespaces/"
+	cfg.ServiceSpecific["policy_notification_path_postfix"] = "/networkpolicys/?wath=true"
+	cfg.ServiceSpecific["segment_label_name"] = "tier"
+
 	err := l.SetConfig(cfg)
 	if err != nil {
 		t.Error(err.Error())
