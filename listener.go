@@ -159,6 +159,13 @@ const (
 	networkPolicyActionModify
 )
 
+// kubeListener is a Service that listens to updates
+// from Kubernetes by connecting to the endpoints specified 
+// and consuming chunked JSON documents. The endpoints are
+// constructed from kubeUrl and the following paths:
+// 1. namespaceNotificationPath for namespace additions/deletions
+// 2. policyNotificationPathPrefix + <namespace name> + policyNotificationPathPostfix
+//    for policy additions/deletions.
 type kubeListener struct {
 	config                    common.ServiceConfig
 	restClient                *common.RestClient
