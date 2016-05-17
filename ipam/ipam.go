@@ -54,8 +54,8 @@ func (ipam *IPAM) Routes() common.Routes {
 		},
 		common.Route{
 			Method:          "GET",
-			Pattern:         "/allocateIpByName",
-			Handler:         ipam.legacyAllocateIpByName,
+			Pattern:         "/allocateIP",
+			Handler:         ipam.allocateIP,
 			MakeMessage:     nil,
 			UseRequestToken: false,
 		},
@@ -63,18 +63,38 @@ func (ipam *IPAM) Routes() common.Routes {
 	return routes
 }
 
-// handleHost handles request for a specific host's info
-func (ipam *IPAM) legacyAllocateIpByName(input interface{}, ctx common.RestContext) (interface{}, error) {
-	tenantName := ctx.QueryVariables["tenantName"][0]
-	segmentName := ctx.QueryVariables["segmentName"][0]
-	hostName := ctx.QueryVariables["hostName"][0]
-	names := ctx.QueryVariables["instanceName"]
-	name := "Endpoint"
-	if len(names) > 0 {
-		name = names[0]
+// allocateIP finds internal Romana information based on tenantID/tenantName and other provided parameters, then adds
+// that endpoint to IPAM, and passes through the allocated IP
+func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interface{}, error) {
+	tenantParam := ""
+	tenantLookupField := ""
+
+	if tenantID := ctx.QueryVariables.Get("tenantID"); tenantID != "" {
+		tenantParam = tenantID
+		tenantLookupField = "ExternalID"
+	} else if tenantName := ctx.QueryVariables.Get("tenantName"); tenantName != "" {
+		tenantParam = tenantName
+		tenantLookupField = "Name"
 	}
-	Endpoint := Endpoint{}
-	Endpoint.Name = name
+
+	// check for missing/empty required parameters
+	if tenantParam == "" {
+		return nil, errors.New("Missing or empty tenantName/tenantID parameter")
+	}
+	segmentName := ctx.QueryVariables.Get("segmentName")
+	if segmentName == "" {
+		return nil, errors.New("Missing or empty segmentName parameter")
+	}
+	hostName := ctx.QueryVariables.Get("hostName")
+	if hostName == "" {
+		return nil, errors.New("Missing or empty hostName parameter")
+	}
+
+	endpoint := Endpoint{}
+	instanceName := ctx.QueryVariables.Get("instanceName")
+	if instanceName != "" {
+		endpoint.Name = instanceName
+	}
 
 	client, err := common.NewRestClient(common.GetRestClientConfig(ipam.config))
 	if err != nil {
@@ -101,10 +121,10 @@ func (ipam *IPAM) legacyAllocateIpByName(input interface{}, ctx common.RestConte
 	}
 
 	found := false
-	for i := range hosts {
-		if hosts[i].Name == hostName {
+	for _, h := range hosts {
+		if h.Name == hostName {
 			found = true
-			Endpoint.HostId = hosts[i].Id
+			endpoint.HostId = h.Id
 			break
 		}
 	}
@@ -114,7 +134,7 @@ func (ipam *IPAM) legacyAllocateIpByName(input interface{}, ctx common.RestConte
 		log.Printf(msg)
 		return nil, errors.New(msg)
 	}
-	log.Printf("Host name %s has ID %s", hostName, Endpoint.HostId)
+	log.Printf("Host name %s has ID %s", hostName, endpoint.HostId)
 
 	tenantSvcUrl, err := client.GetServiceUrl("tenant")
 	if err != nil {
@@ -130,21 +150,30 @@ func (ipam *IPAM) legacyAllocateIpByName(input interface{}, ctx common.RestConte
 		return nil, err
 	}
 	found = false
-	var i int
-	for i = range tenants {
-		if tenants[i].Name == tenantName {
-			found = true
-			Endpoint.TenantID = fmt.Sprintf("%d", tenants[i].ID)
-			log.Printf("IPAM: Tenant name %s has ID %s, original %d\n", tenantName, Endpoint.TenantID, tenants[i].ID)
+	for _, t := range tenants {
+		switch tenantLookupField {
+		case "Name":
+			if t.Name == tenantParam {
+				found = true
+			}
+		case "ExternalID":
+			if t.ExternalID == tenantParam {
+				found = true
+			}
+		}
+
+		if found {
+			endpoint.TenantID = fmt.Sprintf("%d", t.ID)
+			log.Printf("IPAM: Tenant '%s' has ID %s, original %d", tenantParam, endpoint.TenantID, t.ID)
 			break
 		}
 	}
 	if !found {
-		return nil, errors.New("Tenant with name " + tenantName + " not found")
+		return nil, fmt.Errorf("Tenant with name '%s' not found", tenantParam)
 	}
-	log.Printf("IPAM: Tenant name %s has ID %s, original %d\n", tenantName, Endpoint.TenantID, tenants[i].ID)
+	log.Printf("IPAM: Tenant name %s has ID %s", tenantParam, endpoint.TenantID)
 
-	segmentsUrl := fmt.Sprintf("/tenants/%s/segments", Endpoint.TenantID)
+	segmentsUrl := fmt.Sprintf("/tenants/%s/segments", endpoint.TenantID)
 	var segments []tenant.Segment
 	err = client.Get(segmentsUrl, &segments)
 	if err != nil {
@@ -154,15 +183,16 @@ func (ipam *IPAM) legacyAllocateIpByName(input interface{}, ctx common.RestConte
 	for _, s := range segments {
 		if s.Name == segmentName {
 			found = true
-			Endpoint.SegmentID = fmt.Sprintf("%d", s.ID)
+			endpoint.SegmentID = fmt.Sprintf("%d", s.ID)
 			break
 		}
 	}
 	if !found {
-		return nil, errors.New("Segment with name " + hostName + " not found")
+		return nil, fmt.Errorf("Segment with name '%s' not found", segmentName)
 	}
-	log.Printf("Segment name %s has ID %s", segmentName, Endpoint.SegmentID)
-	return ipam.addEndpoint(&Endpoint, ctx)
+
+	log.Printf("Segment name %s has ID %s", segmentName, endpoint.SegmentID)
+	return ipam.addEndpoint(&endpoint, ctx)
 }
 
 // addEndpoint handles request to add an endpoint and
