@@ -35,14 +35,32 @@ func (ks kubeSimulator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Println("Test: Entered kubeSimulator ServeHTTP()")
 	flusher, _ := w.(http.Flusher)
 
-	fmt.Fprintf(w, addPolicy1)
-	flusher.Flush() // Trigger "chunked" encoding and send a chunk...
-	time.Sleep(10 * time.Millisecond)
-
-	fmt.Fprintf(w, addNamespace1)
-	flusher.Flush() // Trigger "chunked" encoding and send a chunk...
-	time.Sleep(10 * time.Millisecond)
-
+	reqUri, _ := url.Parse(r.RequestURI)
+	path := fmt.Sprintf("%s?%s", reqUri.Path, reqUri.RawQuery)
+	log.Printf("Request to %s", path)
+	if path == "/api/v1/namespaces/?watch=true" {
+		log.Printf("Sending %s", addNamespace1)
+		fmt.Fprintf(w, addNamespace1)
+		flusher.Flush() // Trigger "chunked" encoding and send a chunk...
+		time.Sleep(10 * time.Millisecond)
+		return
+	}
+	if strings.HasPrefix(path, "/apis/romana.io/demo/v1/namespaces/") && strings.HasSuffix(path, "/networkpolicys/?wath=true") {
+		uriArr := strings.Split(path, "/")
+		if len(uriArr) != 9 {
+			w.WriteHeader(http.StatusNotFound)
+			w.Write([]byte(fmt.Sprintf("Not found: %s", path)))
+			return
+		}
+		log.Printf("Sending %s", addPolicy1)
+		fmt.Fprintf(w, addPolicy1)
+		flusher.Flush() // Trigger "chunked" encoding and send a chunk...
+		time.Sleep(10 * time.Millisecond)
+		return
+	}
+	w.WriteHeader(http.StatusNotFound)
+	w.Write([]byte(fmt.Sprintf("Not found: %s", path)))
+	return
 }
 
 // mockSvc is a Romana Service used in tests.
@@ -95,7 +113,10 @@ func (s *mockSvc) Routes() common.Routes {
 			json := `{"common":{"api":{"host":"0.0.0.0","port":9606}},
 			"config":{"kubernetes_url":"http://localhost",
 			"segment_label_name":"tier",
-			"url_prefix":"apis/romana.io/demo/v1/namespaces"}}`
+		    "namespace_notification_path: "/api/v1/namespaces/?watch=true",
+     		"policy_notification_path_prefix : "/apis/romana.io/demo/v1/namespaces/",
+    		"policy_notification_path_postfix : "/networkpolicys/?wath=true",
+      		}}`
 			return common.Raw{Body: json}, nil
 		},
 	}
@@ -144,7 +165,7 @@ func (s *mockSvc) Routes() common.Routes {
 	}
 
 	segmentAddRoute := common.Route{
-		Method:  "POST",
+		Method: "POST",
 		// For the purpose of this test, we are going to ignore tenantID and pretend
 		// it's the correct one.
 		Pattern: "/tenants/{tenantID}/segments",
@@ -256,8 +277,11 @@ func (s *MySuite) getKubeListenerServiceConfig() *common.ServiceConfig {
 	commonConfig := common.CommonConfig{Api: api}
 	kubeListenerConfig := make(map[string]interface{})
 	kubeListenerConfig["kubernetes_url"] = s.kubeURL
-	kubeListenerConfig["url_prefix"] = "apis/romana.io/demo/v1/namespaces"
+	kubeListenerConfig["namespace_notification_path"] = "/api/v1/namespaces/?watch=true"
+	kubeListenerConfig["policy_notification_path_prefix"] = "/apis/romana.io/demo/v1/namespaces/"
+	kubeListenerConfig["policy_notification_path_postfix"] = "/networkpolicys/?wath=true"
 	kubeListenerConfig["segment_label_name"] = "tier"
+
 	svcConfig := common.ServiceConfig{Common: commonConfig, ServiceSpecific: kubeListenerConfig}
 	log.Printf("Test: Returning KubernetesListener config %#v", svcConfig.ServiceSpecific)
 	return &svcConfig
