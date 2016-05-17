@@ -160,12 +160,13 @@ const (
 )
 
 type kubeListener struct {
-	config           common.ServiceConfig
-	restClient       *common.RestClient
-	kubeUrl          string
-	nsUrl            string
-	urlPrefix        string
-	segmentLabelName string
+	config                    common.ServiceConfig
+	restClient                *common.RestClient
+	kubeUrl                   string
+	namespaceNotificationPath string
+	policyNotificationPathPrefix string
+	policyNotificationPathPostfix string
+	segmentLabelName          string
 }
 
 // Routes returns various routes used in the service.
@@ -182,25 +183,33 @@ func (l *kubeListener) Name() string {
 // SetConfig implements SetConfig function of the Service interface.
 func (l *kubeListener) SetConfig(config common.ServiceConfig) error {
 	m := config.ServiceSpecific
-	l.kubeUrl = m["kubernetes_url"].(string)
-	if l.kubeUrl == "" {
+	if m["kubernetes_url"] == "" {
 		return errors.New("kubernetes_url required.")
 	}
-	l.urlPrefix = m["url_prefix"].(string)
-	if l.urlPrefix == "" {
-		return errors.New("url_prefix required.")
+	l.kubeUrl = m["kubernetes_url"].(string)
+	
+	if m["namespace_notification_path"] == "" {
+		return errors.New("namespace_notification_path required.")
 	}
-	l.segmentLabelName = m["segment_label_name"].(string)
-	if l.segmentLabelName == "" {
+	l.namespaceNotificationPath = m["namespace_notification_path"].(string)
+	
+	if m["policy_notification_path_prefix"] == "" {
+		return errors.New("policy_notification_path_prefix required.")
+	}
+	l.policyNotificationPathPrefix = m["policy_notification_path_prefix"].(string)
+	
+	
+	if m["policy_notification_path_postfix"] == "" {
+		return errors.New("policy_notification_path_postfix required.")
+	}
+	l.policyNotificationPathPostfix = m["policy_notification_path_postfix"].(string)
+	
+	if m["segment_label_name"] == "" {
 		return errors.New("segment_label_name required.")
 	}
-	l.nsUrl = m["namespaces_url"].(string)
-	if l.nsUrl == "" {
-		return errors.New("namespaces_url required.")
-	}
-
+	l.segmentLabelName = m["segment_label_name"].(string)
+	
 	return nil
-
 }
 
 // Run configures and runs listener service.
@@ -365,7 +374,11 @@ func (l *kubeListener) applyNetworkPolicy(action networkPolicyAction, romanaNetw
 
 func (l *kubeListener) Initialize() error {
 	log.Printf("%s: Starting server", l.Name())
-	nsUrl := fmt.Sprintf("%s/%s", l.kubeUrl, l.nsUrl)
+	nsUrl, err := common.CleanURL(fmt.Sprintf("%s%s", l.kubeUrl, l.namespaceNotificationPath))
+	if err != nil {
+		return err
+	}
+	log.Printf("Starting to listen on %s", nsUrl)
 	done := make(chan Done)
 	nsEvents, err := l.nsWatch(done, nsUrl)
 	if err != nil {
