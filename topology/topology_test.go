@@ -173,7 +173,7 @@ func (s *MySuite) TestTopology(c *check.C) {
 	//	time.Sleep(time.Hour)
 
 	c.Assert(newHostResp.Ip, check.Equals, "10.10.10.10")
-	c.Assert(newHostResp.Id, check.Equals, uint64(1))
+	c.Assert(newHostResp.Id, check.Equals, "1")
 
 	newHostReq = common.HostMessage{Ip: "10.10.10.11", AgentPort: 9999, Name: "host11", RomanaIp: "15.15.15.16/16"}
 	newHostResp = common.HostMessage{}
@@ -181,7 +181,7 @@ func (s *MySuite) TestTopology(c *check.C) {
 	myLog(c, "Response: ", newHostResp)
 
 	c.Assert(newHostResp.Ip, check.Equals, "10.10.10.11")
-	c.Assert(newHostResp.Id, check.Equals, uint64(2))
+	c.Assert(newHostResp.Id, check.Equals, "2")
 
 	var hostList2 []Host
 	client.Get(hostsRelURL, &hostList2)

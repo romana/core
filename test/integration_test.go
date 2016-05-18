@@ -29,6 +29,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -206,14 +207,14 @@ func (s *MySuite) TestAgentStart(c *check.C) {
 	client.Post(hostsRelURL, newHostReq, &host1)
 	myLog(c, "Response: %s", host1)
 	c.Assert(host1.Ip, check.Equals, "10.10.10.10")
-	c.Assert(host1.Id, check.Equals, uint64(1))
+	c.Assert(host1.Id, check.Equals, "1")
 	// Add host 2
 	newHostReq = common.HostMessage{Ip: "10.10.10.11", RomanaIp: possibleRomanaIps[1], AgentPort: 9999, Name: "HOST2000"}
 	host2 := common.HostMessage{}
 	client.Post(hostsRelURL, newHostReq, &host2)
 	myLog(c, "Response: %s", host2)
 	c.Assert(host2.Ip, check.Equals, "10.10.10.11")
-	c.Assert(host2.Id, check.Equals, uint64(2))
+	c.Assert(host2.Id, check.Equals, "2")
 
 	// Get list of hosts - should have 2 now
 	var hostList2 []common.HostMessage
@@ -300,7 +301,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 		c.Error(err)
 	}
 	t2Id := t2Out.ID
-	c.Assert(t2Out.Seq, check.Equals, uint64(2))
+	c.Assert(t2Out.Seq, check.Equals, uint64(2)) 
 	myLog(c, "Tenant 2", t2Out)
 
 	// Find first tenant
@@ -353,7 +354,8 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	myLog(c, "IPAM Test: Get first IP")
 	tenantId := t1Out.ID
 	segmentId := t1s1Out.Id
-	t1s1h1EpIn := ipam.Endpoint{Name: "endpoint1", TenantId: tenantId, SegmentId: segmentId, HostId: host1.Id}
+	hostId, _ := strconv.ParseUint(host1.Id, 10, 64)
+	t1s1h1EpIn := ipam.Endpoint{Name: "endpoint1", TenantId: tenantId, SegmentId: segmentId, HostId: hostId}
 	t1s1h1Ep1Out := ipam.Endpoint{}
 	client.NewUrl(s.ipamURL)
 	err = client.Post("/endpoints", t1s1h1EpIn, &t1s1h1Ep1Out)
@@ -404,7 +406,8 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	// Get IP for t2, s2, h2
 	tenantId = t2Out.ID
 	segmentId = t2s2Out.Id
-	t2s2h2EpIn := ipam.Endpoint{Name: "endpoint1", TenantId: tenantId, SegmentId: segmentId, HostId: host2.Id}
+	hostId, _ = strconv.ParseUint(host2.Id, 10, 64)
+	t2s2h2EpIn := ipam.Endpoint{Name: "endpoint1", TenantId: tenantId, SegmentId: segmentId, HostId: hostId}
 	t2s2h2EpOut := ipam.Endpoint{}
 	err = client.Post("/endpoints", t2s2h2EpIn, &t2s2h2EpOut)
 	if err != nil {
