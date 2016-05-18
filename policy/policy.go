@@ -89,7 +89,7 @@ func (policy *PolicySvc) augmentEndpoint(endpoint *common.Endpoint) error {
 
 	var segmentIDToUse string
 	if endpoint.SegmentID != 0 {
-		segmentIDToUse = strconv.FormatUint(endpoint.SegmentID)
+		segmentIDToUse = strconv.FormatUint(endpoint.SegmentID, 10)
 	} else if endpoint.SegmentExternalID != "" {
 		segmentIDToUse = endpoint.SegmentExternalID
 	}
