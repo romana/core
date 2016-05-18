@@ -18,13 +18,13 @@ package kubernetes
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/romana/core/common"
 	"log"
 	"net/http"
 )
 
 const (
-	urlPostfix = "api/v1/namespaces/?watch=true"
-	selector   = "podSelector"
+	selector = "podSelector"
 )
 
 // Done is an alias for empty struct, used to make broadcast channels
@@ -146,12 +146,14 @@ func (l *kubeListener) nsWatch(done <-chan Done, url string) (<-chan Event, erro
 	return out, nil
 }
 
-// Produce method listens for resource updates happening within givcen namespace
-// and publishes this updates in a channel
+// Produce method listens for resource updates happening within given namespace
+// and publishes these updates in a channel.
 func (ns KubeObject) produce(out chan Event, done <-chan Done, kubeListener *kubeListener) error {
-	url := fmt.Sprintf("%s/%s/%s/%s", kubeListener.kubeUrl, kubeListener.urlPrefix, ns.Metadata.Name, urlPostfix)
-	log.Println("Launching producer to listen on ", url)
-
+	url, err := common.CleanURL(fmt.Sprintf("%s/%s/%s%s", kubeListener.kubeUrl, kubeListener.policyNotificationPathPrefix, ns.Metadata.Name, kubeListener.policyNotificationPathPostfix))
+	if err != nil {
+		return err
+	}
+	log.Printf("Launching producer to listen for policy notifications on namespace %s at URL %s ", ns.Metadata.Name, url)
 	resp, err := http.Get(url)
 	if err != nil {
 		return err

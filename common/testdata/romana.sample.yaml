@@ -60,5 +60,8 @@ services:
       port: 9606
     config:
       kubernetes_url : "http://localhost"
-      url_prefix: "apis/romana.io/demo/v1/namespaces"
+      namespace_notification_path: "/api/v1/namespaces/?watch=true"
+      policy_notification_path_prefix : "/apis/romana.io/demo/v1/namespaces/"
+      policy_notification_path_postfix : "/networkpolicys/?wath=true"
       segment_label_name: "tier"
+     
