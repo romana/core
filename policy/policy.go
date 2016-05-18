@@ -89,12 +89,12 @@ func (policy *PolicySvc) augmentEndpoint(endpoint *common.Endpoint) error {
 
 	var segmentIDToUse string
 	if endpoint.SegmentID != 0 {
-		segmentIDToUse = strconv.FormatUint(endpoint.SegmentID)
+		segmentIDToUse = strconv.FormatUint(endpoint.SegmentID, 10)
 	} else if endpoint.SegmentExternalID != "" {
 		segmentIDToUse = endpoint.SegmentExternalID
 	}
 	if segmentIDToUse != "" {
-		tenantsUrl := fmt.Sprintf("%s/tenants/%d/segment/%s", tenantSvcUrl, ten.ID, segmentIDToUse)
+		tenantsUrl := fmt.Sprintf("%s/tenants/%d/segments/%s", tenantSvcUrl, ten.ID, segmentIDToUse)
 		segment := &tenant.Segment{}
 		err = policy.client.Get(tenantsUrl, &segment)
 		if err != nil {
@@ -282,10 +282,10 @@ func Run(rootServiceUrl string, cred *common.Credential) (*common.RestServiceInf
 
 func (policy *PolicySvc) Initialize() error {
 	log.Println("Entering policy.Initialize()")
-	//	err := policy.store.Connect()
-	//	if err != nil {
-	//		return err
-	//	}
+	err := policy.store.Connect()
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
