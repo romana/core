@@ -8,7 +8,7 @@
 // http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
-//  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
 // WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 // License for the specific language governing permissions and limitations
 // under the License.
@@ -74,7 +74,7 @@ func (policy *PolicySvc) augmentEndpoint(endpoint *common.Endpoint) error {
 	var tenantIDToUse string
 	ten := &tenant.Tenant{}
 	if endpoint.TenantID != 0 {
-		tenantIDToUse = string(endpoint.TenantID)
+		tenantIDToUse = strconv.FormatUint(endpoint.TenantID, 10)
 	} else if endpoint.TenantExternalID != "" {
 		tenantIDToUse = endpoint.TenantExternalID
 	}
@@ -89,7 +89,7 @@ func (policy *PolicySvc) augmentEndpoint(endpoint *common.Endpoint) error {
 
 	var segmentIDToUse string
 	if endpoint.SegmentID != 0 {
-		segmentIDToUse = string(endpoint.SegmentID)
+		segmentIDToUse = strconv.FormatUint(endpoint.SegmentID)
 	} else if endpoint.SegmentExternalID != "" {
 		segmentIDToUse = endpoint.SegmentExternalID
 	}
