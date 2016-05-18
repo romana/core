@@ -106,8 +106,8 @@ Previous Releases can be found [here][github-release].
 
 [License-Url]: LICENSE
 [License-Image]: https://img.shields.io/badge/license-Apache--2-blue.svg
-[Release-Url]: https://github.com/romana/core/releases/tag/v0.8.1
-[Release-image]: https://img.shields.io/badge/release-0.8.1-blue.svg
+[Release-Url]: https://github.com/romana/core/releases/tag/v0.8.3
+[Release-image]: https://img.shields.io/badge/release-0.8.3-blue.svg
 [ReportCard-Url]: https://goreportcard.com/report/romana/core
 [ReportCard-Image]: https://goreportcard.com/badge/romana/core
 [github-release]: https://github.com/romana/core/releases/
