@@ -118,7 +118,7 @@ func (topology *TopologySvc) handleHost(input interface{}, ctx common.RestContex
 
 	links := []common.LinkResponse{agentLink, hostLink, collectionLink}
 	hostIDStr := strconv.FormatUint(host.Id, 10)
-	hostMessage := common.HostMessage{Id: hostIDStr, RomanaIp: host.RomanaIp, Ip: host.Ip, Name: host.Name, AgentPort: int(host.AgentPort), Links: links}
+	hostMessage := common.HostMessage{Id: hostIDStr, RomanaIp: host.RomanaIp, Ip: host.Ip, Name: host.Name, AgentPort: host.AgentPort, Links: links}
 	return hostMessage, nil
 }
 

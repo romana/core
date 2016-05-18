@@ -105,7 +105,7 @@ type HostMessage struct {
 	Name      string `json:"name"`
 	Ip        string `json:"ip"`
 	RomanaIp  string `json:"romana_ip"`
-	AgentPort uint64	    `json:"agent_port"`
+	AgentPort uint64 `json:"agent_port"`
 	Links     Links  `json:"links"`
 	//    Tor string       `json:"tor"`
 }
