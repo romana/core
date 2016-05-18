@@ -26,6 +26,8 @@ import (
 
 // Main entry point for the Policy microservice
 func main() {
+	createSchema := flag.Bool("createSchema", false, "Create schema")
+	overwriteSchema := flag.Bool("overwriteSchema", false, "Overwrite schema")
 	rootURL := flag.String("rootURL", "", "Root service URL")
 	version := flag.Bool("version", false, "Build Information.")
 	username := flag.String("username", "", "Username")
@@ -37,12 +39,21 @@ func main() {
 		fmt.Println(common.BuildInfo())
 		return
 	}
+	if *createSchema || *overwriteSchema {
+		err := policy.CreateSchema(*rootURL, *overwriteSchema)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println("Schema created.")
+		return
+	}
+	
 	cred := common.MakeCredentialFromCliArgs(*username, *password)
 	svcInfo, err := policy.Run(*rootURL, cred)
 	if err != nil {
 		panic(err)
 	}
-	
+
 	for {
 		msg := <-svcInfo.Channel
 		fmt.Println(msg)
