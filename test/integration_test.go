@@ -29,6 +29,7 @@ import (
 	"net"
 	"os"
 	"strings"
+	"strconv"
 	"testing"
 	"time"
 )
@@ -300,7 +301,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 		c.Error(err)
 	}
 	t2Id := t2Out.ID
-	c.Assert(t2Out.Seq, check.Equals, uint64(2))
+	c.Assert(t2Out.Seq, check.Equals, uint64(2)) 
 	myLog(c, "Tenant 2", t2Out)
 
 	// Find first tenant
@@ -351,9 +352,10 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 
 	// Get IP for t1, s1, h1
 	myLog(c, "IPAM Test: Get first IP")
-	tenantId := fmt.Sprintf("%d", t1Out.ID)
-	segmentId := fmt.Sprintf("%d", t1s1Out.Id)
-	t1s1h1EpIn := ipam.Endpoint{Name: "endpoint1", TenantId: tenantId, SegmentId: segmentId, HostId: host1.Id}
+	tenantId := t1Out.ID
+	segmentId := t1s1Out.Id
+	hostId, _ := strconv.ParseUint(host1.Id, 10, 64)
+	t1s1h1EpIn := ipam.Endpoint{Name: "endpoint1", TenantId: tenantId, SegmentId: segmentId, HostId: hostId}
 	t1s1h1Ep1Out := ipam.Endpoint{}
 	client.NewUrl(s.ipamURL)
 	err = client.Post("/endpoints", t1s1h1EpIn, &t1s1h1Ep1Out)
@@ -402,9 +404,10 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	myLog(c, "IPAM Test: Response from IPAM for %v is %v", t1s1h1EpIn, t1s1h1Ep4Out)
 
 	// Get IP for t2, s2, h2
-	tenantId = fmt.Sprintf("%d", t2Out.ID)
-	segmentId = fmt.Sprintf("%d", t2s2Out.Id)
-	t2s2h2EpIn := ipam.Endpoint{Name: "endpoint1", TenantId: tenantId, SegmentId: segmentId, HostId: host2.Id}
+	tenantId = t2Out.ID
+	segmentId = t2s2Out.Id
+	hostId, _ = strconv.ParseUint(host2.Id, 10, 64)
+	t2s2h2EpIn := ipam.Endpoint{Name: "endpoint1", TenantId: tenantId, SegmentId: segmentId, HostId: hostId}
 	t2s2h2EpOut := ipam.Endpoint{}
 	err = client.Post("/endpoints", t2s2h2EpIn, &t2s2h2EpOut)
 	if err != nil {
@@ -428,8 +431,8 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	myLog(c, "Legacy received:", endpointOut)
 	myLog(c, "Legacy IP:", endpointOut.Ip)
 
-	// Try legacy request using tenantID
-	legacyURL = "/allocateIP?tenantID=t1&segmentName=s1&hostName=HOST2000&instanceName=bla"
+	// Try legacy request using external ID
+	legacyURL = "/allocateIP?tenantID=" + t1Out.ExternalID + "&segmentName=s1&hostName=HOST2000&instanceName=bla"
 	myLog(c, "Calling legacy URL", legacyURL)
 
 	err = client.Get(legacyURL, &endpointOut)

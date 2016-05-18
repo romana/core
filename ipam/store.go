@@ -28,11 +28,11 @@ import (
 // that is to get an IP address.
 type Endpoint struct {
 	Ip           string         `json:"ip,omitempty"`
-	TenantId     string         `json:"tenant_id,omitempty"`
-	SegmentId    string         `json:"segment_id,omitempty"`
-	HostId       string         `json:"host_id,omitempty"`
+	TenantId     uint64         `json:"tenant_id,omitempty"`
+	SegmentId    uint64         `json:"segment_id,omitempty"`
+	HostId       uint64         `json:"host_id,omitempty"`
 	Name         string         `json:"name,omitempty"`
-	RequestToken sql.NullString `json:"request_token" sql:"unique"`
+	RequestToken sql.NullString `json:"request_token" sql:"type:varchar(64);unique"`
 	// Ordinal number of this Endpoint in the host/tenant combination
 	Seq uint64 `json:"-"`
 	// Calculated effective sequence number of this Endpoint --

@@ -159,6 +159,7 @@ func (dbStore *DbStore) Connect() error {
 		return err
 	}
 	dbStore.Db = &db
+	dbStore.Db.LogMode(true)
 	return nil
 }
 

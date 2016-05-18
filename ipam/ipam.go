@@ -22,6 +22,7 @@ import (
 	"github.com/romana/core/tenant"
 	"log"
 	"net"
+	"strconv"
 )
 
 // IPAM provides ipam service.
@@ -124,7 +125,7 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 	for _, h := range hosts {
 		if h.Name == hostName {
 			found = true
-			endpoint.HostId = h.Id
+			endpoint.HostId, _ = strconv.ParseUint(h.Id, 10, 64)
 			break
 		}
 	}
@@ -133,7 +134,7 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 		log.Printf(msg)
 		return nil, errors.New(msg)
 	}
-	log.Printf("Host name %s has ID %s", hostName, endpoint.HostId)
+	log.Printf("Host name %s has ID %d", hostName, endpoint.HostId)
 
 	tenantSvcUrl, err := client.GetServiceUrl(ipam.config.Common.Api.RootServiceUrl, "tenant")
 	if err != nil {
@@ -162,17 +163,17 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 		}
 
 		if found {
-			endpoint.TenantId = fmt.Sprintf("%d", t.ID)
-			log.Printf("IPAM: Tenant '%s' has ID %s, original %d", tenantParam, endpoint.TenantId, t.ID)
+			endpoint.TenantId = t.ID
+			log.Printf("IPAM: Tenant '%s' has ID %d, original %d", tenantParam, endpoint.TenantId, t.ID)
 			break
 		}
 	}
 	if !found {
 		return nil, fmt.Errorf("Tenant with name '%s' not found", tenantParam)
 	}
-	log.Printf("IPAM: Tenant name %s has ID %s", tenantParam, endpoint.TenantId)
+	log.Printf("IPAM: Tenant name %s has ID %d", tenantParam, endpoint.TenantId)
 
-	segmentsUrl := fmt.Sprintf("/tenants/%s/segments", endpoint.TenantId)
+	segmentsUrl := fmt.Sprintf("/tenants/%d/segments", endpoint.TenantId)
 	var segments []tenant.Segment
 	err = client.Get(segmentsUrl, &segments)
 	if err != nil {
@@ -182,14 +183,14 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 	for _, s := range segments {
 		if s.Name == segmentName {
 			found = true
-			endpoint.SegmentId = fmt.Sprintf("%d", s.Id)
+			endpoint.SegmentId = s.Id
 			break
 		}
 	}
 	if !found {
 		return nil, fmt.Errorf("Segment with name '%s' not found", segmentName)
 	}
-	log.Printf("Segment name %s has ID %s", segmentName, endpoint.SegmentId)
+	log.Printf("Segment name %s has ID %d", segmentName, endpoint.SegmentId)
 	return ipam.addEndpoint(&endpoint, ctx)
 }
 
@@ -216,7 +217,7 @@ func (ipam *IPAM) addEndpoint(input interface{}, ctx common.RestContext) (interf
 	hostsURL := index.Links.FindByRel("host-list")
 	host := common.HostMessage{}
 
-	hostInfoURL := fmt.Sprintf("%s/%s", hostsURL, Endpoint.HostId)
+	hostInfoURL := fmt.Sprintf("%s/%d", hostsURL, Endpoint.HostId)
 	err = client.Get(hostInfoURL, &host)
 
 	if err != nil {
@@ -231,7 +232,7 @@ func (ipam *IPAM) addEndpoint(input interface{}, ctx common.RestContext) (interf
 	// TODO follow links once tenant service supports it. For now...
 
 	t := &tenant.Tenant{}
-	tenantsUrl := fmt.Sprintf("%s/tenants/%s", tenantUrl, Endpoint.TenantId)
+	tenantsUrl := fmt.Sprintf("%s/tenants/%d", tenantUrl, Endpoint.TenantId)
 	log.Printf("IPAM calling %s\n", tenantsUrl)
 	err = client.Get(tenantsUrl, t)
 	if err != nil {
@@ -239,7 +240,7 @@ func (ipam *IPAM) addEndpoint(input interface{}, ctx common.RestContext) (interf
 	}
 	log.Printf("IPAM received tenant %s ID %d, sequence %d\n", t.Name, t.ID, t.Seq)
 
-	segmentUrl := fmt.Sprintf("/tenants/%s/segments/%s", Endpoint.TenantId, Endpoint.SegmentId)
+	segmentUrl := fmt.Sprintf("/tenants/%d/segments/%d", Endpoint.TenantId, Endpoint.SegmentId)
 	log.Printf("IPAM calling %s\n", segmentUrl)
 	segment := &tenant.Segment{}
 	err = client.Get(segmentUrl, segment)

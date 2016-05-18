@@ -116,8 +116,8 @@ func (topology *TopologySvc) handleHost(input interface{}, ctx common.RestContex
 	collectionLink := common.LinkResponse{Href: hostListPath, Rel: "self"}
 
 	links := []common.LinkResponse{agentLink, hostLink, collectionLink}
-	hostIDStr := strconv.FormatUint(host.Id, 10)
-	hostMessage := common.HostMessage{Id: hostIDStr, RomanaIp: host.RomanaIp, Ip: host.Ip, Name: host.Name, AgentPort: int(host.AgentPort), Links: links}
+
+	hostMessage := common.HostMessage{Id: fmt.Sprintf("%d", host.Id), Ip: net.IP(host.Ip).String(), RomanaIp: fmt.Sprintf("%s/%d", net.IP(host.RomanaIp).String(), host.RomanaPrefixLen), Name: host.Name, AgentPort: int(host.AgentPort), Links: links}
 	return hostMessage, nil
 }
 
@@ -129,23 +129,32 @@ func (topology *TopologySvc) handleHostListGet(input interface{}, ctx common.Res
 	}
 	// TODO nested structures or some sort of easy
 	// way of translating between string and auto-increment ID.
-	retval := make([]common.HostMessage, len(hosts))
-	for i := range hosts {
-		retval[i] = common.HostMessage{Ip: hosts[i].Ip, RomanaIp: hosts[i].RomanaIp, Name: hosts[i].Name, Id: strconv.FormatUint(hosts[i].Id, 10)}
+	retval := make([]common.HostMessage, 0, len(hosts))
+	for _, h := range hosts {
+		retval = append(retval, common.HostMessage{Id: fmt.Sprintf("%d", h.Id), Ip: net.IP(h.Ip).String(), RomanaIp: fmt.Sprintf("%s/%d", net.IP(h.RomanaIp).String(), h.RomanaPrefixLen), Name: h.Name})
 	}
 	return retval, nil
 }
 
 func (topology *TopologySvc) handleHostListPost(input interface{}, ctx common.RestContext) (interface{}, error) {
 	hostMessage := input.(*common.HostMessage)
-	host := Host{Ip: hostMessage.Ip, Name: hostMessage.Name, RomanaIp: hostMessage.RomanaIp, AgentPort: uint64(hostMessage.AgentPort)}
+	hostIP := net.ParseIP(hostMessage.Ip)
+	if hostIP == nil {
+		return nil, fmt.Errorf("Unable to parse IP %s", hostMessage.Ip)
+	}
+	romanaIP, romanaNet, err := net.ParseCIDR(hostMessage.RomanaIp)
+	if err != nil {
+		return nil, err
+	}
+	prefixLen, _ := romanaNet.Mask.Size()
+	host := Host{Ip: hostIP, Name: hostMessage.Name, RomanaIp: romanaIP, RomanaPrefixLen: uint8(prefixLen), AgentPort: uint64(hostMessage.AgentPort)}
 	id, err := topology.store.addHost(&host)
 	if err != nil {
 		return nil, err
 	}
 	returnHostMessage := hostMessage
 	log.Println("Added host", hostMessage)
-	returnHostMessage.Id = id
+	returnHostMessage.Id = fmt.Sprintf("%d", id)
 
 	return returnHostMessage, nil
 }

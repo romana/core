@@ -41,7 +41,7 @@ func (tenantStore *tenantStore) Entities() []interface{} {
 
 type Tenant struct {
 	ID         uint64 `sql:"AUTO_INCREMENT"`
-	ExternalID string `sql:"not null;unique"`
+	ExternalID string `sql:"type:varchar(64);not null;unique"`
 	Name       string
 	Segments   []Segment
 	Seq        uint64

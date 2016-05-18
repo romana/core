@@ -22,6 +22,7 @@ import (
 	"github.com/romana/core/common"
 	"github.com/romana/core/root"
 	//	"log"
+	"net"
 	"os"
 	"reflect"
 	"testing"
@@ -88,27 +89,41 @@ func myLog(c *check.C, args ...interface{}) {
 
 // TestHostMarshaling tests marshaling/unmarshaling of Host
 // structure to/from proper JSON.
+// Note: we don't actually do this anywhere. common.HostMessage
+// is used for that purpose
 func (s *MySuite) TestHostMarshaling(c *check.C) {
+	ip := net.ParseIP("10.1.1.1")
+	if ip == nil {
+		c.Error(fmt.Errorf("ParseIP failed"))
+	}
+	addr, nw, err := net.ParseCIDR("192.168.0.1/16")
+	if err != nil {
+		c.Error(err)
+	}
+	prefixLen, _ := nw.Mask.Size()
+
 	host := Host{}
 	host.Id = 1
-	host.RomanaIp = "192.168.0.1/16"
-	host.Ip = "10.1.1.1"
+	host.Ip = ip
+	host.RomanaIp = addr
+	host.RomanaPrefixLen = uint8(prefixLen)
 	host.Name = "host1"
 	host.AgentPort = 9999
 	m := common.ContentTypeMarshallers["application/json"]
 	json, _ := m.Marshal(host)
 	marshaledJSONStr := string(json)
 	myLog(c, "Marshaled ", host, "to", marshaledJSONStr)
-	expectedJSONStr := "{\"id\":1,\"name\":\"host1\",\"ip\":\"10.1.1.1\",\"romana_ip\":\"192.168.0.1/16\",\"agent_port\":9999}"
+	expectedJSONStr := `{"id":1,"name":"host1","ip":"AAAAAAAAAAAAAP//CgEBAQ==","romana_ip":"AAAAAAAAAAAAAP//wKgAAQ==","romana_net":16,"agent_port":9999}`
 	c.Assert(marshaledJSONStr, check.Equals, expectedJSONStr)
 	host2 := Host{}
-	err := m.Unmarshal([]byte(expectedJSONStr), &host2)
+	err = m.Unmarshal([]byte(expectedJSONStr), &host2)
 	if err != nil {
 		c.Error(err)
 	}
 	c.Assert(host2.Id, check.Equals, uint64(1))
-	c.Assert(host2.Ip, check.Equals, "10.1.1.1")
-	c.Assert(host2.RomanaIp, check.Equals, "192.168.0.1/16")
+	c.Assert(host2.Ip, check.DeepEquals, []byte(ip))
+	c.Assert(host2.RomanaIp, check.DeepEquals, []byte(addr))
+	c.Assert(host2.RomanaPrefixLen, check.Equals, uint8(prefixLen))
 	c.Assert(host2.AgentPort, check.Equals, uint64(9999))
 }
 
@@ -149,7 +164,7 @@ func (s *MySuite) TestTopology(c *check.C) {
 	client.Get(hostsRelURL, &hostList)
 	myLog(c, "Host list: ", hostList)
 	c.Assert(len(hostList), check.Equals, 0)
-	newHostReq := common.HostMessage{Ip: "10.10.10.10", AgentPort: 9999, Name: "host10", RomanaIp: "15.15.15.15"}
+	newHostReq := common.HostMessage{Ip: "10.10.10.10", AgentPort: 9999, Name: "host10", RomanaIp: "15.15.15.15/15"}
 
 	newHostResp := common.HostMessage{}
 	client.Post(hostsRelURL, newHostReq, &newHostResp)
@@ -160,7 +175,7 @@ func (s *MySuite) TestTopology(c *check.C) {
 	c.Assert(newHostResp.Ip, check.Equals, "10.10.10.10")
 	c.Assert(newHostResp.Id, check.Equals, "1")
 
-	newHostReq = common.HostMessage{Ip: "10.10.10.11", AgentPort: 9999, Name: "host11", RomanaIp: "15.15.15.16"}
+	newHostReq = common.HostMessage{Ip: "10.10.10.11", AgentPort: 9999, Name: "host11", RomanaIp: "15.15.15.16/16"}
 	newHostResp = common.HostMessage{}
 	client.Post(hostsRelURL, newHostReq, &newHostResp)
 	myLog(c, "Response: ", newHostResp)
