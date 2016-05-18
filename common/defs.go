@@ -100,7 +100,7 @@ type PortUpdateMessage struct {
 }
 
 type Endpoint struct {
-	Any     string  `json:"any,omitempty`
+	Any     string `json:"any,omitempty`
 	CidrStr string `json:"cidr,omitempty"`
 	// TODO this can be collapsed into Cidr but needs
 	// work on JSON marshaller/unmarshaller to do that.
