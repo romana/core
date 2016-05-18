@@ -44,7 +44,7 @@ type Tenant struct {
 	ExternalID string `sql:"not null;unique"`
 	Name       string
 	Segments   []Segment
-	Seq        uint64
+	Seq        uint64 
 }
 
 type Segment struct {
