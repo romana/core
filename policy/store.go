@@ -29,7 +29,7 @@ type policyStore struct {
 
 func (policyStore *policyStore) addPolicy(policyDoc *common.Policy) error {
 	json, err := json.Marshal(policyDoc)
-	policyDb := &policyDb{}
+	policyDb := &PolicyDb{}
 	policyDb.Policy = string(json)
 //	policyDb.IsActive = true
 	db := policyStore.DbStore.Db
@@ -58,7 +58,7 @@ func (policyStore *policyStore) listPolicies() ([]common.Policy, error) {
 // upon receiving a DELETE request but before distributing
 // this request to agents.
 func (policyStore *policyStore) inactivatePolicy(id uint64) error {
-	policyDb := &policyDb{}
+	policyDb := &PolicyDb{}
 	db := policyStore.DbStore.Db
 	db = db.Where("id = ?", id).Delete(policyDb)
 	err := common.GetDbErrors(db)
@@ -87,7 +87,7 @@ func (policyStore *policyStore) inactivatePolicy(id uint64) error {
 }
 
 func (policyStore *policyStore) deletePolicy(id uint64) error {
-	policyDb := &policyDb{}
+	policyDb := &PolicyDb{}
 	db := policyStore.DbStore.Db
 	db = db.Unscoped().Where("id = ?", id).Delete(policyDb)
 	err := common.GetDbErrors(db)
@@ -106,7 +106,7 @@ func (policyStore *policyStore) CreateSchemaPostProcess() error {
 // policyDb represents how common.Policy is stored in the database.
 // For now to keep it simple, it will not be fully normalized --
 // we will just keep an ID and policy document as JSON
-type policyDb struct {
+type PolicyDb struct {
 	ID uint64 `sql:"AUTO_INCREMENT"`
 	// Policy document as JSON
 	Policy string
@@ -119,6 +119,6 @@ type policyDb struct {
 // Service interface.
 func (policyStore *policyStore) Entities() []interface{} {
 	retval := make([]interface{}, 1)
-	retval[0] = &policyDb{}
+	retval[0] = &PolicyDb{}
 	return retval
 }
