@@ -282,10 +282,10 @@ func Run(rootServiceUrl string, cred *common.Credential) (*common.RestServiceInf
 
 func (policy *PolicySvc) Initialize() error {
 	log.Println("Entering policy.Initialize()")
-	//	err := policy.store.Connect()
-	//	if err != nil {
-	//		return err
-	//	}
+	err := policy.store.Connect()
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
