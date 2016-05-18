@@ -100,7 +100,7 @@ type PortUpdateMessage struct {
 }
 
 type Endpoint struct {
-	Any     string
+	Any     string  `json:"any,omitempty`
 	CidrStr string `json:"cidr,omitempty"`
 	// TODO this can be collapsed into Cidr but needs
 	// work on JSON marshaller/unmarshaller to do that.
@@ -132,22 +132,22 @@ func (p PortRange) String() string {
 // 4. If Protocol specified is "icmp", Ports and PortRanges fields should be blank.
 // 5. If Protocol specified is not "icmp", Icmptype and IcmpCode should be unspecified.
 type Rule struct {
-	Protocol   string
-	Ports      []uint
-	PortRanges []PortRange
+	Protocol   string      `json:"protocol"`
+	Ports      []uint      `json:"port,omitempty`
+	PortRanges []PortRange `json:"port_ranges,omitempty`
 	// IcmpType only applies if Protocol value is ICMP and
 	// is mutually exclusive with Ports or PortRanges
-	IcmpType   uint
-	IcmpCode   uint
-	IsStateful bool
+	IcmpType   uint `json:"icmp_type,omitempty`
+	IcmpCode   uint `json:"icmp_code,omitempty`
+	IsStateful bool `json:"is_stateful,omitempty`
 }
 
 type Rules []Rule
 
 // Metadata attached to entities for various external environments like Open Stack / Kubernetes
 type Tag struct {
-	Key   string
-	Value string
+	Key   string `json:"key,omitempty`
+	Value string `json:"value,omitempty`
 }
 
 // Policy describes Romana network security policy.
@@ -357,11 +357,11 @@ type Datacenter struct {
 	IpVersion uint   `json:"ip_version"`
 	// We don't need to store this, but calculate and pass around
 	Prefix      uint64 `json:"prefix"`
-	Cidr        string
-	PrefixBits  uint `json:"prefix_bits"`
-	PortBits    uint `json:"port_bits"`
-	TenantBits  uint `json:"tenant_bits"`
-	SegmentBits uint `json:"segment_bits"`
+	Cidr        string `json:"cidr,omitempty`
+	PrefixBits  uint   `json:"prefix_bits"`
+	PortBits    uint   `json:"port_bits"`
+	TenantBits  uint   `json:"tenant_bits"`
+	SegmentBits uint   `json:"segment_bits"`
 	// We don't need to store this, but calculate and pass around
 	EndpointBits      uint   `json:"endpoint_bits"`
 	EndpointSpaceBits uint   `json:"endpoint_space_bits"`
