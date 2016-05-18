@@ -132,7 +132,7 @@ func (topology *TopologySvc) handleHostListGet(input interface{}, ctx common.Res
 	// way of translating between string and auto-increment ID.
 	retval := make([]common.HostMessage, len(hosts))
 	for i := range hosts {
-		retval[i] = common.HostMessage{Ip: hosts[i].Ip, RomanaIp: hosts[i].RomanaIp, Name: hosts[i].Name, Id: strconv.FormatUint(hosts[i].Id, 10)}
+		retval[i] = common.HostMessage{Ip: hosts[i].Ip, RomanaIp: hosts[i].RomanaIp, Name: hosts[i].Name, Id: strconv.FormatUint(hosts[i].Id, 10), AgentPort: hosts[i].AgentPort}
 	}
 	return retval, nil
 }
