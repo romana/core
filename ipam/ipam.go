@@ -22,6 +22,7 @@ import (
 	"github.com/romana/core/tenant"
 	"log"
 	"net"
+	"strconv"
 )
 
 // IPAM provides ipam service.
@@ -124,7 +125,7 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 	for _, h := range hosts {
 		if h.Name == hostName {
 			found = true
-			endpoint.HostId = h.Id
+			endpoint.HostId, _ = strconv.ParseUint(h.Id, 10, 64)
 			break
 		}
 	}

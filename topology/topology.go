@@ -117,7 +117,7 @@ func (topology *TopologySvc) handleHost(input interface{}, ctx common.RestContex
 
 	links := []common.LinkResponse{agentLink, hostLink, collectionLink}
 
-	hostMessage := common.HostMessage{Id: host.Id, Ip: net.IP(host.Ip).String(), RomanaIp: fmt.Sprintf("%s/%d", net.IP(host.RomanaIp).String(), host.RomanaPrefixLen), Name: host.Name, AgentPort: int(host.AgentPort), Links: links}
+	hostMessage := common.HostMessage{Id: fmt.Sprintf("%d", host.Id), Ip: net.IP(host.Ip).String(), RomanaIp: fmt.Sprintf("%s/%d", net.IP(host.RomanaIp).String(), host.RomanaPrefixLen), Name: host.Name, AgentPort: int(host.AgentPort), Links: links}
 	return hostMessage, nil
 }
 
@@ -131,7 +131,7 @@ func (topology *TopologySvc) handleHostListGet(input interface{}, ctx common.Res
 	// way of translating between string and auto-increment ID.
 	retval := make([]common.HostMessage, 0, len(hosts))
 	for _, h := range hosts {
-		retval = append(retval, common.HostMessage{Id: h.Id, Ip: net.IP(h.Ip).String(), RomanaIp: fmt.Sprintf("%s/%d", net.IP(h.RomanaIp).String(), h.RomanaPrefixLen), Name: h.Name})
+		retval = append(retval, common.HostMessage{Id: fmt.Sprintf("%d", h.Id), Ip: net.IP(h.Ip).String(), RomanaIp: fmt.Sprintf("%s/%d", net.IP(h.RomanaIp).String(), h.RomanaPrefixLen), Name: h.Name})
 	}
 	return retval, nil
 }
@@ -154,7 +154,7 @@ func (topology *TopologySvc) handleHostListPost(input interface{}, ctx common.Re
 	}
 	returnHostMessage := hostMessage
 	log.Println("Added host", hostMessage)
-	returnHostMessage.Id = id
+	returnHostMessage.Id = fmt.Sprintf("%d", id)
 
 	return returnHostMessage, nil
 }
