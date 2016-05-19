@@ -182,6 +182,7 @@ func (policy *PolicySvc) deletePolicy(input interface{}, ctx common.RestContext)
 	if err != nil {
 		return nil, err
 	}
+	err, policyDoc := policy.store.getPolicy(id)
 
 	hosts, err := policy.client.ListHosts()
 	if err != nil {
@@ -192,7 +193,7 @@ func (policy *PolicySvc) deletePolicy(input interface{}, ctx common.RestContext)
 		// TODO make schema configurable
 		url := fmt.Sprintf("http://%s:%d/policies", host.Ip, host.AgentPort)
 		result := make(map[string]interface{})
-		err = policy.client.Delete(url, nil, result)
+		err = policy.client.Delete(url, policyDoc, result)
 		log.Printf("Agent at %s returned %v", host.Ip, result)
 		if err != nil {
 			errStr = append(errStr, fmt.Sprintf("Error deleting policy %s from host %s: %v. ", idStr, host.Ip, err))

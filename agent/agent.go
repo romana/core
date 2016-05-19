@@ -104,7 +104,10 @@ func (a *Agent) Routes() common.Routes {
 		},
 		common.Route{
 			Method:  "DELETE",
-			Pattern: "/policies/{policyID}",
+			Pattern: "/policies",
+			MakeMessage: func() interface{} {
+				return &common.Policy{}
+			},
 			Handler: a.deletePolicy,
 		},
 		common.Route{
@@ -147,13 +150,13 @@ func (a *Agent) Name() string {
 
 // addPolicy is a placeholder. TODO
 func (a *Agent) addPolicy(input interface{}, ctx common.RestContext) (interface{}, error) {
-//	policy := input.(*common.Policy)
+	//	policy := input.(*common.Policy)
 	return nil, nil
 }
 
 // deletePolicy is a placeholder. TODO
 func (a *Agent) deletePolicy(input interface{}, ctx common.RestContext) (interface{}, error) {
-//	policyId := ctx.PathVariables["policyID"]
+	//	policyId := ctx.PathVariables["policyID"]
 	return nil, nil
 }
 

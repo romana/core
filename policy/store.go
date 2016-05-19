@@ -54,6 +54,13 @@ func (policyStore *policyStore) listPolicies() ([]common.Policy, error) {
 	return policies, err
 }
 
+func (policyStore *policyStore) getPolicy(id uint64) (common.Policy, error) {
+	policyDoc := common.Policy{}
+	db := policyStore.DbStore.Db.Where("id = ?", id).First(&policyDoc)
+	err := common.GetDbErrors(db)
+	return policyDoc, err
+}
+
 // inactivatePolicy marks policy as inactive. This is done
 // upon receiving a DELETE request but before distributing
 // this request to agents.
