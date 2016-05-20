@@ -20,6 +20,7 @@ import (
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
 	"log"
+	"strings"
 	"strconv"
 )
 
@@ -85,6 +86,7 @@ func (policy *PolicySvc) augmentEndpoint(endpoint *common.Endpoint) error {
 			return err
 		}
 		endpoint.TenantNetworkID = ten.Seq
+		log.Printf("Net ID from %s: %d", tenantsUrl, endpoint.TenantNetworkID)
 	}
 
 	var segmentIDToUse string
@@ -101,7 +103,9 @@ func (policy *PolicySvc) augmentEndpoint(endpoint *common.Endpoint) error {
 			return err
 		}
 		endpoint.SegmentNetworkID = segment.Seq
+		log.Printf("Net ID from %s: %d", tenantsUrl, endpoint.SegmentNetworkID)
 	}
+	
 	return nil
 }
 
@@ -131,15 +135,22 @@ func (policy *PolicySvc) augmentPolicy(policyDoc *common.Policy) error {
 	log.Printf("Policy server received datacenter information from topology service: %v\n", dc)
 	policyDoc.Datacenter = dc
 
-	for _, endpoint := range policyDoc.AppliedTo {
-		err = policy.augmentEndpoint(&endpoint)
+	for i, _ := range policyDoc.Rules {
+	   rule := &policyDoc.Rules[i]
+	   rule.Protocol = strings.ToUpper(rule.Protocol)
+	}
+
+	for i, _ := range policyDoc.AppliedTo {
+	        endpoint := &policyDoc.AppliedTo[i]
+		err = policy.augmentEndpoint(endpoint)
 		if err != nil {
 			return err
 		}
 	}
 
-	for _, endpoint := range policyDoc.Peers {
-		err = policy.augmentEndpoint(&endpoint)
+	for i, _ := range policyDoc.Peers {
+	        endpoint := &policyDoc.Peers[i]
+		err = policy.augmentEndpoint(endpoint)
 		if err != nil {
 			return err
 		}
@@ -182,7 +193,7 @@ func (policy *PolicySvc) deletePolicy(input interface{}, ctx common.RestContext)
 	if err != nil {
 		return nil, err
 	}
-	err, policyDoc := policy.store.getPolicy(id)
+	policyDoc, err := policy.store.getPolicy(id)
 
 	hosts, err := policy.client.ListHosts()
 	if err != nil {

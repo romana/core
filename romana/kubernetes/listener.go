@@ -26,10 +26,6 @@ import (
 	"log"
 	"net/http"
 	"strings"
-	//	"encoding/json"
-	//	"time"
-	//	"net/http"
-	//	"runtime"
 )
 
 // readChunk reads the next chunk from the provided reader.
@@ -160,20 +156,20 @@ const (
 )
 
 // kubeListener is a Service that listens to updates
-// from Kubernetes by connecting to the endpoints specified 
+// from Kubernetes by connecting to the endpoints specified
 // and consuming chunked JSON documents. The endpoints are
 // constructed from kubeUrl and the following paths:
 // 1. namespaceNotificationPath for namespace additions/deletions
 // 2. policyNotificationPathPrefix + <namespace name> + policyNotificationPathPostfix
 //    for policy additions/deletions.
 type kubeListener struct {
-	config                    common.ServiceConfig
-	restClient                *common.RestClient
-	kubeUrl                   string
-	namespaceNotificationPath string
-	policyNotificationPathPrefix string
+	config                        common.ServiceConfig
+	restClient                    *common.RestClient
+	kubeUrl                       string
+	namespaceNotificationPath     string
+	policyNotificationPathPrefix  string
 	policyNotificationPathPostfix string
-	segmentLabelName          string
+	segmentLabelName              string
 }
 
 // Routes returns various routes used in the service.
@@ -194,28 +190,27 @@ func (l *kubeListener) SetConfig(config common.ServiceConfig) error {
 		return errors.New("kubernetes_url required.")
 	}
 	l.kubeUrl = m["kubernetes_url"].(string)
-	
+
 	if m["namespace_notification_path"] == "" {
 		return errors.New("namespace_notification_path required.")
 	}
 	l.namespaceNotificationPath = m["namespace_notification_path"].(string)
-	
+
 	if m["policy_notification_path_prefix"] == "" {
 		return errors.New("policy_notification_path_prefix required.")
 	}
 	l.policyNotificationPathPrefix = m["policy_notification_path_prefix"].(string)
-	
-	
+
 	if m["policy_notification_path_postfix"] == "" {
 		return errors.New("policy_notification_path_postfix required.")
 	}
 	l.policyNotificationPathPostfix = m["policy_notification_path_postfix"].(string)
-	
+
 	if m["segment_label_name"] == "" {
 		return errors.New("segment_label_name required.")
 	}
 	l.segmentLabelName = m["segment_label_name"].(string)
-	
+
 	return nil
 }
 
@@ -292,7 +287,7 @@ func (l *kubeListener) getOrAddSegment(tenantServiceURL string, namespace string
 //    automatically have been created when the namespace was added)
 func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Policy, error) {
 	log.Printf("translateNetworkPolicy(): Received %#v", kubePolicy)
-	romanaPolicy := &common.Policy{Direction: common.PolicyDirectionIngress}
+	romanaPolicy := &common.Policy{Direction: common.PolicyDirectionIngress, Name: kubePolicy.Metadata.Name}
 	ns := kubePolicy.Metadata.Namespace
 	tenantURL, err := l.restClient.GetServiceUrl("tenant")
 	if err != nil {
