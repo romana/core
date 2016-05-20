@@ -89,7 +89,7 @@ func hostAdd(cmd *cli.Command, args []string) error {
 	hostname := args[0]
 	hostip := args[1]
 	romanacidr := args[2]
-	var agentport int
+	var agentport uint64
 	if len(args) == 4 {
 		var err error
 		agentport, err = strconv.Atoi(args[3])
