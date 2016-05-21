@@ -86,7 +86,7 @@ func segmentAdd(cmd *cli.Command, args []string) error {
 		return err
 	}
 
-	tenantURL, err := client.GetServiceUrl( "tenant")
+	tenantURL, err := client.GetServiceUrl("tenant")
 	if err != nil {
 		return err
 	}

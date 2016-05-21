@@ -147,7 +147,7 @@ func hostShow(cmd *cli.Command, args []string) error {
 		return err
 	}
 
-	topologyURL, err := client.GetServiceUrl( "topology")
+	topologyURL, err := client.GetServiceUrl("topology")
 	if err != nil {
 		return err
 	}
