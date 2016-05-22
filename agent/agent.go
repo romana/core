@@ -61,12 +61,6 @@ func (a *Agent) SetConfig(config common.ServiceConfig) error {
 	a.waitForIfaceTry = int(config.ServiceSpecific["wait_for_iface_try"].(float64))
 	a.networkConfig = &NetworkConfig{}
 
-	// Ensure we have all the routes to our neighbours
-	log.Print("Agent: ensuring interhost routes exist")
-	if err := a.Helper.ensureInterHostRoutes(); err != nil {
-		log.Print("Agent: ", agentError(err))
-		return agentError(err)
-	}
 	log.Printf("Agent.SetConfig() finished.")
 	return nil
 }
@@ -139,7 +133,6 @@ func Run(rootServiceURL string, cred *common.Credential, testMode bool) (*common
 	if err != nil {
 		return nil, err
 	}
-
 	return common.InitializeService(agent, *config)
 }
 
@@ -289,5 +282,16 @@ func (a *Agent) interfaceHandle(netif NetIf) error {
 // interface.
 func (a *Agent) Initialize() error {
 	log.Printf("Entering Agent.Initialize()")
-	return a.identifyCurrentHost()
+	if err := a.identifyCurrentHost(); err != nil {
+		log.Print("Agent: ", agentError(err))
+		return agentError(err)
+	}
+
+	// Ensure we have all the routes to our neighbours
+	log.Print("Agent: ensuring interhost routes exist")
+	if err := a.Helper.ensureInterHostRoutes(); err != nil {
+		log.Print("Agent: ", agentError(err))
+		return agentError(err)
+	}
+	return nil
 }

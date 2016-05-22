@@ -217,7 +217,9 @@ func (h Helper) ensureInterHostRoutes() error {
 	log.Print("Acquired mutex ensureInterhostRoutes")
 
 	via := "via"
+	log.Printf("In ensureInterHostRoutes over %s\n", h.Agent.networkConfig.otherHosts)
 	for _, host := range h.Agent.networkConfig.otherHosts {
+		log.Printf("In ensureInterHostRoutes ensuring route for %s\n", host)
 		_, romanaCidr, err := net.ParseCIDR(host.RomanaIp)
 		if err != nil {
 			return failedToParseOtherHosts(host.RomanaIp)
@@ -231,10 +233,13 @@ func (h Helper) ensureInterHostRoutes() error {
 		if err := h.isRouteExist(romanaCidr.IP, romanaMask); err != nil {
 
 			// Create it
-			err := h.createRoute(romanaCidr.IP, romanaMask, via, dest)
-			if err != nil {
+			err2 := h.createRoute(romanaCidr.IP, romanaMask, via, dest)
+			if err2 != nil {
 				return routeCreateError(err, romanaCidr.IP.String(), romanaMask, dest)
 			}
+		} else {
+			log.Printf("In ensureInterHostRoutes route for %s failed\n", host)
+			return routeCreateError(err, romanaCidr.IP.String(), romanaMask, dest)
 		}
 	}
 	return nil
