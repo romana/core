@@ -540,9 +540,6 @@ func provisionK8SFirewallRules(netReq NetworkRequest, agent *Agent) error {
 		if err := fw.CreateRules(chain); err != nil {
 			return err
 		}
-		if err := fw.CreateDefaultDropRule(chain); err != nil {
-			return err
-		}
 	}
 
 	for chain := range fw.chains {
