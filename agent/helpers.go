@@ -237,9 +237,6 @@ func (h Helper) ensureInterHostRoutes() error {
 			if err2 != nil {
 				return routeCreateError(err, romanaCidr.IP.String(), romanaMask, dest)
 			}
-		} else {
-			log.Printf("In ensureInterHostRoutes route for %s failed\n", host)
-			return routeCreateError(err, romanaCidr.IP.String(), romanaMask, dest)
 		}
 	}
 	return nil
