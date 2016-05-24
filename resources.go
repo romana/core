@@ -129,6 +129,8 @@ func (e Event) handleNetworkPolicyEvent(l *kubeListener) {
 
 // handleNamespaceEvent by creating or deleting romana tenants.
 func (e Event) handleNamespaceEvent(l *kubeListener) {
+	log.Printf("Processing namespace event == %v and phase %v", e.Type, e.Object.Status)
+
 	if e.Type == KubeEventAdded {
 		tenantReq := tenant.Tenant{Name: e.Object.Metadata.Name, ExternalID: e.Object.Metadata.Name}
 		tenantResp := tenant.Tenant{}
@@ -157,9 +159,14 @@ func (e Event) handleNamespaceEvent(l *kubeListener) {
 	}
 
 	// Ignore repeated events during namespace termination
-	if e.Type == KubeEventModified && e.Object.Status["phase"] != "Terminating" {
+	if e.Object.Status["phase"] == "Terminating" {
+		if e.Type != KubeEventModified {
+			e.Object.handleAnnotations(l)
+		}
+	} else {
 		e.Object.handleAnnotations(l)
 	}
+
 }
 
 // handleAnnotations on a namespace by implementing extra features requested through the annotation
@@ -175,36 +182,46 @@ func (o KubeObject) handleAnnotations(l *kubeListener) {
 }
 
 func CreateDefaultPolicy(o KubeObject, l *kubeListener) {
-	// TODO
-	// create default policy as a KubeObject, then call translatePolicy and then applyPolicy
 	log.Printf("In CreateDefaultPolicy for %v\n", o)
+	tenant, _, err := l.resolveTenantByName(o.Metadata.Name)
+	if err != nil {
+		log.Printf("In CreateDefaultPolicy :: Error :: failed to resolve tenant %s \n", err)
+	}
 
-	/*
-		isolationPolicyName := fmt.Sprintf("D%s", o.Metadata.Name)
-		isolationPolicy := KubeObject{
-			Metadata: Metadata{Name: isolationPolicyName},
-			Kind:     "NetworkPolicy",
-			Spec: Spec{
-				AllowIncoming: AllowIncoming{
-					From: FromEntry{
-						Pods: []PodSelector{"peer": "any"},
-					},
-					ToPorts: []ToPort{
-						"protocol": "any",
-					},
-				},
-				PodSelector: PodSelector{
-					"tenant": o.Metadata.Name,
-				},
-			},
-		}
-		log.Printf("In CreateDefaultPolicy with %v\n", isolationPolicy)
-	*/
+	policyName := fmt.Sprintf("ns%d", tenant.ID)
+
+	romanaPolicy := &common.Policy{
+		Direction: common.PolicyDirectionIngress,
+		Name:      policyName,
+		AppliedTo: []common.Endpoint{{TenantNetworkID: tenant.ID}},
+		Peers:     []common.Endpoint{{Peer: "any"}},
+		Rules:     []common.Rule{{Protocol: "any"}},
+	}
+
+	log.Printf("In CreateDefaultPolicy with policy %v\n", romanaPolicy)
+
+	var desiredAction networkPolicyAction
 
 	if isolation, ok := o.Metadata.Annotations["net.alpha.kubernetes.io/network-isolation"]; ok {
 		log.Printf("Handling default policy on a namespace %s, isolation is now %s \n", o.Metadata.Name, isolation)
+		switch isolation {
+		case "on":
+			desiredAction = networkPolicyActionAdd
+		case "off":
+			desiredAction = networkPolicyActionDelete
+		default:
+			log.Printf("In CreateDefaultPolicy :: Error :: unrecognised annotation on a namespace %s is %s (expected on|off) \n",
+				o.Metadata.Name, isolation)
+			return
+		}
+
 	} else {
-		log.Printf("Handling default policy on a namespace, no annotation detected, deleting default policy\n")
+		log.Printf("Handling default policy on a namespace, no annotation detected assuming non isolated namespace\n")
+		desiredAction = networkPolicyActionAdd
+	}
+
+	if err2 := l.applyNetworkPolicy(desiredAction, *romanaPolicy); err2 != nil {
+		log.Printf("In CreateDefaultPolicy :: Error :: failed to apply %v to the policy %s \n", desiredAction, err)
 	}
 }
 
