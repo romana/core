@@ -31,7 +31,6 @@ func (policyStore *policyStore) addPolicy(policyDoc *common.Policy) error {
 	json, err := json.Marshal(policyDoc)
 	policyDb := &PolicyDb{}
 	policyDb.Policy = string(json)
-//	policyDb.IsActive = true
 	db := policyStore.DbStore.Db
 	db.Create(policyDb)
 	err = common.GetDbErrors(db)

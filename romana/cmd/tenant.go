@@ -165,10 +165,9 @@ func tenantCreate(cmd *cli.Command, args []string) error {
 			if config.GetString("Format") == "json" {
 				status, _ := json.MarshalIndent(h, "", "\t")
 				fmt.Println(string(status))
-				return fmt.Errorf("HTTP Error.")
-			} else {
-				return fmt.Errorf(h.Error())
+				return fmt.Errorf("HTTP Error")
 			}
+			return fmt.Errorf(h.Error())
 		}
 	}
 

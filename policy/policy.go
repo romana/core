@@ -20,8 +20,8 @@ import (
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
 	"log"
-	"strings"
 	"strconv"
+	"strings"
 )
 
 // Policy provides Policy service.
@@ -105,7 +105,7 @@ func (policy *PolicySvc) augmentEndpoint(endpoint *common.Endpoint) error {
 		endpoint.SegmentNetworkID = segment.Seq
 		log.Printf("Net ID from %s: %d", tenantsUrl, endpoint.SegmentNetworkID)
 	}
-	
+
 	return nil
 }
 
@@ -136,12 +136,12 @@ func (policy *PolicySvc) augmentPolicy(policyDoc *common.Policy) error {
 	policyDoc.Datacenter = dc
 
 	for i, _ := range policyDoc.Rules {
-	   rule := &policyDoc.Rules[i]
-	   rule.Protocol = strings.ToUpper(rule.Protocol)
+		rule := &policyDoc.Rules[i]
+		rule.Protocol = strings.ToUpper(rule.Protocol)
 	}
 
 	for i, _ := range policyDoc.AppliedTo {
-	        endpoint := &policyDoc.AppliedTo[i]
+		endpoint := &policyDoc.AppliedTo[i]
 		err = policy.augmentEndpoint(endpoint)
 		if err != nil {
 			return err
@@ -149,7 +149,7 @@ func (policy *PolicySvc) augmentPolicy(policyDoc *common.Policy) error {
 	}
 
 	for i, _ := range policyDoc.Peers {
-	        endpoint := &policyDoc.Peers[i]
+		endpoint := &policyDoc.Peers[i]
 		err = policy.augmentEndpoint(endpoint)
 		if err != nil {
 			return err

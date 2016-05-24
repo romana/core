@@ -18,7 +18,6 @@ package common
 // Various errors.
 
 import (
-	//	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/jinzhu/gorm"
@@ -59,9 +58,9 @@ const (
 )
 
 type ExecErrorDetails struct {
-	Error  string
+	Error string
 	// TODO add when we move to Go 1.6
-//	Stderr string
+	//	Stderr string
 }
 
 func NewError500(details interface{}) HttpError {
