@@ -71,11 +71,11 @@ func (tenantStore *tenantStore) listTenants() ([]Tenant, error) {
 // whose tenantId is specified.
 func (tenantStore *tenantStore) listSegments(tenantId string) ([]Segment, error) {
 	var segments []Segment
-	log.Println("In listSegments()", &segments)
 	db := tenantStore.DbStore.Db.Joins("JOIN tenants ON segments.tenant_id = tenants.id").
 		Where("tenants.id = ? OR tenants.external_id = ?", tenantId, tenantId).
 		Find(&segments)
 	err := common.MakeMultiError(db.GetErrors())
+	log.Printf("In listSegments(): %v, %v", segments, err)
 	if err != nil {
 		return nil, err
 	}

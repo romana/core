@@ -197,7 +197,7 @@ func (s *MySuite) TestAgentStart(c *check.C) {
 	// Get list of hosts - should be empty for now.
 	var hostList []common.HostMessage
 	client.Get(hostsRelURL, &hostList)
-	myLog(c, "Host list: ", hostList)
+	myLog(c, "Host list ", len(hostList), hostList)
 	c.Assert(len(hostList), check.Equals, 0)
 
 	// Add host 1
@@ -207,6 +207,7 @@ func (s *MySuite) TestAgentStart(c *check.C) {
 	myLog(c, "Response: %s", host1)
 	c.Assert(host1.Ip, check.Equals, "10.10.10.10")
 	c.Assert(host1.Id, check.Equals, "1")
+
 	// Add host 2
 	newHostReq = common.HostMessage{Ip: "10.10.10.11", RomanaIp: possibleRomanaIps[1], AgentPort: 9999, Name: "HOST2000"}
 	host2 := common.HostMessage{}
@@ -218,7 +219,7 @@ func (s *MySuite) TestAgentStart(c *check.C) {
 	// Get list of hosts - should have 2 now
 	var hostList2 []common.HostMessage
 	client.Get(hostsRelURL, &hostList2)
-	myLog(c, "Host list: ", hostList2)
+	myLog(c, "Hosts list: (expecting 2): %d %v", len(hostList2), hostList2)
 	c.Assert(len(hostList2), check.Equals, 2)
 
 	myLog(c, "STARTING Agent SERVICE")
@@ -252,7 +253,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	// Get list of hosts - should be empty for now.
 	var hostList []common.HostMessage
 	client.Get(hostsRelURL, &hostList)
-	myLog(c, "Host list: ", hostList)
+	myLog(c, "Host list (expecting empty): %d %v", len(hostList), hostList)
 	c.Assert(len(hostList), check.Equals, 0)
 
 	// Add host 1
@@ -261,6 +262,12 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	client.Post(hostsRelURL, newHostReq, &host1)
 	myLog(c, "Response: %s", host1)
 	c.Assert(host1.Ip, check.Equals, "10.10.10.10")
+
+	// Get list of hosts - should have 1 now
+	var hostList1 []common.HostMessage
+	client.Get(hostsRelURL, &hostList1)
+	myLog(c, "Host list (expecting 1): %d %v", len(hostList1), hostList1)
+	c.Assert(len(hostList1), check.Equals, 1)
 
 	// Add host 2
 	newHostReq = common.HostMessage{Ip: "10.10.10.11", RomanaIp: "10.1.0.0/16", AgentPort: 9999, Name: "HOST2000"}
@@ -272,7 +279,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	// Get list of hosts - should have 2 now
 	var hostList2 []common.HostMessage
 	client.Get(hostsRelURL, &hostList2)
-	myLog(c, "Host list: ", hostList2)
+	myLog(c, "Host list (expecting 2): %d %v", len(hostList2), hostList2)
 	c.Assert(len(hostList2), check.Equals, 2)
 
 	// 4. Add a tenant and a segment
@@ -313,13 +320,23 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	myLog(c, "Found", t1OutFound)
 
 	// Add segment s1 to tenant t1
+	tenant1SegmentPath := tenant1Path + "/segments"
 	t1s1In := tenant.Segment{Name: "s1", ExternalID: "s1", TenantID: t1Id}
 	t1s1Out := tenant.Segment{}
-	err = client.Post(tenant1Path+"/segments", t1s1In, &t1s1Out)
+	err = client.Post(tenant1SegmentPath, t1s1In, &t1s1Out)
 	if err != nil {
 		c.Error(err)
 	}
-	myLog(c, "Added segment s1 to t1: ", t1s1Out)
+	myLog(c, "Added segment s1 to t1: %v", t1s1Out)
+
+	// List segments
+	var segments []tenant.Segment
+	err = client.Get(tenant1SegmentPath, &segments)
+	if err != nil {
+		c.Error(err)
+	}
+	c.Assert(len(segments), check.Equals, 1)
+	myLog(c, "Segments list: expected 1 at  %s: %d %s", tenant1SegmentPath, len(segments), segments)
 
 	// Add segment s2 to tenant t1
 	t1s2In := tenant.Segment{Name: "s2", ExternalID: "s2", TenantID: t1Id}
@@ -328,7 +345,14 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	if err != nil {
 		c.Error(err)
 	}
-	myLog(c, "Added segment s2 to t1: ", t1s2Out)
+	myLog(c, "Added segment s2 to t1: %v", t1s2Out)
+
+	err = client.Get(tenant1SegmentPath, &segments)
+	if err != nil {
+		c.Error(err)
+	}
+	c.Assert(len(segments), check.Equals, 2)
+	myLog(c, "Segments list: expected 2 at %s: %d %s", tenant1SegmentPath, len(segments), segments)
 
 	// Add segment s1 to tenant t2
 	tenant2Path := fmt.Sprintf("/tenants/%d", t2Id)
@@ -338,7 +362,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	if err != nil {
 		c.Error(err)
 	}
-	myLog(c, "Added segment s1 to t2: ", t2s1Out)
+	myLog(c, "Added segment s1 to t2: %v", t2s1Out)
 
 	// Add segment s2 to tenant t2
 	t2s2In := tenant.Segment{ExternalID: "s2", TenantID: t2Id}
@@ -347,7 +371,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	if err != nil {
 		c.Error(err)
 	}
-	myLog(c, "Added segment s2 to t2: ", t2s2Out)
+	myLog(c, "Added segment s2 to t2: %v", t2s2Out)
 
 	// Get IP for t1, s1, h1
 	myLog(c, "IPAM Test: Get first IP")
@@ -357,6 +381,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	t1s1h1Ep1Out := ipam.Endpoint{}
 	client.NewUrl(s.ipamURL)
 	err = client.Post("/endpoints", t1s1h1EpIn, &t1s1h1Ep1Out)
+	myLog(c, "Posting %v to /endpoints: %v", t1s1h1EpIn, err)
 	if err != nil {
 		c.Error(err)
 	}
