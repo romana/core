@@ -100,7 +100,8 @@ type PortUpdateMessage struct {
 }
 
 type Endpoint struct {
-	Any     string `json:"any,omitempty`
+	Any     string `json:"any,omitempty"`
+	Peer    string `json:"peer,omitempty"`
 	CidrStr string `json:"cidr,omitempty"`
 	// TODO this can be collapsed into Cidr but needs
 	// work on JSON marshaller/unmarshaller to do that.
@@ -110,7 +111,7 @@ type Endpoint struct {
 	TenantNetworkID   uint64    `json:"tenant_network_id,omitempty"`
 	SegmentID         uint64    `json:"segment_id,omitempty"`
 	SegmentExternalID string    `json:"segment_external_id,omitempty"`
-	SegmentNetworkID  uint64    `json:"tenant_external_id,omitempty"`
+	SegmentNetworkID  uint64    `json:"segment_network_id,omitempty"`
 }
 
 const (
@@ -133,21 +134,21 @@ func (p PortRange) String() string {
 // 5. If Protocol specified is not "icmp", Icmptype and IcmpCode should be unspecified.
 type Rule struct {
 	Protocol   string      `json:"protocol"`
-	Ports      []uint      `json:"port,omitempty`
-	PortRanges []PortRange `json:"port_ranges,omitempty`
+	Ports      []uint      `json:"ports,omitempty"`
+	PortRanges []PortRange `json:"port_ranges,omitempty"`
 	// IcmpType only applies if Protocol value is ICMP and
 	// is mutually exclusive with Ports or PortRanges
-	IcmpType   uint `json:"icmp_type,omitempty`
-	IcmpCode   uint `json:"icmp_code,omitempty`
-	IsStateful bool `json:"is_stateful,omitempty`
+	IcmpType   uint `json:"icmp_type,omitempty"`
+	IcmpCode   uint `json:"icmp_code,omitempty"`
+	IsStateful bool `json:"is_stateful,omitempty"`
 }
 
 type Rules []Rule
 
 // Metadata attached to entities for various external environments like Open Stack / Kubernetes
 type Tag struct {
-	Key   string `json:"key,omitempty`
-	Value string `json:"value,omitempty`
+	Key   string `json:"key,omitempty"`
+	Value string `json:"value,omitempty"`
 }
 
 // Policy describes Romana network security policy.
@@ -161,7 +162,7 @@ type Policy struct {
 	// Description is human-redable description of the policy.
 	Description string `json:"description,omitempty"`
 	// Name is human-readable name for this policy.
-	Name string `json:"name,omitempty"`
+	Name string `json:"name"`
 	// ID is Romana-generated unique (within Romana deployment) ID of this policy,
 	// to be used in REST requests. It will be ignored when set by user.
 	ID uint64 `json:"id,omitempty",sql:"AUTO_INCREMENT"`
@@ -172,7 +173,7 @@ type Policy struct {
 	Datacenter Datacenter `json:"datacenter,omitempty"`
 	AppliedTo  []Endpoint `json:"applied_to,omitempty"`
 	Peers      []Endpoint `json:"peers,omitempty"`
-	Rules      []Rule     `json:"rule,omitempty"`
+	Rules      []Rule     `json:"rules,omitempty"`
 	//	Tags       []Tag      `json:"tags,omitempty"`
 }
 
@@ -299,8 +300,8 @@ func (p *Policy) Validate() error {
 
 	for i, endpoint := range p.AppliedTo {
 		epNo := i + 1
-		if endpoint.TenantExternalID == "" && endpoint.TenantID == 0 {
-			errMsg = append(errMsg, fmt.Sprintf("applied_to entry #%d: at least one of tenant_id or tenant_external_id must be specified.", epNo))
+		if endpoint.TenantExternalID == "" && endpoint.TenantID == 0 && endpoint.TenantNetworkID == 0 {
+			errMsg = append(errMsg, fmt.Sprintf("applied_to entry #%d: at least one of tenant_id or tenant_external_id or tenant_network_id must be specified.", epNo))
 		}
 	}
 	for i, endpoint := range p.Peers {
@@ -309,8 +310,8 @@ func (p *Policy) Validate() error {
 			errMsg = append(errMsg, fmt.Sprintf("peers entry #%d: Invalid value for Any: '%s', only '' and %s allowed.", epNo, endpoint.Any, Wildcard))
 		}
 		if endpoint.SegmentID != 0 || endpoint.SegmentExternalID != "" {
-			if endpoint.TenantExternalID == "" && endpoint.TenantID == 0 {
-				errMsg = append(errMsg, fmt.Sprintf("peers entry #%d: since segment_external_id is specified, at least one of tenant_id or tenant_external_id must be specified.", epNo))
+			if endpoint.TenantExternalID == "" && endpoint.TenantID == 0 && endpoint.TenantNetworkID == 0 {
+				errMsg = append(errMsg, fmt.Sprintf("peers entry #%d: since segment_external_id is specified, at least one of tenant_id or tenant_external_id or tenant_network_id must be specified.", epNo))
 
 			}
 		}
@@ -357,7 +358,7 @@ type Datacenter struct {
 	IpVersion uint   `json:"ip_version"`
 	// We don't need to store this, but calculate and pass around
 	Prefix      uint64 `json:"prefix"`
-	Cidr        string `json:"cidr,omitempty`
+	Cidr        string `json:"cidr,omitempty"`
 	PrefixBits  uint   `json:"prefix_bits"`
 	PortBits    uint   `json:"port_bits"`
 	TenantBits  uint   `json:"tenant_bits"`

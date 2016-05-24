@@ -47,7 +47,7 @@ func main() {
 		fmt.Println("Schema created.")
 		return
 	}
-	
+
 	cred := common.MakeCredentialFromCliArgs(*username, *password)
 	svcInfo, err := policy.Run(*rootURL, cred)
 	if err != nil {

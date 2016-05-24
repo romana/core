@@ -36,9 +36,8 @@ func GetTenantName(uuid string) (string, error) {
 		return openstack.GetTenantName(uuid)
 	} else if platform == "mesos" {
 		return "", util.ErrUnimplementedPlatform
-	} else {
-		return "", util.ErrInvalidPlatform
 	}
+	return "", util.ErrInvalidPlatform
 }
 
 // TenantExists returns true/false depending on platform
@@ -51,10 +50,9 @@ func TenantExists(name string) bool {
 	} else if platform == "mesos" {
 		// Unimplemented Platform.
 		return false
-	} else {
-		// Error
-		return false
 	}
+	// Error
+	return false
 }
 
 // GetTenantUUID returns platform specific tenant UUID
@@ -66,9 +64,8 @@ func GetTenantUUID(name string) (string, error) {
 		return openstack.GetTenantUUID(name)
 	} else if platform == "mesos" {
 		return "", util.ErrUnimplementedPlatform
-	} else {
-		return "", util.ErrInvalidPlatform
 	}
+	return "", util.ErrInvalidPlatform
 }
 
 // CreateTenant creates platform specific tenant
@@ -80,7 +77,6 @@ func CreateTenant(name string) error {
 		return openstack.CreateTenant(name)
 	} else if platform == "mesos" {
 		return util.ErrUnimplementedPlatform
-	} else {
-		return util.ErrInvalidPlatform
 	}
+	return util.ErrInvalidPlatform
 }

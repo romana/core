@@ -128,7 +128,7 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 			break
 		}
 	}
-	
+
 	if !found {
 		msg := fmt.Sprintf("Host with name %s not found", hostName)
 		log.Printf(msg)

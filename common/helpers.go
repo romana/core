@@ -53,11 +53,11 @@ func CleanURL(url string) (string, error) {
 	if len(elements) < 3 {
 		return "", errors.New("Invalid URL")
 	}
-	retval = elements[0] + "//" + elements[2] 
+	retval = elements[0] + "//" + elements[2]
 	if len(elements) == 3 {
 		return retval, nil
 	}
-	for i := 3; i< len(elements);i++  {
+	for i := 3; i < len(elements); i++ {
 		if elements[i] == "" {
 			continue
 		}

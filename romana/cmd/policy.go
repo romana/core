@@ -22,11 +22,13 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
+	"text/tabwriter"
 
 	"github.com/romana/core/romana/util"
 
 	cli "github.com/spf13/cobra"
 	config "github.com/spf13/viper"
+	"github.com/xyproto/jpath"
 )
 
 // policyCmd represents the policy commands
@@ -54,7 +56,7 @@ var policyAddCmd = &cli.Command{
 }
 
 var policyRemoveCmd = &cli.Command{
-	Use:          "remove [tenantName][policyName]",
+	Use:          "remove [tenantName][policyName1][policyName2...]",
 	Short:        "Remove a specific policy.",
 	Long:         `Remove a specific policy.`,
 	RunE:         policyRemove,
@@ -136,7 +138,7 @@ func policyAdd(cmd *cli.Command, args []string) error {
 		}
 		fmt.Printf(util.JSONIndent(string(body)))
 	} else {
-		if resp.StatusCode == 201 {
+		if resp.StatusCode == http.StatusCreated {
 			fmt.Printf("Policy (%s) for Tenant (%s) successfully created.\n",
 				policyFile, tenantName)
 		} else {
@@ -192,7 +194,7 @@ func policyRemove(cmd *cli.Command, args []string) error {
 			}
 			fmt.Printf(util.JSONIndent(string(body)))
 		} else {
-			if resp.StatusCode == 200 {
+			if resp.StatusCode == http.StatusOK {
 				fmt.Printf("Policy (%s) for Tenant (%s) successfully deleted.\n",
 					policyName, tenantName)
 			} else {
@@ -217,6 +219,76 @@ func policyRemove(cmd *cli.Command, args []string) error {
 
 // policyList lists kubernetes policies for a specific tenant.
 func policyList(cmd *cli.Command, args []string) error {
-	fmt.Println("Unimplemented: List policies for a specific tenant.")
+	if len(args) != 1 {
+		return util.UsageError(cmd,
+			"TENANT name should be provided.")
+	}
+
+	tenantName := args[0]
+	// Tenant check once adaptor add supports for it.
+	/*
+		if !adaptor.TenantExists(tnt) {
+			return errors.New("Tenant doesn't exists: " + tnt)
+		}
+	*/
+
+	// TODO: handle user and versioning info according to
+	//       to policy service instead of encoding it in url.
+	kubeURL := (config.GetString("BaseURL") +
+		fmt.Sprintf(":8080/apis/romana.io/demo/v1/namespaces/%s/networkpolicys/",
+			tenantName))
+
+	var data bytes.Reader
+	req, err := http.NewRequest("GET", kubeURL, &data)
+	if err != nil {
+		return err
+	}
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if config.GetString("Format") == "json" {
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		fmt.Printf(util.JSONIndent(string(body)))
+	} else {
+		if resp.StatusCode == http.StatusOK {
+			b, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				return err
+			}
+
+			js, err := jpath.New(b)
+			if err != nil {
+				return err
+			}
+
+			w := new(tabwriter.Writer)
+			w.Init(os.Stdout, 0, 8, 0, '\t', 0)
+			fmt.Printf("Policy List for Tenant (%s):\n", tenantName)
+			fmt.Fprintln(w, "Id\t",
+				"Policy Name\t",
+				"UUID\t",
+			)
+			for k, v := range js.Get("items").NodeList() {
+				name := v.Get("metadata", "name").String()
+				uid := v.Get("metadata", "uid").String()
+				fmt.Fprintf(w, "%d \t %s \t %s \t", k,
+					name, uid)
+				fmt.Fprintf(w, "\n")
+				w.Flush()
+
+			}
+		} else {
+			return fmt.Errorf("Error listing policies for Tenant (%s).",
+				tenantName)
+		}
+	}
+
 	return nil
 }

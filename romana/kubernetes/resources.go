@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/romana/core/common"
+	"github.com/romana/core/tenant"
 	"log"
 	"net/http"
 )
@@ -44,6 +45,7 @@ type Event struct {
 const (
 	KubeEventAdded         = "ADDED"
 	KubeEventDeleted       = "DELETED"
+	KubeEventModified      = "MODIFIED"
 	InternalEventDeleteAll = "_DELETE_ALL"
 )
 
@@ -93,6 +95,134 @@ type Metadata struct {
 	ResourceVersion   string            `json:"resourceVersion"`
 	CreationTimestamp string            `json:"creationTimestamp"`
 	Labels            map[string]string `json:"labels"`
+	Annotations       map[string]string `json:"annotations,omitempty"`
+}
+
+// handle kubernetes events according to their type.
+func (e Event) handle(l *kubeListener) {
+	log.Printf("Processing %s request for %s", e.Type, e.Object.Metadata.Name)
+
+	if e.Object.Kind == "NetworkPolicy" && e.Type != KubeEventModified {
+		e.handleNetworkPolicyEvent(l)
+	} else if e.Object.Kind == "Namespace" {
+		e.handleNamespaceEvent(l)
+	} else {
+		log.Printf("Received unindentified request %s for %s", e.Type, e.Object.Metadata.Name)
+	}
+}
+
+// handleNetworkPolicyEvent by creating or deleting romana policies.
+func (e Event) handleNetworkPolicyEvent(l *kubeListener) {
+	var action networkPolicyAction
+	if e.Type == KubeEventAdded {
+		action = networkPolicyActionAdd
+	} else {
+		action = networkPolicyActionDelete
+	}
+	policy, err := l.translateNetworkPolicy(&e.Object)
+	if err == nil {
+		l.applyNetworkPolicy(action, policy)
+	} else {
+		log.Println(err)
+	}
+}
+
+// handleNamespaceEvent by creating or deleting romana tenants.
+func (e Event) handleNamespaceEvent(l *kubeListener) {
+	log.Printf("Processing namespace event == %v and phase %v", e.Type, e.Object.Status)
+
+	if e.Type == KubeEventAdded {
+		tenantReq := tenant.Tenant{Name: e.Object.Metadata.Name, ExternalID: e.Object.Metadata.Name}
+		tenantResp := tenant.Tenant{}
+		log.Printf("processor: Posting to /tenants: %#v", tenantReq)
+		tenantUrl, err := l.restClient.GetServiceUrl("tenant")
+		if err != nil {
+			log.Printf("Error adding tenant %s: %#v", tenantReq.Name, err)
+		} else {
+			err := l.restClient.Post(fmt.Sprintf("%s/tenants", tenantUrl), tenantReq, &tenantResp)
+			if err != nil {
+				log.Printf("Error adding tenant %s: %#v", tenantReq.Name, err)
+			} else {
+				log.Printf("Added tenant: %#v", tenantResp)
+			}
+		}
+	} else {
+		// TODO finish once UUID is merged
+		// tenantReq := tenant.Tenant{Name: e.Object.Metadata.Name}
+		// tenantResp := tenant.Tenant{}
+		// err = client.Delete("/tenants", tenantReq, &tenantResp)
+		// if err != nil {
+		// 	log.Printf("Error adding tenant %s: %#v", tenantReq.Name, err)
+		// } else {
+		// 	log.Printf("Added tenant: %#v", tenantResp)
+		// }
+	}
+
+	// Ignore repeated events during namespace termination
+	if e.Object.Status["phase"] == "Terminating" {
+		if e.Type != KubeEventModified {
+			e.Object.handleAnnotations(l)
+		}
+	} else {
+		e.Object.handleAnnotations(l)
+	}
+
+}
+
+// handleAnnotations on a namespace by implementing extra features requested through the annotation
+func (o KubeObject) handleAnnotations(l *kubeListener) {
+	log.Printf("In handleAnnotations")
+
+	if o.Kind != "Namespace" {
+		log.Printf("Error handling annotations on a namespace - object is not a namespace %s \n", o.Kind)
+		return
+	}
+
+	CreateDefaultPolicy(o, l)
+}
+
+func CreateDefaultPolicy(o KubeObject, l *kubeListener) {
+	log.Printf("In CreateDefaultPolicy for %v\n", o)
+	tenant, _, err := l.resolveTenantByName(o.Metadata.Name)
+	if err != nil {
+		log.Printf("In CreateDefaultPolicy :: Error :: failed to resolve tenant %s \n", err)
+	}
+
+	policyName := fmt.Sprintf("ns%d", tenant.ID)
+
+	romanaPolicy := &common.Policy{
+		Direction: common.PolicyDirectionIngress,
+		Name:      policyName,
+		AppliedTo: []common.Endpoint{{TenantNetworkID: tenant.ID}},
+		Peers:     []common.Endpoint{{Peer: "any"}},
+		Rules:     []common.Rule{{Protocol: "any"}},
+	}
+
+	log.Printf("In CreateDefaultPolicy with policy %v\n", romanaPolicy)
+
+	var desiredAction networkPolicyAction
+
+	if isolation, ok := o.Metadata.Annotations["net.alpha.kubernetes.io/network-isolation"]; ok {
+		log.Printf("Handling default policy on a namespace %s, isolation is now %s \n", o.Metadata.Name, isolation)
+		switch isolation {
+		case "on":
+			desiredAction = networkPolicyActionAdd
+		case "off":
+			desiredAction = networkPolicyActionDelete
+		default:
+			log.Printf("In CreateDefaultPolicy :: Error :: unrecognised annotation on a namespace %s is %s (expected on|off) \n",
+				o.Metadata.Name, isolation)
+			return
+		}
+
+	} else {
+		log.Printf("Handling default policy on a namespace, no annotation detected assuming non isolated namespace\n")
+		desiredAction = networkPolicyActionAdd
+	}
+
+	if err2 := l.applyNetworkPolicy(desiredAction, *romanaPolicy); err2 != nil {
+		log.Printf("In CreateDefaultPolicy :: Error :: failed to apply %v to the policy %s \n", desiredAction, err)
+	}
 }
 
 // watchEvents maintains goroutine fired by NsWatch, restarts it in case HTTP GET times out.
@@ -107,6 +237,9 @@ func (l *kubeListener) watchEvents(done <-chan Done, url string, resp *http.Resp
 		case <-done:
 			return
 		default:
+			// Flush e to ensure nothing gets carried over
+			e = Event{}
+
 			// Attempting to read event from HTTP connection
 			err := dec.Decode(&e)
 			if err != nil {
@@ -149,7 +282,7 @@ func (l *kubeListener) nsWatch(done <-chan Done, url string) (<-chan Event, erro
 // Produce method listens for resource updates happening within given namespace
 // and publishes these updates in a channel.
 func (ns KubeObject) produce(out chan Event, done <-chan Done, kubeListener *kubeListener) error {
-	url, err := common.CleanURL(fmt.Sprintf("%s/%s/%s%s", kubeListener.kubeUrl, kubeListener.policyNotificationPathPrefix, ns.Metadata.Name, kubeListener.policyNotificationPathPostfix))
+	url, err := common.CleanURL(fmt.Sprintf("%s/%s/%s%s", kubeListener.kubeURL, kubeListener.policyNotificationPathPrefix, ns.Metadata.Name, kubeListener.policyNotificationPathPostfix))
 	if err != nil {
 		return err
 	}

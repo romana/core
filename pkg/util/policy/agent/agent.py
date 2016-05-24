@@ -392,7 +392,7 @@ def _make_rules(policy_rules):
     # For each rule in the policy create iptables rules.
     in_rules = []
     for r in policy_rules:
-        if r['protocol'] == 'TCP':
+        if r['protocol'].upper() == 'TCP':
             stateful = r.get("is_stateful")
             if stateful:
                 raise Exception("Flag is_stateful not implemented")
@@ -407,7 +407,7 @@ def _make_rules(policy_rules):
                 else:
                     raise Exception("Protocol option port_range must be a list of 2 elements - got %s" % port_range)
 
-        elif r['protocol'] == 'UDP':
+        elif r['protocol'].upper() == 'UDP':
             for port in r.get("ports"):
                 in_rules += [ '-p udp --dport %s -j ACCEPT' % port ]
 
@@ -418,7 +418,7 @@ def _make_rules(policy_rules):
                 else:
                     raise Exception("Protocol option port_range must be a list of 2 elements - got %s" % port_range)
 
-        elif r['protocol'] == 'ICMP':
+        elif r['protocol'].upper() == 'ICMP':
             icmp_types = r.get('icmp_type_code')
             in_rules = []
             if icmp_types:
@@ -426,11 +426,11 @@ def _make_rules(policy_rules):
                     in_rules.append('-p icmp --icmp-type %s -j ACCEPT' % icmp_type)
             in_rules.append('-p icmp -j ACCEPT')
 
-        elif r['protocol'] == 'any':
+        elif r['protocol'].upper() == 'ANY':
             in_rules = [ '-j ACCEPT' ]
 
         else:
-            raise Exception("Unknown protocol - known protocols are UDP,TCP,ICMP - got %s" % r['protocol'])
+            raise Exception("Unknown protocol - known protocols are UDP,TCP,ICMP,ANY - got %s" % r['protocol'])
 
         for in_rule in in_rules:
             yield in_rule

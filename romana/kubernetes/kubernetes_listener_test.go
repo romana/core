@@ -1,11 +1,22 @@
+// Copyright (c) 2016 Pani Networks
+// All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License"); you may
+// not use this file except in compliance with the License. You may obtain
+// a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+// License for the specific language governing permissions and limitations
+// under the License.
+
 package kubernetes
 
 import (
 	"fmt"
-	"github.com/romana/core/common"
-	"github.com/romana/core/tenant"
-	//	"github.com/romana/core/policy"
-	"github.com/go-check/check"
 	"log"
 	"net/http"
 	"net/url"
@@ -13,6 +24,10 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/go-check/check"
+	"github.com/romana/core/common"
+	"github.com/romana/core/tenant"
 )
 
 func Test(t *testing.T) {
@@ -35,8 +50,8 @@ func (ks kubeSimulator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	log.Println("Test: Entered kubeSimulator ServeHTTP()")
 	flusher, _ := w.(http.Flusher)
 
-	reqUri, _ := url.Parse(r.RequestURI)
-	path := fmt.Sprintf("%s?%s", reqUri.Path, reqUri.RawQuery)
+	reqURI, _ := url.Parse(r.RequestURI)
+	path := fmt.Sprintf("%s?%s", reqURI.Path, reqURI.RawQuery)
 	log.Printf("Request to %s", path)
 	if path == "/api/v1/namespaces/?watch=true" {
 		log.Printf("Sending %s", addNamespace1)
@@ -131,7 +146,7 @@ func (s *mockSvc) Routes() common.Routes {
 				newTenant.ID = s.tenantsStr[newTenant.ExternalID]
 				return nil, common.NewErrorConflict(newTenant)
 			}
-			s.tenantCounter += 1
+			s.tenantCounter++
 			s.tenants[s.tenantCounter] = newTenant.ExternalID
 			s.tenantsStr[newTenant.ExternalID] = s.tenantCounter
 			newTenant.ID = s.tenantCounter
@@ -177,7 +192,7 @@ func (s *mockSvc) Routes() common.Routes {
 				newSegment.ID = s.segmentsStr[newSegment.ExternalID]
 				return nil, common.NewErrorConflict(newSegment)
 			}
-			s.segmentCounter += 1
+			s.segmentCounter++
 			s.segments[s.segmentCounter] = newSegment.ExternalID
 			s.segmentsStr[newSegment.ExternalID] = s.segmentCounter
 			newSegment.ID = s.segmentCounter

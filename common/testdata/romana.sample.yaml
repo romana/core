@@ -43,6 +43,17 @@ services:
     api:
       host: 0.0.0.0
       port: 9604
+      hooks:
+          - executable: ../common/testdata/agent_proxy_add_policy.sh
+            pattern: /policies
+            method: POST
+            when: before
+            output: /var/log/policies-hook.log
+          - executable: ../common/testdata/agent_proxy_delete_policy.sh
+            pattern: /policies
+            method: DELETE
+            when: before
+            output: /var/log/policies-hook.log
     config:
       lease_file : "/etc/ethers"
       wait_for_iface_try : 6
@@ -62,6 +73,6 @@ services:
       kubernetes_url : "http://localhost"
       namespace_notification_path: "/api/v1/namespaces/?watch=true"
       policy_notification_path_prefix : "/apis/romana.io/demo/v1/namespaces/"
-      policy_notification_path_postfix : "/networkpolicys/?wath=true"
+      policy_notification_path_postfix : "/networkpolicys/?watch=true"
       segment_label_name: "tier"
      

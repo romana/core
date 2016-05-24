@@ -61,12 +61,6 @@ func (a *Agent) SetConfig(config common.ServiceConfig) error {
 	a.waitForIfaceTry = int(config.ServiceSpecific["wait_for_iface_try"].(float64))
 	a.networkConfig = &NetworkConfig{}
 
-	// Ensure we have all the routes to our neighbours
-	log.Print("Agent: ensuring interhost routes exist")
-	if err := a.Helper.ensureInterHostRoutes(); err != nil {
-		log.Print("Agent: ", agentError(err))
-		return agentError(err)
-	}
 	log.Printf("Agent.SetConfig() finished.")
 	return nil
 }
@@ -104,7 +98,10 @@ func (a *Agent) Routes() common.Routes {
 		},
 		common.Route{
 			Method:  "DELETE",
-			Pattern: "/policies/{policyID}",
+			Pattern: "/policies",
+			MakeMessage: func() interface{} {
+				return &common.Policy{}
+			},
 			Handler: a.deletePolicy,
 		},
 		common.Route{
@@ -136,7 +133,6 @@ func Run(rootServiceURL string, cred *common.Credential, testMode bool) (*common
 	if err != nil {
 		return nil, err
 	}
-
 	return common.InitializeService(agent, *config)
 }
 
@@ -147,13 +143,13 @@ func (a *Agent) Name() string {
 
 // addPolicy is a placeholder. TODO
 func (a *Agent) addPolicy(input interface{}, ctx common.RestContext) (interface{}, error) {
-//	policy := input.(*common.Policy)
+	//	policy := input.(*common.Policy)
 	return nil, nil
 }
 
 // deletePolicy is a placeholder. TODO
 func (a *Agent) deletePolicy(input interface{}, ctx common.RestContext) (interface{}, error) {
-//	policyId := ctx.PathVariables["policyID"]
+	//	policyId := ctx.PathVariables["policyID"]
 	return nil, nil
 }
 
@@ -286,5 +282,16 @@ func (a *Agent) interfaceHandle(netif NetIf) error {
 // interface.
 func (a *Agent) Initialize() error {
 	log.Printf("Entering Agent.Initialize()")
-	return a.identifyCurrentHost()
+	if err := a.identifyCurrentHost(); err != nil {
+		log.Print("Agent: ", agentError(err))
+		return agentError(err)
+	}
+
+	// Ensure we have all the routes to our neighbours
+	log.Print("Agent: ensuring interhost routes exist")
+	if err := a.Helper.ensureInterHostRoutes(); err != nil {
+		log.Print("Agent: ", agentError(err))
+		return agentError(err)
+	}
+	return nil
 }
