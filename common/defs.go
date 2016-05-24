@@ -101,6 +101,7 @@ type PortUpdateMessage struct {
 
 type Endpoint struct {
 	Any     string `json:"any,omitempty"`
+	Peer    string `json:"peer,omitempty"`
 	CidrStr string `json:"cidr,omitempty"`
 	// TODO this can be collapsed into Cidr but needs
 	// work on JSON marshaller/unmarshaller to do that.
@@ -299,8 +300,8 @@ func (p *Policy) Validate() error {
 
 	for i, endpoint := range p.AppliedTo {
 		epNo := i + 1
-		if endpoint.TenantExternalID == "" && endpoint.TenantID == 0 {
-			errMsg = append(errMsg, fmt.Sprintf("applied_to entry #%d: at least one of tenant_id or tenant_external_id must be specified.", epNo))
+		if endpoint.TenantExternalID == "" && endpoint.TenantID == 0 && endpoint.TenantNetworkID == 0 {
+			errMsg = append(errMsg, fmt.Sprintf("applied_to entry #%d: at least one of tenant_id or tenant_external_id or tenant_network_id must be specified.", epNo))
 		}
 	}
 	for i, endpoint := range p.Peers {
@@ -309,8 +310,8 @@ func (p *Policy) Validate() error {
 			errMsg = append(errMsg, fmt.Sprintf("peers entry #%d: Invalid value for Any: '%s', only '' and %s allowed.", epNo, endpoint.Any, Wildcard))
 		}
 		if endpoint.SegmentID != 0 || endpoint.SegmentExternalID != "" {
-			if endpoint.TenantExternalID == "" && endpoint.TenantID == 0 {
-				errMsg = append(errMsg, fmt.Sprintf("peers entry #%d: since segment_external_id is specified, at least one of tenant_id or tenant_external_id must be specified.", epNo))
+			if endpoint.TenantExternalID == "" && endpoint.TenantID == 0 && endpoint.TenantNetworkID == 0 {
+				errMsg = append(errMsg, fmt.Sprintf("peers entry #%d: since segment_external_id is specified, at least one of tenant_id or tenant_external_id or tenant_network_id must be specified.", epNo))
 
 			}
 		}

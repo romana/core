@@ -280,6 +280,22 @@ func (l *kubeListener) getOrAddSegment(tenantServiceURL string, namespace string
 	}
 }
 
+// resolveTenantByName retrieves tenant information from romana.
+func (l *kubeListener) resolveTenantByName(tenantName string) (*tenant.Tenant, string, error) {
+	t := &tenant.Tenant{}
+	tenantURL, err := l.restClient.GetServiceUrl("tenant")
+	if err != nil {
+		return t, "", err
+	}
+
+	err = l.restClient.Get(fmt.Sprintf("%s/tenants/%s", tenantURL, tenantName), t)
+	if err != nil {
+		return t, "", err
+	}
+
+	return t, tenantURL, nil
+}
+
 // translateNetworkPolicy translates a Kubernetes policy into
 // Romana policy (see common.Policy) with the following rules:
 // 1. Kubernetes Namespace corresponds to Romana Tenant
@@ -289,12 +305,8 @@ func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Po
 	log.Printf("translateNetworkPolicy(): Received %#v", kubePolicy)
 	romanaPolicy := &common.Policy{Direction: common.PolicyDirectionIngress, Name: kubePolicy.Metadata.Name}
 	ns := kubePolicy.Metadata.Namespace
-	tenantURL, err := l.restClient.GetServiceUrl("tenant")
-	if err != nil {
-		return *romanaPolicy, err
-	}
-	t := &tenant.Tenant{}
-	err = l.restClient.Get(fmt.Sprintf("%s/tenants/%s", tenantURL, ns), t)
+
+	t, tenantURL, err := l.resolveTenantByName(ns)
 	log.Printf("translateNetworkPolicy(): For namespace %s got %#v / %#v", ns, t, err)
 	if err != nil {
 		return *romanaPolicy, err
