@@ -16,6 +16,7 @@
 package tenant
 
 import (
+	"fmt"
 	"log"
 	"strconv"
 
@@ -48,7 +49,7 @@ func (tsvc *TenantSvc) Routes() common.Routes {
 		common.Route{
 			Method:  "GET",
 			Pattern: tenantsPath + "/{tenantId}",
-			Handler: tsvc.findTenants,
+			Handler: tsvc.getTenant,
 		},
 		common.Route{
 			Method:  "GET",
@@ -69,7 +70,7 @@ func (tsvc *TenantSvc) Routes() common.Routes {
 		common.Route{
 			Method:          "GET",
 			Pattern:         tenantsPath + "/{tenantId}" + segmentsPath + "/{segmentId}",
-			Handler:         tsvc.findSegments,
+			Handler:         tsvc.getSegment,
 			MakeMessage:     nil,
 			UseRequestToken: false,
 		},
@@ -116,13 +117,10 @@ func (tsvc *TenantSvc) listSegments(input interface{}, ctx common.RestContext) (
 	if len(segments) == 0 {
 		return nil, common.NewError404("segment", "ALL")
 	}
-	if len(segments) == 1 {
-		return segments[0], nil
-	}
 	return segments, nil
 }
 
-func (tsvc *TenantSvc) findTenants(input interface{}, ctx common.RestContext) (interface{}, error) {
+func (tsvc *TenantSvc) getTenant(input interface{}, ctx common.RestContext) (interface{}, error) {
 	idStr := ctx.PathVariables["tenantId"]
 	log.Printf("In findTenant(%s)\n", idStr)
 	tenants, err := tsvc.store.findTenants(idStr)
@@ -132,10 +130,10 @@ func (tsvc *TenantSvc) findTenants(input interface{}, ctx common.RestContext) (i
 	if len(tenants) == 0 {
 		return nil, common.NewError404("tenant", idStr)
 	}
-	if len(tenants) == 1 {
-		return tenants[0], nil
+	if len(tenants) > 1 {
+		return nil, common.NewError500(fmt.Sprintf("More than one tenant matches %s: %v", idStr, tenants))
 	}
-	return tenants, nil
+	return tenants[0], nil
 }
 
 func (tsvc *TenantSvc) findTenantsByName(input interface{}, ctx common.RestContext) (interface{}, error) {
@@ -169,7 +167,7 @@ func (tenant *TenantSvc) Name() string {
 	return "tenant"
 }
 
-func (tsvc *TenantSvc) findSegments(input interface{}, ctx common.RestContext) (interface{}, error) {
+func (tsvc *TenantSvc) getSegment(input interface{}, ctx common.RestContext) (interface{}, error) {
 	log.Println("In findSegment()")
 	tenantIdStr := ctx.PathVariables["tenantId"]
 	segmentIdStr := ctx.PathVariables["segmentId"]
@@ -181,10 +179,10 @@ func (tsvc *TenantSvc) findSegments(input interface{}, ctx common.RestContext) (
 	if len(segments) == 0 {
 		return nil, common.NewError404("segment", segmentIdStr)
 	}
-	if len(segments) == 1 {
-		return segments[0], nil
+	if len(segments) > 1 {
+		return nil, common.NewError500(fmt.Sprintf("More than one segment matches %s: %v", segmentIdStr, segments))
 	}
-	return segments, nil
+	return segments[0], nil
 }
 
 // SetConfig implements SetConfig function of the Service interface.
