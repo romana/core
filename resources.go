@@ -282,7 +282,7 @@ func (l *kubeListener) nsWatch(done <-chan Done, url string) (<-chan Event, erro
 // Produce method listens for resource updates happening within given namespace
 // and publishes these updates in a channel.
 func (ns KubeObject) produce(out chan Event, done <-chan Done, kubeListener *kubeListener) error {
-	url, err := common.CleanURL(fmt.Sprintf("%s/%s/%s%s", kubeListener.kubeUrl, kubeListener.policyNotificationPathPrefix, ns.Metadata.Name, kubeListener.policyNotificationPathPostfix))
+	url, err := common.CleanURL(fmt.Sprintf("%s/%s/%s%s", kubeListener.kubeURL, kubeListener.policyNotificationPathPrefix, ns.Metadata.Name, kubeListener.policyNotificationPathPostfix))
 	if err != nil {
 		return err
 	}
