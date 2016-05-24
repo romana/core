@@ -37,7 +37,7 @@ func (l *kubeListener) manageResources(ns Event, terminators map[string]chan Don
 			log.Println("Received DELETED event for uid that is not known, ignoring ", uid)
 			return
 		}
-		
+
 		close(terminators[uid])
 		delete(terminators, uid)
 	} else if ns.Type == InternalEventDeleteAll {
@@ -66,6 +66,9 @@ func (l *kubeListener) conductor(in <-chan Event, done <-chan Done) <-chan Event
 			select {
 			case ns = <-in:
 				l.manageResources(ns, terminators, out)
+
+				// ADDED, DELETED events for namespace handled here
+				ns.handle(l)
 			case <-done:
 				return
 			}

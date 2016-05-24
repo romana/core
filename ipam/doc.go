@@ -33,7 +33,7 @@
 //  1. tenant_id: In case of OpenStack, this is the project's UUID.
 //  2. segment_id: In case of OpenStack, this is the value of the metadata tag whose name is 'romanaSegment'
 //  3. host_id: In case of OpenStack, this is the value of 'binding:host_id' field of port object.
-//  4. name is optional.  
+//  4. name is optional.
 //
 //On success, the same structure is returned with two more fields:
 //
@@ -49,7 +49,7 @@
 //        "name"       : "Endpoint name",
 //    }
 //
-//2. Deallocate an IP for an endpoint. 
+//2. Deallocate an IP for an endpoint.
 //
 //To deallocate an IP, issue a DELETE request to /endpoints/<ip>.
 package ipam

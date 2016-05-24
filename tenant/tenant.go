@@ -16,10 +16,10 @@
 package tenant
 
 import (
-//	"fmt"
-	"github.com/romana/core/common"
 	"log"
 	"strconv"
+
+	"github.com/romana/core/common"
 )
 
 // TenantSvc provides tenant service.

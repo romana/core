@@ -31,7 +31,6 @@ func (policyStore *policyStore) addPolicy(policyDoc *common.Policy) error {
 	json, err := json.Marshal(policyDoc)
 	policyDb := &PolicyDb{}
 	policyDb.Policy = string(json)
-//	policyDb.IsActive = true
 	db := policyStore.DbStore.Db
 	db.Create(policyDb)
 	err = common.GetDbErrors(db)
@@ -48,9 +47,14 @@ func (policyStore *policyStore) addPolicy(policyDoc *common.Policy) error {
 }
 
 func (policyStore *policyStore) listPolicies() ([]common.Policy, error) {
+	var policyDb []PolicyDb
 	var policies []common.Policy
-	db := policyStore.DbStore.Db.Find(&policies)
+	db := policyStore.DbStore.Db.Find(&policyDb)
 	err := common.GetDbErrors(db)
+	policies = make([]common.Policy, len(policyDb))
+	for i, p := range policyDb {
+		json.Unmarshal([]byte(p.Policy), &policies[i])
+	}
 	return policies, err
 }
 

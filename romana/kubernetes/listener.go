@@ -13,24 +13,25 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Listens to Kubernetes for policy updates
+// Package kubernetes listens to Kubernetes for policy updates.
 package kubernetes
 
 import (
 	"bytes"
 	"errors"
 	"fmt"
-	"github.com/romana/core/common"
-	"github.com/romana/core/tenant"
 	"io"
 	"log"
 	"net/http"
 	"strings"
+
+	"github.com/romana/core/common"
+	"github.com/romana/core/tenant"
 )
 
 // readChunk reads the next chunk from the provided reader.
 func readChunk(reader io.Reader) ([]byte, error) {
-	result := make([]byte, 0)
+	var result []byte
 	for {
 		buf := make([]byte, bytes.MinRead)
 		n, err := reader.Read(buf)
@@ -38,9 +39,8 @@ func readChunk(reader io.Reader) ([]byte, error) {
 			result = append(result, buf[0:n]...)
 			if err != nil {
 				return result, err
-			} else {
-				break
 			}
+			break
 		}
 		result = append(result, buf...)
 	}
@@ -158,14 +158,14 @@ const (
 // kubeListener is a Service that listens to updates
 // from Kubernetes by connecting to the endpoints specified
 // and consuming chunked JSON documents. The endpoints are
-// constructed from kubeUrl and the following paths:
+// constructed from kubeURL and the following paths:
 // 1. namespaceNotificationPath for namespace additions/deletions
 // 2. policyNotificationPathPrefix + <namespace name> + policyNotificationPathPostfix
 //    for policy additions/deletions.
 type kubeListener struct {
 	config                        common.ServiceConfig
 	restClient                    *common.RestClient
-	kubeUrl                       string
+	kubeURL                       string
 	namespaceNotificationPath     string
 	policyNotificationPathPrefix  string
 	policyNotificationPathPostfix string
@@ -187,27 +187,27 @@ func (l *kubeListener) Name() string {
 func (l *kubeListener) SetConfig(config common.ServiceConfig) error {
 	m := config.ServiceSpecific
 	if m["kubernetes_url"] == "" {
-		return errors.New("kubernetes_url required.")
+		return errors.New("kubernetes_url required")
 	}
-	l.kubeUrl = m["kubernetes_url"].(string)
+	l.kubeURL = m["kubernetes_url"].(string)
 
 	if m["namespace_notification_path"] == "" {
-		return errors.New("namespace_notification_path required.")
+		return errors.New("namespace_notification_path required")
 	}
 	l.namespaceNotificationPath = m["namespace_notification_path"].(string)
 
 	if m["policy_notification_path_prefix"] == "" {
-		return errors.New("policy_notification_path_prefix required.")
+		return errors.New("policy_notification_path_prefix required")
 	}
 	l.policyNotificationPathPrefix = m["policy_notification_path_prefix"].(string)
 
 	if m["policy_notification_path_postfix"] == "" {
-		return errors.New("policy_notification_path_postfix required.")
+		return errors.New("policy_notification_path_postfix required")
 	}
 	l.policyNotificationPathPostfix = m["policy_notification_path_postfix"].(string)
 
 	if m["segment_label_name"] == "" {
-		return errors.New("segment_label_name required.")
+		return errors.New("segment_label_name required")
 	}
 	l.segmentLabelName = m["segment_label_name"].(string)
 
@@ -280,6 +280,22 @@ func (l *kubeListener) getOrAddSegment(tenantServiceURL string, namespace string
 	}
 }
 
+// resolveTenantByName retrieves tenant information from romana.
+func (l *kubeListener) resolveTenantByName(tenantName string) (*tenant.Tenant, string, error) {
+	t := &tenant.Tenant{}
+	tenantURL, err := l.restClient.GetServiceUrl("tenant")
+	if err != nil {
+		return t, "", err
+	}
+
+	err = l.restClient.Get(fmt.Sprintf("%s/tenants/%s", tenantURL, tenantName), t)
+	if err != nil {
+		return t, "", err
+	}
+
+	return t, tenantURL, nil
+}
+
 // translateNetworkPolicy translates a Kubernetes policy into
 // Romana policy (see common.Policy) with the following rules:
 // 1. Kubernetes Namespace corresponds to Romana Tenant
@@ -289,18 +305,14 @@ func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Po
 	log.Printf("translateNetworkPolicy(): Received %#v", kubePolicy)
 	romanaPolicy := &common.Policy{Direction: common.PolicyDirectionIngress, Name: kubePolicy.Metadata.Name}
 	ns := kubePolicy.Metadata.Namespace
-	tenantURL, err := l.restClient.GetServiceUrl("tenant")
-	if err != nil {
-		return *romanaPolicy, err
-	}
-	t := &tenant.Tenant{}
-	err = l.restClient.Get(fmt.Sprintf("%s/tenants/%s", tenantURL, ns), t)
+
+	t, tenantURL, err := l.resolveTenantByName(ns)
 	log.Printf("translateNetworkPolicy(): For namespace %s got %#v / %#v", ns, t, err)
 	if err != nil {
 		return *romanaPolicy, err
 	}
-	tenantId := t.ID
-	tenantExternalId := t.ExternalID
+	tenantID := t.ID
+	tenantExternalID := t.ExternalID
 
 	kubeSegmentID := kubePolicy.Spec.PodSelector[l.segmentLabelName]
 	if kubeSegmentID == "" {
@@ -311,8 +323,8 @@ func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Po
 	if err != nil {
 		return *romanaPolicy, err
 	}
-	segmentId := segment.ID
-	appliedTo := common.Endpoint{TenantID: tenantId, SegmentID: segmentId}
+	segmentID := segment.ID
+	appliedTo := common.Endpoint{TenantID: tenantID, SegmentID: segmentID}
 	romanaPolicy.AppliedTo = make([]common.Endpoint, 1)
 	romanaPolicy.AppliedTo[0] = appliedTo
 	romanaPolicy.Peers = []common.Endpoint{}
@@ -330,7 +342,7 @@ func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Po
 			if err != nil {
 				return *romanaPolicy, err
 			}
-			peer := common.Endpoint{TenantID: tenantId, TenantExternalID: tenantExternalId, SegmentID: fromSegment.ID, SegmentExternalID: fromSegment.ExternalID}
+			peer := common.Endpoint{TenantID: tenantID, TenantExternalID: tenantExternalID, SegmentID: fromSegment.ID, SegmentExternalID: fromSegment.ExternalID}
 			romanaPolicy.Peers = append(romanaPolicy.Peers, peer)
 		}
 		toPorts := kubePolicy.Spec.AllowIncoming.ToPorts
@@ -350,21 +362,21 @@ func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Po
 }
 
 func (l *kubeListener) applyNetworkPolicy(action networkPolicyAction, romanaNetworkPolicy common.Policy) error {
-	policyUrl, err := l.restClient.GetServiceUrl("policy")
+	policyURL, err := l.restClient.GetServiceUrl("policy")
 	if err != nil {
 		return err
 	}
-	policyUrl = fmt.Sprintf("%s/policies", policyUrl)
+	policyURL = fmt.Sprintf("%s/policies", policyURL)
 	switch action {
 	case networkPolicyActionAdd:
-		err := l.restClient.Post(policyUrl, romanaNetworkPolicy, &romanaNetworkPolicy)
+		err := l.restClient.Post(policyURL, romanaNetworkPolicy, &romanaNetworkPolicy)
 		if err != nil {
 			return err
 		}
 		log.Printf("Applied policy %#v", romanaNetworkPolicy)
 	case networkPolicyActionDelete:
-		policyUrl = fmt.Sprintf("%s/%d", policyUrl, romanaNetworkPolicy.ID)
-		err := l.restClient.Delete(policyUrl, nil, &romanaNetworkPolicy)
+		policyURL = fmt.Sprintf("%s/%d", policyURL, romanaNetworkPolicy.ID)
+		err := l.restClient.Delete(policyURL, nil, &romanaNetworkPolicy)
 		if err != nil {
 			return err
 		}
@@ -376,13 +388,13 @@ func (l *kubeListener) applyNetworkPolicy(action networkPolicyAction, romanaNetw
 
 func (l *kubeListener) Initialize() error {
 	log.Printf("%s: Starting server", l.Name())
-	nsUrl, err := common.CleanURL(fmt.Sprintf("%s%s", l.kubeUrl, l.namespaceNotificationPath))
+	nsURL, err := common.CleanURL(fmt.Sprintf("%s%s", l.kubeURL, l.namespaceNotificationPath))
 	if err != nil {
 		return err
 	}
-	log.Printf("Starting to listen on %s", nsUrl)
+	log.Printf("Starting to listen on %s", nsURL)
 	done := make(chan Done)
-	nsEvents, err := l.nsWatch(done, nsUrl)
+	nsEvents, err := l.nsWatch(done, nsURL)
 	if err != nil {
 		log.Fatal("Namespace watcher failed to start", err)
 	}
@@ -393,6 +405,7 @@ func (l *kubeListener) Initialize() error {
 	return nil
 }
 
+// CreateSchema is placeholder for now.
 func CreateSchema(rootServiceURL string, overwrite bool) error {
 	return nil
 }
