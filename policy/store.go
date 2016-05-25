@@ -17,10 +17,9 @@ package policy
 import (
 	"encoding/json"
 
-	_ "github.com/go-sql-driver/mysql"
 	"github.com/romana/core/common"
 
-	"time"
+	_ "github.com/go-sql-driver/mysql"
 )
 
 type policyStore struct {
@@ -29,7 +28,7 @@ type policyStore struct {
 
 func (policyStore *policyStore) addPolicy(policyDoc *common.Policy) error {
 	json, err := json.Marshal(policyDoc)
-	policyDb := &PolicyDb{}
+	policyDb := &common.PolicyDb{}
 	policyDb.Policy = string(json)
 	db := policyStore.DbStore.Db
 	db.Create(policyDb)
@@ -47,7 +46,7 @@ func (policyStore *policyStore) addPolicy(policyDoc *common.Policy) error {
 }
 
 func (policyStore *policyStore) listPolicies() ([]common.Policy, error) {
-	var policyDb []PolicyDb
+	var policyDb []common.PolicyDb
 	var policies []common.Policy
 	db := policyStore.DbStore.Db.Find(&policyDb)
 	err := common.GetDbErrors(db)
@@ -69,7 +68,7 @@ func (policyStore *policyStore) getPolicy(id uint64) (common.Policy, error) {
 // upon receiving a DELETE request but before distributing
 // this request to agents.
 func (policyStore *policyStore) inactivatePolicy(id uint64) error {
-	policyDb := &PolicyDb{}
+	policyDb := &common.PolicyDb{}
 	db := policyStore.DbStore.Db
 	db = db.Where("id = ?", id).Delete(policyDb)
 	err := common.GetDbErrors(db)
@@ -98,7 +97,7 @@ func (policyStore *policyStore) inactivatePolicy(id uint64) error {
 }
 
 func (policyStore *policyStore) deletePolicy(id uint64) error {
-	policyDb := &PolicyDb{}
+	policyDb := &common.PolicyDb{}
 	db := policyStore.DbStore.Db
 	db = db.Unscoped().Where("id = ?", id).Delete(policyDb)
 	err := common.GetDbErrors(db)
@@ -114,22 +113,10 @@ func (policyStore *policyStore) CreateSchemaPostProcess() error {
 	return nil
 }
 
-// policyDb represents how common.Policy is stored in the database.
-// For now to keep it simple, it will not be fully normalized --
-// we will just keep an ID and policy document as JSON
-type PolicyDb struct {
-	ID uint64 `sql:"AUTO_INCREMENT"`
-	// Policy document as JSON
-	Policy string
-	// DeletedAt is for using soft delete functionality
-	// from http://jinzhu.me/gorm/curd.html#delete
-	DeletedAt *time.Time
-}
-
 // Entities implements Entities method of
 // Service interface.
 func (policyStore *policyStore) Entities() []interface{} {
 	retval := make([]interface{}, 1)
-	retval[0] = &PolicyDb{}
+	retval[0] = &common.PolicyDb{}
 	return retval
 }
