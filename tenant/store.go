@@ -95,7 +95,7 @@ func (tenantStore *tenantStore) addTenant(tenant *Tenant) error {
 		tenant.ExternalID = hex.EncodeToString(uuid.NewRandom())
 	}
 
-	tenant.Seq = uint64(len(tenants) + 1)
+	tenant.Seq = uint64(len(tenants))
 	db := tenantStore.DbStore.Db
 	tenantStore.DbStore.Db.Create(tenant)
 	if db.Error != nil {
@@ -156,7 +156,7 @@ func (tenantStore *tenantStore) addSegment(tenantId uint64, segment *Segment) er
 	if db.Error != nil {
 		return db.Error
 	}
-	segment.Seq = uint64(len(segments) + 1)
+	segment.Seq = uint64(len(segments))
 
 	if segment.ExternalID == "" {
 		segment.ExternalID = hex.EncodeToString(uuid.NewRandom())

@@ -289,8 +289,8 @@ func (ipam *IPAM) addEndpoint(input interface{}, ctx common.RestContext) (interf
 		return nil, err
 	}
 	hostIpInt := common.IPv4ToInt(network.IP)
-	tSeq := t.Seq - 1
-	sSeq := segment.Seq - 1
+	tSeq := t.Seq
+	sSeq := segment.Seq 
 	upToEndpointIpInt := hostIpInt | (tSeq << tenantBitShift) | (sSeq << segmentBitShift)
 	log.Printf("IPAM: before calling addEndpoint:  %v | (%v << %v) | (%v << %v): %v ", network.IP.String(), tSeq, tenantBitShift, sSeq, segmentBitShift, common.IntToIPv4(upToEndpointIpInt))
 	err = ipam.store.addEndpoint(endpoint, upToEndpointIpInt, ipam.dc.EndpointSpaceBits)
