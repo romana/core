@@ -465,6 +465,20 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	myLog(c, "Legacy received: %s", endpointOut)
 	myLog(c, "Legacy IP: %s", endpointOut.Ip)
 
+	// Try legacy request using tenantName with tenant 2
+	endpointOut = ipam.Endpoint{}
+	legacyURL = "/allocateIP?tenantName=t2&segmentName=s1&hostName=HOST2000&instanceName=bla"
+	myLog(c, "Calling legacy URL", legacyURL)
+
+	err = client.Get(legacyURL, &endpointOut)
+
+	if err != nil {
+		myLog(c, "Error %s\n", err)
+		c.Error(err)
+	}
+	myLog(c, "Legacy received:", endpointOut)
+	myLog(c, "Legacy IP:", endpointOut.Ip)
+
 	// Try legacy request using tenantID
 	legacyURL = "/allocateIP?tenantID=t1&segmentName=s1&hostName=HOST2000&instanceName=bla"
 	myLog(c, "Calling legacy URL %s", legacyURL)
