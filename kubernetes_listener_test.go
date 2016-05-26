@@ -60,7 +60,7 @@ func (ks kubeSimulator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(10 * time.Millisecond)
 		return
 	}
-	if strings.HasPrefix(path, "/apis/romana.io/demo/v1/namespaces/") && strings.HasSuffix(path, "/networkpolicys/?wath=true") {
+	if strings.HasPrefix(path, "/apis/romana.io/demo/v1/namespaces/") && strings.HasSuffix(path, "/networkpolicys/?watch=true") {
 		uriArr := strings.Split(path, "/")
 		if len(uriArr) != 9 {
 			w.WriteHeader(http.StatusNotFound)
@@ -130,7 +130,7 @@ func (s *mockSvc) Routes() common.Routes {
 			"segment_label_name":"tier",
 		    "namespace_notification_path: "/api/v1/namespaces/?watch=true",
      		"policy_notification_path_prefix : "/apis/romana.io/demo/v1/namespaces/",
-    		"policy_notification_path_postfix : "/networkpolicys/?wath=true",
+    		"policy_notification_path_postfix : "/networkpolicys/?watch=true",
       		}}`
 			return common.Raw{Body: json}, nil
 		},
