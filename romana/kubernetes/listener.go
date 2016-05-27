@@ -18,15 +18,15 @@ package kubernetes
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/romana/core/common"
+	"github.com/romana/core/tenant"
 	"io"
 	"log"
 	"net/http"
 	"strings"
-
-	"github.com/romana/core/common"
-	"github.com/romana/core/tenant"
 )
 
 // readChunk reads the next chunk from the provided reader.
@@ -302,7 +302,6 @@ func (l *kubeListener) resolveTenantByName(tenantName string) (*tenant.Tenant, s
 // 2. If Romana Tenant does not exist it is an error (a tenant should
 //    automatically have been created when the namespace was added)
 func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Policy, error) {
-	log.Printf("translateNetworkPolicy(): Received %#v", kubePolicy)
 	romanaPolicy := &common.Policy{Direction: common.PolicyDirectionIngress, Name: kubePolicy.Metadata.Name}
 	ns := kubePolicy.Metadata.Namespace
 
@@ -367,14 +366,16 @@ func (l *kubeListener) applyNetworkPolicy(action networkPolicyAction, romanaNetw
 		return err
 	}
 	policyURL = fmt.Sprintf("%s/policies", policyURL)
+	policyStr, _ := json.Marshal(romanaNetworkPolicy)
 	switch action {
 	case networkPolicyActionAdd:
+		log.Printf("Applying policy %s", policyStr)
 		err := l.restClient.Post(policyURL, romanaNetworkPolicy, &romanaNetworkPolicy)
 		if err != nil {
 			return err
 		}
-		log.Printf("Applied policy %#v", romanaNetworkPolicy)
 	case networkPolicyActionDelete:
+		log.Printf("Deleting policy policy %s", policyStr)
 		policyURL = fmt.Sprintf("%s/%d", policyURL, romanaNetworkPolicy.ID)
 		err := l.restClient.Delete(policyURL, nil, &romanaNetworkPolicy)
 		if err != nil {

@@ -229,23 +229,28 @@ func (policy *PolicySvc) listPolicies(input interface{}, ctx common.RestContext)
 // addPolicy stores the new policy and sends it to all agents.
 func (policy *PolicySvc) addPolicy(input interface{}, ctx common.RestContext) (interface{}, error) {
 	policyDoc := input.(*common.Policy)
-	log.Printf("Request for a new policy to be added: %v", policyDoc)
+	log.Printf("addPolicy(): Request for a new policy to be added: %s", policyDoc.Name)
 	err := policyDoc.Validate()
 	if err != nil {
+		log.Printf("addPolicy(): Error validating: %v", err)
 		return nil, err
 	}
 
 	err = policy.augmentPolicy(policyDoc)
 	if err != nil {
+		log.Printf("addPolicy(): Error augmenting: %v", err)
 		return nil, err
 	}
 	// Save it
 	err = policy.store.addPolicy(policyDoc)
 	if err != nil {
+		log.Printf("addPolicy(): Error storing: %v", err)
 		return nil, err
 	}
+	log.Printf("addPolicy(): Stored policy %s", policyDoc.Name)
 	err = policy.distributePolicy(policyDoc)
 	if err != nil {
+		log.Printf("addPolicy(): Error distributing: %v", err)
 		return nil, err
 	}
 	return policyDoc, nil

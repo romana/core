@@ -24,7 +24,7 @@ import (
 	"strings"
 	"testing"
 	"time"
-
+	"encoding/json"
 	"github.com/go-check/check"
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
@@ -110,7 +110,8 @@ func (s *mockSvc) Routes() common.Routes {
 		Method:  "POST",
 		Pattern: "/policies",
 		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
-			log.Printf("Received %#v", input)
+			j, _ := json.Marshal(input)
+			log.Printf("Mock policy received: %T %s", input, j)
 			switch input := input.(type) {
 			case *common.Policy:
 				return input, nil
@@ -294,7 +295,7 @@ func (s *MySuite) getKubeListenerServiceConfig() *common.ServiceConfig {
 	kubeListenerConfig["kubernetes_url"] = s.kubeURL
 	kubeListenerConfig["namespace_notification_path"] = "/api/v1/namespaces/?watch=true"
 	kubeListenerConfig["policy_notification_path_prefix"] = "/apis/romana.io/demo/v1/namespaces/"
-	kubeListenerConfig["policy_notification_path_postfix"] = "/networkpolicys/?wath=true"
+	kubeListenerConfig["policy_notification_path_postfix"] = "/networkpolicys/?watch=true"
 	kubeListenerConfig["segment_label_name"] = "tier"
 
 	svcConfig := common.ServiceConfig{Common: commonConfig, ServiceSpecific: kubeListenerConfig}
