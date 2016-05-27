@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"net"
 	"strings"
-	"time"
 )
 
 // Here we only keep type definitions and struct definitions with no behavior.
@@ -162,7 +161,7 @@ type Policy struct {
 	Direction string `json:"direction,omitempty"`
 	// Description is human-redable description of the policy.
 	Description string `json:"description,omitempty"`
-	// Name is human-readable name for this policy.
+	// Name is human-readable name for this policy. 
 	Name string `json:"name"`
 	// ID is Romana-generated unique (within Romana deployment) ID of this policy,
 	// to be used in REST requests. It will be ignored when set by user.
@@ -176,18 +175,6 @@ type Policy struct {
 	Peers      []Endpoint `json:"peers,omitempty"`
 	Rules      []Rule     `json:"rules,omitempty"`
 	//	Tags       []Tag      `json:"tags,omitempty"`
-}
-
-// PolicyDb represents how common.Policy is stored in the database.
-// For now to keep it simple, it will not be fully normalized --
-// we will just keep an ID and policy document as JSON
-type PolicyDb struct {
-	ID uint64 `sql:"AUTO_INCREMENT"`
-	// Policy document as JSON
-	Policy string
-	// DeletedAt is for using soft delete functionality
-	// from http://jinzhu.me/gorm/curd.html#delete
-	DeletedAt *time.Time
 }
 
 // isValidProto checks if the Protocol specified in Rule is valid.
