@@ -54,6 +54,7 @@ func (policyStore *policyStore) listPolicies() ([]common.Policy, error) {
 	policies = make([]common.Policy, len(policyDb))
 	for i, p := range policyDb {
 		json.Unmarshal([]byte(p.Policy), &policies[i])
+		policies[i].ID = p.ID
 	}
 	return policies, err
 }
