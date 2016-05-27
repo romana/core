@@ -184,7 +184,7 @@ type Policy struct {
 type PolicyDb struct {
 	ID uint64 `sql:"AUTO_INCREMENT"`
 	// Policy document as JSON
-	Policy string
+	Policy string `sql:"type:TEXT"`
 	// DeletedAt is for using soft delete functionality
 	// from http://jinzhu.me/gorm/curd.html#delete
 	DeletedAt *time.Time
