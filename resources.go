@@ -121,6 +121,9 @@ func (e Event) handleNetworkPolicyEvent(l *kubeListener) {
 	}
 	policy, err := l.translateNetworkPolicy(&e.Object)
 	if err == nil {
+		j1, _ := json.Marshal(e)
+		j2, _ := json.Marshal(policy)
+		log.Printf("handleNetworkPolicyEvent(): translated\n\t%s\n\tto\n\t%s", j1, j2)
 		l.applyNetworkPolicy(action, policy)
 	} else {
 		log.Println(err)
