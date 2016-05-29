@@ -231,8 +231,8 @@ func Run(rootServiceURL string, cred *common.Credential) (*common.RestServiceInf
 	return common.InitializeService(kubeListener, *config)
 }
 
-// getOrAddSegment finds a segment (based on segment selector)
-//
+// getOrAddSegment finds a segment (based on segment selector).
+// If not found, it adds one.
 func (l *kubeListener) getOrAddSegment(tenantServiceURL string, namespace string, kubeSegmentID string) (*tenant.Segment, error) {
 	segment := &tenant.Segment{}
 	segmentsURL := fmt.Sprintf("%s/tenants/%s/segments", tenantServiceURL, namespace)
@@ -304,7 +304,7 @@ func (l *kubeListener) resolveTenantByName(tenantName string) (*tenant.Tenant, s
 func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Policy, error) {
 	romanaPolicy := &common.Policy{Direction: common.PolicyDirectionIngress, Name: kubePolicy.Metadata.Name}
 	ns := kubePolicy.Metadata.Namespace
-
+	// TODO actually look up tenant K8S ID.
 	t, tenantURL, err := l.resolveTenantByName(ns)
 	log.Printf("translateNetworkPolicy(): For namespace %s got %#v / %#v", ns, t, err)
 	if err != nil {
