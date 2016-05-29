@@ -36,7 +36,7 @@ func Test(t *testing.T) {
 
 type MySuite struct {
 	serviceURL  string
-	servicePort int
+	servicePort uint64
 	kubeURL     string
 	c           *check.C
 }
@@ -76,30 +76,19 @@ func (s *mockSvc) Routes() common.Routes {
 		Method:  "GET",
 		Pattern: "/tenants/1",
 		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
-			return &tenant.Tenant{ID: 1, Name: "default", ExternalID: "default", RomanaNetworkID: 1}, nil
-			},
-		}
-
+			return &tenant.Tenant{ID: 1, Name: "default", ExternalID: "default", Seq: 1}, nil
+		},
+	}
 
 	segmentGetRoute := common.Route{
 		Method:  "GET",
-		Pattern: "/tenants/{tenantID}/segments/{segmentID}",
+		Pattern: "/tenants/1/segments/{id}",
 		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
-			log.Printf("In segmentGetRoute\n\t%#v\n\t%#v", s.segments, s.segmentsStr)
-			idStr := ctx.PathVariables["segmentID"]
-			id, err := strconv.ParseUint(idStr, 10, 64)
+			idInt, err := strconv.ParseUint(ctx.PathVariables["id"], 10, 64)
 			if err != nil {
-				if s.segmentsStr[idStr] == 0 {
-					return nil, common.NewError404("segment", idStr)
-				}
-				id = s.segmentsStr[idStr]
-				return &tenant.Segment{ID: id, Name: idStr, ExternalID: idStr}, nil
+				return nil, err
 			}
-			if id < 1 || id > s.segmentCounter {
-				return nil, common.NewError404("segment", idStr)
-			}
-			name := s.segments[s.segmentCounter]
-			return &tenant.Segment{ID: id, Name: name, ExternalID: name}, nil
+			return &tenant.Segment{ID: idInt, Name: "backend", ExternalID: "backend"}, nil
 		},
 	}
 
@@ -119,6 +108,23 @@ func (s *mockSvc) Routes() common.Routes {
 		},
 	}
 
+	// Simulate agent
+	agentRoute := common.Route{
+		Method:  "POST",
+		Pattern: "/policies",
+		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
+			log.Printf("Agent received policy: %v", input)
+			policyDoc := input.(*common.Policy)
+			log.Printf("Agent received policy: %s", policyDoc.Name)
+			if policyDoc.Datacenter.TenantBits == 0 {
+				return nil, common.NewError400("Datacenter information invalid.")
+			}
+			return nil, nil
+		},
+		MakeMessage: func() interface{} { return &common.Policy{} },
+	}
+
+	// This simulates both root's and topology's index response
 	rootRoute := common.Route{
 		Method:  "GET",
 		Pattern: "/",
@@ -133,6 +139,8 @@ func (s *mockSvc) Routes() common.Routes {
 			{"Href":"/config/agent","Rel":"agent-config"},
 			{"Href":"/config/policy","Rel":"policy-config"},
 			{"Href":"/config/kubernetesListener","Rel":"kubernetesListener-config"},
+			{"Href":"/datacenter","Rel":"datacenter"},
+			{"Href":"/hosts","Rel":"host-list"},
 			{"Href":"SERVICE_URL","Rel":"self"}
 			], 
 			"Services":
@@ -153,6 +161,36 @@ func (s *mockSvc) Routes() common.Routes {
 		},
 	}
 
+	dcRoute := common.Route{
+		Method:  "GET",
+		Pattern: "/datacenter",
+		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
+			json := `
+			{"id":0,
+			"ip_version":4,
+			"cidr":"10.0.0.0/8",
+			"prefix_bits":8,
+			"port_bits":8,
+			"tenant_bits":4,
+			"segment_bits":4,
+			"endpoint_bits":8,
+			"endpoint_space_bits":0,
+			"name":"main"}
+			`
+			return common.Raw{Body: json}, nil
+		},
+	}
+
+	hostsRoute := common.Route{
+		Method:  "GET",
+		Pattern: "/hosts",
+		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
+			hosts := make([]common.HostMessage, 1)
+			hosts[0] = common.HostMessage{Ip: "127.0.0.1", AgentPort: s.mySuite.servicePort}
+			return hosts, nil
+		},
+	}
+
 	registerPortRoute := common.Route{
 		Method:  "POST",
 		Pattern: "/config/kubernetes-listener/port",
@@ -164,12 +202,13 @@ func (s *mockSvc) Routes() common.Routes {
 
 	routes := common.Routes{
 		rootRoute,
-		tenantAddRoute,
 		tenantGetRoute,
 		segmentGetRoute,
-		segmentAddRoute,
 		registerPortRoute,
 		policyConfigRoute,
+		dcRoute,
+		hostsRoute,
+		agentRoute,
 	}
 	log.Printf("mockService: Set up routes: %#v", routes)
 	return routes
@@ -192,7 +231,13 @@ func (s *MySuite) TestPolicy(c *check.C) {
 		panic(err)
 	}
 	msg := <-svcInfo.Channel
-	log.Printf("Test: Mock service says %s\n", msg)
+	log.Printf("Test: Mock service says %s; listening on %s\n", msg, svcInfo.Address)
+	addrComponents := strings.Split(svcInfo.Address, ":")
+	portStr := addrComponents[len(addrComponents)-1]
+	s.servicePort, err = strconv.ParseUint(portStr, 10, 64)
+	if err != nil {
+		panic(err)
+	}
 	s.serviceURL = fmt.Sprintf("http://%s", svcInfo.Address)
 	log.Printf("Test: Mock service listens at %s\n", s.serviceURL)
 	err = CreateSchema(s.serviceURL, true)
@@ -224,9 +269,29 @@ func (s *MySuite) TestPolicy(c *check.C) {
 }
 
 const (
-	romanaPolicy = `{"direction":"ingress","name":"pol1","datacenter":{"Id":0,"ip_version":0,
-	"prefix":0,"prefix_bits":0,"port_bits":0,"tenant_bits":0,"segment_bits":0,
-	"endpoint_bits":0,"endpoint_space_bits":0,"name":""},"applied_to":[{"tenant_id":1,
-	"segment_id":1}],"peers":[{"tenant_id":1,"tenant_external_id":"default",
-	"segment_id":2,"segment_external_id":"frontend"}],"rules":[{"protocol":"tcp","ports":[80]}]}`
+	romanaPolicy = `{
+	"direction":"ingress",
+	"name":"pol1",
+	"datacenter":{	"id":0 },
+	"applied_to":[
+					{
+					 "tenant_id":1,
+					 "segment_id":1
+					 }
+				  ],
+  	"peers":[
+     {
+      "tenant_id":1,
+      "tenant_external_id":"default",
+	  "segment_id":2,
+	  "segment_external_id":"frontend"
+	  }
+	],
+  	"rules":[
+            {
+            "protocol":"tcp",
+            "ports":[80]
+            }
+      ]
+   }`
 )

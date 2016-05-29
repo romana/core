@@ -132,7 +132,7 @@ func (policy *PolicySvc) augmentPolicy(policyDoc *common.Policy) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("Policy server received datacenter information from topology service: %v\n", dc)
+	log.Printf("Policy server received datacenter information from topology service: %s\n", dc)
 	policyDoc.Datacenter = dc
 
 	for i, _ := range policyDoc.Rules {
@@ -169,6 +169,7 @@ func (policy *PolicySvc) distributePolicy(policyDoc *common.Policy) error {
 	for _, host := range hosts {
 		// TODO make schema configurable
 		url := fmt.Sprintf("http://%s:%d/policies", host.Ip, host.AgentPort)
+		log.Printf("Sending policy %s to agent at %s", policyDoc.Name, url)
 		result := make(map[string]interface{})
 		err = policy.client.Post(url, policyDoc, result)
 		log.Printf("Agent at %s returned %v", host.Ip, result)

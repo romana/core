@@ -21,9 +21,18 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"encoding/json"
 )
 
 // Here we only keep type definitions and struct definitions with no behavior.
+
+func String(i interface{}) string {
+	j, e := json.Marshal(i)
+	if e != nil {
+		return fmt.Sprintf("%#v", i)
+	}
+	return string(j)
+}
 
 // Constants
 const (
@@ -99,6 +108,9 @@ type PortUpdateMessage struct {
 	Port uint64 `json:"port"`
 }
 
+// Endpoint represents an endpoint - that is, something that
+// has an IP address and routes to/from. It can be a container,
+// a Kubernetes POD, a VM, etc.
 type Endpoint struct {
 	Any     string `json:"any,omitempty"`
 	Peer    string `json:"peer,omitempty"`
@@ -112,6 +124,10 @@ type Endpoint struct {
 	SegmentID         uint64    `json:"segment_id,omitempty"`
 	SegmentExternalID string    `json:"segment_external_id,omitempty"`
 	SegmentNetworkID  uint64    `json:"segment_network_id,omitempty"`
+}
+
+func (e Endpoint) String() string {
+	return String(e)
 }
 
 const (
@@ -141,6 +157,10 @@ type Rule struct {
 	IcmpType   uint `json:"icmp_type,omitempty"`
 	IcmpCode   uint `json:"icmp_code,omitempty"`
 	IsStateful bool `json:"is_stateful,omitempty"`
+}
+
+func (r Rule) String() string {
+	return String(r)
 }
 
 type Rules []Rule
@@ -177,6 +197,10 @@ type Policy struct {
 	//	Tags       []Tag      `json:"tags,omitempty"`
 }
 
+func (p Policy) String() string {
+	return String(p)
+}
+
 // isValidProto checks if the Protocol specified in Rule is valid.
 // The following protocols are recognized:
 // - any -- wildcard
@@ -211,7 +235,7 @@ func validateRules(rules Rules) []string {
 			errMsg = append(errMsg, fmt.Sprintf("Rule #%d: Invalid protocol: %s.", ruleNo, r.Protocol))
 		}
 		if r.Protocol == "tcp" {
-			r.IsStateful = true
+			rules[i].IsStateful = true
 		}
 		if r.Protocol == "tcp" || r.Protocol == "udp" {
 			badRanges := make([]string, 0)
@@ -297,13 +321,13 @@ func (p *Policy) Validate() error {
 	}
 
 	// 3. Validate AppliedTo
-
 	for i, endpoint := range p.AppliedTo {
 		epNo := i + 1
 		if endpoint.TenantExternalID == "" && endpoint.TenantID == 0 && endpoint.TenantNetworkID == 0 {
 			errMsg = append(errMsg, fmt.Sprintf("applied_to entry #%d: at least one of tenant_id or tenant_external_id or tenant_network_id must be specified.", epNo))
 		}
 	}
+	// 4. Validate peers
 	for i, endpoint := range p.Peers {
 		epNo := i + 1
 		if endpoint.Any != "" && endpoint.Any != Wildcard {
@@ -354,7 +378,7 @@ type ServiceResponse struct {
 
 // Datacenter represents the configuration of a datacenter.
 type Datacenter struct {
-	Id        uint64 `sql:"AUTO_INCREMENT"`
+	Id        uint64 `json:"id",sql:"AUTO_INCREMENT"`
 	IpVersion uint   `json:"ip_version"`
 	// We don't need to store this, but calculate and pass around
 	Prefix      uint64 `json:"prefix"`
@@ -367,4 +391,8 @@ type Datacenter struct {
 	EndpointBits      uint   `json:"endpoint_bits"`
 	EndpointSpaceBits uint   `json:"endpoint_space_bits"`
 	Name              string `json:"name"`
+}
+
+func (dc Datacenter) String() string {
+	return String(dc)
 }

@@ -127,7 +127,8 @@ type PolicyDb struct {
 	DeletedAt *time.Time
 }
 
-func (PolicyDb) Name() {
+// Name specifies a nicer-looking table name.
+func (PolicyDb) Name() string {
 	return "policy"
 }
 
