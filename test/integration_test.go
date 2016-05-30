@@ -312,7 +312,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 		c.Error(err)
 	}
 	t1Id := t1Out.ID
-	c.Assert(t1Out.Seq, check.Equals, uint64(1))
+	c.Assert(t1Out.Seq, check.Equals, uint64(0))
 	myLog(c, "Tenant 1 %s", t1Out)
 
 	// Add tenant t2
@@ -323,7 +323,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 		c.Error(err)
 	}
 	t2Id := t2Out.ID
-	c.Assert(t2Out.Seq, check.Equals, uint64(2))
+	c.Assert(t2Out.Seq, check.Equals, uint64(1))
 	myLog(c, "Tenant 2 %s", t2Out)
 
 	// Find first tenant
