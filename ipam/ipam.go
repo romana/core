@@ -206,7 +206,7 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 		}
 	}
 	if !found {
-		err := fmt.Errorf("Segment with name '%s' not found in %s", segmentName, segments)
+		err := fmt.Errorf("Segment with name '%s' not found in %v", segmentName, segments)
 		log.Printf("IPAM encountered an error: %v", err)
 		return nil, err
 	}
@@ -262,7 +262,7 @@ func (ipam *IPAM) addEndpoint(input interface{}, ctx common.RestContext) (interf
 	log.Printf("IPAM calling %s\n", tenantsUrl)
 	err = client.Get(tenantsUrl, t)
 	if err != nil {
-		log.Printf("IPAM encountered an error querying tenant service for tenant %d: %v", endpoint.TenantID, err)
+		log.Printf("IPAM encountered an error querying tenant service for tenant %s: %v", endpoint.TenantID, err)
 		return nil, err
 	}
 	log.Printf("IPAM: received tenant %s ID %d, sequence %d\n", t.Name, t.ID, t.Seq)
@@ -272,7 +272,7 @@ func (ipam *IPAM) addEndpoint(input interface{}, ctx common.RestContext) (interf
 	segment := &tenant.Segment{}
 	err = client.Get(segmentUrl, segment)
 	if err != nil {
-		log.Printf("IPAM encountered an error querying tenant service for tenant %d and segment %d: %v", endpoint.TenantID, endpoint.SegmentID, err)
+		log.Printf("IPAM encountered an error querying tenant service for tenant %s and segment %s: %v", endpoint.TenantID, endpoint.SegmentID, err)
 		return nil, err
 	}
 
