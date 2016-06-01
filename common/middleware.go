@@ -131,6 +131,7 @@ func write500(writer http.ResponseWriter, m Marshaller, err error) {
 	httpErr := NewError500(err)
 	// Should never error out - it's a struct we know.
 	outData, _ := m.Marshal(httpErr)
+	log.Printf("Made\n\t%#v\n\tfrom\n\t%#v\n\t%s", httpErr, err, string(outData))
 	writer.Write(outData)
 }
 
