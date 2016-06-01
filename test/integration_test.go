@@ -18,6 +18,7 @@ package test
 
 import (
 	//	"database/sql"
+	"encoding/json"
 	"fmt"
 	"github.com/go-check/check"
 	"github.com/romana/core/agent"
@@ -55,8 +56,30 @@ func myLog(c *check.C, args ...interface{}) {
 		c.Log(args[0])
 		return
 	}
-	fmt.Printf(args[0].(string), args[1:]...)
-	c.Log(fmt.Sprintf(args[0].(string), args[1:]...))
+	newArgs := make([]interface{}, len(args)-1)
+	for i, a := range args[1:] {
+		switch a := a.(type) {
+		default:
+			j, err := json.Marshal(a)
+			if err == nil {
+				newArgs[i] = fmt.Sprintf("%T: %s", a, j)
+			} else {
+				newArgs[i] = fmt.Sprintf("%s", a)
+			}
+		case bool:
+			newArgs[i] = a
+		case int:
+			newArgs[i] = a
+		case uint:
+			newArgs[i] = a
+		case uint64:
+			newArgs[i] = a
+		case string:
+			newArgs[i] = a
+		}
+	}
+	fmt.Printf(args[0].(string), newArgs...)
+	c.Log(fmt.Sprintf(args[0].(string), newArgs...))
 }
 
 // SetUpTest for now deletes all hosts from topology DB.
@@ -158,7 +181,7 @@ func (s *MySuite) SetUpSuite(c *check.C) {
 	}
 	s.ipamURL = fmt.Sprintf("http://%s", ipamInfo.Address)
 	msg = <-ipamInfo.Channel
-	myLog(c, "IPAM service said: ", msg)
+	myLog(c, "IPAM service said: %s", msg)
 
 	myLog(c, "Done with setup")
 }
@@ -197,7 +220,7 @@ func (s *MySuite) TestAgentStart(c *check.C) {
 	// Get list of hosts - should be empty for now.
 	var hostList []common.HostMessage
 	client.Get(hostsRelURL, &hostList)
-	myLog(c, "Host list ", len(hostList), hostList)
+	myLog(c, "Host list: %s", hostList)
 	c.Assert(len(hostList), check.Equals, 0)
 
 	// Add host 1
@@ -228,7 +251,7 @@ func (s *MySuite) TestAgentStart(c *check.C) {
 		c.Error(err)
 	}
 	msg := <-agentInfo.Channel
-	myLog(c, "Agent service said:", msg)
+	myLog(c, "Agent service said: %s", msg)
 }
 
 // Test the interaction of root/topo/tenant/ipam
@@ -296,8 +319,8 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 		c.Error(err)
 	}
 	t1Id := t1Out.ID
-	c.Assert(t1Out.Seq, check.Equals, uint64(1))
-	myLog(c, "Tenant 1", t1Out)
+	c.Assert(t1Out.Seq, check.Equals, uint64(0))
+	myLog(c, "Tenant 1 %s", t1Out)
 
 	// Add tenant t2
 	t2In := tenant.Tenant{Name: "t2", ExternalID: "t2"}
@@ -307,8 +330,8 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 		c.Error(err)
 	}
 	t2Id := t2Out.ID
-	c.Assert(t2Out.Seq, check.Equals, uint64(2))
-	myLog(c, "Tenant 2", t2Out)
+	c.Assert(t2Out.Seq, check.Equals, uint64(1))
+	myLog(c, "Tenant 2 %s", t2Out)
 
 	// Find first tenant
 	t1OutFound := tenant.Tenant{}
@@ -317,7 +340,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	if err != nil {
 		c.Error(err)
 	}
-	myLog(c, "Found", t1OutFound)
+	myLog(c, "Found %s", t1OutFound)
 
 	// Add segment s1 to tenant t1
 	tenant1SegmentPath := tenant1Path + "/segments"
@@ -327,7 +350,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	if err != nil {
 		c.Error(err)
 	}
-	myLog(c, "Added segment s1 to t1: %v", t1s1Out)
+	myLog(c, "Added segment s1 to t1: %s", t1s1Out)
 
 	// List segments
 	var segments []tenant.Segment
@@ -345,7 +368,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	if err != nil {
 		c.Error(err)
 	}
-	myLog(c, "Added segment s2 to t1: %v", t1s2Out)
+	myLog(c, "Added segment s2 to t1: %s", t1s2Out)
 
 	err = client.Get(tenant1SegmentPath, &segments)
 	if err != nil {
@@ -356,22 +379,22 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 
 	// Add segment s1 to tenant t2
 	tenant2Path := fmt.Sprintf("/tenants/%d", t2Id)
-	t2s1In := tenant.Segment{ExternalID: "s1", TenantID: t2Id}
+	t2s1In := tenant.Segment{ExternalID: "s1", Name: "s1", TenantID: t2Id}
 	t2s1Out := tenant.Segment{}
 	err = client.Post(tenant2Path+"/segments", t2s1In, &t2s1Out)
 	if err != nil {
 		c.Error(err)
 	}
-	myLog(c, "Added segment s1 to t2: %v", t2s1Out)
+	myLog(c, "Added segment s1 to t2: %s", t2s1Out)
 
 	// Add segment s2 to tenant t2
-	t2s2In := tenant.Segment{ExternalID: "s2", TenantID: t2Id}
+	t2s2In := tenant.Segment{ExternalID: "s2", Name: "s2", TenantID: t2Id}
 	t2s2Out := tenant.Segment{}
 	err = client.Post(tenant2Path+"/segments", t2s2In, &t2s2Out)
 	if err != nil {
 		c.Error(err)
 	}
-	myLog(c, "Added segment s2 to t2: %v", t2s2Out)
+	myLog(c, "Added segment s2 to t2: %s", t2s2Out)
 
 	// Get IP for t1, s1, h1
 	myLog(c, "IPAM Test: Get first IP")
@@ -385,7 +408,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	if err != nil {
 		c.Error(err)
 	}
-	myLog(c, "IPAM Test: Response from IPAM for %v is %v", t1s1h1EpIn, t1s1h1Ep1Out)
+	myLog(c, "IPAM Test: Response from IPAM for %s is %s", t1s1h1EpIn, t1s1h1Ep1Out)
 	c.Assert(t1s1h1Ep1Out.Ip, check.Equals, "10.0.0.3")
 
 	// Get another IP for t1, s1, h1
@@ -394,7 +417,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	if err != nil {
 		c.Error(err)
 	}
-	myLog(c, "IPAM Test: Response from IPAM for %v is %v", t1s1h1EpIn, t1s1h1Ep2Out)
+	myLog(c, "IPAM Test: Response from IPAM for %s is %s", t1s1h1EpIn, t1s1h1Ep2Out)
 	c.Assert(t1s1h1Ep2Out.Ip, check.Equals, "10.0.0.4")
 
 	// And another one for t1, s1, h1
@@ -403,7 +426,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	if err != nil {
 		c.Error(err)
 	}
-	myLog(c, "IPAM Test: Response from IPAM for %v is %v ", t1s1h1EpIn, t1s1h1Ep3Out)
+	myLog(c, "IPAM Test: Response from IPAM for %s is %s ", t1s1h1EpIn, t1s1h1Ep3Out)
 	c.Assert(t1s1h1Ep3Out.Ip, check.Equals, "10.0.0.5")
 
 	// Try deleting second...
@@ -414,7 +437,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 		c.Error(err)
 	}
 	c.Assert(delOut.Ip, check.Equals, t1s1h1Ep2Out.Ip)
-	myLog(c, "IPAM Test: Deletion returned %v", delOut)
+	myLog(c, "IPAM Test: Deletion returned %s", delOut)
 
 	// And add another one for t1, s1, h1
 	t1s1h1Ep4Out := ipam.Endpoint{}
@@ -424,7 +447,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	}
 	// Assert that this is the same as the deleted one.
 	c.Assert(delOut.Ip, check.Equals, t1s1h1Ep4Out.Ip)
-	myLog(c, "IPAM Test: Response from IPAM for %v is %v", t1s1h1EpIn, t1s1h1Ep4Out)
+	myLog(c, "IPAM Test: Response from IPAM for %s is %s", t1s1h1EpIn, t1s1h1Ep4Out)
 
 	// Get IP for t2, s2, h2
 	tenantId = fmt.Sprintf("%d", t2Out.ID)
@@ -435,13 +458,41 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	if err != nil {
 		c.Error(err)
 	}
-	myLog(c, "Response from IPAM for %v is %v", t2s2h2EpIn, t2s2h2EpOut)
+	myLog(c, "Response from IPAM for %s is %s", t2s2h2EpIn, t2s2h2EpOut)
 	// Expecting 17 because tenant 2 and segment 2: 1 << 12 | 1 << 4
 	c.Assert(t2s2h2EpOut.Ip, check.Equals, "10.1.17.3")
 
 	// Try legacy request using tenantName
 	endpointOut := ipam.Endpoint{}
 	legacyURL := "/allocateIP?tenantName=t1&segmentName=s1&hostName=HOST2000&instanceName=bla"
+	myLog(c, "Calling legacy URL %s", legacyURL)
+
+	err = client.Get(legacyURL, &endpointOut)
+
+	if err != nil {
+		myLog(c, "Error %s\n", err)
+		c.Error(err)
+	}
+	myLog(c, "Legacy received: %s", endpointOut)
+	myLog(c, "Legacy IP: %s", endpointOut.Ip)
+
+	// Try legacy request using tenantName with tenant 2
+	endpointOut = ipam.Endpoint{}
+	legacyURL = "/allocateIP?tenantName=t2&segmentName=s1&hostName=HOST2000&instanceName=bla"
+	myLog(c, "Calling legacy URL %s", legacyURL)
+	//	time.Sleep(time.Hour)
+	err = client.Get(legacyURL, &endpointOut)
+
+	if err != nil {
+		myLog(c, "Error %s\n", err)
+		c.Error(err)
+	}
+	myLog(c, "Legacy received: %s", endpointOut)
+	myLog(c, "Legacy IP: %s", endpointOut.Ip)
+
+	// Try legacy request using tenantName with tenant 2
+	endpointOut = ipam.Endpoint{}
+	legacyURL = "/allocateIP?tenantName=t2&segmentName=s1&hostName=HOST2000&instanceName=bla"
 	myLog(c, "Calling legacy URL", legacyURL)
 
 	err = client.Get(legacyURL, &endpointOut)
@@ -455,7 +506,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 
 	// Try legacy request using tenantID
 	legacyURL = "/allocateIP?tenantID=t1&segmentName=s1&hostName=HOST2000&instanceName=bla"
-	myLog(c, "Calling legacy URL", legacyURL)
+	myLog(c, "Calling legacy URL %s", legacyURL)
 
 	err = client.Get(legacyURL, &endpointOut)
 
@@ -463,6 +514,6 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 		myLog(c, "Error %s\n", err)
 		c.Error(err)
 	}
-	myLog(c, "Legacy received:", endpointOut)
-	myLog(c, "Legacy IP:", endpointOut.Ip)
+	myLog(c, "Legacy received: %s", endpointOut)
+	myLog(c, "Legacy IP: %s", endpointOut.Ip)
 }

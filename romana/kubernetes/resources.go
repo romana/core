@@ -121,6 +121,9 @@ func (e Event) handleNetworkPolicyEvent(l *kubeListener) {
 	}
 	policy, err := l.translateNetworkPolicy(&e.Object)
 	if err == nil {
+		j1, _ := json.Marshal(e)
+		j2, _ := json.Marshal(policy)
+		log.Printf("handleNetworkPolicyEvent(): translated\n\t%s\n\tto\n\t%s", j1, j2)
 		l.applyNetworkPolicy(action, policy)
 	} else {
 		log.Println(err)
@@ -188,12 +191,12 @@ func CreateDefaultPolicy(o KubeObject, l *kubeListener) {
 		log.Printf("In CreateDefaultPolicy :: Error :: failed to resolve tenant %s \n", err)
 	}
 
-	policyName := fmt.Sprintf("ns%d", tenant.ID)
+	policyName := fmt.Sprintf("ns%d", tenant.Seq)
 
 	romanaPolicy := &common.Policy{
 		Direction: common.PolicyDirectionIngress,
 		Name:      policyName,
-		AppliedTo: []common.Endpoint{{TenantNetworkID: tenant.ID}},
+		AppliedTo: []common.Endpoint{{TenantNetworkID: &tenant.Seq}},
 		Peers:     []common.Endpoint{{Peer: "any"}},
 		Rules:     []common.Rule{{Protocol: "any"}},
 	}
@@ -206,9 +209,9 @@ func CreateDefaultPolicy(o KubeObject, l *kubeListener) {
 		log.Printf("Handling default policy on a namespace %s, isolation is now %s \n", o.Metadata.Name, isolation)
 		switch isolation {
 		case "on":
-			desiredAction = networkPolicyActionAdd
-		case "off":
 			desiredAction = networkPolicyActionDelete
+		case "off":
+			desiredAction = networkPolicyActionAdd
 		default:
 			log.Printf("In CreateDefaultPolicy :: Error :: unrecognised annotation on a namespace %s is %s (expected on|off) \n",
 				o.Metadata.Name, isolation)
