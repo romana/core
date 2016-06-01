@@ -108,10 +108,10 @@ type Endpoint struct {
 	Cidr              net.IPNet `json:"-"`
 	TenantID          uint64    `json:"tenant_id,omitempty"`
 	TenantExternalID  string    `json:"tenant_external_id,omitempty"`
-	TenantNetworkID   uint64    `json:"tenant_network_id,omitempty"`
+	TenantNetworkID   *uint64   `json:"tenant_network_id,omitempty"`
 	SegmentID         uint64    `json:"segment_id,omitempty"`
 	SegmentExternalID string    `json:"segment_external_id,omitempty"`
-	SegmentNetworkID  uint64    `json:"segment_network_id,omitempty"`
+	SegmentNetworkID  *uint64   `json:"segment_network_id,omitempty"`
 }
 
 const (
@@ -300,7 +300,7 @@ func (p *Policy) Validate() error {
 
 	for i, endpoint := range p.AppliedTo {
 		epNo := i + 1
-		if endpoint.TenantExternalID == "" && endpoint.TenantID == 0 && endpoint.TenantNetworkID == 0 {
+		if endpoint.TenantExternalID == "" && endpoint.TenantID == 0 && endpoint.TenantNetworkID == nil {
 			errMsg = append(errMsg, fmt.Sprintf("applied_to entry #%d: at least one of tenant_id or tenant_external_id or tenant_network_id must be specified.", epNo))
 		}
 	}
@@ -310,7 +310,7 @@ func (p *Policy) Validate() error {
 			errMsg = append(errMsg, fmt.Sprintf("peers entry #%d: Invalid value for Any: '%s', only '' and %s allowed.", epNo, endpoint.Any, Wildcard))
 		}
 		if endpoint.SegmentID != 0 || endpoint.SegmentExternalID != "" {
-			if endpoint.TenantExternalID == "" && endpoint.TenantID == 0 && endpoint.TenantNetworkID == 0 {
+			if endpoint.TenantExternalID == "" && endpoint.TenantID == 0 && endpoint.TenantNetworkID == nil {
 				errMsg = append(errMsg, fmt.Sprintf("peers entry #%d: since segment_external_id is specified, at least one of tenant_id or tenant_external_id or tenant_network_id must be specified.", epNo))
 
 			}

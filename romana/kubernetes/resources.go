@@ -188,12 +188,12 @@ func CreateDefaultPolicy(o KubeObject, l *kubeListener) {
 		log.Printf("In CreateDefaultPolicy :: Error :: failed to resolve tenant %s \n", err)
 	}
 
-	policyName := fmt.Sprintf("ns%d", tenant.ID)
+	policyName := fmt.Sprintf("ns%d", tenant.Seq)
 
 	romanaPolicy := &common.Policy{
 		Direction: common.PolicyDirectionIngress,
 		Name:      policyName,
-		AppliedTo: []common.Endpoint{{TenantNetworkID: tenant.ID}},
+		AppliedTo: []common.Endpoint{{TenantNetworkID: &tenant.Seq}},
 		Peers:     []common.Endpoint{{Peer: "any"}},
 		Rules:     []common.Rule{{Protocol: "any"}},
 	}
