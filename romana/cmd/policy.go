@@ -32,6 +32,12 @@ import (
 	config "github.com/spf13/viper"
 )
 
+const (
+	MAX_UINT64 = ^uint64(0)
+)
+
+var policyID uint64
+
 // policyCmd represents the policy commands
 var policyCmd = &cli.Command{
 	Use:   "policy [add|remove|list]",
@@ -46,6 +52,7 @@ func init() {
 	policyCmd.AddCommand(policyAddCmd)
 	policyCmd.AddCommand(policyRemoveCmd)
 	policyCmd.AddCommand(policyListCmd)
+	policyRemoveCmd.Flags().Uint64VarP(&policyID, "policyid", "i", MAX_UINT64, "Policy ID")
 }
 
 var policyAddCmd = &cli.Command{
@@ -151,68 +158,89 @@ func policyAdd(cmd *cli.Command, args []string) error {
 	return nil
 }
 
-// policyRemove removes  policy for a specific tenant
-// using the policyName provided.
+// getPolicyIDs returns a slice of Policy IDs for a given
+// policy name, since multiple policies with same name
+// can exists.
+func getPolicyID(policyName string) (uint64, error) {
+	rootURL := config.GetString("RootURL")
+
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
+	if err != nil {
+		return 0, err
+	}
+
+	policyURL, err := client.GetServiceUrl("policy")
+	if err != nil {
+		return 0, err
+	}
+
+	var policy common.Policy
+	policyURL += fmt.Sprintf("/find/policies/%s", policyName)
+	err = client.Get(policyURL, &policy)
+	if err != nil {
+		return 0, err
+	}
+
+	return policy.ID, nil
+}
+
+// policyRemove removes policy using the policyName provided,
+// it return error if policy not found, or returns a list of
+// policy ID's if multiple policies with same name are found.
 func policyRemove(cmd *cli.Command, args []string) error {
-	if len(args) < 2 {
+	var policyName string
+	policyIDPresent := false
+
+	if policyID != MAX_UINT64 && len(args) == 0 {
+		policyIDPresent = true
+	} else if policyID == MAX_UINT64 && len(args) == 1 {
+		policyName = args[0]
+	} else {
 		return util.UsageError(cmd,
-			"TENANT and POLICY name should be provided.")
+			"POLICY_NAME (or --policyid <id> ) should be provided.")
 	}
 
-	tenantName := args[0]
-	policyNames := args[1:]
-	// Tenant check once adaptor add supports for it.
-	/*
-		if !adaptor.TenantExists(tnt) {
-			return errors.New("Tenant doesn't exists: " + tnt)
-		}
-	*/
+	rootURL := config.GetString("RootURL")
 
-	// TODO: handle user and versioning info according to
-	//       to policy service instead of encoding it in url.
-	var errs []error
-	kubeURL := (config.GetString("BaseURL") +
-		fmt.Sprintf(":8080/apis/romana.io/demo/v1"))
-	for _, policyName := range policyNames {
-		k := kubeURL + fmt.Sprintf("/namespaces/%s/networkpolicys/%s/",
-			tenantName, policyName)
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
+	if err != nil {
+		return err
+	}
 
-		req, err := http.NewRequest("DELETE", k, nil)
+	policyURL, err := client.GetServiceUrl("policy")
+	if err != nil {
+		return err
+	}
+
+	policyResp := common.Policy{}
+
+	if !policyIDPresent {
+		var err error
+
+		policyID, err = getPolicyID(policyName)
 		if err != nil {
 			return err
 		}
+	}
 
-		resp, err := http.DefaultClient.Do(req)
+	policyURL += fmt.Sprintf("/policies/%d", policyID)
+	err = client.Delete(policyURL, nil, &policyResp)
+	if err != nil {
+		return err
+	}
+
+	if config.GetString("Format") == "json" {
+		body, err := json.MarshalIndent(policyResp, "", "\t")
 		if err != nil {
 			return err
 		}
-		defer resp.Body.Close()
-
-		if config.GetString("Format") == "json" {
-			body, err := ioutil.ReadAll(resp.Body)
-			if err != nil {
-				return err
-			}
-			fmt.Printf(util.JSONIndent(string(body)))
+		fmt.Println(string(body))
+	} else {
+		if policyIDPresent {
+			fmt.Printf("Policy (ID: %d) deleted successfully.\n", policyID)
 		} else {
-			if resp.StatusCode == http.StatusOK {
-				fmt.Printf("Policy (%s) for Tenant (%s) successfully deleted.\n",
-					policyName, tenantName)
-			} else {
-				errs = append(errs,
-					fmt.Errorf("Error deleting Policy (%s) for Tenant (%s).",
-						policyName, tenantName))
-			}
+			fmt.Printf("Policy (%s) deleted successfully.\n", policyName)
 		}
-	}
-
-	if len(errs) != 0 {
-		lastErr := errs[len(errs)-1]
-		errs := errs[:len(errs)-1]
-		for _, e := range errs {
-			fmt.Printf("%v\n", e)
-		}
-		return lastErr
 	}
 
 	return nil
