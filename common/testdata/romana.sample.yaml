@@ -6,7 +6,7 @@ services:
     config:
       store: 
         type: sqlite3
-        database: /var/tmp/auth.sqlite3
+        database: :memory:
   - service: ipam
     api:
       host: localhost
@@ -14,7 +14,7 @@ services:
     config:
       store: 
         type: sqlite3
-        database: /var/tmp/ipam.sqlite3
+        database: :memory:
   - service: tenant
     api:
       host: localhost
@@ -22,7 +22,7 @@ services:
     config:
       store: 
         type: sqlite3
-        database: /var/tmp/tenant.sqlite3
+        database: :memory:
   - service: topology
     api:
       host: localhost
@@ -30,7 +30,7 @@ services:
     config:
       store: 
         type: sqlite3
-        database: /tmp/topology.sqlite3
+        database: :memory:
       datacenter: 
         ip_version: 4
         cidr: 10.0.0.0/8
@@ -64,7 +64,7 @@ services:
     config:
       store: 
         type: sqlite3
-        database: /var/tmp/policy.sqlite3      
+        database: :memory:
   - service: kubernetesListener 
     api:
       host: 0.0.0.0
