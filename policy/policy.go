@@ -58,6 +58,13 @@ func (policy *PolicySvc) Routes() common.Routes {
 			MakeMessage:     nil,
 			UseRequestToken: false,
 		},
+		common.Route{
+			Method:          "GET",
+			Pattern:         "/policies/{policyID}",
+			Handler:         policy.getPolicy,
+			MakeMessage:     nil,
+			UseRequestToken: false,
+		},
 	}
 	return routes
 }
@@ -85,8 +92,8 @@ func (policy *PolicySvc) augmentEndpoint(endpoint *common.Endpoint) error {
 		if err != nil {
 			return err
 		}
-		endpoint.TenantNetworkID = ten.Seq
-		log.Printf("Net ID from %s: %d", tenantsUrl, endpoint.TenantNetworkID)
+		endpoint.TenantNetworkID = &ten.Seq
+		log.Printf("Net ID from %s: %d", tenantsUrl, *endpoint.TenantNetworkID)
 	}
 
 	var segmentIDToUse string
@@ -102,8 +109,8 @@ func (policy *PolicySvc) augmentEndpoint(endpoint *common.Endpoint) error {
 		if err != nil {
 			return err
 		}
-		endpoint.SegmentNetworkID = segment.Seq
-		log.Printf("Net ID from %s: %d", tenantsUrl, endpoint.SegmentNetworkID)
+		endpoint.SegmentNetworkID = &segment.Seq
+		log.Printf("Net ID from %s: %d", tenantsUrl, *endpoint.SegmentNetworkID)
 	}
 
 	return nil
@@ -132,7 +139,7 @@ func (policy *PolicySvc) augmentPolicy(policyDoc *common.Policy) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("Policy server received datacenter information from topology service: %v\n", dc)
+	log.Printf("Policy server received datacenter information from topology service: %s\n", dc)
 	policyDoc.Datacenter = dc
 
 	for i, _ := range policyDoc.Rules {
@@ -169,6 +176,7 @@ func (policy *PolicySvc) distributePolicy(policyDoc *common.Policy) error {
 	for _, host := range hosts {
 		// TODO make schema configurable
 		url := fmt.Sprintf("http://%s:%d/policies", host.Ip, host.AgentPort)
+		log.Printf("Sending policy %s to agent at %s", policyDoc.Name, url)
 		result := make(map[string]interface{})
 		err = policy.client.Post(url, policyDoc, result)
 		log.Printf("Agent at %s returned %v", host.Ip, result)
@@ -182,6 +190,17 @@ func (policy *PolicySvc) distributePolicy(policyDoc *common.Policy) error {
 	return nil
 }
 
+func (policy *PolicySvc) getPolicy(input interface{}, ctx common.RestContext) (interface{}, error) {
+	idStr := ctx.PathVariables["policyID"]
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		return nil, common.NewError404("policy", idStr)
+	}
+	policyDoc, err := policy.store.getPolicy(id, false)
+	log.Printf("Found policy for ID %d: %s (%v)", id, policyDoc, err)
+	return policyDoc, err
+}
+
 // deletePolicy deletes policy...
 func (policy *PolicySvc) deletePolicy(input interface{}, ctx common.RestContext) (interface{}, error) {
 	idStr := ctx.PathVariables["policyID"]
@@ -193,8 +212,11 @@ func (policy *PolicySvc) deletePolicy(input interface{}, ctx common.RestContext)
 	if err != nil {
 		return nil, err
 	}
-	policyDoc, err := policy.store.getPolicy(id)
-
+	policyDoc, err := policy.store.getPolicy(id, true)
+	log.Printf("Found policy for ID %d: %s (%v)", id, policyDoc, err)
+	if err != nil {
+		return nil, err
+	}
 	hosts, err := policy.client.ListHosts()
 	if err != nil {
 		return nil, err
@@ -207,7 +229,7 @@ func (policy *PolicySvc) deletePolicy(input interface{}, ctx common.RestContext)
 		err = policy.client.Delete(url, policyDoc, result)
 		log.Printf("Agent at %s returned %v", host.Ip, result)
 		if err != nil {
-			errStr = append(errStr, fmt.Sprintf("Error deleting policy %s from host %s: %v. ", idStr, host.Ip, err))
+			errStr = append(errStr, fmt.Sprintf("Error deleting policy %s (%s) from host %s: %v. ", idStr, policyDoc.Name, host.Ip, err))
 		}
 	}
 	if len(errStr) > 0 {
@@ -217,8 +239,7 @@ func (policy *PolicySvc) deletePolicy(input interface{}, ctx common.RestContext)
 	if err != nil {
 		return nil, err
 	}
-	return nil, nil
-
+	return policyDoc, nil
 }
 
 // deletePolicy deletes policy...
@@ -229,23 +250,28 @@ func (policy *PolicySvc) listPolicies(input interface{}, ctx common.RestContext)
 // addPolicy stores the new policy and sends it to all agents.
 func (policy *PolicySvc) addPolicy(input interface{}, ctx common.RestContext) (interface{}, error) {
 	policyDoc := input.(*common.Policy)
-	log.Printf("Request for a new policy to be added: %v", policyDoc)
+	log.Printf("addPolicy(): Request for a new policy to be added: %s", policyDoc.Name)
 	err := policyDoc.Validate()
 	if err != nil {
+		log.Printf("addPolicy(): Error validating: %v", err)
 		return nil, err
 	}
 
 	err = policy.augmentPolicy(policyDoc)
 	if err != nil {
+		log.Printf("addPolicy(): Error augmenting: %v", err)
 		return nil, err
 	}
 	// Save it
 	err = policy.store.addPolicy(policyDoc)
 	if err != nil {
+		log.Printf("addPolicy(): Error storing: %v", err)
 		return nil, err
 	}
+	log.Printf("addPolicy(): Stored policy %s", policyDoc.Name)
 	err = policy.distributePolicy(policyDoc)
 	if err != nil {
+		log.Printf("addPolicy(): Error distributing: %v", err)
 		return nil, err
 	}
 	return policyDoc, nil

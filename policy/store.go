@@ -19,7 +19,7 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/romana/core/common"
-
+	"log"
 	"time"
 )
 
@@ -43,6 +43,7 @@ func (policyStore *policyStore) addPolicy(policyDoc *common.Policy) error {
 		return err
 	}
 	policyDoc.ID = policyDb.ID
+	log.Printf("addPolicy(): Stored %s with ID %d", policyDoc.Name, policyDb.ID)
 	return nil
 }
 
@@ -51,6 +52,9 @@ func (policyStore *policyStore) listPolicies() ([]common.Policy, error) {
 	var policies []common.Policy
 	db := policyStore.DbStore.Db.Find(&policyDb)
 	err := common.GetDbErrors(db)
+	if err != nil {
+		return policies, err
+	}
 	policies = make([]common.Policy, len(policyDb))
 	for i, p := range policyDb {
 		json.Unmarshal([]byte(p.Policy), &policies[i])
@@ -59,10 +63,24 @@ func (policyStore *policyStore) listPolicies() ([]common.Policy, error) {
 	return policies, err
 }
 
-func (policyStore *policyStore) getPolicy(id uint64) (common.Policy, error) {
+func (policyStore *policyStore) getPolicy(id uint64, markedDeleted bool) (common.Policy, error) {
+	policyDbEntry := PolicyDb{}
 	policyDoc := common.Policy{}
-	db := policyStore.DbStore.Db.Where("id = ?", id).First(&policyDoc)
-	err := common.GetDbErrors(db)
+	log.Printf("Looking up policy with id = %v (deleted: %v)", id, markedDeleted)
+	var err error
+	if markedDeleted {
+		db := policyStore.DbStore.Db.Unscoped().First(&policyDbEntry, "id = ?", id)
+		err = common.GetDbErrors(db)
+	} else {
+		db := policyStore.DbStore.Db.First(&policyDbEntry, "id = ?", id)
+		err = common.GetDbErrors(db)
+	}
+	if err != nil {
+		return policyDoc, err
+	}
+	log.Printf("Found %v, unmarshaling %s", policyDbEntry, policyDbEntry.Policy)
+	err = json.Unmarshal([]byte(policyDbEntry.Policy), &policyDoc)
+	policyDoc.ID = policyDbEntry.ID
 	return policyDoc, err
 }
 
@@ -78,24 +96,6 @@ func (policyStore *policyStore) inactivatePolicy(id uint64) error {
 		return err
 	}
 	return nil
-	//	tx := db.Begin()
-	//	err := common.GetDbErrors(db)
-	//	if err != nil {
-	//		return err
-	//	}
-	//
-	//	tx = tx.First(policy, "id = ?", id).Find(&policy)
-	//	err := common.GetDbErrors(db)
-	//	if err != nil {
-	//		tx.Rollback()
-	//		return err
-	//	}
-	//	tx = tx.Model(&policy).Update("is_active", false)
-	//	if err != nil {
-	//		tx.Rollback()
-	//		return err
-	//	}
-	//	tx.Commit()
 }
 
 func (policyStore *policyStore) deletePolicy(id uint64) error {
@@ -121,10 +121,16 @@ func (policyStore *policyStore) CreateSchemaPostProcess() error {
 type PolicyDb struct {
 	ID uint64 `sql:"AUTO_INCREMENT"`
 	// Policy document as JSON
-	Policy string `sql:"type:TEXT"`
+	Policy string `gorm:"type:varchar(8192)"`
 	// DeletedAt is for using soft delete functionality
 	// from http://jinzhu.me/gorm/curd.html#delete
 	DeletedAt *time.Time
+	//	Comment string `gorm:"type:varchar(8192)"`
+}
+
+// Name specifies a nicer-looking table name.
+func (PolicyDb) TableName() string {
+	return "policies"
 }
 
 // Entities implements Entities method of

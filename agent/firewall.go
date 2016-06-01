@@ -126,7 +126,9 @@ func (fw *Firewall) Init(netif NetIf) error {
 	}
 
 	tenantVectorChainName := fmt.Sprintf("ROMANA-T%d", fw.extractTenantID(ipToInt(netif.IP)))
-	tenantVectorRules := []string{}
+	tenantVectorRules := []string{
+		"-m state --state RELATED,ESTABLISHED",
+	}
 
 	fw.chains[inputChainIndex] = FirewallChain{"INPUT", []string{"i"}, inputRules, fw.prepareChainName("INPUT")}
 	fw.chains[outputChainIndex] = FirewallChain{"OUTPUT", []string{"o"}, outputRules, fw.prepareChainName("OUTPUT")}
@@ -235,11 +237,17 @@ func (fw *Firewall) CreateRules(chain int) error {
 	log.Print("Creating firewall rules for chain", chain)
 	for rule := range fw.chains[chain].rules {
 		chainName := fw.chains[chain].chainName
-		cmd := "/sbin/iptables"
-		args := []string{"-A", chainName}
-		args = append(args, strings.Split(fw.chains[chain].rules[rule], " ")...)
-		args = append(args, []string{"-j", "ACCEPT"}...)
-		_, err := fw.Agent.Helper.Executor.Exec(cmd, args)
+		/*
+			cmd := "/sbin/iptables"
+			args := []string{"-A", chainName}
+			args = append(args, strings.Split(fw.chains[chain].rules[rule], " ")...)
+			args = append(args, []string{"-j", "ACCEPT"}...)
+			_, err := fw.Agent.Helper.Executor.Exec(cmd, args)
+		*/
+		ruleSpec := []string{chainName}
+		ruleSpec = append(ruleSpec, strings.Split(fw.chains[chain].rules[rule], " ")...)
+		ruleSpec = append(ruleSpec, []string{"-j", "ACCEPT"}...)
+		err := fw.ensureIptablesRule(ruleSpec)
 		if err != nil {
 			log.Print("Creating firewall rules failed")
 			return err
@@ -276,9 +284,13 @@ func (fw *Firewall) CreateDefaultDropRule(chain int) error {
 func (fw *Firewall) CreateDefaultRule(chain int, target string) error {
 	log.Printf("Creating default %s rules for chain %d", target, chain)
 	chainName := fw.chains[chain].chainName
-	cmd := "/sbin/iptables"
-	args := []string{"-A", chainName, "-j", target}
-	_, err := fw.Agent.Helper.Executor.Exec(cmd, args)
+	/*
+		cmd := "/sbin/iptables"
+		args := []string{"-A", chainName, "-j", target}
+		_, err := fw.Agent.Helper.Executor.Exec(cmd, args)
+	*/
+	ruleSpec := []string{chainName, "-j", target}
+	err := fw.ensureIptablesRule(ruleSpec)
 	if err != nil {
 		log.Printf("Creating default %s rules failed", target)
 		return err
@@ -526,23 +538,26 @@ func provisionK8SFirewallRules(netReq NetworkRequest, agent *Agent) error {
 		log.Fatal("Failed to initialize firewall ", err)
 	}
 
-	err = fw.deleteChains()
-	if err != nil {
-		return err
-	}
+	/*
+		err = fw.deleteChains()
+		if err != nil {
+			return err
+		}
+	*/
 	missingChains := fw.detectMissingChains()
 	log.Print("Firewall: creating chains")
 	err = fw.CreateChains(missingChains)
 	if err != nil {
 		return err
 	}
-	for chain := range missingChains {
+	for chain := range fw.chains {
 		if err := fw.CreateRules(chain); err != nil {
 			return err
 		}
-		if err := fw.CreateDefaultDropRule(chain); err != nil {
-			return err
-		}
+	}
+
+	if err := fw.CreateDefaultDropRule(forwardOutChainIndex); err != nil {
+		return err
 	}
 
 	for chain := range fw.chains {
