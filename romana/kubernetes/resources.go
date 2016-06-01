@@ -209,9 +209,9 @@ func CreateDefaultPolicy(o KubeObject, l *kubeListener) {
 		log.Printf("Handling default policy on a namespace %s, isolation is now %s \n", o.Metadata.Name, isolation)
 		switch isolation {
 		case "on":
-			desiredAction = networkPolicyActionAdd
-		case "off":
 			desiredAction = networkPolicyActionDelete
+		case "off":
+			desiredAction = networkPolicyActionAdd
 		default:
 			log.Printf("In CreateDefaultPolicy :: Error :: unrecognised annotation on a namespace %s is %s (expected on|off) \n",
 				o.Metadata.Name, isolation)
