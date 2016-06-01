@@ -58,6 +58,13 @@ func (policy *PolicySvc) Routes() common.Routes {
 			MakeMessage:     nil,
 			UseRequestToken: false,
 		},
+		common.Route{
+			Method:          "GET",
+			Pattern:         "/policies/{policyID}",
+			Handler:         policy.getPolicy,
+			MakeMessage:     nil,
+			UseRequestToken: false,
+		},
 	}
 	return routes
 }
@@ -183,6 +190,17 @@ func (policy *PolicySvc) distributePolicy(policyDoc *common.Policy) error {
 	return nil
 }
 
+func (policy *PolicySvc) getPolicy(input interface{}, ctx common.RestContext) (interface{}, error) {
+	idStr := ctx.PathVariables["policyID"]
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		return nil, common.NewError404("policy", idStr)
+	}
+	policyDoc, err := policy.store.getPolicy(id, false)
+	log.Printf("Found policy for ID %d: %s (%v)", id, policyDoc, err)
+	return policyDoc, err
+}
+
 // deletePolicy deletes policy...
 func (policy *PolicySvc) deletePolicy(input interface{}, ctx common.RestContext) (interface{}, error) {
 	idStr := ctx.PathVariables["policyID"]
@@ -194,8 +212,11 @@ func (policy *PolicySvc) deletePolicy(input interface{}, ctx common.RestContext)
 	if err != nil {
 		return nil, err
 	}
-	policyDoc, err := policy.store.getPolicy(id)
-
+	policyDoc, err := policy.store.getPolicy(id, true)
+	log.Printf("Found policy for ID %d: %s (%v)", id, policyDoc, err)
+	if err != nil {
+		return nil, err
+	}
 	hosts, err := policy.client.ListHosts()
 	if err != nil {
 		return nil, err
@@ -208,7 +229,7 @@ func (policy *PolicySvc) deletePolicy(input interface{}, ctx common.RestContext)
 		err = policy.client.Delete(url, policyDoc, result)
 		log.Printf("Agent at %s returned %v", host.Ip, result)
 		if err != nil {
-			errStr = append(errStr, fmt.Sprintf("Error deleting policy %s from host %s: %v. ", idStr, host.Ip, err))
+			errStr = append(errStr, fmt.Sprintf("Error deleting policy %s (%s) from host %s: %v. ", idStr, policyDoc.Name, host.Ip, err))
 		}
 	}
 	if len(errStr) > 0 {
@@ -218,8 +239,7 @@ func (policy *PolicySvc) deletePolicy(input interface{}, ctx common.RestContext)
 	if err != nil {
 		return nil, err
 	}
-	return nil, nil
-
+	return policyDoc, nil
 }
 
 // deletePolicy deletes policy...
