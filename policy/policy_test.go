@@ -16,18 +16,15 @@
 package policy
 
 import (
-	"fmt"
-	"log"
-	//	"net/http"
-	//	"net/url"
-	"strconv"
-	"strings"
-	"testing"
-	//	"time"
 	"encoding/json"
+	"fmt"
 	"github.com/go-check/check"
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
+	"log"
+	"strconv"
+	"strings"
+	"testing"
 )
 
 func Test(t *testing.T) {
@@ -109,8 +106,23 @@ func (s *mockSvc) Routes() common.Routes {
 	}
 
 	// Simulate agent
-	agentRoute := common.Route{
+	agentAddPolicyRoute := common.Route{
 		Method:  "POST",
+		Pattern: "/policies",
+		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
+			log.Printf("Agent received policy: %v", input)
+			policyDoc := input.(*common.Policy)
+			log.Printf("Agent received policy: %s", policyDoc.Name)
+			if policyDoc.Datacenter.TenantBits == 0 {
+				return nil, common.NewError400("Datacenter information invalid.")
+			}
+			return nil, nil
+		},
+		MakeMessage: func() interface{} { return &common.Policy{} },
+	}
+
+	agentDeletePolicyRoute := common.Route{
+		Method:  "DELETE",
 		Pattern: "/policies",
 		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
 			log.Printf("Agent received policy: %v", input)
@@ -208,7 +220,8 @@ func (s *mockSvc) Routes() common.Routes {
 		policyConfigRoute,
 		dcRoute,
 		hostsRoute,
-		agentRoute,
+		agentAddPolicyRoute,
+		agentDeletePolicyRoute,
 	}
 	log.Printf("mockService: Set up routes: %#v", routes)
 	return routes
@@ -258,14 +271,55 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	if err != nil {
 		panic(err)
 	}
-	result := make(map[string]interface{})
 	polURL := "http://" + svcInfo.Address + "/policies"
-	policy := common.Policy{}
-	err = json.Unmarshal([]byte(romanaPolicy), &policy)
+	policyIn := common.Policy{}
+	err = json.Unmarshal([]byte(romanaPolicy), &policyIn)
 	if err != nil {
 		panic(err)
 	}
-	err = client.Post(polURL, policy, result)
+	policyOut := common.Policy{}
+	err = client.Post(polURL, policyIn, &policyOut)
+	if err != nil {
+		panic(err)
+	}
+	log.Printf("Added policy result: %s", policyOut)
+	c.Assert(policyOut.Name, check.Equals, "pol1")
+	c.Assert(policyOut.ID, check.Equals, uint64(1))
+
+	// Test list policies - should have one.
+	var policies []common.Policy
+	err = client.Get(polURL, &policies)
+	if err != nil {
+		panic(err)
+	}
+	c.Assert(len(policies), check.Equals, 1)
+	c.Assert(policies[0].Name, check.Equals, "pol1")
+
+	// Test get policy
+	policyGet := common.Policy{}
+	err = client.Get(polURL+"/1", &policyGet)
+	if err != nil {
+		panic(err)
+	}
+	c.Assert(policyGet.Name, check.Equals, policies[0].Name)
+
+	// Test delete
+	policyOut = common.Policy{}
+	err = client.Delete(polURL+"/1", nil, &policyOut)
+	if err != nil {
+		panic(err)
+	}
+	log.Printf("Deleted policy result: %s", policyOut)
+	c.Assert(policyOut.Name, check.Equals, "pol1")
+	c.Assert(policyOut.ID, check.Equals, uint64(1))
+
+	// Test list policies - should have 0 now.
+	err = client.Get(polURL, &policies)
+	if err != nil {
+		panic(err)
+	}
+	c.Assert(len(policies), check.Equals, 0)
+
 }
 
 const (
