@@ -16,11 +16,12 @@ package policy
 
 import (
 	"encoding/json"
-
-	_ "github.com/go-sql-driver/mysql"
-	"github.com/romana/core/common"
 	"log"
 	"time"
+
+	"github.com/romana/core/common"
+
+	_ "github.com/go-sql-driver/mysql"
 )
 
 type policyStore struct {
@@ -96,6 +97,29 @@ func (policyStore *policyStore) inactivatePolicy(id uint64) error {
 		return err
 	}
 	return nil
+}
+
+// findPolicyByName returns first found policy corresponding to policy
+// name provided. Policy names are not unique, thus the return
+// value is the first policy found in the list of policies present.
+func (policyStore *policyStore) findPolicyByName(name string) (common.Policy, error) {
+	var policyDb []PolicyDb
+	var policies []common.Policy
+	log.Println("In findPoliciesByName()")
+	db := policyStore.DbStore.Db.Find(&policyDb)
+	err := common.GetDbErrors(db)
+	if err != nil {
+		return common.Policy{}, err
+	}
+	policies = make([]common.Policy, len(policyDb))
+	for i, p := range policyDb {
+		json.Unmarshal([]byte(p.Policy), &policies[i])
+		if policies[i].Name == name {
+			policies[i].ID = p.ID
+			return policies[i], nil
+		}
+	}
+	return common.Policy{}, common.NewError404("policy", name)
 }
 
 func (policyStore *policyStore) deletePolicy(id uint64) error {
