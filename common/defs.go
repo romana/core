@@ -234,9 +234,6 @@ func validateRules(rules Rules) []string {
 		} else if !isValidProto(r.Protocol) {
 			errMsg = append(errMsg, fmt.Sprintf("Rule #%d: Invalid protocol: %s.", ruleNo, r.Protocol))
 		}
-		if r.Protocol == "tcp" {
-			rules[i].IsStateful = true
-		}
 		if r.Protocol == "tcp" || r.Protocol == "udp" {
 			badRanges := make([]string, 0)
 			for _, portRange := range r.PortRanges {
