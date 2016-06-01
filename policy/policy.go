@@ -85,7 +85,7 @@ func (policy *PolicySvc) augmentEndpoint(endpoint *common.Endpoint) error {
 		if err != nil {
 			return err
 		}
-		*endpoint.TenantNetworkID = ten.Seq
+		endpoint.TenantNetworkID = &ten.Seq
 		log.Printf("Net ID from %s: %d", tenantsUrl, *endpoint.TenantNetworkID)
 	}
 
@@ -102,7 +102,7 @@ func (policy *PolicySvc) augmentEndpoint(endpoint *common.Endpoint) error {
 		if err != nil {
 			return err
 		}
-		*endpoint.SegmentNetworkID = segment.Seq
+		endpoint.SegmentNetworkID = &segment.Seq
 		log.Printf("Net ID from %s: %d", tenantsUrl, *endpoint.SegmentNetworkID)
 	}
 
