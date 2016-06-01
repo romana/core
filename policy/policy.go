@@ -132,7 +132,7 @@ func (policy *PolicySvc) augmentPolicy(policyDoc *common.Policy) error {
 	if err != nil {
 		return err
 	}
-	log.Printf("Policy server received datacenter information from topology service: %v\n", dc)
+	log.Printf("Policy server received datacenter information from topology service: %s\n", dc)
 	policyDoc.Datacenter = dc
 
 	for i, _ := range policyDoc.Rules {
@@ -169,6 +169,7 @@ func (policy *PolicySvc) distributePolicy(policyDoc *common.Policy) error {
 	for _, host := range hosts {
 		// TODO make schema configurable
 		url := fmt.Sprintf("http://%s:%d/policies", host.Ip, host.AgentPort)
+		log.Printf("Sending policy %s to agent at %s", policyDoc.Name, url)
 		result := make(map[string]interface{})
 		err = policy.client.Post(url, policyDoc, result)
 		log.Printf("Agent at %s returned %v", host.Ip, result)
@@ -229,23 +230,28 @@ func (policy *PolicySvc) listPolicies(input interface{}, ctx common.RestContext)
 // addPolicy stores the new policy and sends it to all agents.
 func (policy *PolicySvc) addPolicy(input interface{}, ctx common.RestContext) (interface{}, error) {
 	policyDoc := input.(*common.Policy)
-	log.Printf("Request for a new policy to be added: %v", policyDoc)
+	log.Printf("addPolicy(): Request for a new policy to be added: %s", policyDoc.Name)
 	err := policyDoc.Validate()
 	if err != nil {
+		log.Printf("addPolicy(): Error validating: %v", err)
 		return nil, err
 	}
 
 	err = policy.augmentPolicy(policyDoc)
 	if err != nil {
+		log.Printf("addPolicy(): Error augmenting: %v", err)
 		return nil, err
 	}
 	// Save it
 	err = policy.store.addPolicy(policyDoc)
 	if err != nil {
+		log.Printf("addPolicy(): Error storing: %v", err)
 		return nil, err
 	}
+	log.Printf("addPolicy(): Stored policy %s", policyDoc.Name)
 	err = policy.distributePolicy(policyDoc)
 	if err != nil {
+		log.Printf("addPolicy(): Error distributing: %v", err)
 		return nil, err
 	}
 	return policyDoc, nil

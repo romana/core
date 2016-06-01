@@ -19,7 +19,7 @@ import (
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/romana/core/common"
-
+	"log"
 	"time"
 )
 
@@ -43,6 +43,7 @@ func (policyStore *policyStore) addPolicy(policyDoc *common.Policy) error {
 		return err
 	}
 	policyDoc.ID = policyDb.ID
+	log.Printf("addPolicy(): Stored %s with ID %d", policyDoc.Name, policyDb.ID)
 	return nil
 }
 
@@ -120,10 +121,15 @@ func (policyStore *policyStore) CreateSchemaPostProcess() error {
 type PolicyDb struct {
 	ID uint64 `sql:"AUTO_INCREMENT"`
 	// Policy document as JSON
-	Policy string
+	Policy string `sql:"TEXT"`
 	// DeletedAt is for using soft delete functionality
 	// from http://jinzhu.me/gorm/curd.html#delete
 	DeletedAt *time.Time
+}
+
+// Name specifies a nicer-looking table name.
+func (PolicyDb) Name() string {
+	return "policy"
 }
 
 // Entities implements Entities method of

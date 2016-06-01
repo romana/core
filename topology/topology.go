@@ -45,14 +45,15 @@ const (
 
 // Routes returns various routes used in the service.
 func (topology *TopologySvc) Routes() common.Routes {
+	infoRouteIndex := common.Route{
+		Method:          "GET",
+		Pattern:         "/",
+		Handler:         topology.handleIndex,
+		MakeMessage:     nil,
+		UseRequestToken: false,
+	}
 	routes := common.Routes{
-		common.Route{
-			Method:          "GET",
-			Pattern:         "/",
-			Handler:         topology.handleIndex,
-			MakeMessage:     nil,
-			UseRequestToken: false,
-		},
+		infoRouteIndex,
 		common.Route{
 			Method:          "GET",
 			Pattern:         hostListPath,
