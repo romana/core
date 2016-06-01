@@ -18,10 +18,10 @@ package common
 // Definitions of common structures.
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"strings"
-	"encoding/json"
 )
 
 // Here we only keep type definitions and struct definitions with no behavior.
