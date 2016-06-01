@@ -32,28 +32,31 @@ type PolicySvc struct {
 }
 
 const (
-	infoListPath = "/info"
+	infoListPath       = "/info"
+	findPath           = "/find"
+	policiesPath       = "/policies"
+	policyNameQueryVar = "policyName"
 )
 
 func (policy *PolicySvc) Routes() common.Routes {
 	routes := common.Routes{
 		common.Route{
 			Method:          "POST",
-			Pattern:         "/policies",
+			Pattern:         policiesPath,
 			Handler:         policy.addPolicy,
 			MakeMessage:     func() interface{} { return &common.Policy{} },
 			UseRequestToken: false,
 		},
 		common.Route{
 			Method:          "DELETE",
-			Pattern:         "/policies/{policyID}",
+			Pattern:         policiesPath + "/{policyID}",
 			Handler:         policy.deletePolicy,
 			MakeMessage:     nil,
 			UseRequestToken: false,
 		},
 		common.Route{
 			Method:          "GET",
-			Pattern:         "/policies",
+			Pattern:         policiesPath,
 			Handler:         policy.listPolicies,
 			MakeMessage:     nil,
 			UseRequestToken: false,
@@ -64,6 +67,11 @@ func (policy *PolicySvc) Routes() common.Routes {
 			Handler:         policy.getPolicy,
 			MakeMessage:     nil,
 			UseRequestToken: false,
+		},
+		common.Route{
+			Method:  "GET",
+			Pattern: findPath + policiesPath + "/{policyName}",
+			Handler: policy.findPolicyByName,
 		},
 	}
 	return routes
@@ -245,6 +253,23 @@ func (policy *PolicySvc) deletePolicy(input interface{}, ctx common.RestContext)
 // deletePolicy deletes policy...
 func (policy *PolicySvc) listPolicies(input interface{}, ctx common.RestContext) (interface{}, error) {
 	return policy.store.listPolicies()
+}
+
+// findPolicyByName returns the first policy found corresponding
+// to the given policy name. Policy names are not unique unlike
+// policy ID's.
+func (policy *PolicySvc) findPolicyByName(input interface{}, ctx common.RestContext) (interface{}, error) {
+	nameStr := ctx.PathVariables["policyName"]
+	log.Printf("In findPolicy(%s)\n", nameStr)
+	if nameStr == "" {
+		return nil, common.NewError("Expected policy name, got %s", nameStr)
+	}
+
+	policies, err := policy.store.findPolicyByName(nameStr)
+	if err != nil {
+		return nil, err
+	}
+	return policies, nil
 }
 
 // addPolicy stores the new policy and sends it to all agents.
