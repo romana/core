@@ -254,7 +254,7 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	s.serviceURL = fmt.Sprintf("http://%s", svcInfo.Address)
 	log.Printf("Test: Mock service listens at %s\n", s.serviceURL)
 	err = CreateSchema(s.serviceURL, true)
-	
+
 	if err != nil {
 		panic(err)
 	}
@@ -403,7 +403,6 @@ func (s *MySuite) TestPolicy(c *check.C) {
 		panic("Expected error")
 	}
 	log.Printf("%v", err)
-	
 
 }
 

@@ -56,6 +56,3 @@
 [submodule "vendor/github.com/rackspace/gophercloud"]
 	path = vendor/github.com/rackspace/gophercloud
 	url = https://github.com/rackspace/gophercloud
-[submodule "vendor/github.com/xyproto/jpath"]
-	path = vendor/github.com/xyproto/jpath
-	url = https://github.com/xyproto/jpath.git
