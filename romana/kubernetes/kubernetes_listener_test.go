@@ -16,7 +16,11 @@
 package kubernetes
 
 import (
+	"encoding/json"
 	"fmt"
+	"github.com/go-check/check"
+	"github.com/romana/core/common"
+	"github.com/romana/core/tenant"
 	"log"
 	"net/http"
 	"net/url"
@@ -24,10 +28,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-	"encoding/json"
-	"github.com/go-check/check"
-	"github.com/romana/core/common"
-	"github.com/romana/core/tenant"
 )
 
 func Test(t *testing.T) {
@@ -136,8 +136,6 @@ func (s *mockSvc) Routes() common.Routes {
 			return common.Raw{Body: json}, nil
 		},
 	}
-
-
 
 	tenantAddRoute := common.Route{
 		Method:  "POST",
