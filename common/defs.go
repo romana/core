@@ -303,6 +303,11 @@ func validateRules(rules Rules) []string {
 // TODO As a reference I'm using
 // https://docs.google.com/spreadsheets/d/1vN-EnZqJnIp8krY1cRf6VzRPkO9_KNYLW0QOfw2k1Mo/edit
 // which we'll remove from this comment once finalized.
+// This also mutates the policy to ensure the following:
+// 1. If only one of Name, External ID is specified, then the unspecified field is populated from the
+//    specified one.
+// TODO mutation is probably a bad idea for a method called Validate(); however, this behavior is 
+// probably a good idea, as it is a sort of DWIM. Maybe keep behavior, rename this to ValidateAndNormalize()?
 func (p *Policy) Validate() error {
 	var errMsg []string
 	// 1. Validate that direction is one of the allowed two values.
@@ -333,10 +338,20 @@ func (p *Policy) Validate() error {
 		if endpoint.SegmentID != 0 || endpoint.SegmentExternalID != "" {
 			if endpoint.TenantExternalID == "" && endpoint.TenantID == 0 && endpoint.TenantNetworkID == nil {
 				errMsg = append(errMsg, fmt.Sprintf("peers entry #%d: since segment_external_id is specified, at least one of tenant_id or tenant_external_id or tenant_network_id must be specified.", epNo))
-
 			}
 		}
 	}
+
+	// 5. Validate name/external ID
+	// TODO add test
+	if p.Name == "" && p.ExternalID == "" {
+		errMsg = append(errMsg, "At least one of name, external_id must be specified.")
+	} else if p.Name == "" {
+		p.Name = p.ExternalID
+	} else {
+		p.ExternalID = p.Name
+	}
+
 	if len(errMsg) == 0 {
 		return nil
 	} else {
