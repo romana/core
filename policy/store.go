@@ -29,9 +29,13 @@ type policyStore struct {
 }
 
 func (policyStore *policyStore) addPolicy(policyDoc *common.Policy) error {
+	// TODO ensure uniqueness of datacenter/external ID combination.
+	// TODO assume that external ID is taken from name if not specified.
+	// At least one must be specified.
 	json, err := json.Marshal(policyDoc)
 	policyDb := &PolicyDb{}
 	policyDb.Policy = string(json)
+	policyDb.ExternalID = policyDoc.ExternalID
 	db := policyStore.DbStore.Db
 	db.Create(policyDb)
 	err = common.GetDbErrors(db)
@@ -64,6 +68,19 @@ func (policyStore *policyStore) listPolicies() ([]common.Policy, error) {
 	return policies, err
 }
 
+func (policyStore *policyStore) lookupPolicy(externalID string, dcID uint64) (uint64, error) {
+	policyDbEntry := PolicyDb{}
+	log.Printf("Looking up policy with id = %s ", externalID)
+	db := policyStore.DbStore.Db.First(&policyDbEntry, "external_id = ?", externalID)
+	err := common.GetDbErrors(db)
+
+	// TODO return proper error (404) in case not found.
+	if err != nil {
+		return 0, err
+	}
+	return policyDbEntry.ID, nil
+}
+
 func (policyStore *policyStore) getPolicy(id uint64, markedDeleted bool) (common.Policy, error) {
 	policyDbEntry := PolicyDb{}
 	policyDoc := common.Policy{}
@@ -76,11 +93,15 @@ func (policyStore *policyStore) getPolicy(id uint64, markedDeleted bool) (common
 		db := policyStore.DbStore.Db.First(&policyDbEntry, "id = ?", id)
 		err = common.GetDbErrors(db)
 	}
+	// TODO return proper error (404) in case not found.
 	if err != nil {
 		return policyDoc, err
 	}
 	log.Printf("Found %v, unmarshaling %s", policyDbEntry, policyDbEntry.Policy)
 	err = json.Unmarshal([]byte(policyDbEntry.Policy), &policyDoc)
+	if err != nil {
+		return policyDoc, err
+	}
 	policyDoc.ID = policyDbEntry.ID
 	return policyDoc, err
 }
@@ -145,7 +166,9 @@ func (policyStore *policyStore) CreateSchemaPostProcess() error {
 type PolicyDb struct {
 	ID uint64 `sql:"AUTO_INCREMENT"`
 	// Policy document as JSON
-	Policy string `gorm:"type:varchar(8192)"`
+	Policy       string `sql:"type:TEXT"`
+	ExternalID   string
+	DatacenterID string
 	// DeletedAt is for using soft delete functionality
 	// from http://jinzhu.me/gorm/curd.html#delete
 	DeletedAt *time.Time
