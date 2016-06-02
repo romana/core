@@ -302,7 +302,8 @@ func (l *kubeListener) resolveTenantByName(tenantName string) (*tenant.Tenant, s
 // 2. If Romana Tenant does not exist it is an error (a tenant should
 //    automatically have been created when the namespace was added)
 func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Policy, error) {
-	romanaPolicy := &common.Policy{Direction: common.PolicyDirectionIngress, Name: kubePolicy.Metadata.Name}
+	policyName := kubePolicy.Metadata.Name
+	romanaPolicy := &common.Policy{Direction: common.PolicyDirectionIngress, Name: policyName, ExternalID: policyName}
 	ns := kubePolicy.Metadata.Namespace
 	// TODO actually look up tenant K8S ID.
 	t, tenantURL, err := l.resolveTenantByName(ns)

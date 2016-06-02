@@ -272,8 +272,10 @@ func (s *MySuite) TestPolicy(c *check.C) {
 		panic(err)
 	}
 	polURL := "http://" + svcInfo.Address + "/policies"
+
+	// 1. Add policy "pol1"
 	policyIn := common.Policy{}
-	err = json.Unmarshal([]byte(romanaPolicy), &policyIn)
+	err = json.Unmarshal([]byte(romanaPolicy1), &policyIn)
 	if err != nil {
 		panic(err)
 	}
@@ -286,16 +288,30 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	c.Assert(policyOut.Name, check.Equals, "pol1")
 	c.Assert(policyOut.ID, check.Equals, uint64(1))
 
-	// Test list policies - should have one.
+	// 2. Add policy "pol2"
+	err = json.Unmarshal([]byte(romanaPolicy2), &policyIn)
+	if err != nil {
+		panic(err)
+	}
+	err = client.Post(polURL, policyIn, &policyOut)
+	if err != nil {
+		panic(err)
+	}
+	log.Printf("Added policy result: %s", policyOut)
+	c.Assert(policyOut.Name, check.Equals, "pol2")
+	c.Assert(policyOut.ID, check.Equals, uint64(2))
+
+	// 3. Test list policies - should have 2.
 	var policies []common.Policy
 	err = client.Get(polURL, &policies)
 	if err != nil {
 		panic(err)
 	}
-	c.Assert(len(policies), check.Equals, 1)
+	c.Assert(len(policies), check.Equals, 2)
 	c.Assert(policies[0].Name, check.Equals, "pol1")
+	c.Assert(policies[1].Name, check.Equals, "pol2")
 
-	// Test get policy
+	// 4. Test get policy
 	policyGet := common.Policy{}
 	err = client.Get(polURL+"/1", &policyGet)
 	if err != nil {
@@ -303,7 +319,7 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	}
 	c.Assert(policyGet.Name, check.Equals, policies[0].Name)
 
-	// Test delete
+	// 5. Test delete by ID - delete policy 1
 	policyOut = common.Policy{}
 	err = client.Delete(polURL+"/1", nil, &policyOut)
 	if err != nil {
@@ -313,7 +329,30 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	c.Assert(policyOut.Name, check.Equals, "pol1")
 	c.Assert(policyOut.ID, check.Equals, uint64(1))
 
-	// Test list policies - should have 0 now.
+	// 6. Test list policies - should have 1 now - only pol2.
+	err = client.Get(polURL, &policies)
+	if err != nil {
+		panic(err)
+	}
+	c.Assert(len(policies), check.Equals, 1)
+	c.Assert(policies[0].Name, check.Equals, "pol2")
+
+	log.Printf("6.Test delete by ExternalID - delete policy 2")
+	err = json.Unmarshal([]byte(romanaPolicy2), &policyIn)
+	if err != nil {
+		panic(err)
+	}
+	log.Printf("Unmarshaled %s to %v", romanaPolicy2, policyIn)
+	policyOut = common.Policy{}
+	err = client.Delete(polURL, policyIn, &policyOut)
+	if err != nil {
+		panic(err)
+	}
+	log.Printf("Deleted policy result: %s", policyOut)
+	c.Assert(policyOut.Name, check.Equals, policyIn.Name)
+	c.Assert(policyOut.ID, check.Equals, uint64(2))
+
+	// 7. Test list policies - should have 0 now - only pol2.
 	err = client.Get(polURL, &policies)
 	if err != nil {
 		panic(err)
@@ -323,9 +362,35 @@ func (s *MySuite) TestPolicy(c *check.C) {
 }
 
 const (
-	romanaPolicy = `{
+	romanaPolicy1 = `{
 	"direction":"ingress",
 	"name":"pol1",
+	"datacenter":{	"id":0 },
+	"applied_to":[
+					{
+					 "tenant_id":1,
+					 "segment_id":1
+					 }
+				  ],
+  	"peers":[
+     {
+      "tenant_id":1,
+      "tenant_external_id":"default",
+	  "segment_id":2,
+	  "segment_external_id":"frontend"
+	  }
+	],
+  	"rules":[
+            {
+            "protocol":"tcp",
+            "ports":[80]
+            }
+      ]
+   }`
+
+	romanaPolicy2 = `{
+	"direction":"ingress",
+	"name":"pol2",
 	"datacenter":{	"id":0 },
 	"applied_to":[
 					{
