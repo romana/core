@@ -228,7 +228,7 @@ func (policy *PolicySvc) deletePolicyHandler(input interface{}, ctx common.RestC
 			return nil, err
 		}
 		id, err := policy.store.lookupPolicy(policyDoc.ExternalID, policyDoc.Datacenter.Id)
-		log.Printf("Found %d from external ID %s", id, policyDoc.ExternalID)
+		log.Printf("Found %d / %v (%T) from external ID %s", id, err, err, policyDoc.ExternalID)
 		if err != nil {
 			return nil, err
 		}

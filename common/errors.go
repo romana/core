@@ -39,7 +39,7 @@ type HttpError struct {
 	// ResourceId specifies the relevant resource ID, if applicable
 	ResourceID string `json:"resource_id,omitempty"`
 	// ResourceId specifies the relevant resource type, if applicable
-	ResourceType string `json:"resource_id,omitempty"`
+	ResourceType string `json:"resource_type,omitempty"`
 	SeeAlso      string `json:"see_also, omitempty"`
 }
 
@@ -68,10 +68,19 @@ func NewError500(details interface{}) HttpError {
 	retval := HttpError{StatusCode: http.StatusInternalServerError}
 	switch details := details.(type) {
 	case *exec.ExitError:
-
 		retval.Details = ExecErrorDetails{Error: details.Error()} //, Stderr: string(details.Stderr)}
+	case *MultiError:
+		errors := details.GetErrors()
+		if len(errors) > 0 {
+			arr := make([]string, len(errors))
+			for i, e := range errors {
+				arr[i] = e.Error()
+			}
+			retval.Details = arr
+		} else {
+			retval.Details = "Unknown error."
+		}
 	default:
-
 		retval.Details = details
 	}
 	return retval
@@ -142,6 +151,10 @@ func NewMultiError() *MultiError {
 	return &MultiError{}
 }
 
+func (m *MultiError) GetErrors() []error {
+	return m.errors
+}
+
 // GetError returns nil if there are no
 // underlying errors, the single error if there is
 // only one, and the MultiError object if there is
@@ -181,9 +194,6 @@ func GetDbErrors(db *gorm.DB) error {
 			return nil
 		}
 	} else {
-		if db.Error != nil {
-			errors = append(errors, db.Error)
-		}
 		return MakeMultiError(errors)
 	}
 }
