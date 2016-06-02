@@ -282,7 +282,7 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 	var reqBody []byte
 	if data != nil {
 		reqBody, err = json.Marshal(data)
-//		log.Printf("Marshaled %v to %s", data, string(reqBody))
+		//		log.Printf("Marshaled %v to %s", data, string(reqBody))
 		if err != nil {
 			return err
 		}

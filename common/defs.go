@@ -181,7 +181,7 @@ type Policy struct {
 	Direction string `json:"direction,omitempty"`
 	// Description is human-redable description of the policy.
 	Description string `json:"description,omitempty"`
-	// Name is human-readable name for this policy. 
+	// Name is human-readable name for this policy.
 	Name string `json:"name"`
 	// ID is Romana-generated unique (within Romana deployment) ID of this policy,
 	// to be used in REST requests. It will be ignored when set by user.
