@@ -377,8 +377,7 @@ func (l *kubeListener) applyNetworkPolicy(action networkPolicyAction, romanaNetw
 		}
 	case networkPolicyActionDelete:
 		log.Printf("Deleting policy policy %s", policyStr)
-		policyURL = fmt.Sprintf("%s/%d", policyURL, romanaNetworkPolicy.ID)
-		err := l.restClient.Delete(policyURL, nil, &romanaNetworkPolicy)
+		err := l.restClient.Delete(policyURL, romanaNetworkPolicy, &romanaNetworkPolicy)
 		if err != nil {
 			return err
 		}
