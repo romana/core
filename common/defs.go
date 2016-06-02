@@ -306,7 +306,7 @@ func validateRules(rules Rules) []string {
 // This also mutates the policy to ensure the following:
 // 1. If only one of Name, External ID is specified, then the unspecified field is populated from the
 //    specified one.
-// TODO mutation is probably a bad idea for a method called Validate(); however, this behavior is 
+// TODO mutation is probably a bad idea for a method called Validate(); however, this behavior is
 // probably a good idea, as it is a sort of DWIM. Maybe keep behavior, rename this to ValidateAndNormalize()?
 func (p *Policy) Validate() error {
 	var errMsg []string

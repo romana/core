@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io/ioutil"
@@ -24,12 +25,18 @@ import (
 	"os"
 	"text/tabwriter"
 
+	"github.com/romana/core/common"
 	"github.com/romana/core/romana/util"
 
 	cli "github.com/spf13/cobra"
 	config "github.com/spf13/viper"
-	"github.com/xyproto/jpath"
 )
+
+const (
+	MAX_UINT64 = ^uint64(0)
+)
+
+var policyID uint64
 
 // policyCmd represents the policy commands
 var policyCmd = &cli.Command{
@@ -45,6 +52,7 @@ func init() {
 	policyCmd.AddCommand(policyAddCmd)
 	policyCmd.AddCommand(policyRemoveCmd)
 	policyCmd.AddCommand(policyListCmd)
+	policyRemoveCmd.Flags().Uint64VarP(&policyID, "policyid", "i", MAX_UINT64, "Policy ID")
 }
 
 var policyAddCmd = &cli.Command{
@@ -56,7 +64,7 @@ var policyAddCmd = &cli.Command{
 }
 
 var policyRemoveCmd = &cli.Command{
-	Use:          "remove [tenantName][policyName1][policyName2...]",
+	Use:          "remove [policyName]",
 	Short:        "Remove a specific policy.",
 	Long:         `Remove a specific policy.`,
 	RunE:         policyRemove,
@@ -150,144 +158,143 @@ func policyAdd(cmd *cli.Command, args []string) error {
 	return nil
 }
 
-// policyRemove removes kubernetes policy for a specific tenant
-// using the policyName provided.
+// getPolicyIDs returns a slice of Policy IDs for a given
+// policy name, since multiple policies with same name
+// can exists.
+func getPolicyID(policyName string) (uint64, error) {
+	rootURL := config.GetString("RootURL")
+
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
+	if err != nil {
+		return 0, err
+	}
+
+	policyURL, err := client.GetServiceUrl("policy")
+	if err != nil {
+		return 0, err
+	}
+
+	var policy common.Policy
+	policyURL += fmt.Sprintf("/find/policies/%s", policyName)
+	err = client.Get(policyURL, &policy)
+	if err != nil {
+		return 0, err
+	}
+
+	return policy.ID, nil
+}
+
+// policyRemove removes policy using the policyName provided,
+// it return error if policy not found, or returns a list of
+// policy ID's if multiple policies with same name are found.
 func policyRemove(cmd *cli.Command, args []string) error {
-	if len(args) < 2 {
+	var policyName string
+	policyIDPresent := false
+
+	if policyID != MAX_UINT64 && len(args) == 0 {
+		policyIDPresent = true
+	} else if policyID == MAX_UINT64 && len(args) == 1 {
+		policyName = args[0]
+	} else {
 		return util.UsageError(cmd,
-			"TENANT and POLICY name should be provided.")
+			"POLICY_NAME (or --policyid <id> ) should be provided.")
 	}
 
-	tenantName := args[0]
-	policyNames := args[1:]
-	// Tenant check once adaptor add supports for it.
-	/*
-		if !adaptor.TenantExists(tnt) {
-			return errors.New("Tenant doesn't exists: " + tnt)
-		}
-	*/
+	rootURL := config.GetString("RootURL")
 
-	// TODO: handle user and versioning info according to
-	//       to policy service instead of encoding it in url.
-	var errs []error
-	kubeURL := (config.GetString("BaseURL") +
-		fmt.Sprintf(":8080/apis/romana.io/demo/v1"))
-	for _, policyName := range policyNames {
-		k := kubeURL + fmt.Sprintf("/namespaces/%s/networkpolicys/%s/",
-			tenantName, policyName)
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
+	if err != nil {
+		return err
+	}
 
-		req, err := http.NewRequest("DELETE", k, nil)
+	policyURL, err := client.GetServiceUrl("policy")
+	if err != nil {
+		return err
+	}
+
+	policyResp := common.Policy{}
+
+	if !policyIDPresent {
+		var err error
+
+		policyID, err = getPolicyID(policyName)
 		if err != nil {
 			return err
 		}
+	}
 
-		resp, err := http.DefaultClient.Do(req)
+	policyURL += fmt.Sprintf("/policies/%d", policyID)
+	err = client.Delete(policyURL, nil, &policyResp)
+	if err != nil {
+		return err
+	}
+
+	if config.GetString("Format") == "json" {
+		body, err := json.MarshalIndent(policyResp, "", "\t")
 		if err != nil {
 			return err
 		}
-		defer resp.Body.Close()
-
-		if config.GetString("Format") == "json" {
-			body, err := ioutil.ReadAll(resp.Body)
-			if err != nil {
-				return err
-			}
-			fmt.Printf(util.JSONIndent(string(body)))
+		fmt.Println(string(body))
+	} else {
+		if policyIDPresent {
+			fmt.Printf("Policy (ID: %d) deleted successfully.\n", policyID)
 		} else {
-			if resp.StatusCode == http.StatusOK {
-				fmt.Printf("Policy (%s) for Tenant (%s) successfully deleted.\n",
-					policyName, tenantName)
-			} else {
-				errs = append(errs,
-					fmt.Errorf("Error deleting Policy (%s) for Tenant (%s).",
-						policyName, tenantName))
-			}
+			fmt.Printf("Policy (%s) deleted successfully.\n", policyName)
 		}
-	}
-
-	if len(errs) != 0 {
-		lastErr := errs[len(errs)-1]
-		errs := errs[:len(errs)-1]
-		for _, e := range errs {
-			fmt.Printf("%v\n", e)
-		}
-		return lastErr
 	}
 
 	return nil
 }
 
-// policyList lists kubernetes policies for a specific tenant.
+// policyList lists policies for a specific tenant.
 func policyList(cmd *cli.Command, args []string) error {
-	if len(args) != 1 {
-		return util.UsageError(cmd,
-			"TENANT name should be provided.")
-	}
+	rootURL := config.GetString("RootURL")
 
-	tenantName := args[0]
-	// Tenant check once adaptor add supports for it.
-	/*
-		if !adaptor.TenantExists(tnt) {
-			return errors.New("Tenant doesn't exists: " + tnt)
-		}
-	*/
-
-	// TODO: handle user and versioning info according to
-	//       to policy service instead of encoding it in url.
-	kubeURL := (config.GetString("BaseURL") +
-		fmt.Sprintf(":8080/apis/romana.io/demo/v1/namespaces/%s/networkpolicys/",
-			tenantName))
-
-	var data bytes.Reader
-	req, err := http.NewRequest("GET", kubeURL, &data)
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
 	if err != nil {
 		return err
 	}
 
-	resp, err := http.DefaultClient.Do(req)
+	policyURL, err := client.GetServiceUrl("policy")
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+
+	policies := []common.Policy{}
+	err = client.Get(policyURL+"/policies", &policies)
+	if err != nil {
+		return err
+	}
 
 	if config.GetString("Format") == "json" {
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := json.MarshalIndent(policies, "", "\t")
 		if err != nil {
 			return err
 		}
-		fmt.Printf(util.JSONIndent(string(body)))
+		fmt.Println(string(body))
 	} else {
-		if resp.StatusCode == http.StatusOK {
-			b, err := ioutil.ReadAll(resp.Body)
-			if err != nil {
-				return err
-			}
-
-			js, err := jpath.New(b)
-			if err != nil {
-				return err
-			}
-
-			w := new(tabwriter.Writer)
-			w.Init(os.Stdout, 0, 8, 0, '\t', 0)
-			fmt.Printf("Policy List for Tenant (%s):\n", tenantName)
-			fmt.Fprintln(w, "Id\t",
-				"Policy Name\t",
-				"UUID\t",
+		w := new(tabwriter.Writer)
+		w.Init(os.Stdout, 0, 8, 0, '\t', 0)
+		fmt.Println("Policy List")
+		fmt.Fprintln(w, "Id\t",
+			"Policy\t",
+			"Direction\t",
+			"Tenant ID\t",
+			"Segment ID\t",
+			"ExternalID\t",
+			"Description\t",
+		)
+		for _, p := range policies {
+			fmt.Fprintln(w, p.ID, "\t",
+				p.Name, "\t",
+				p.Direction, "\t",
+				p.AppliedTo[0].TenantID, "\t",
+				p.AppliedTo[0].SegmentID, "\t",
+				p.ExternalID, "\t",
+				p.Description, "\t",
 			)
-			for k, v := range js.Get("items").NodeList() {
-				name := v.Get("metadata", "name").String()
-				uid := v.Get("metadata", "uid").String()
-				fmt.Fprintf(w, "%d \t %s \t %s \t", k,
-					name, uid)
-				fmt.Fprintf(w, "\n")
-				w.Flush()
-
-			}
-		} else {
-			return fmt.Errorf("Error listing policies for Tenant (%s).",
-				tenantName)
 		}
+		w.Flush()
 	}
 
 	return nil
