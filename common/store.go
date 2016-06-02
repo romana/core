@@ -140,7 +140,7 @@ func (dbStore *DbStore) getConnString() string {
 		if info.Port == 0 {
 			portStr = ":3306"
 		}
-		connStr = fmt.Sprintf("%s:%s@tcp(%s%s)/%s", info.Username, info.Password, info.Host, portStr, info.Database)
+		connStr = fmt.Sprintf("%s:%s@tcp(%s%s)/%s?parseTime=true", info.Username, info.Password, info.Host, portStr, info.Database)
 	}
 	log.Printf("DB: Connection string: %s", connStr)
 	return connStr
