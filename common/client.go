@@ -282,7 +282,7 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 	var reqBody []byte
 	if data != nil {
 		reqBody, err = json.Marshal(data)
-//		log.Printf("Marshaled %v to %s", data, string(reqBody))
+		log.Printf("RestClient.execMethod(): Marshaled %T %v to %s", data, data, string(reqBody))
 		if err != nil {
 			return err
 		}
@@ -365,15 +365,26 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 	if err != nil {
 		errStr = err.Error()
 	}
-	log.Printf("\n\t=================================\n\t%s %s\n\t%s\n\t\n\t%s\n\t%s\n\t=================================", method, rc.url, reqBodyStr, bodyStr, errStr)
+	log.Printf("\n\t=================================\n\t%s %s\n\t%s\n\n\t%s\n\tERROR: <%s>\n\t=================================", method, rc.url, reqBodyStr, bodyStr, errStr)
 
 	if err != nil {
 		return err
 	}
+
 	var unmarshalBodyErr error
+
+	//	TODO deal properly with 3xx
+	//	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
+	//		log.Printf("3xx: %d %v", resp.StatusCode, resp.Header)
+	//	}
+	//
 	if result != nil {
-		unmarshalBodyErr = json.Unmarshal(body, &result)
+		if body == nil {
+		} else {
+			unmarshalBodyErr = json.Unmarshal(body, &result)
+		}
 	}
+
 	if resp.StatusCode >= 400 {
 		// The body should be an HTTP error
 		httpError := &HttpError{}
