@@ -49,9 +49,16 @@ func (policy *PolicySvc) Routes() common.Routes {
 		},
 		common.Route{
 			Method:          "DELETE",
+			Pattern:         policiesPath,
+			Handler:         policy.deletePolicyHandler,
+			MakeMessage:     func() interface{} { return &common.Policy{} },
+			UseRequestToken: false,
+		},
+		common.Route{
+			Method:          "DELETE",
 			Pattern:         policiesPath + "/{policyID}",
-			Handler:         policy.deletePolicy,
-			MakeMessage:     nil,
+			Handler:         policy.deletePolicyHandler,
+			MakeMessage:     func() interface{} { return &common.Policy{} },
 			UseRequestToken: false,
 		},
 		common.Route{
@@ -63,7 +70,7 @@ func (policy *PolicySvc) Routes() common.Routes {
 		},
 		common.Route{
 			Method:          "GET",
-			Pattern:         "/policies/{policyID}",
+			Pattern:         policiesPath + "/{policyID}",
 			Handler:         policy.getPolicy,
 			MakeMessage:     nil,
 			UseRequestToken: false,
@@ -209,14 +216,40 @@ func (policy *PolicySvc) getPolicy(input interface{}, ctx common.RestContext) (i
 	return policyDoc, err
 }
 
-// deletePolicy deletes policy...
-func (policy *PolicySvc) deletePolicy(input interface{}, ctx common.RestContext) (interface{}, error) {
-	idStr := ctx.PathVariables["policyID"]
-	id, err := strconv.ParseUint(idStr, 10, 64)
-	if err != nil {
-		return nil, common.NewError404("policy", idStr)
+func (policy *PolicySvc) deletePolicyHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
+	idStr := strings.TrimSpace(ctx.PathVariables["policyID"])
+	if idStr == "" {
+		if input == nil {
+			return nil, common.NewError400("Request must either be to /policies/{policyID} or have a body.")
+		}
+		policyDoc := input.(*common.Policy)
+		err := policyDoc.Validate()
+		if err != nil {
+			return nil, err
+		}
+		id, err := policy.store.lookupPolicy(policyDoc.ExternalID, policyDoc.Datacenter.Id)
+		log.Printf("Found %d from external ID %s", id, policyDoc.ExternalID)
+		if err != nil {
+			return nil, err
+		}
+		return policy.deletePolicy(id)
+	} else {
+		if input != nil {
+			common.NewError400("Request must either be to /policies/{policyID} or have a body.")
+		}
+		id, err := strconv.ParseUint(idStr, 10, 64)
+		if err != nil {
+			return nil, common.NewError404("policy", idStr)
+		}
+		return policy.deletePolicy(id)
 	}
-	err = policy.store.inactivatePolicy(id)
+}
+
+// deletePolicy deletes policy based the following algorithm:
+//1. Mark the policy as "deleted" in the backend store.
+func (policy *PolicySvc) deletePolicy(id uint64) (interface{}, error) {
+	// TODO do we need this to be transactional or not ... case can be made for either.
+	err := policy.store.inactivatePolicy(id)
 	if err != nil {
 		return nil, err
 	}
@@ -237,7 +270,7 @@ func (policy *PolicySvc) deletePolicy(input interface{}, ctx common.RestContext)
 		err = policy.client.Delete(url, policyDoc, result)
 		log.Printf("Agent at %s returned %v", host.Ip, result)
 		if err != nil {
-			errStr = append(errStr, fmt.Sprintf("Error deleting policy %s (%s) from host %s: %v. ", idStr, policyDoc.Name, host.Ip, err))
+			errStr = append(errStr, fmt.Sprintf("Error deleting policy %d (%s) from host %s: %v. ", id, policyDoc.Name, host.Ip, err))
 		}
 	}
 	if len(errStr) > 0 {

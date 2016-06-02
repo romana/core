@@ -284,29 +284,35 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 			}
 
 			if inData != nil {
-				log.Printf("httpHandler: inData addr: %d\n", &inData)
+				log.Printf("httpHandler %s %s: inData addr: %d\n", route.Method, route.Pattern, &inData)
 				ct := request.Header.Get("content-type")
 				buf, err := ioutil.ReadAll(request.Body)
-				bufStr = string(buf)
-				log.Printf("Read %s\n", bufStr)
-				if err != nil {
-					// Error reading...
-					write500(writer, marshaller, err)
-				}
-
-				if unmarshaller, ok := ContentTypeMarshallers[ct]; ok {
-					err = unmarshaller.Unmarshal(buf, inData)
+				if buf == nil || len(buf) == 0 {
+					// Null input
+					inData = nil
+				} else {
+					bufStr = string(buf)
+					log.Printf("Read %s\n", bufStr)
 					if err != nil {
-						// Error unmarshalling...
-						write400(writer, marshaller, err)
+						// Error reading...
+						write500(writer, marshaller, err)
+					}
+
+					if unmarshaller, ok := ContentTypeMarshallers[ct]; ok {
+						log.Printf("httpHandler %s %s: Attempting to unmarshal [%s] into %T", route.Method, route.Pattern, string(buf), inData)
+						err = unmarshaller.Unmarshal(buf, inData)
+						if err != nil {
+							// Error unmarshalling...
+							write400(writer, marshaller, err)
+							return
+						}
+					} else {
+						// Cannot unmarshal
+						dataOut, _ := marshaller.Marshal(supportedContentTypesMessage)
+						writer.WriteHeader(http.StatusNotAcceptable)
+						writer.Write(dataOut)
 						return
 					}
-				} else {
-					// Cannot unmarshal
-					dataOut, _ := marshaller.Marshal(supportedContentTypesMessage)
-					writer.WriteHeader(http.StatusNotAcceptable)
-					writer.Write(dataOut)
-					return
 				}
 			}
 
