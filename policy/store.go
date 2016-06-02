@@ -70,8 +70,10 @@ func (policyStore *policyStore) lookupPolicy(externalID string, dcID uint64) (ui
 	policyDbEntry := PolicyDb{}
 	log.Printf("Looking up policy with id = %s ", externalID)
 	db := policyStore.DbStore.Db.First(&policyDbEntry, "external_id = ?", externalID)
+	if db.RecordNotFound() {
+		return 0, common.NewError404("policy", externalID)
+	}
 	err := common.GetDbErrors(db)
-
 	// TODO return proper error (404) in case not found.
 	if err != nil {
 		return 0, err
@@ -86,9 +88,15 @@ func (policyStore *policyStore) getPolicy(id uint64, markedDeleted bool) (common
 	var err error
 	if markedDeleted {
 		db := policyStore.DbStore.Db.Unscoped().First(&policyDbEntry, "id = ?", id)
+		if db.RecordNotFound() {
+			return policyDoc, common.NewError404("policy", string(id))
+		}
 		err = common.GetDbErrors(db)
 	} else {
 		db := policyStore.DbStore.Db.First(&policyDbEntry, "id = ?", id)
+		if db.RecordNotFound() {
+			return policyDoc, common.NewError404("policy", string(id))
+		}
 		err = common.GetDbErrors(db)
 	}
 	// TODO return proper error (404) in case not found.
@@ -111,6 +119,9 @@ func (policyStore *policyStore) inactivatePolicy(id uint64) error {
 	policyDb := &PolicyDb{}
 	db := policyStore.DbStore.Db
 	db = db.Where("id = ?", id).Delete(policyDb)
+	if db.RecordNotFound() {
+		return common.NewError404("policy", string(id))
+	}
 	err := common.GetDbErrors(db)
 	if err != nil {
 		return err
@@ -122,6 +133,9 @@ func (policyStore *policyStore) deletePolicy(id uint64) error {
 	policyDb := &PolicyDb{}
 	db := policyStore.DbStore.Db
 	db = db.Unscoped().Where("id = ?", id).Delete(policyDb)
+	if db.RecordNotFound() {
+		return common.NewError404("policy", string(id))
+	}
 	err := common.GetDbErrors(db)
 	if err != nil {
 		return err
@@ -141,8 +155,8 @@ func (policyStore *policyStore) CreateSchemaPostProcess() error {
 type PolicyDb struct {
 	ID uint64 `sql:"AUTO_INCREMENT"`
 	// Policy document as JSON
-	Policy string `gorm:"type:varchar(8192)"`
-	ExternalID string
+	Policy       string `gorm:"type:varchar(8192)"`
+	ExternalID   string
 	DatacenterID string
 	// DeletedAt is for using soft delete functionality
 	// from http://jinzhu.me/gorm/curd.html#delete

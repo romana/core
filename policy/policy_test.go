@@ -376,6 +376,7 @@ func (s *MySuite) TestPolicy(c *check.C) {
 		panic(err)
 	}
 	c.Assert(len(policies), check.Equals, 1)
+	c.Assert(policies[0].Name, check.Equals, "default")
 
 	log.Println("10. Test delete by ExternalID - delete default policy")
 	policyOut = common.Policy{}
@@ -393,6 +394,15 @@ func (s *MySuite) TestPolicy(c *check.C) {
 		panic(err)
 	}
 	c.Assert(len(policies), check.Equals, 0)
+
+	log.Println("12. Test delete by ExternalID - delete default policy - should be n error now")
+	policyOut = common.Policy{}
+	err = client.Delete(polURL, defPol, &policyOut)
+	if err == nil {
+		panic("Expected error")
+	}
+	log.Printf("%v", err)
+	
 
 }
 
