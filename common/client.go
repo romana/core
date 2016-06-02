@@ -363,9 +363,9 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 	}
 	errStr := ""
 	if err != nil {
-		errStr = err.Error()
+		errStr = fmt.Sprintf("ERROR: <%v>", err)
 	}
-	log.Printf("\n\t=================================\n\t%s %s\n\t%s\n\n\t%s\n\tERROR: <%s>\n\t=================================", method, rc.url, reqBodyStr, bodyStr, errStr)
+	log.Printf("\n\t=================================\n\t%s %s\n\t%s\n\n\t%s\n\t%s\n\t=================================", method, rc.url, reqBodyStr, bodyStr, errStr)
 
 	if err != nil {
 		return err

@@ -140,7 +140,7 @@ func (dbStore *DbStore) getConnString() string {
 		if info.Port == 0 {
 			portStr = ":3306"
 		}
-		connStr = fmt.Sprintf("%s:%s@tcp(%s%s)/%s", info.Username, info.Password, info.Host, portStr, info.Database)
+		connStr = fmt.Sprintf("%s:%s@tcp(%s%s)/%s?parseTime=true", info.Username, info.Password, info.Host, portStr, info.Database)
 	}
 	log.Printf("DB: Connection string: %s", connStr)
 	return connStr
@@ -197,7 +197,7 @@ func createSchemaSqlite3(dbStore *DbStore, force bool) error {
 	entities := dbStore.ServiceStore.Entities()
 	log.Printf("Creating tables for %v", entities)
 	for _, entity := range entities {
-		log.Printf("sqlite3: Creating table %T", entity)
+		log.Printf("sqlite3: Creating table for %T", entity)
 		db := dbStore.Db.CreateTable(entity)
 		if db.Error != nil {
 			return db.Error
