@@ -50,6 +50,9 @@ const (
 
 	targetDrop   = "DROP"
 	targetAccept = "ACCEPT"
+
+	bottomRule = 0
+	topRule    = 1
 )
 
 // Firewall describes state of firewall rules for the given endpoint.
@@ -193,10 +196,18 @@ func (fw *Firewall) CreateChains(newChains []int) error {
 }
 
 // ensureIptablesRule verifies if given iptables rule exists and creates if it's not.
-func (fw *Firewall) ensureIptablesRule(ruleSpec []string) error {
+func (fw *Firewall) ensureIptablesRule(ruleSpec []string, ruleOrder int) error {
 	if !fw.isRuleExist(ruleSpec) {
 		cmd := "/sbin/iptables"
-		args := []string{"-A"}
+		args := []string{}
+
+		switch ruleOrder {
+		case bottomRule:
+			args = append(args, []string{"-A"}...)
+		case topRule:
+			args = append(args, []string{"-I"}...)
+		}
+
 		args = append(args, ruleSpec...)
 		_, err := fw.Agent.Helper.Executor.Exec(cmd, args)
 		if err != nil {
@@ -222,7 +233,7 @@ func (fw *Firewall) DivertTrafficToRomanaIptablesChain(chain int) error {
 		direction := fmt.Sprintf("-%s", directionLiteral)
 		chainName := fw.chains[chain].chainName
 		ruleSpec := []string{baseChain, direction, fw.interfaceName, "-j", chainName}
-		if err := fw.ensureIptablesRule(ruleSpec); err != nil {
+		if err := fw.ensureIptablesRule(ruleSpec, bottomRule); err != nil {
 			log.Print("Diverting traffic failed", chain)
 			return err
 		}
@@ -247,7 +258,7 @@ func (fw *Firewall) CreateRules(chain int) error {
 		ruleSpec := []string{chainName}
 		ruleSpec = append(ruleSpec, strings.Split(fw.chains[chain].rules[rule], " ")...)
 		ruleSpec = append(ruleSpec, []string{"-j", "ACCEPT"}...)
-		err := fw.ensureIptablesRule(ruleSpec)
+		err := fw.ensureIptablesRule(ruleSpec, topRule)
 		if err != nil {
 			log.Print("Creating firewall rules failed")
 			return err
@@ -290,7 +301,7 @@ func (fw *Firewall) CreateDefaultRule(chain int, target string) error {
 		_, err := fw.Agent.Helper.Executor.Exec(cmd, args)
 	*/
 	ruleSpec := []string{chainName, "-j", target}
-	err := fw.ensureIptablesRule(ruleSpec)
+	err := fw.ensureIptablesRule(ruleSpec, bottomRule)
 	if err != nil {
 		log.Printf("Creating default %s rules failed", target)
 		return err
