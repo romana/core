@@ -197,7 +197,7 @@ func createSchemaSqlite3(dbStore *DbStore, force bool) error {
 	entities := dbStore.ServiceStore.Entities()
 	log.Printf("Creating tables for %v", entities)
 	for _, entity := range entities {
-		log.Printf("sqlite3: Creating table %T", entity)
+		log.Printf("sqlite3: Creating table for %T", entity)
 		db := dbStore.Db.CreateTable(entity)
 		if db.Error != nil {
 			return db.Error

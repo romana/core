@@ -155,7 +155,7 @@ func (policyStore *policyStore) CreateSchemaPostProcess() error {
 type PolicyDb struct {
 	ID uint64 `sql:"AUTO_INCREMENT"`
 	// Policy document as JSON
-	Policy       string `gorm:"type:varchar(8192)"`
+	Policy       string `sql:"type:TEXT"`
 	ExternalID   string
 	DatacenterID string
 	// DeletedAt is for using soft delete functionality
