@@ -365,7 +365,7 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 	if err != nil {
 		errStr = fmt.Sprintf("ERROR: <%v>", err)
 	}
-	log.Printf("\n\t=================================\n\t%s %s\n\t%s\n\n\t%s\n\t%s\n\t=================================", method, rc.url, reqBodyStr, bodyStr, errStr)
+	log.Printf("\n\t=================================\n\t%s %s: %d\n\t%s\n\n\t%s\n\t%s\n\t=================================", method, rc.url, resp.StatusCode, reqBodyStr, bodyStr, errStr)
 
 	if err != nil {
 		return err
