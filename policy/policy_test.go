@@ -22,6 +22,7 @@ import (
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
 	"log"
+	"net/http"
 	"strconv"
 	"strings"
 	"testing"
@@ -303,10 +304,11 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	c.Assert(policyOut.ID, check.Equals, uint64(2))
 
 	log.Println("3. Add default policy")
+	one := uint64(1)
 	defPol := common.Policy{
 		Direction: common.PolicyDirectionIngress,
 		Name:      "default",
-		AppliedTo: []common.Endpoint{{TenantNetworkID: 1}},
+		AppliedTo: []common.Endpoint{{TenantNetworkID: &one}},
 		Peers:     []common.Endpoint{{Peer: "any"}},
 		Rules:     []common.Rule{{Protocol: "any"}},
 	}
@@ -379,7 +381,23 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	c.Assert(len(policies), check.Equals, 1)
 	c.Assert(policies[0].Name, check.Equals, "default")
 
-	log.Println("10. Test delete by ExternalID - delete default policy")
+	log.Println("10. Test find by name policies - should find it")
+	findURL := "http://" + svcInfo.Address + "/find/policies"
+	err = client.Get(findURL + "/default", &policyOut)
+	if err != nil {
+		panic(err)
+	}
+	c.Assert(policyOut.Name, check.Equals, "default")
+
+	log.Println("11. Test find by name policies with non-existent policy - should NOT find it")
+	err = client.Get(findURL + "/blabla", &policyOut)
+	httpErr := err.(common.HttpError)
+	c.Assert(httpErr.ResourceType, check.Equals, "policy")
+	c.Assert(httpErr.StatusCode, check.Equals, http.StatusNotFound)
+	c.Assert(httpErr.ResourceID, check.Equals, "blabla")
+	log.Printf("%v", err)
+
+	log.Println("12. Test delete by ExternalID - delete default policy")
 	policyOut = common.Policy{}
 	err = client.Delete(polURL, defPol, &policyOut)
 	if err != nil {
@@ -389,19 +407,23 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	c.Assert(policyOut.Name, check.Equals, defPol.Name)
 	c.Assert(policyOut.ID, check.Equals, uint64(3))
 
-	log.Println("11. Test list policies - should have 0 now")
+	log.Println("13. Test list policies - should have 0 now")
 	err = client.Get(polURL, &policies)
 	if err != nil {
 		panic(err)
 	}
 	c.Assert(len(policies), check.Equals, 0)
 
-	log.Println("12. Test delete by ExternalID - delete default policy - should be n error now")
+	log.Println("14. Test delete by ExternalID - delete default policy - should be Not Found error now")
 	policyOut = common.Policy{}
 	err = client.Delete(polURL, defPol, &policyOut)
 	if err == nil {
 		panic("Expected error")
 	}
+	httpErr = err.(common.HttpError)
+	c.Assert(httpErr.ResourceType, check.Equals, "policy")
+	c.Assert(httpErr.StatusCode, check.Equals, http.StatusNotFound)
+	c.Assert(httpErr.ResourceID, check.Equals, "default")
 	log.Printf("%v", err)
 
 }

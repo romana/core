@@ -145,7 +145,10 @@ func (policyStore *policyStore) findPolicyByName(name string) (common.Policy, er
 	}
 	policies = make([]common.Policy, len(policyDb))
 	for i, p := range policyDb {
-		json.Unmarshal([]byte(p.Policy), &policies[i])
+		err = json.Unmarshal([]byte(p.Policy), &policies[i])
+		if err != nil {
+			return common.Policy{}, err
+		}
 		if policies[i].Name == name {
 			policies[i].ID = p.ID
 			return policies[i], nil
