@@ -289,6 +289,7 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	log.Printf("Added policy result: %s", policyOut)
 	c.Assert(policyOut.Name, check.Equals, "pol1")
 	c.Assert(policyOut.ID, check.Equals, uint64(1))
+	c.Assert(client.GetStatusCode(), check.Equals, 200)
 
 	log.Println("2. Add policy pol2")
 	err = json.Unmarshal([]byte(romanaPolicy2), &policyIn)
@@ -300,6 +301,7 @@ func (s *MySuite) TestPolicy(c *check.C) {
 		panic(err)
 	}
 	log.Printf("Added policy result: %s", policyOut)
+	c.Assert(client.GetStatusCode(), check.Equals, 200)
 	c.Assert(policyOut.Name, check.Equals, "pol2")
 	c.Assert(policyOut.ID, check.Equals, uint64(2))
 
@@ -317,6 +319,7 @@ func (s *MySuite) TestPolicy(c *check.C) {
 		panic(err)
 	}
 	log.Printf("Added policy result: %s", policyOut)
+	c.Assert(client.GetStatusCode(), check.Equals, 200)
 	c.Assert(policyOut.Name, check.Equals, "default")
 	c.Assert(policyOut.ID, check.Equals, uint64(3))
 
@@ -327,6 +330,7 @@ func (s *MySuite) TestPolicy(c *check.C) {
 		panic(err)
 	}
 	c.Assert(len(policies), check.Equals, 3)
+	c.Assert(client.GetStatusCode(), check.Equals, 200)
 	c.Assert(policies[0].Name, check.Equals, "pol1")
 	c.Assert(policies[1].Name, check.Equals, "pol2")
 	c.Assert(policies[2].Name, check.Equals, "default")
@@ -338,6 +342,7 @@ func (s *MySuite) TestPolicy(c *check.C) {
 		panic(err)
 	}
 	c.Assert(policyGet.Name, check.Equals, policies[0].Name)
+	c.Assert(client.GetStatusCode(), check.Equals, 200)
 
 	log.Println("6. Test delete by ID - delete pol1")
 	policyOut = common.Policy{}
@@ -348,6 +353,7 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	log.Printf("Deleted policy result: %s", policyOut)
 	c.Assert(policyOut.Name, check.Equals, "pol1")
 	c.Assert(policyOut.ID, check.Equals, uint64(1))
+	c.Assert(client.GetStatusCode(), check.Equals, 200)
 
 	log.Println("7. Test list policies - should have 2 now - pol2 and default.")
 	err = client.Get(polURL, &policies)
@@ -357,6 +363,7 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	c.Assert(len(policies), check.Equals, 2)
 	c.Assert(policies[0].Name, check.Equals, "pol2")
 	c.Assert(policies[1].Name, check.Equals, "default")
+	c.Assert(client.GetStatusCode(), check.Equals, 200)
 
 	log.Println("8. Test delete by ExternalID - delete policy 2")
 	err = json.Unmarshal([]byte(romanaPolicy2), &policyIn)
@@ -370,6 +377,7 @@ func (s *MySuite) TestPolicy(c *check.C) {
 		panic(err)
 	}
 	log.Printf("Deleted policy result: %s", policyOut)
+	c.Assert(client.GetStatusCode(), check.Equals, 200)
 	c.Assert(policyOut.Name, check.Equals, policyIn.Name)
 	c.Assert(policyOut.ID, check.Equals, uint64(2))
 
@@ -378,20 +386,22 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	if err != nil {
 		panic(err)
 	}
+	c.Assert(client.GetStatusCode(), check.Equals, 200)
 	c.Assert(len(policies), check.Equals, 1)
 	c.Assert(policies[0].Name, check.Equals, "default")
 
 	log.Println("10. Test find by name policies - should find it")
 	findURL := "http://" + svcInfo.Address + "/find/policies"
-	err = client.Get(findURL + "/default", &policyOut)
+	err = client.Get(findURL+"/default", &policyOut)
 	if err != nil {
 		panic(err)
 	}
 	c.Assert(policyOut.Name, check.Equals, "default")
 
 	log.Println("11. Test find by name policies with non-existent policy - should NOT find it")
-	err = client.Get(findURL + "/blabla", &policyOut)
+	err = client.Get(findURL+"/blabla", &policyOut)
 	httpErr := err.(common.HttpError)
+	c.Assert(client.GetStatusCode(), check.Equals, http.StatusNotFound)
 	c.Assert(httpErr.ResourceType, check.Equals, "policy")
 	c.Assert(httpErr.StatusCode, check.Equals, http.StatusNotFound)
 	c.Assert(httpErr.ResourceID, check.Equals, "blabla")
@@ -400,11 +410,13 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	log.Println("12. Test delete by ExternalID - delete default policy")
 	policyOut = common.Policy{}
 	err = client.Delete(polURL, defPol, &policyOut)
+
 	if err != nil {
 		panic(err)
 	}
 	log.Printf("Deleted policy result: %s", policyOut)
 	c.Assert(policyOut.Name, check.Equals, defPol.Name)
+	c.Assert(client.GetStatusCode(), check.Equals, 200)
 	c.Assert(policyOut.ID, check.Equals, uint64(3))
 
 	log.Println("13. Test list policies - should have 0 now")
@@ -421,6 +433,7 @@ func (s *MySuite) TestPolicy(c *check.C) {
 		panic("Expected error")
 	}
 	httpErr = err.(common.HttpError)
+	c.Assert(client.GetStatusCode(), check.Equals, http.StatusNotFound)
 	c.Assert(httpErr.ResourceType, check.Equals, "policy")
 	c.Assert(httpErr.StatusCode, check.Equals, http.StatusNotFound)
 	c.Assert(httpErr.ResourceID, check.Equals, "default")
