@@ -295,9 +295,8 @@ func (policy *PolicySvc) findPolicyByName(input interface{}, ctx common.RestCont
 	nameStr := ctx.PathVariables["policyName"]
 	log.Printf("In findPolicy(%s)\n", nameStr)
 	if nameStr == "" {
-		return nil, common.NewError("Expected policy name, got %s", nameStr)
+		return nil, common.NewError500(fmt.Sprintf("Expected policy name, got %s", nameStr))
 	}
-
 	policies, err := policy.store.findPolicyByName(nameStr)
 	if err != nil {
 		return nil, err

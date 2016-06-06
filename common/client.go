@@ -35,10 +35,11 @@ import (
 // Rest Client for the Romana services. Incorporates facilities to deal with
 // various REST requests.
 type RestClient struct {
-	url    *url.URL
-	client *http.Client
-	token  string
-	config *RestClientConfig
+	url            *url.URL
+	client         *http.Client
+	token          string
+	config         *RestClientConfig
+	lastStatusCode int
 }
 
 // RestClientConfig holds configuration for restful client.
@@ -116,6 +117,15 @@ func NewRestClient(config RestClientConfig) (*RestClient, error) {
 // on the previous value of the URL that the RestClient had.
 func (rc *RestClient) NewUrl(dest string) error {
 	return rc.modifyUrl(dest, nil)
+}
+
+// GetStatusCode returns status code of last executed request.
+// As stated above, it is not recommended to share RestClient between
+// goroutines. 0 is returned if no previous requests have been yet
+// made, or if the most recent request resulted in some error that 
+// was not a 4xx or 5xx HTTP error.
+func (rc *RestClient) GetStatusCode() int {
+	return rc.lastStatusCode
 }
 
 //ListHost queries the Topology service in order to return a list of currently
@@ -245,7 +255,7 @@ func (rc *RestClient) modifyUrl(dest string, queryMod url.Values) error {
 func (rc *RestClient) execMethod(method string, dest string, data interface{}, result interface{}) error {
 	// TODO check if token expired, if yes, reauthenticate... But this needs
 	// more state here (knowledge of Root service by Rest client...)
-
+	rc.lastStatusCode = 0
 	var queryMod url.Values
 	queryMod = nil
 	if method == "POST" && rc.config != nil && !rc.config.TestMode {
@@ -365,7 +375,7 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 	if err != nil {
 		errStr = fmt.Sprintf("ERROR: <%v>", err)
 	}
-	log.Printf("\n\t=================================\n\t%s %s\n\t%s\n\n\t%s\n\t%s\n\t=================================", method, rc.url, reqBodyStr, bodyStr, errStr)
+	log.Printf("\n\t=================================\n\t%s %s: %d\n\t%s\n\n\t%s\n\t%s\n\t=================================", method, rc.url, resp.StatusCode, reqBodyStr, bodyStr, errStr)
 
 	if err != nil {
 		return err
@@ -384,6 +394,8 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 			unmarshalBodyErr = json.Unmarshal(body, &result)
 		}
 	}
+
+	rc.lastStatusCode = resp.StatusCode
 
 	if resp.StatusCode >= 400 {
 		// The body should be an HTTP error
