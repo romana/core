@@ -16,7 +16,6 @@
 package cmd
 
 import (
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -28,10 +27,11 @@ import (
 	"github.com/romana/core/tenant"
 
 	ms "github.com/mitchellh/mapstructure"
-	"github.com/pborman/uuid"
 	cli "github.com/spf13/cobra"
 	config "github.com/spf13/viper"
 )
+
+var externalID string
 
 // tenantData holds tenant information received from tenant
 // service and its corresponding name received from adaptors.
@@ -57,6 +57,7 @@ func init() {
 	tenantCmd.AddCommand(tenantShowCmd)
 	tenantCmd.AddCommand(tenantListCmd)
 	tenantCmd.AddCommand(tenantDeleteCmd)
+	tenantCreateCmd.Flags().StringVarP(&externalID, "externalID", "i", "", "External ID")
 }
 
 var tenantCreateCmd = &cli.Command{
@@ -115,6 +116,8 @@ func tenantCreate(cmd *cli.Command, args []string) error {
 
 	tenants := []tenant.Tenant{}
 	for _, tnt := range args {
+		var tntUUID string
+
 		// uncomment this once creating tenant for all
 		// platforms are ready. Till then tenants needs
 		// to be manually created for every platform and
@@ -124,17 +127,25 @@ func tenantCreate(cmd *cli.Command, args []string) error {
 		// }
 		// adaptor.GetTenantUUID below wouldn't be needed once
 		// adaptor.CreateTenant is supported.
-		tntUUID, err := adaptor.GetTenantUUID(tnt)
-		if err != nil {
-			switch err {
-			case util.ErrUnimplementedFeature:
-				// kubernetes doesnt support tenants yet so
-				// exception for kubernetes till CreateTenant,
-				// GetTenantUUID, etc are supported for it.
-				tntUUID = hex.EncodeToString(uuid.NewRandom())
-			default:
-				return err
+		if externalID == "" {
+			tntUUID, err = adaptor.GetTenantUUID(tnt)
+			if err != nil {
+				switch err {
+				case util.ErrUnimplementedFeature:
+					return util.UsageError(cmd,
+						"[tenantname] --externalid <externalid> should be provided.")
+				default:
+					return err
+				}
 			}
+		} else {
+			if len(args) > 1 {
+				return util.UsageError(cmd,
+					"[tenantname] --externalid <externalid> should be provided.\n"+
+						"Multiple tenants can't be created with same external ID.",
+				)
+			}
+			tntUUID = externalID
 		}
 
 		data := tenant.Tenant{Name: tnt, ExternalID: tntUUID}
