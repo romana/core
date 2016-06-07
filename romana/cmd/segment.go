@@ -42,6 +42,7 @@ func init() {
 	segmentCmd.AddCommand(segmentAddCmd)
 	segmentCmd.AddCommand(segmentRemoveCmd)
 	segmentCmd.AddCommand(segmentListCmd)
+	segmentAddCmd.Flags().StringVarP(&externalID, "externalID", "i", "", "External ID")
 }
 
 var segmentAddCmd = &cli.Command{
@@ -91,7 +92,7 @@ func segmentAdd(cmd *cli.Command, args []string) error {
 		return err
 	}
 
-	data := tenant.Segment{Name: seg}
+	data := tenant.Segment{Name: seg, ExternalID: externalID}
 	segment := tenant.Segment{}
 	err = client.Post(tenantURL+"/tenants/"+romanaIDStr+"/segments",
 		data, &segment)
