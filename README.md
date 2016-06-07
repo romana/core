@@ -26,6 +26,7 @@ addresses.
 * *[Agent](https://godoc.org/github.com/romana/core/agent)*: Lives on hosts and there performs actions on behalf of Romana, such
 as creating interfaces, setting routes or iptables rules.
 * *Auth*: Serves authentication tokens to tenants and services.
+* *[CLI](romana/README.md)*: Command Line Interface, which provides a reference romana API implmentation.
 
 ## Getting started
 
