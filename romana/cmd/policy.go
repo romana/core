@@ -31,10 +31,6 @@ import (
 	config "github.com/spf13/viper"
 )
 
-const (
-	MAX_UINT64 = ^uint64(0)
-)
-
 type Policies struct {
 	SecurityPolicies    []common.Policy
 	AppliedSuccessfully []bool
@@ -56,7 +52,7 @@ func init() {
 	policyCmd.AddCommand(policyAddCmd)
 	policyCmd.AddCommand(policyRemoveCmd)
 	policyCmd.AddCommand(policyListCmd)
-	policyRemoveCmd.Flags().Uint64VarP(&policyID, "policyid", "i", MAX_UINT64, "Policy ID")
+	policyRemoveCmd.Flags().Uint64VarP(&policyID, "policyid", "i", 0, "Policy ID")
 }
 
 var policyAddCmd = &cli.Command{
@@ -256,9 +252,9 @@ func policyRemove(cmd *cli.Command, args []string) error {
 	var policyName string
 	policyIDPresent := false
 
-	if policyID != MAX_UINT64 && len(args) == 0 {
+	if policyID != 0 && len(args) == 0 {
 		policyIDPresent = true
-	} else if policyID == MAX_UINT64 && len(args) == 1 {
+	} else if policyID == 0 && len(args) == 1 {
 		policyName = args[0]
 	} else {
 		return util.UsageError(cmd,
