@@ -241,7 +241,7 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	svc.segments = make(map[uint64]string)
 	svc.segmentsStr = make(map[string]uint64)
 	svcInfo, err := common.InitializeService(svc, *cfg)
-	
+
 	if err != nil {
 		c.Fatal(err)
 	}

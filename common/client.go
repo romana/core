@@ -122,7 +122,7 @@ func (rc *RestClient) NewUrl(dest string) error {
 // GetStatusCode returns status code of last executed request.
 // As stated above, it is not recommended to share RestClient between
 // goroutines. 0 is returned if no previous requests have been yet
-// made, or if the most recent request resulted in some error that 
+// made, or if the most recent request resulted in some error that
 // was not a 4xx or 5xx HTTP error.
 func (rc *RestClient) GetStatusCode() int {
 	return rc.lastStatusCode
