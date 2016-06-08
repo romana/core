@@ -46,6 +46,26 @@ func initEnviron() {
 	}
 }
 
+// CleanURL is similar to path.Clean() but to work on URLs
+func CleanURL(url string) (string, error) {
+	elements := strings.Split(url, "/")
+	retval := ""
+	if len(elements) < 3 {
+		return "", errors.New("Invalid URL")
+	}
+	retval = elements[0] + "//" + elements[2]
+	if len(elements) == 3 {
+		return retval, nil
+	}
+	for i := 3; i < len(elements); i++ {
+		if elements[i] == "" {
+			continue
+		}
+		retval += "/" + elements[i]
+	}
+	return retval, nil
+}
+
 func PressEnterToContinue() {
 	fmt.Println("Press ENTER to continue")
 	scanner := bufio.NewScanner(os.Stdin)

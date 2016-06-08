@@ -89,25 +89,26 @@ func hostAdd(cmd *cli.Command, args []string) error {
 	hostname := args[0]
 	hostip := args[1]
 	romanacidr := args[2]
-	var agentport int
+	var agentport uint64
 	if len(args) == 4 {
 		var err error
-		agentport, err = strconv.Atoi(args[3])
+		agentPortInt, err := strconv.Atoi(args[3])
 		if err != nil {
 			return util.UsageError(cmd,
 				fmt.Sprintf("Agent Port number error, saw %s", args[3]))
 		}
+		agentport = uint64(agentPortInt)
 	} else {
-		agentport, _ = strconv.Atoi("9606")
+		agentPortInt, _ := strconv.Atoi("9606")
+		agentport = uint64(agentPortInt)
 	}
 
-	client, err := common.NewRestClient(rootURL,
-		common.GetDefaultRestClientConfig())
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
 	if err != nil {
 		return err
 	}
 
-	topologyURL, err := client.GetServiceUrl(rootURL, "topology")
+	topologyURL, err := client.GetServiceUrl("topology")
 	if err != nil {
 		return err
 	}
@@ -143,13 +144,12 @@ func hostShow(cmd *cli.Command, args []string) error {
 			fmt.Sprintf("expected at-least 1 argument, saw none"))
 	}
 
-	client, err := common.NewRestClient(rootURL,
-		common.GetDefaultRestClientConfig())
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
 	if err != nil {
 		return err
 	}
 
-	topologyURL, err := client.GetServiceUrl(rootURL, "topology")
+	topologyURL, err := client.GetServiceUrl("topology")
 	if err != nil {
 		return err
 	}
@@ -205,13 +205,12 @@ func hostShow(cmd *cli.Command, args []string) error {
 }
 
 func hostList(cmd *cli.Command, args []string) error {
-	client, err := common.NewRestClient(rootURL,
-		common.GetDefaultRestClientConfig())
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
 	if err != nil {
 		return err
 	}
 
-	topologyURL, err := client.GetServiceUrl(rootURL, "topology")
+	topologyURL, err := client.GetServiceUrl("topology")
 	if err != nil {
 		return err
 	}

@@ -9,6 +9,8 @@ services = $$GOPATH/bin/root\
 		   $$GOPATH/bin/tenant\
 		   $$GOPATH/bin/ipam\
 		   $$GOPATH/bin/romana\
+		   $$GOPATH/bin/policy\
+		   $$GOPATH/bin/listener\
 		   $$GOPATH/bin/topology
 
 UPX_VERSION := $(shell upx --version 2>/dev/null)

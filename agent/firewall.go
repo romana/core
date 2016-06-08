@@ -42,13 +42,17 @@ import (
 )
 
 const (
-	numberOfDefaultChains = 3 // INPUT,OUTPUT,FORWARD
+	numberOfDefaultChains = 4 // INPUT,OUTPUT,FORWARD_IN,FORWARD_OUT,TENANT_VECTOR
 	inputChainIndex       = 0
 	outputChainIndex      = 1
-	forwardChainIndex     = 2
+	forwardInChainIndex   = 2
+	forwardOutChainIndex  = 3
 
 	targetDrop   = "DROP"
 	targetAccept = "ACCEPT"
+
+	bottomRule = 0
+	topRule    = 1
 )
 
 // Firewall describes state of firewall rules for the given endpoint.
@@ -113,23 +117,26 @@ func (fw *Firewall) Init(netif NetIf) error {
 	// Allow ICMP, DHCP and SSH between host and instances.
 	hostAddr := fw.Agent.networkConfig.romanaGW
 	inputRules := []string{
-		fmt.Sprintf("-d %s/32 -p icmp -m icmp --icmp-type 0 -m state --state RELATED,ESTABLISHED", hostAddr),
-		fmt.Sprintf("-d %s/32 -p tcp -m tcp --sport 22", hostAddr),
 		"-d 255.255.255.255/32 -p udp -m udp --sport 68 --dport 67",
 	}
 
 	outputRules := []string{
-		fmt.Sprintf("-s %s/32 -p icmp -m icmp --icmp-type 8 -m state --state NEW,RELATED,ESTABLISHED", hostAddr),
-		fmt.Sprintf("-s %s/32 -p icmp -m icmp --icmp-type 11", hostAddr),
 		fmt.Sprintf("-s %s/32 -p udp -m udp --sport 67 --dport 68", hostAddr),
-		fmt.Sprintf("-s %s/32 -p tcp -m tcp --dport 22", hostAddr),
 	}
 
-	forwardRules := []string{}
+	forwardRules := []string{
+		"-m comment --comment Outgoing",
+	}
+
+	tenantVectorChainName := fmt.Sprintf("ROMANA-T%d", fw.extractTenantID(ipToInt(netif.IP)))
+	tenantVectorRules := []string{
+		"-m state --state RELATED,ESTABLISHED",
+	}
 
 	fw.chains[inputChainIndex] = FirewallChain{"INPUT", []string{"i"}, inputRules, fw.prepareChainName("INPUT")}
 	fw.chains[outputChainIndex] = FirewallChain{"OUTPUT", []string{"o"}, outputRules, fw.prepareChainName("OUTPUT")}
-	fw.chains[forwardChainIndex] = FirewallChain{"FORWARD", []string{"i", "o"}, forwardRules, fw.prepareChainName("FORWARD")}
+	fw.chains[forwardInChainIndex] = FirewallChain{"FORWARD", []string{"i"}, forwardRules, fw.prepareChainName("FORWARD")}
+	fw.chains[forwardOutChainIndex] = FirewallChain{"FORWARD", []string{"o"}, tenantVectorRules, tenantVectorChainName}
 
 	return nil
 }
@@ -189,10 +196,18 @@ func (fw *Firewall) CreateChains(newChains []int) error {
 }
 
 // ensureIptablesRule verifies if given iptables rule exists and creates if it's not.
-func (fw *Firewall) ensureIptablesRule(ruleSpec []string) error {
+func (fw *Firewall) ensureIptablesRule(ruleSpec []string, ruleOrder int) error {
 	if !fw.isRuleExist(ruleSpec) {
 		cmd := "/sbin/iptables"
-		args := []string{"-A"}
+		args := []string{}
+
+		switch ruleOrder {
+		case bottomRule:
+			args = append(args, []string{"-A"}...)
+		case topRule:
+			args = append(args, []string{"-I"}...)
+		}
+
 		args = append(args, ruleSpec...)
 		_, err := fw.Agent.Helper.Executor.Exec(cmd, args)
 		if err != nil {
@@ -218,7 +233,7 @@ func (fw *Firewall) DivertTrafficToRomanaIptablesChain(chain int) error {
 		direction := fmt.Sprintf("-%s", directionLiteral)
 		chainName := fw.chains[chain].chainName
 		ruleSpec := []string{baseChain, direction, fw.interfaceName, "-j", chainName}
-		if err := fw.ensureIptablesRule(ruleSpec); err != nil {
+		if err := fw.ensureIptablesRule(ruleSpec, bottomRule); err != nil {
 			log.Print("Diverting traffic failed", chain)
 			return err
 		}
@@ -233,11 +248,10 @@ func (fw *Firewall) CreateRules(chain int) error {
 	log.Print("Creating firewall rules for chain", chain)
 	for rule := range fw.chains[chain].rules {
 		chainName := fw.chains[chain].chainName
-		cmd := "/sbin/iptables"
-		args := []string{"-A", chainName}
-		args = append(args, strings.Split(fw.chains[chain].rules[rule], " ")...)
-		args = append(args, []string{"-j", "ACCEPT"}...)
-		_, err := fw.Agent.Helper.Executor.Exec(cmd, args)
+		ruleSpec := []string{chainName}
+		ruleSpec = append(ruleSpec, strings.Split(fw.chains[chain].rules[rule], " ")...)
+		ruleSpec = append(ruleSpec, []string{"-j", "ACCEPT"}...)
+		err := fw.ensureIptablesRule(ruleSpec, topRule)
 		if err != nil {
 			log.Print("Creating firewall rules failed")
 			return err
@@ -274,9 +288,8 @@ func (fw *Firewall) CreateDefaultDropRule(chain int) error {
 func (fw *Firewall) CreateDefaultRule(chain int, target string) error {
 	log.Printf("Creating default %s rules for chain %d", target, chain)
 	chainName := fw.chains[chain].chainName
-	cmd := "/sbin/iptables"
-	args := []string{"-A", chainName, "-j", target}
-	_, err := fw.Agent.Helper.Executor.Exec(cmd, args)
+	ruleSpec := []string{chainName, "-j", target}
+	err := fw.ensureIptablesRule(ruleSpec, bottomRule)
 	if err != nil {
 		log.Printf("Creating default %s rules failed", target)
 		return err
@@ -515,35 +528,27 @@ func (fw *Firewall) deleteChains() error {
 }
 
 // provisionFirewallRules provisions rules for a new pod in Kubernetes.
-// Depending on the fullIsolation flag, the rule is specified to either
-// DROP or ALLOW all traffic.
-func provisionK8SFirewallRules(netReq NetworkRequest, agent *Agent, namespaceIsolation bool) error {
+func provisionK8SFirewallRules(netReq NetworkRequest, agent *Agent) error {
 	log.Print("Firewall: Initializing")
 	fw, err := NewFirewall(netReq.NetIf, agent)
 	if err != nil {
 		log.Fatal("Failed to initialize firewall ", err)
 	}
 
-	err = fw.deleteChains()
-	if err != nil {
-		return err
-	}
 	missingChains := fw.detectMissingChains()
 	log.Print("Firewall: creating chains")
 	err = fw.CreateChains(missingChains)
 	if err != nil {
 		return err
 	}
-	var target string
 	for chain := range fw.chains {
-		if namespaceIsolation {
-			target = targetDrop
-		} else {
-			target = targetAccept
-		}
-		if err := fw.CreateDefaultRule(chain, target); err != nil {
+		if err := fw.CreateRules(chain); err != nil {
 			return err
 		}
+	}
+
+	if err := fw.CreateDefaultDropRule(forwardOutChainIndex); err != nil {
+		return err
 	}
 
 	for chain := range fw.chains {
@@ -576,11 +581,6 @@ func provisionFirewallRules(netif NetIf, agent *Agent) error {
 	for chain := range missingChains {
 		if err := fw.CreateRules(chain); err != nil {
 			return err
-		}
-		if chain == forwardChainIndex {
-			if err := fw.CreateU32Rules(chain); err != nil {
-				return err
-			}
 		}
 		if err := fw.CreateDefaultDropRule(chain); err != nil {
 			return err

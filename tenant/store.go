@@ -17,10 +17,8 @@ package tenant
 
 import (
 	"encoding/hex"
-	"errors"
-	"log"
-
 	"github.com/romana/core/common"
+	"log"
 
 	"github.com/pborman/uuid"
 )
@@ -34,8 +32,10 @@ type tenantStore struct {
 // Service interface.
 func (tenantStore *tenantStore) Entities() []interface{} {
 	retval := make([]interface{}, 2)
-	retval[0] = &Tenant{}
-	retval[1] = &Segment{}
+	t := Tenant{}
+	retval[0] = &t
+	s := Segment{}
+	retval[1] = &s
 	return retval
 }
 
@@ -48,10 +48,11 @@ type Tenant struct {
 }
 
 type Segment struct {
-	Id       uint64 `sql:"AUTO_INCREMENT"`
-	TenantId uint64
-	Name     string
-	Seq      uint64
+	ID         uint64 `sql:"AUTO_INCREMENT"`
+	ExternalID string `sql:"not null;"`
+	TenantID   uint64
+	Name       string
+	Seq        uint64
 }
 
 func (tenantStore *tenantStore) listTenants() ([]Tenant, error) {
@@ -68,15 +69,19 @@ func (tenantStore *tenantStore) listTenants() ([]Tenant, error) {
 
 // listSegments returns a list of segments for a specific tenant
 // whose tenantId is specified.
-func (tenantStore *tenantStore) listSegments(tenantId uint64) ([]Segment, error) {
+func (tenantStore *tenantStore) listSegments(tenantId string) ([]Segment, error) {
 	var segments []Segment
-	log.Println("In listSegments()", &segments)
-	tenantStore.DbStore.Db.Where("tenant_id = ?", tenantId).Find(&segments)
-	err := common.MakeMultiError(tenantStore.DbStore.Db.GetErrors())
+	db := tenantStore.DbStore.Db.Joins("JOIN tenants ON segments.tenant_id = tenants.id").
+		Where("tenants.id = ? OR tenants.external_id = ?", tenantId, tenantId).
+		Find(&segments)
+	err := common.MakeMultiError(db.GetErrors())
+	log.Printf("In listSegments(): %v, %v", segments, err)
 	if err != nil {
 		return nil, err
 	}
-	log.Println(segments)
+	if db.Error != nil {
+		return nil, db.Error
+	}
 	return segments, nil
 }
 
@@ -86,43 +91,56 @@ func (tenantStore *tenantStore) addTenant(tenant *Tenant) error {
 	var tenants []Tenant
 	tenantStore.DbStore.Db.Find(&tenants)
 
-	// Most UUID generators return UUID or "". If uuid
-	// is invalid i.e len != 32, it should be rejected.
-	// Create new UUID in case one is not provided so
-	// that db is sane for all platforms.
-	if len(tenant.ExternalID) != 32 {
+	if tenant.ExternalID == "" {
 		tenant.ExternalID = hex.EncodeToString(uuid.NewRandom())
 	}
 
-	tenant.Seq = uint64(len(tenants) + 1)
-	db := tenantStore.DbStore.Db.Create(tenant)
+	tenant.Seq = uint64(len(tenants))
+	db := tenantStore.DbStore.Db
+	tenantStore.DbStore.Db.Create(tenant)
 	if db.Error != nil {
 		return db.Error
 	}
 	tenantStore.DbStore.Db.NewRecord(*tenant)
-	err := common.MakeMultiError(tenantStore.DbStore.Db.GetErrors())
+	err := common.MakeMultiError(db.GetErrors())
 	if err != nil {
 		return err
+	}
+	if db.Error != nil {
+		return db.Error
 	}
 	return nil
 }
 
-func (tenantStore *tenantStore) findTenant(id uint64, uuid string) (Tenant, error) {
+func (tenantStore *tenantStore) findTenants(id string) ([]Tenant, error) {
 	var tenants []Tenant
 	log.Println("In findTenant()")
-	tenantStore.DbStore.Db.Find(&tenants)
-	err := common.MakeMultiError(tenantStore.DbStore.Db.GetErrors())
+	db := tenantStore.DbStore.Db.Where("id = ? OR external_id = ?", id, id).Find(&tenants)
+	err := common.MakeMultiError(db.GetErrors())
 	if err != nil {
-		return Tenant{}, err
+		return nil, err
 	}
+	if db.Error != nil {
+		return nil, db.Error
+	}
+	return tenants, nil
+}
 
-	for i := range tenants {
-		if tenants[i].ID == id || tenants[i].ExternalID == uuid {
-			return tenants[i], nil
-		}
+func (tenantStore *tenantStore) findTenantsByName(name string) ([]Tenant, error) {
+	var tenants []Tenant
+	log.Println("In findTenant()")
+	db := tenantStore.DbStore.Db.Find(&tenants).Where("name = ?", name)
+	err := common.MakeMultiError(db.GetErrors())
+	if err != nil {
+		return nil, err
 	}
-	// TODO make this a 404
-	return Tenant{}, errors.New("Not found")
+	if db.Error != nil {
+		return nil, db.Error
+	}
+	if len(tenants) == 0 {
+		return nil, common.NewError404("tenant", name)
+	}
+	return tenants, nil
 }
 
 func (tenantStore *tenantStore) addSegment(tenantId uint64, segment *Segment) error {
@@ -130,18 +148,43 @@ func (tenantStore *tenantStore) addSegment(tenantId uint64, segment *Segment) er
 
 	// TODO(gg): better way of getting sequence
 	var segments []Segment
-	tenantStore.DbStore.Db.Where("tenant_id = ?", tenantId).Find(&segments)
-	segment.Seq = uint64(len(segments) + 1)
+	db := tenantStore.DbStore.Db.Where("tenant_id = ?", tenantId).Find(&segments)
+	err = common.MakeMultiError(db.GetErrors())
+	if err != nil {
+		return err
+	}
+	if db.Error != nil {
+		return db.Error
+	}
+	segment.Seq = uint64(len(segments))
+
+	if segment.ExternalID == "" {
+		segment.ExternalID = hex.EncodeToString(uuid.NewRandom())
+	}
+
 	tenantStore.DbStore.Db.NewRecord(*segment)
-	segment.TenantId = tenantId
-	db := tenantStore.DbStore.Db.Create(segment)
+	err = common.MakeMultiError(db.GetErrors())
+	if err != nil {
+		return err
+	}
+
 	if db.Error != nil {
 		return db.Error
 	}
 
-	err = common.MakeMultiError(tenantStore.DbStore.Db.GetErrors())
+	segment.TenantID = tenantId
+	db = tenantStore.DbStore.Db.Create(segment)
+	if db.Error != nil {
+		return db.Error
+	}
+
+	err = common.MakeMultiError(db.GetErrors())
 	if err != nil {
 		return err
+	}
+
+	if db.Error != nil {
+		return db.Error
 	}
 	return nil
 }
@@ -149,21 +192,30 @@ func (tenantStore *tenantStore) addSegment(tenantId uint64, segment *Segment) er
 // CreateSchemaPostProcess implements CreateSchemaPostProcess method of
 // Service interface.
 func (tenantStore *tenantStore) CreateSchemaPostProcess() error {
+	db := tenantStore.Db
+	log.Printf("tenantStore.CreateSchemaPostProcess(), DB is %v", db)
+	db.Model(&Segment{}).AddUniqueIndex("idx_tenant_segment_extid", "tenant_id", "external_id")
+	err := common.MakeMultiError(db.GetErrors())
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
-func (tenantStore *tenantStore) findSegment(tenantId uint64, id uint64) (Segment, error) {
+func (tenantStore *tenantStore) findSegments(tenantId string, segmentId string) ([]Segment, error) {
 	var segments []Segment
 	log.Println("In findSegment()")
-	tenantStore.DbStore.Db.Where("tenant_id = ?", tenantId).Find(&segments)
-	err := common.MakeMultiError(tenantStore.DbStore.Db.GetErrors())
+	// TODO should internal ID take precedence?
+	db := tenantStore.DbStore.Db.Joins("JOIN tenants ON segments.tenant_id = tenants.id").
+		Where("(tenants.id = ? OR tenants.external_id = ?) AND (segments.id = ? OR segments.external_id = ?)", tenantId, tenantId, segmentId, segmentId).
+		Find(&segments)
+	err := common.MakeMultiError(db.GetErrors())
 	if err != nil {
-		return Segment{}, err
+		return nil, err
 	}
-	for i := range segments {
-		if segments[i].Id == id {
-			return segments[i], nil
-		}
+
+	if db.Error != nil {
+		return nil, db.Error
 	}
-	return Segment{}, errors.New("Not found")
+	return segments, nil
 }

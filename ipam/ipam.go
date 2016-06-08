@@ -79,15 +79,21 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 
 	// check for missing/empty required parameters
 	if tenantParam == "" {
-		return nil, errors.New("Missing or empty tenantName/tenantID parameter")
+		err := errors.New("Missing or empty tenantName/tenantID parameter")
+		log.Printf("IPAM encountered an error: %v", err)
+		return nil, err
 	}
 	segmentName := ctx.QueryVariables.Get("segmentName")
 	if segmentName == "" {
-		return nil, errors.New("Missing or empty segmentName parameter")
+		err := errors.New("Missing or empty segmentName parameter")
+		log.Printf("IPAM encountered an error: %v", err)
+		return nil, err
 	}
 	hostName := ctx.QueryVariables.Get("hostName")
 	if hostName == "" {
-		return nil, errors.New("Missing or empty hostName parameter")
+		err := errors.New("Missing or empty hostName parameter")
+		log.Printf("IPAM encountered an error: %v", err)
+		return nil, err
 	}
 
 	endpoint := Endpoint{}
@@ -96,19 +102,22 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 		endpoint.Name = instanceName
 	}
 
-	client, err := common.NewRestClient("", common.GetRestClientConfig(ipam.config))
+	client, err := common.NewRestClient(common.GetRestClientConfig(ipam.config))
 	if err != nil {
+		log.Printf("IPAM encountered an error: %v", err)
 		return nil, err
 	}
 	// Get host info from topology service
-	topoUrl, err := client.GetServiceUrl(ipam.config.Common.Api.RootServiceUrl, "topology")
+	topoUrl, err := client.GetServiceUrl("topology")
 	if err != nil {
+		log.Printf("IPAM encountered an error: %v", err)
 		return nil, err
 	}
 
 	index := common.IndexResponse{}
 	err = client.Get(topoUrl, &index)
 	if err != nil {
+		log.Printf("IPAM encountered an error: %v", err)
 		return nil, err
 	}
 
@@ -117,6 +126,7 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 
 	err = client.Get(hostsURL, &hosts)
 	if err != nil {
+		log.Printf("IPAM encountered an error: %v", err)
 		return nil, err
 	}
 
@@ -128,15 +138,18 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 			break
 		}
 	}
+
 	if !found {
 		msg := fmt.Sprintf("Host with name %s not found", hostName)
-		log.Printf(msg)
-		return nil, errors.New(msg)
+		err := errors.New(msg)
+		log.Printf("IPAM encountered an error: %v", err)
+		return nil, err
 	}
 	log.Printf("Host name %s has ID %s", hostName, endpoint.HostId)
 
-	tenantSvcUrl, err := client.GetServiceUrl(ipam.config.Common.Api.RootServiceUrl, "tenant")
+	tenantSvcUrl, err := client.GetServiceUrl("tenant")
 	if err != nil {
+		log.Printf("IPAM encountered an error: %v", err)
 		return nil, err
 	}
 
@@ -146,6 +159,7 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 	var tenants []tenant.Tenant
 	err = client.Get(tenantsUrl, &tenants)
 	if err != nil {
+		log.Printf("IPAM encountered an error: %v", err)
 		return nil, err
 	}
 	found = false
@@ -162,112 +176,127 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 		}
 
 		if found {
-			endpoint.TenantId = fmt.Sprintf("%d", t.ID)
-			log.Printf("IPAM: Tenant '%s' has ID %s, original %d", tenantParam, endpoint.TenantId, t.ID)
+			endpoint.TenantID = fmt.Sprintf("%d", t.ID)
+			log.Printf("IPAM: Tenant '%s' has ID %s, original %d", tenantParam, endpoint.TenantID, t.ID)
 			break
 		}
 	}
 	if !found {
-		return nil, fmt.Errorf("Tenant with name '%s' not found", tenantParam)
+		err := fmt.Errorf("Tenant with name '%s' not found", tenantParam)
+		//		log.Printf("IPAM encountered an error: %v", err)
+		return nil, err
 	}
-	log.Printf("IPAM: Tenant name %s has ID %s", tenantParam, endpoint.TenantId)
+	log.Printf("IPAM: Tenant name %s has ID %s", tenantParam, endpoint.TenantID)
 
-	segmentsUrl := fmt.Sprintf("/tenants/%s/segments", endpoint.TenantId)
+	segmentsUrl := fmt.Sprintf("/tenants/%s/segments", endpoint.TenantID)
 	var segments []tenant.Segment
 	err = client.Get(segmentsUrl, &segments)
 	if err != nil {
+		log.Printf("IPAM encountered an error: %v", err)
 		return nil, err
 	}
 	found = false
+	//	log.Printf("IPAM found %d segments for tenant %s\n", len(segments), endpoint.TenantID)
 	for _, s := range segments {
+		//		log.Printf("IPAM checking %s (not %s) against %s", s.Name, s.ExternalID, segmentName)
 		if s.Name == segmentName {
 			found = true
-			endpoint.SegmentId = fmt.Sprintf("%d", s.Id)
+			endpoint.SegmentID = fmt.Sprintf("%d", s.ID)
 			break
 		}
 	}
 	if !found {
-		return nil, fmt.Errorf("Segment with name '%s' not found", segmentName)
+		err := fmt.Errorf("Segment with name '%s' not found in %v", segmentName, segments)
+		log.Printf("IPAM encountered an error: %v", err)
+		return nil, err
 	}
-	log.Printf("Segment name %s has ID %s", segmentName, endpoint.SegmentId)
+
+	log.Printf("Segment name %s has ID %s", segmentName, endpoint.SegmentID)
 	return ipam.addEndpoint(&endpoint, ctx)
 }
 
 // addEndpoint handles request to add an endpoint and
 // allocate an IP address.
 func (ipam *IPAM) addEndpoint(input interface{}, ctx common.RestContext) (interface{}, error) {
-	Endpoint := input.(*Endpoint)
-	client, err := common.NewRestClient("", common.GetRestClientConfig(ipam.config))
+	endpoint := input.(*Endpoint)
+	client, err := common.NewRestClient(common.GetRestClientConfig(ipam.config))
 	if err != nil {
+		log.Printf("IPAM encountered an error getting a REST client instance: %v", err)
 		return nil, err
 	}
 	// Get host info from topology service
-	topoUrl, err := client.GetServiceUrl(ipam.config.Common.Api.RootServiceUrl, "topology")
+	topoUrl, err := client.GetServiceUrl("topology")
 	if err != nil {
+		log.Printf("IPAM encountered an error getting a topology service URL %v", err)
 		return nil, err
 	}
 
 	index := common.IndexResponse{}
 	err = client.Get(topoUrl, &index)
 	if err != nil {
+		log.Printf("IPAM encountered an error querying topology: %v", err)
 		return nil, err
 	}
 
 	hostsURL := index.Links.FindByRel("host-list")
 	host := common.HostMessage{}
 
-	hostInfoURL := fmt.Sprintf("%s/%s", hostsURL, Endpoint.HostId)
+	hostInfoURL := fmt.Sprintf("%s/%s", hostsURL, endpoint.HostId)
 	err = client.Get(hostInfoURL, &host)
 
 	if err != nil {
+		log.Printf("IPAM encountered an error querying topology for hosts: %v", err)
 		return nil, err
 	}
 
-	tenantUrl, err := client.GetServiceUrl(ipam.config.Common.Api.RootServiceUrl, "tenant")
+	tenantUrl, err := client.GetServiceUrl("tenant")
 	if err != nil {
+		log.Printf("IPAM encountered an error getting tenant srevice URL: %v", err)
 		return nil, err
 	}
 
 	// TODO follow links once tenant service supports it. For now...
 
 	t := &tenant.Tenant{}
-	tenantsUrl := fmt.Sprintf("%s/tenants/%s", tenantUrl, Endpoint.TenantId)
+	tenantsUrl := fmt.Sprintf("%s/tenants/%s", tenantUrl, endpoint.TenantID)
 	log.Printf("IPAM calling %s\n", tenantsUrl)
 	err = client.Get(tenantsUrl, t)
 	if err != nil {
+		log.Printf("IPAM encountered an error querying tenant service for tenant %s: %v", endpoint.TenantID, err)
 		return nil, err
 	}
-	log.Printf("IPAM received tenant %s ID %d, sequence %d\n", t.Name, t.ID, t.Seq)
+	log.Printf("IPAM: received tenant %s ID %d, sequence %d\n", t.Name, t.ID, t.Seq)
 
-	segmentUrl := fmt.Sprintf("/tenants/%s/segments/%s", Endpoint.TenantId, Endpoint.SegmentId)
-	log.Printf("IPAM calling %s\n", segmentUrl)
+	segmentUrl := fmt.Sprintf("/tenants/%s/segments/%s", endpoint.TenantID, endpoint.SegmentID)
+	log.Printf("IPAM: calling %s\n", segmentUrl)
 	segment := &tenant.Segment{}
 	err = client.Get(segmentUrl, segment)
 	if err != nil {
+		log.Printf("IPAM encountered an error querying tenant service for tenant %s and segment %s: %v", endpoint.TenantID, endpoint.SegmentID, err)
 		return nil, err
 	}
 
 	log.Printf("Constructing IP from Host IP %s, Tenant %d, Segment %d", host.RomanaIp, t.Seq, segment.Seq)
 
-	EndpointBits := 32 - ipam.dc.PrefixBits - ipam.dc.PortBits - ipam.dc.TenantBits - ipam.dc.SegmentBits - ipam.dc.EndpointSpaceBits
-	segmentBitShift := EndpointBits
+	endpointBits := 32 - ipam.dc.PrefixBits - ipam.dc.PortBits - ipam.dc.TenantBits - ipam.dc.SegmentBits - ipam.dc.EndpointSpaceBits
+	segmentBitShift := endpointBits
 	//	prefixBitShift := 32 - ipam.dc.PrefixBits
 	tenantBitShift := segmentBitShift + ipam.dc.SegmentBits
 	log.Printf("Parsing Romana IP address of host %s: %s\n", host.Name, host.RomanaIp)
 	_, network, err := net.ParseCIDR(host.RomanaIp)
 	if err != nil {
+		log.Printf("IPAM encountered an error parsing %s: %v", host.RomanaIp, err)
 		return nil, err
 	}
 	hostIpInt := common.IPv4ToInt(network.IP)
-	tSeq := t.Seq - 1
-	sSeq := segment.Seq - 1
-	upToEndpointIpInt := hostIpInt | (tSeq << tenantBitShift) | (sSeq << segmentBitShift)
-	log.Printf("IPAM: before calling addEndpoint:  %v | (%v << %v) | (%v << %v): %v ", network.IP.String(), tSeq, tenantBitShift, sSeq, segmentBitShift, common.IntToIPv4(upToEndpointIpInt))
-	err = ipam.store.addEndpoint(Endpoint, upToEndpointIpInt, ipam.dc.EndpointSpaceBits)
+	upToEndpointIpInt := hostIpInt | (t.Seq << tenantBitShift) | (segment.Seq << segmentBitShift)
+	log.Printf("IPAM: before calling addEndpoint:  %v | (%v << %v) | (%v << %v): %v ", network.IP.String(), t.Seq, tenantBitShift, segment.Seq, segmentBitShift, common.IntToIPv4(upToEndpointIpInt))
+	err = ipam.store.addEndpoint(endpoint, upToEndpointIpInt, ipam.dc.EndpointSpaceBits)
 	if err != nil {
+		log.Printf("IPAM encountered an error adding endpoint to db: %v", err)
 		return nil, err
 	}
-	return Endpoint, nil
+	return endpoint, nil
 
 }
 
@@ -302,14 +331,14 @@ func (ipam *IPAM) createSchema(overwrite bool) error {
 
 // Run mainly runs IPAM service.
 func Run(rootServiceUrl string, cred *common.Credential) (*common.RestServiceInfo, error) {
-	clientConfig := common.GetDefaultRestClientConfig()
+	clientConfig := common.GetDefaultRestClientConfig(rootServiceUrl)
 	clientConfig.Credential = cred
-	client, err := common.NewRestClient(rootServiceUrl, clientConfig)
+	client, err := common.NewRestClient(clientConfig)
 	if err != nil {
 		return nil, err
 	}
 	ipam := &IPAM{}
-	config, err := client.GetServiceConfig(rootServiceUrl, ipam)
+	config, err := client.GetServiceConfig(ipam.Name())
 	if err != nil {
 		return nil, err
 	}
@@ -324,13 +353,12 @@ func (ipam *IPAM) Initialize() error {
 	if err != nil {
 		return err
 	}
-
-	client, err := common.NewRestClient("", common.GetDefaultRestClientConfig())
+	client, err := common.NewRestClient(common.GetRestClientConfig(ipam.config))
 	if err != nil {
 		return err
 	}
 
-	topologyURL, err := client.GetServiceUrl(ipam.config.Common.Api.RootServiceUrl, "topology")
+	topologyURL, err := client.GetServiceUrl("topology")
 	if err != nil {
 		return err
 	}
@@ -356,21 +384,20 @@ func (ipam *IPAM) Initialize() error {
 // CreateSchema creates schema for IPAM service.
 func CreateSchema(rootServiceUrl string, overwrite bool) error {
 	log.Println("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
-	IPAM := &IPAM{}
+	ipam := &IPAM{}
 
-	client, err := common.NewRestClient("", common.GetDefaultRestClientConfig())
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootServiceUrl))
+	if err != nil {
+		return err
+	}
+	config, err := client.GetServiceConfig(ipam.Name())
 	if err != nil {
 		return err
 	}
 
-	config, err := client.GetServiceConfig(rootServiceUrl, IPAM)
+	err = ipam.SetConfig(*config)
 	if err != nil {
 		return err
 	}
-
-	err = IPAM.SetConfig(*config)
-	if err != nil {
-		return err
-	}
-	return IPAM.store.CreateSchema(overwrite)
+	return ipam.store.CreateSchema(overwrite)
 }

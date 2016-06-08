@@ -90,6 +90,86 @@ func TestToBool(t *testing.T) {
 
 }
 
+// TestPolicyValidation tests Validate method of Policy.
+func TestPolicyValidation(t *testing.T) {
+	goodAppliedTo := []Endpoint{Endpoint{TenantID: uint64(33)}}
+
+	// 1. Test validation of port ranges
+	badPorts := make([]uint, 2)
+	badPorts[0] = 65536
+	badPorts[1] = 100000
+	badPortRanges := make([]PortRange, 2)
+	badPortRanges[0] = PortRange{3, 65536}
+	badPortRanges[1] = PortRange{10, 4}
+	rules := Rules{
+		Rule{Ports: badPorts, Protocol: "tcp"},
+		Rule{PortRanges: badPortRanges, Protocol: "udp"},
+	}
+	policy := Policy{Rules: rules, Direction: PolicyDirectionEgress, AppliedTo: goodAppliedTo}
+	err := policy.Validate()
+	if err == nil {
+		t.Error("Unexpected nil")
+	}
+	err2 := err.(HttpError)
+	log.Printf("Bad ports/ranges: %v", err2)
+	det := (err2.Details).([]string)
+	expect(t, det[0], "Rule #1: The following ports are invalid: 65536, 100000.")
+	expect(t, det[1], "Rule #2: The following port ranges are invalid: 3-65536, 10-4.")
+
+	// 2. Test bad protocols and direction
+	rules = Rules{
+		Rule{},
+		Rule{Protocol: "xxxx"},
+	}
+	policy = Policy{Rules: rules, Direction: "bla", AppliedTo: goodAppliedTo}
+	err = policy.Validate()
+	if err == nil {
+		t.Error("Unexpected nil")
+	}
+	err2 = err.(HttpError)
+	log.Printf("Bad direction/protocol: %v", err2)
+	det = (err2.Details).([]string)
+	expect(t, det[0], "Unknown direction 'bla', allowed 'egress' or 'ingress'.")
+	expect(t, det[1], "Rule #1: No protocol specified.")
+	expect(t, det[2], "Rule #2: Invalid protocol: xxxx.")
+
+	// 3. Test mismatch of proto and ports
+	rules = Rules{
+		Rule{Ports: []uint{10, 40}, Protocol: "icmp"},
+		Rule{IcmpType: 1, Protocol: "udp"},
+		Rule{IcmpType: 3, IcmpCode: 33, Protocol: "icmp"},
+	}
+	policy = Policy{Rules: rules, Direction: PolicyDirectionEgress, AppliedTo: goodAppliedTo}
+	err = policy.Validate()
+	if err == nil {
+		t.Error("Unexpected nil")
+	}
+	err2 = err.(HttpError)
+	log.Printf("Bad proto/ports: %v", err2)
+	det = (err2.Details).([]string)
+	expect(t, det[0], "Rule #1: ICMP protocol is specified but ports are also specified.")
+	expect(t, det[1], "Rule #2: ICMP protocol is not specified but ICMP Code and/or ICMP Type are also specified.")
+	expect(t, det[2], "Rule #3: Invalid ICMP code for type 3: 33.")
+
+	// 4. Test tenant ID in applied.
+	rules = Rules{
+		Rule{Ports: []uint{10, 40}, Protocol: "tcp"},
+	}
+	badAppliedTo := []Endpoint{
+		Endpoint{TenantID: uint64(33)},
+		Endpoint{},
+	}
+	policy = Policy{Rules: rules, Direction: PolicyDirectionEgress, AppliedTo: badAppliedTo}
+	err = policy.Validate()
+	if err == nil {
+		t.Error("Unexpected nil")
+	}
+	err2 = err.(HttpError)
+	log.Printf("Bad tenant: %v", err2)
+	det = (err2.Details).([]string)
+	expect(t, det[0], "applied_to entry #2: at least one of tenant_id or tenant_external_id or tenant_network_id must be specified.")
+}
+
 // TestClientNoHost just tests that we don't hang forever
 // when there is no host.
 // TODO
@@ -97,7 +177,7 @@ func TestToBool(t *testing.T) {
 // that all attempts to send a packet there fails, no RST or anything
 // ever comes back? Do we wait the full TCP timeout?
 func TestClientNoHost(t *testing.T) {
-	client, err := NewRestClient("http://no.such.host.really", GetDefaultRestClientConfig())
+	client, err := NewRestClient(GetDefaultRestClientConfig("http://no.such.host.really"))
 	if err != nil {
 		t.Error(err)
 	}
@@ -324,6 +404,7 @@ func doTestTimeout(timeout int, t *testing.T) {
 		ReadTimeout:  100 * time.Millisecond,
 		WriteTimeout: 100 * time.Millisecond,
 	}
+	log.Printf("doTestTimeout(): Calling ListenAndServe(%p)", s)
 	svcInfo, err := ListenAndServe(s)
 	msg := <-svcInfo.Channel
 	log.Println(msg)
@@ -333,7 +414,7 @@ func doTestTimeout(timeout int, t *testing.T) {
 	}
 	url := fmt.Sprintf("http://%s", svcInfo.Address)
 	log.Printf("Listening on %s\n", url)
-	client, err := NewRestClient(url, GetDefaultRestClientConfig())
+	client, err := NewRestClient(GetDefaultRestClientConfig(url))
 	if err != nil {
 		t.Error(err)
 	}

@@ -13,8 +13,9 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Package common contains the implementation of HttpClient and related utilities.
 package common
+
+// Contains the implementation of HttpClient and related utilities.
 
 import (
 	"bytes"
@@ -34,10 +35,11 @@ import (
 // Rest Client for the Romana services. Incorporates facilities to deal with
 // various REST requests.
 type RestClient struct {
-	url    *url.URL
-	client *http.Client
-	token  string
-	config *RestClientConfig
+	url            *url.URL
+	client         *http.Client
+	token          string
+	config         *RestClientConfig
+	lastStatusCode int
 }
 
 // RestClientConfig holds configuration for restful client.
@@ -46,19 +48,29 @@ type RestClientConfig struct {
 	Retries       int
 	Credential    *Credential
 	TestMode      bool
+	RootURL       string
 }
 
-func GetDefaultRestClientConfig() RestClientConfig {
-	return RestClientConfig{TimeoutMillis: DefaultRestTimeout, Retries: DefaultRestRetries}
+// GetDefaultRestClientConfig gets a RestClientConfig with specified rootURL
+// and other values set to their defaults: DefaultRestTimeout, DefaultRestRetries.
+func GetDefaultRestClientConfig(rootURL string) RestClientConfig {
+	return RestClientConfig{TimeoutMillis: DefaultRestTimeout, Retries: DefaultRestRetries, RootURL: rootURL}
 }
 
-// GetRestClientConfig returns a RestClientConfig based on a ServiceConfig
+// GetRestClientConfig returns a RestClientConfig based on a ServiceConfig. That is,
+// the information provided in the service configuration is used for the client
+// configuration.
 func GetRestClientConfig(config ServiceConfig) RestClientConfig {
-	return RestClientConfig{TimeoutMillis: config.Common.Api.RestTimeoutMillis, Retries: config.Common.Api.RestRetries}
+	return RestClientConfig{TimeoutMillis: config.Common.Api.RestTimeoutMillis, Retries: config.Common.Api.RestRetries, RootURL: config.Common.Api.RootServiceUrl}
 }
 
-// NewRestClient creates a new Rest client.
-func NewRestClient(url string, config RestClientConfig) (*RestClient, error) {
+// NewRestClient creates a new Romana REST client. It provides convenience
+// methods to make REST calls. When configured with a root URL pointing
+// to Romana root service, it provides some common functionality useful
+// for Romana services (such as ListHosts, GetServiceConfig, etc.)
+// If the root URL does not point to the Romana service, the generic REST operations
+// still work, but Romana-specific functionality does not.
+func NewRestClient(config RestClientConfig) (*RestClient, error) {
 	rc := &RestClient{client: &http.Client{}, config: &config}
 	timeoutMillis := config.TimeoutMillis
 
@@ -75,12 +87,25 @@ func NewRestClient(url string, config RestClientConfig) (*RestClient, error) {
 		log.Printf("Invalid retries %d, defaulting to %d\n", config.Retries, DefaultRestRetries)
 		config.Retries = DefaultRestRetries
 	}
-	if url == "" {
+	var myUrl string
+	if config.RootURL == "" {
+		// Default to some URL. This client would not be able to be used
+		// for Romana-related service convenience methods, just as a generic
+		// REST client.
 		// If we keep this empty, NewUrl wouldn't work properly when
 		// trying to resolve things.
-		url = "http://localhost"
+		myUrl = "http://localhost"
+	} else {
+		u, err := url.Parse(config.RootURL)
+		if err != nil {
+			return nil, err
+		}
+		if !u.IsAbs() {
+			return nil, NewError("Expected absolute URL for root, received %s", config.RootURL)
+		}
+		myUrl = config.RootURL
 	}
-	err := rc.NewUrl(url)
+	err := rc.NewUrl(myUrl)
 	if err != nil {
 		return nil, err
 	}
@@ -94,12 +119,54 @@ func (rc *RestClient) NewUrl(dest string) error {
 	return rc.modifyUrl(dest, nil)
 }
 
+// GetStatusCode returns status code of last executed request.
+// As stated above, it is not recommended to share RestClient between
+// goroutines. 0 is returned if no previous requests have been yet
+// made, or if the most recent request resulted in some error that
+// was not a 4xx or 5xx HTTP error.
+func (rc *RestClient) GetStatusCode() int {
+	return rc.lastStatusCode
+}
+
+// ListHost queries the Topology service in order to return a list of currently
+// configured hosts in a Romana cluster.
+func (rc *RestClient) ListHosts() ([]HostMessage, error) {
+	// Save the current state of things, so we can restore after call to root.
+	savedUrl := rc.url
+	// Restore this after we're done so we don't lose this
+	defer func() {
+		rc.url = savedUrl
+	}()
+
+	topoUrl, err := rc.GetServiceUrl("topology")
+	if err != nil {
+		return nil, err
+	}
+	topIndex := IndexResponse{}
+	err = rc.Get(topoUrl, &topIndex)
+	if err != nil {
+		return nil, err
+	}
+	hostsRelURL := topIndex.Links.FindByRel("host-list")
+
+	var hostList []HostMessage
+	err = rc.Get(hostsRelURL, &hostList)
+	return hostList, err
+}
+
 // GetServiceUrl is a convenience function, which, given the root
 // service URL and name of desired service, returns the URL of that service.
-func (rc *RestClient) GetServiceUrl(rootServiceUrl string, name string) (string, error) {
-	log.Printf("Entering GetServiceUrl(%s, %s)", rootServiceUrl, name)
+func (rc *RestClient) GetServiceUrl(name string) (string, error) {
+	log.Printf("Entering GetServiceUrl(%s, %s)", rc.config.RootURL, name)
+	// Save the current state of things, so we can restore after call to root.
+	savedUrl := rc.url
+	// Restore this after we're done so we don't lose this
+	defer func() {
+		rc.url = savedUrl
+	}()
 	resp := RootIndexResponse{}
-	err := rc.Get(rootServiceUrl, &resp)
+
+	err := rc.Get(rc.config.RootURL, &resp)
 	if err != nil {
 		return ErrorNoValue, err
 	}
@@ -109,9 +176,7 @@ func (rc *RestClient) GetServiceUrl(rootServiceUrl string, name string) (string,
 		if service.Name == name {
 			href := service.Links.FindByRel("service")
 			log.Println("href:", href)
-			if href == "" {
-				return ErrorNoValue, errors.New(fmt.Sprintf("Cannot find service %s at %s", name, resp))
-			} else {
+			if href != "" {
 				// Now for a bit of a trick - this href could be relative...
 				// Need to normalize.
 				err = rc.NewUrl(href)
@@ -120,6 +185,7 @@ func (rc *RestClient) GetServiceUrl(rootServiceUrl string, name string) (string,
 				}
 				return rc.url.String(), nil
 			}
+			return ErrorNoValue, errors.New(fmt.Sprintf("Cannot find service %s at %s", name, resp))
 		}
 	}
 	return ErrorNoValue, errors.New(fmt.Sprintf("Cannot find service %s at %s", name, resp))
@@ -138,9 +204,8 @@ func (rc *RestClient) modifyUrl(dest string, queryMod url.Values) error {
 	if rc.url == nil {
 		if !u.IsAbs() {
 			return errors.New("Expected absolute URL.")
-		} else {
-			rc.url = u
 		}
+		rc.url = u
 	} else {
 		newUrl := rc.url.ResolveReference(u)
 		log.Printf("Getting %s, resolved reference from %s to %s: %s\n", dest, rc.url, u, newUrl)
@@ -185,11 +250,10 @@ func (rc *RestClient) modifyUrl(dest string, queryMod url.Values) error {
 // 2. If the provided structure does not have that field, and the query does not either, we are going
 //    to generate a uuid and add it to the query as RequestToken=<UUID>. It will then be up to the service
 //    to ensure idempotence or not.
-
 func (rc *RestClient) execMethod(method string, dest string, data interface{}, result interface{}) error {
 	// TODO check if token expired, if yes, reauthenticate... But this needs
 	// more state here (knowledge of Root service by Rest client...)
-
+	rc.lastStatusCode = 0
 	var queryMod url.Values
 	queryMod = nil
 	if method == "POST" && rc.config != nil && !rc.config.TestMode {
@@ -226,6 +290,7 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 	var reqBody []byte
 	if data != nil {
 		reqBody, err = json.Marshal(data)
+		log.Printf("RestClient.execMethod(): Marshaled %T %v to %s", data, data, string(reqBody))
 		if err != nil {
 			return err
 		}
@@ -236,6 +301,7 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 
 	var body []byte
 	// We allow also file scheme, for testing purposes.
+	var resp *http.Response
 	if rc.url.Scheme == "http" || rc.url.Scheme == "https" {
 		var req *http.Request
 		if reqBodyReader == nil {
@@ -253,7 +319,6 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 		if rc.token != "" {
 			req.Header.Set("authorization", rc.token)
 		}
-		var resp *http.Response
 		for i := 0; i < rc.config.Retries; i++ {
 			log.Printf("Try %d for %s", (i + 1), rc.url)
 			if i > 0 {
@@ -265,10 +330,9 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 			if err != nil {
 				if i == rc.config.Retries-1 {
 					return err
-				} else {
-					log.Println(err)
-					continue
 				}
+				log.Println(err)
+				continue
 			} else {
 				// If service unavailable we may still retry...
 				if resp.StatusCode != http.StatusServiceUnavailable {
@@ -276,6 +340,7 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 				}
 			}
 		}
+
 		if err != nil {
 			return err
 		}
@@ -283,6 +348,8 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 		body, err = ioutil.ReadAll(resp.Body)
 
 	} else if rc.url.Scheme == "file" {
+		resp = &http.Response{}
+		resp.StatusCode = http.StatusOK
 		log.Printf("RestClient: Loading file %s, %s", rc.url.String(), rc.url.Path)
 		body, err = ioutil.ReadFile(rc.url.Path)
 		if err != nil {
@@ -303,34 +370,82 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 	}
 	errStr := ""
 	if err != nil {
-		errStr = err.Error()
+		errStr = fmt.Sprintf("ERROR: <%v>", err)
 	}
-	log.Printf("\n\t=================================\n\t%s %s\n\t%s\n\t\n\t%s\n\t%s\n\t=================================", method, rc.url, reqBodyStr, bodyStr, errStr)
+	log.Printf("\n\t=================================\n\t%s %s: %d\n\t%s\n\n\t%s\n\t%s\n\t=================================", method, rc.url, resp.StatusCode, reqBodyStr, bodyStr, errStr)
 
 	if err != nil {
 		return err
 	}
 
-	if result == nil {
-		return nil
+	var unmarshalBodyErr error
+
+	//	TODO deal properly with 3xx
+	//	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
+	//		log.Printf("3xx: %d %v", resp.StatusCode, resp.Header)
+	//	}
+	//
+	if result != nil {
+		if body != nil {
+			unmarshalBodyErr = json.Unmarshal(body, &result)
+		}
 	}
 
-	err = json.Unmarshal(body, &result)
-	if err != nil {
-		return errors.New(fmt.Sprintf("Error %s (%T) when parsing %s", err.Error(), err, body))
+	rc.lastStatusCode = resp.StatusCode
+
+	if resp.StatusCode >= 400 {
+		// The body should be an HTTP error
+		httpError := &HttpError{}
+		unmarshalBodyErr = json.Unmarshal(body, httpError)
+		httpError.StatusCode = resp.StatusCode
+		if unmarshalBodyErr == nil {
+			if resp.StatusCode == http.StatusConflict {
+				// In case of conflict, we actually expect the object that caused
+				// conflict to appear in details... So we want to marshal this back to JSON
+				// and unmarshal into what we know should be...
+				j, err := json.Marshal(httpError.Details)
+				if err != nil {
+					httpError.Details = errors.New(fmt.Sprintf("Error parsing '%v': %s", httpError.Details, err))
+					return httpError
+				}
+				err = json.Unmarshal(j, &result)
+				if err != nil {
+					httpError.Details = errors.New(fmt.Sprintf("Error parsing '%s': %s", j, err))
+					return httpError
+				}
+				httpError.Details = result
+			}
+			return *httpError
+		}
+		// Error unmarshaling body...
+		httpError.Details = errors.New(fmt.Sprintf("Error parsing '%v': %s", bodyStr, err))
+		return *httpError
+	}
+	// OK response...
+	if unmarshalBodyErr != nil {
+		return errors.New(fmt.Sprintf("Error %s (%T) when parsing %s", unmarshalBodyErr.Error(), err, body))
 	}
 	return nil
 }
 
-// Post applies POST method to the specified URL
+// Post applies POST method to the specified URL,
+// putting the result into the provided interface
 func (rc *RestClient) Post(url string, data interface{}, result interface{}) error {
 	err := rc.execMethod("POST", url, data, result)
 	return err
 }
 
-// Delete applies DELETE method to the specified URL
+// Delete applies DELETE method to the specified URL,
+// putting the result into the provided interface
 func (rc *RestClient) Delete(url string, data interface{}, result interface{}) error {
 	err := rc.execMethod("DELETE", url, data, result)
+	return err
+}
+
+// Put applies PUT method to the specified URL,
+// putting the result into the provided interface
+func (rc *RestClient) Put(url string, data interface{}, result interface{}) error {
+	err := rc.execMethod("PUT", url, data, result)
 	return err
 }
 
@@ -340,11 +455,14 @@ func (rc *RestClient) Get(url string, result interface{}) error {
 	return rc.execMethod("GET", url, nil, result)
 }
 
-// GetServiceConfig retrieves configuration for a given service from the root service.
-func (rc *RestClient) GetServiceConfig(rootServiceUrl string, svc Service) (*ServiceConfig, error) {
+// GetServiceConfig retrieves configuration
+// for the given service from the root service.
+func (rc *RestClient) GetServiceConfig(name string) (*ServiceConfig, error) {
 	rootIndexResponse := &RootIndexResponse{}
-
-	err := rc.Get(rootServiceUrl, rootIndexResponse)
+	if rc.config.RootURL == "" {
+		return nil, errors.New("RootURL not set")
+	}
+	err := rc.Get(rc.config.RootURL, rootIndexResponse)
 	if err != nil {
 		return nil, err
 	}
@@ -362,11 +480,11 @@ func (rc *RestClient) GetServiceConfig(rootServiceUrl string, svc Service) (*Ser
 	}
 
 	config := &ServiceConfig{}
-	config.Common.Api = &Api{RootServiceUrl: rootServiceUrl}
-	relName := svc.Name() + "-config"
+	config.Common.Api = &Api{RootServiceUrl: rc.config.RootURL}
+	relName := name + "-config"
 	configUrl := rootIndexResponse.Links.FindByRel(relName)
 	if configUrl == "" {
-		return nil, errors.New(fmt.Sprintf("Could not find %s at %s", relName, rootServiceUrl))
+		return nil, errors.New(fmt.Sprintf("Could not find %s at %s", relName, rc.config.RootURL))
 	}
 	log.Printf("GetServiceConfig(): Found config url %s in %s from %s", configUrl, rootIndexResponse, relName)
 	err = rc.Get(configUrl, config)
