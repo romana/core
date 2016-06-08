@@ -248,13 +248,6 @@ func (fw *Firewall) CreateRules(chain int) error {
 	log.Print("Creating firewall rules for chain", chain)
 	for rule := range fw.chains[chain].rules {
 		chainName := fw.chains[chain].chainName
-		/*
-			cmd := "/sbin/iptables"
-			args := []string{"-A", chainName}
-			args = append(args, strings.Split(fw.chains[chain].rules[rule], " ")...)
-			args = append(args, []string{"-j", "ACCEPT"}...)
-			_, err := fw.Agent.Helper.Executor.Exec(cmd, args)
-		*/
 		ruleSpec := []string{chainName}
 		ruleSpec = append(ruleSpec, strings.Split(fw.chains[chain].rules[rule], " ")...)
 		ruleSpec = append(ruleSpec, []string{"-j", "ACCEPT"}...)
@@ -295,11 +288,6 @@ func (fw *Firewall) CreateDefaultDropRule(chain int) error {
 func (fw *Firewall) CreateDefaultRule(chain int, target string) error {
 	log.Printf("Creating default %s rules for chain %d", target, chain)
 	chainName := fw.chains[chain].chainName
-	/*
-		cmd := "/sbin/iptables"
-		args := []string{"-A", chainName, "-j", target}
-		_, err := fw.Agent.Helper.Executor.Exec(cmd, args)
-	*/
 	ruleSpec := []string{chainName, "-j", target}
 	err := fw.ensureIptablesRule(ruleSpec, bottomRule)
 	if err != nil {
@@ -540,8 +528,6 @@ func (fw *Firewall) deleteChains() error {
 }
 
 // provisionFirewallRules provisions rules for a new pod in Kubernetes.
-// Depending on the fullIsolation flag, the rule is specified to either
-// DROP or ALLOW all traffic.
 func provisionK8SFirewallRules(netReq NetworkRequest, agent *Agent) error {
 	log.Print("Firewall: Initializing")
 	fw, err := NewFirewall(netReq.NetIf, agent)
@@ -549,12 +535,6 @@ func provisionK8SFirewallRules(netReq NetworkRequest, agent *Agent) error {
 		log.Fatal("Failed to initialize firewall ", err)
 	}
 
-	/*
-		err = fw.deleteChains()
-		if err != nil {
-			return err
-		}
-	*/
 	missingChains := fw.detectMissingChains()
 	log.Print("Firewall: creating chains")
 	err = fw.CreateChains(missingChains)
