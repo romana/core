@@ -51,7 +51,7 @@ type RestClientConfig struct {
 	RootURL       string
 }
 
-// GetDefaultRestClientConfig gets a RestClient with specified rootURL
+// GetDefaultRestClientConfig gets a RestClientConfig with specified rootURL
 // and other values set to their defaults: DefaultRestTimeout, DefaultRestRetries.
 func GetDefaultRestClientConfig(rootURL string) RestClientConfig {
 	return RestClientConfig{TimeoutMillis: DefaultRestTimeout, Retries: DefaultRestRetries, RootURL: rootURL}
@@ -128,7 +128,7 @@ func (rc *RestClient) GetStatusCode() int {
 	return rc.lastStatusCode
 }
 
-//ListHost queries the Topology service in order to return a list of currently
+// ListHost queries the Topology service in order to return a list of currently
 // configured hosts in a Romana cluster.
 func (rc *RestClient) ListHosts() ([]HostMessage, error) {
 	// Save the current state of things, so we can restore after call to root.
@@ -176,9 +176,7 @@ func (rc *RestClient) GetServiceUrl(name string) (string, error) {
 		if service.Name == name {
 			href := service.Links.FindByRel("service")
 			log.Println("href:", href)
-			if href == "" {
-				return ErrorNoValue, errors.New(fmt.Sprintf("Cannot find service %s at %s", name, resp))
-			} else {
+			if href != "" {
 				// Now for a bit of a trick - this href could be relative...
 				// Need to normalize.
 				err = rc.NewUrl(href)
@@ -187,6 +185,7 @@ func (rc *RestClient) GetServiceUrl(name string) (string, error) {
 				}
 				return rc.url.String(), nil
 			}
+			return ErrorNoValue, errors.New(fmt.Sprintf("Cannot find service %s at %s", name, resp))
 		}
 	}
 	return ErrorNoValue, errors.New(fmt.Sprintf("Cannot find service %s at %s", name, resp))
@@ -205,9 +204,8 @@ func (rc *RestClient) modifyUrl(dest string, queryMod url.Values) error {
 	if rc.url == nil {
 		if !u.IsAbs() {
 			return errors.New("Expected absolute URL.")
-		} else {
-			rc.url = u
 		}
+		rc.url = u
 	} else {
 		newUrl := rc.url.ResolveReference(u)
 		log.Printf("Getting %s, resolved reference from %s to %s: %s\n", dest, rc.url, u, newUrl)
@@ -332,10 +330,9 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 			if err != nil {
 				if i == rc.config.Retries-1 {
 					return err
-				} else {
-					log.Println(err)
-					continue
 				}
+				log.Println(err)
+				continue
 			} else {
 				// If service unavailable we may still retry...
 				if resp.StatusCode != http.StatusServiceUnavailable {
@@ -389,8 +386,7 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 	//	}
 	//
 	if result != nil {
-		if body == nil {
-		} else {
+		if body != nil {
 			unmarshalBodyErr = json.Unmarshal(body, &result)
 		}
 	}
@@ -420,16 +416,14 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 				httpError.Details = result
 			}
 			return *httpError
-		} else {
-			// Error unmarshaling body...
-			httpError.Details = errors.New(fmt.Sprintf("Error parsing '%v': %s", bodyStr, err))
-			return *httpError
 		}
-	} else {
-		// OK response...
-		if unmarshalBodyErr != nil {
-			return errors.New(fmt.Sprintf("Error %s (%T) when parsing %s", unmarshalBodyErr.Error(), err, body))
-		}
+		// Error unmarshaling body...
+		httpError.Details = errors.New(fmt.Sprintf("Error parsing '%v': %s", bodyStr, err))
+		return *httpError
+	}
+	// OK response...
+	if unmarshalBodyErr != nil {
+		return errors.New(fmt.Sprintf("Error %s (%T) when parsing %s", unmarshalBodyErr.Error(), err, body))
 	}
 	return nil
 }
