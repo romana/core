@@ -39,6 +39,7 @@ exec &>> $LOGFILE
 NETWORK_NAME="romana-k8s-network"
 PLUGIN_TYPE="romana"
 IPAM_TYPE="romana-ipam"
+ROMANA_CLI="romana"
 
 # -- Helpers
 get_pod            () { while read line; do [[ ${line/=*/} == "K8S_POD_NAME" ]] && echo ${line/*=/} || :; done; }
@@ -92,6 +93,9 @@ for k in $(echo $INPUT | jq -r 'keys[]'); do
 		;;
 	romana_master_ip)
 		ROMANA_MASTER_IP=$(get_config_item $k)
+		;;
+	romana_cli_config)
+		ROMANA_CLI="$ROMANA_CLI -c $(get_config_item $k)"
 		;;
         esac
 done
@@ -151,6 +155,16 @@ set_up_pod () {
 	NS_ISOLATION=$( $KUBECTL $KUBEARGS get namespace $NAMESPACE -o json | jq -r '.metadata.annotations["net.alpha.kubernetes.io/network-isolation"]' )
 	[[ $NS_ISOLATION != "on" ]] && NS_ISOLATION="off"
 	log "--- NS_ISOLATION = $NS_ISOLATION ---"
+
+	# Ensure segment exists
+	log "-- Ensuring segment for tenant $NAMESPACE --"
+	SEGMENT_CHECK=$($ROMANA_CLI segment list $NAMESPACE -f json | jq -r --arg seg $SEGMENT  '.[] |.Segments[] | if .Name==$seg then "OK" else empty end')
+	if ! [[ $SEGMENT_CHECK ]]; then
+		log "--- SEGMENT $SEGMENT does not exist - creating ---"
+		$ROMANA_CLI segment add $NAMESPACE $SEGMENT -i $SEGMENT
+	else
+		log "--- SEGMENT $SEGMENT exists ---"
+	fi
 
 	# Asking romana ipam for an IP address, based on `tenant` label.
 	log "--- PRE-IPAM ---"
