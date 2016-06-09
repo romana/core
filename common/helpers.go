@@ -80,7 +80,7 @@ func MockPortsInConfig(fname string) error {
 	if err != nil {
 		return err
 	}
-	services := []string{"root", "topology", "ipam", "agent", "tenant"}
+	services := []string{"root", "topology", "ipam", "agent", "tenant", "policy"}
 	for i := range services {
 		svc := services[i]
 		config.Services[svc].Common.Api.Port = 0

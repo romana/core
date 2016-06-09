@@ -25,8 +25,8 @@ import (
 
 // TenantSvc provides tenant service.
 type TenantSvc struct {
-	config common.ServiceConfig
 	store  tenantStore
+	config common.ServiceConfig
 	dc     common.Datacenter
 }
 
@@ -82,6 +82,10 @@ func (tsvc *TenantSvc) Routes() common.Routes {
 			UseRequestToken: false,
 		},
 	}
+	var t = []Tenant{}
+	routes = append(routes, common.CreateFindRoutes(&t, &tsvc.store.DbStore)...)
+	var s = []Segment{}
+	routes = append(routes, common.CreateFindRoutes(&s, &tsvc.store.DbStore)...)
 	return routes
 }
 

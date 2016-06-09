@@ -71,10 +71,13 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 
 	if tenantID := ctx.QueryVariables.Get("tenantID"); tenantID != "" {
 		tenantParam = tenantID
-		tenantLookupField = "ExternalID"
+		tenantLookupField = "external_id"
 	} else if tenantName := ctx.QueryVariables.Get("tenantName"); tenantName != "" {
+		// TODO this is being called now from the IPAM driver which uses tenantName but
+		// really is passing ID - so we should look up by an ID here. This is temporary until
+		// we fix up the IPAM driver to do the right calls.
 		tenantParam = tenantName
-		tenantLookupField = "Name"
+		tenantLookupField = "external_id"
 	}
 
 	// check for missing/empty required parameters
@@ -155,62 +158,24 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 
 	// TODO follow links once tenant service supports it. For now...
 
-	tenantsUrl := fmt.Sprintf("%s/tenants", tenantSvcUrl)
-	var tenants []tenant.Tenant
-	err = client.Get(tenantsUrl, &tenants)
+	tenantsUrl := fmt.Sprintf("%s/findOne/tenants?%s=%s", tenantSvcUrl, tenantLookupField, tenantParam)
+	ten := tenant.Tenant{}
+	err = client.Get(tenantsUrl, &ten)
 	if err != nil {
-		log.Printf("IPAM encountered an error: %v", err)
+		log.Printf("IPAM encountered an error finding tenants: %v", err)
 		return nil, err
 	}
-	found = false
-	for _, t := range tenants {
-		switch tenantLookupField {
-		case "Name":
-			if t.Name == tenantParam {
-				found = true
-			}
-		case "ExternalID":
-			if t.ExternalID == tenantParam {
-				found = true
-			}
-		}
+	endpoint.TenantID = fmt.Sprintf("%d", ten.ID)
+	log.Printf("IPAM: Tenant '%s' has ID %s, original %d", tenantParam, endpoint.TenantID, ten.ID)
 
-		if found {
-			endpoint.TenantID = fmt.Sprintf("%d", t.ID)
-			log.Printf("IPAM: Tenant '%s' has ID %s, original %d", tenantParam, endpoint.TenantID, t.ID)
-			break
-		}
-	}
-	if !found {
-		err := fmt.Errorf("Tenant with name '%s' not found", tenantParam)
-		//		log.Printf("IPAM encountered an error: %v", err)
-		return nil, err
-	}
-	log.Printf("IPAM: Tenant name %s has ID %s", tenantParam, endpoint.TenantID)
-
-	segmentsUrl := fmt.Sprintf("/tenants/%s/segments", endpoint.TenantID)
-	var segments []tenant.Segment
-	err = client.Get(segmentsUrl, &segments)
+	segmentsUrl := fmt.Sprintf("/findOne/segments?tenant_id=%s&name=%s", endpoint.TenantID, segmentName)
+	segment := tenant.Segment{}
+	err = client.Get(segmentsUrl, &segment)
 	if err != nil {
-		log.Printf("IPAM encountered an error: %v", err)
+		log.Printf("IPAM encountered an error finding segments: %v", err)
 		return nil, err
 	}
-	found = false
-	//	log.Printf("IPAM found %d segments for tenant %s\n", len(segments), endpoint.TenantID)
-	for _, s := range segments {
-		//		log.Printf("IPAM checking %s (not %s) against %s", s.Name, s.ExternalID, segmentName)
-		if s.Name == segmentName {
-			found = true
-			endpoint.SegmentID = fmt.Sprintf("%d", s.ID)
-			break
-		}
-	}
-	if !found {
-		err := fmt.Errorf("Segment with name '%s' not found in %v", segmentName, segments)
-		log.Printf("IPAM encountered an error: %v", err)
-		return nil, err
-	}
-
+	endpoint.SegmentID = fmt.Sprintf("%d", segment.ID)
 	log.Printf("Segment name %s has ID %s", segmentName, endpoint.SegmentID)
 	return ipam.addEndpoint(&endpoint, ctx)
 }

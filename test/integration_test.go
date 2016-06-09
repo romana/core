@@ -20,6 +20,7 @@ import (
 	//	"database/sql"
 	"encoding/json"
 	"fmt"
+
 	"github.com/go-check/check"
 	"github.com/romana/core/agent"
 	"github.com/romana/core/common"
@@ -312,7 +313,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	}
 
 	// Add tenant t1
-	t1In := tenant.Tenant{Name: "t1", ExternalID: "t1"}
+	t1In := tenant.Tenant{Name: "name1", ExternalID: "t1"}
 	t1Out := tenant.Tenant{}
 	err = client.Post("/tenants", t1In, &t1Out)
 	if err != nil {
@@ -322,16 +323,50 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	c.Assert(t1Out.Seq, check.Equals, uint64(0))
 	myLog(c, "Tenant 1 %s", t1Out)
 
-	// Add tenant t2
-	t2In := tenant.Tenant{Name: "t2", ExternalID: "t2"}
+	// Find by external ID
+	err = client.Get("/findOne/tenants/?external_id=t1", &t1Out)
+	if err != nil {
+		c.Error(err)
+	}
+	c.Assert(t1Out.Name, check.Equals, "name1")
+	c.Assert(t1Out.ExternalID, check.Equals, "t1")
+	c.Assert(t1Out.Seq, check.Equals, uint64(0))
+	// Find by name
+	err = client.Get("/findOne/tenants?name=name1", &t1Out)
+	if err != nil {
+		c.Error(err)
+	}
+	c.Assert(t1Out.Name, check.Equals, "name1")
+	c.Assert(t1Out.ExternalID, check.Equals, "t1")
+
+	// Add tenant with same name, different external ID
+	t2In := tenant.Tenant{Name: "name1", ExternalID: "t2"}
 	t2Out := tenant.Tenant{}
 	err = client.Post("/tenants", t2In, &t2Out)
 	if err != nil {
 		c.Error(err)
 	}
 	t2Id := t2Out.ID
+	c.Assert(t2Out.ExternalID, check.Equals, "t2")
 	c.Assert(t2Out.Seq, check.Equals, uint64(1))
 	myLog(c, "Tenant 2 %s", t2Out)
+
+	// Find by name - should be an error for findOne (there's 2 of them)
+	err = client.Get("/findOne/tenants?name=name1", &t2Out)
+	if err == nil {
+		c.Error("Expected error %s", err)
+	} else {
+		myLog(c, "Expected error %s", err)
+	}
+
+	// findAll should find 2 tenants.
+	var tenants []tenant.Tenant
+	err = client.Get("/findAll/tenants?name=name1", &tenants)
+	c.Assert(len(tenants), check.Equals, 2)
+	c.Assert(tenants[0].Name, check.Equals, "name1")
+	c.Assert(tenants[0].ExternalID, check.Equals, "t1")
+	c.Assert(tenants[1].Name, check.Equals, "name1")
+	c.Assert(tenants[1].ExternalID, check.Equals, "t2")
 
 	// Find first tenant
 	t1OutFound := tenant.Tenant{}

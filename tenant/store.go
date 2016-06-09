@@ -41,7 +41,7 @@ func (tenantStore *tenantStore) Entities() []interface{} {
 
 type Tenant struct {
 	ID         uint64 `sql:"AUTO_INCREMENT"`
-	ExternalID string `sql:"not null;unique"`
+	ExternalID string `sql:"not null;unique" gorm:"COLUMN:external_id" json:"external_id"`
 	Name       string
 	Segments   []Segment
 	Seq        uint64
@@ -49,8 +49,8 @@ type Tenant struct {
 
 type Segment struct {
 	ID         uint64 `sql:"AUTO_INCREMENT"`
-	ExternalID string `sql:"not null;"`
-	TenantID   uint64
+	ExternalID string `sql:"not null;" gorm:"COLUMN:external_id" json:"external_id"`
+	TenantID   uint64 `gorm:"COLUMN:tenant_id" json:"tenant_id"`
 	Name       string
 	Seq        uint64
 }

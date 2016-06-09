@@ -314,8 +314,8 @@ func (s *MySuite) TestPolicy(c *check.C) {
 		Direction: common.PolicyDirectionIngress,
 		Name:      "default",
 		AppliedTo: []common.Endpoint{{TenantNetworkID: &one}},
-		Peers:     []common.Endpoint{{Peer: "any"}},
-		Rules:     []common.Rule{{Protocol: "any"}},
+		Peers:     []common.Endpoint{{Peer: common.Wildcard}},
+		Rules:     []common.Rule{{Protocol: common.Wildcard}},
 	}
 	err = client.Post(polURL, defPol, &policyOut)
 	if err != nil {

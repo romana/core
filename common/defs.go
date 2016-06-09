@@ -111,15 +111,19 @@ type PortUpdateMessage struct {
 // has an IP address and routes to/from. It can be a container,
 // a Kubernetes POD, a VM, etc.
 type Endpoint struct {
-	Any               string  `json:"any,omitempty"`
-	Peer              string  `json:"peer,omitempty"`
-	CidrBlock         string  `json:"cidr_block,omitempty"`
-	TenantID          uint64  `json:"tenant_id,omitempty"`
-	TenantExternalID  string  `json:"tenant_external_id,omitempty"`
-	TenantNetworkID   *uint64 `json:"tenant_network_id,omitempty"`
-	SegmentID         uint64  `json:"segment_id,omitempty"`
-	SegmentExternalID string  `json:"segment_external_id,omitempty"`
-	SegmentNetworkID  *uint64 `json:"segment_network_id,omitempty"`
+	Peer    string `json:"peer,omitempty"`
+	CidrStr string `json:"cidr,omitempty"`
+	// TODO this can be collapsed into Cidr but needs
+	// work on JSON marshaller/unmarshaller to do that.
+	Cidr              net.IPNet `json:"-"`
+	TenantID          uint64    `json:"tenant_id,omitempty"`
+	TenantName        string    `json:"tenant,omitempty"`
+	TenantExternalID  string    `json:"tenant_external_id,omitempty"`
+	TenantNetworkID   *uint64   `json:"tenant_network_id,omitempty"`
+	SegmentID         uint64    `json:"segment_id,omitempty"`
+	SegmentName       string    `json:"segment,omitempty"`
+	SegmentExternalID string    `json:"segment_external_id,omitempty"`
+	SegmentNetworkID  *uint64   `json:"segment_network_id,omitempty"`
 }
 
 func (e Endpoint) String() string {
@@ -325,19 +329,19 @@ func (p *Policy) Validate() error {
 		for i, endpoint := range p.AppliedTo {
 			epNo := i + 1
 			if endpoint.TenantExternalID == "" && endpoint.TenantID == 0 && endpoint.TenantNetworkID == nil {
-				errMsg = append(errMsg, fmt.Sprintf("applied_to entry #%d: at least one of tenant_id or tenant_external_id or tenant_network_id must be specified.", epNo))
+						errMsg = append(errMsg, fmt.Sprintf("applied_to entry #%d: at least one of: tenant_name, tenant_id, tenant_external_id or tenant_network_id must be specified.", epNo))
 			}
 		}
 	}
 	// 4. Validate peers
 	for i, endpoint := range p.Peers {
 		epNo := i + 1
-		if endpoint.Any != "" && endpoint.Any != Wildcard {
-			errMsg = append(errMsg, fmt.Sprintf("peers entry #%d: Invalid value for Any: '%s', only '' and %s allowed.", epNo, endpoint.Any, Wildcard))
+		if endpoint.Peer != "" && endpoint.Peer != Wildcard {
+			errMsg = append(errMsg, fmt.Sprintf("peers entry #%d: Invalid value for Any: '%s', only '' and %s allowed.", epNo, endpoint.Peer, Wildcard))
 		}
 		if endpoint.SegmentID != 0 || endpoint.SegmentExternalID != "" {
-			if endpoint.TenantExternalID == "" && endpoint.TenantID == 0 && endpoint.TenantNetworkID == nil {
-				errMsg = append(errMsg, fmt.Sprintf("peers entry #%d: since segment_external_id is specified, at least one of tenant_id or tenant_external_id or tenant_network_id must be specified.", epNo))
+			if endpoint.TenantExternalID == "" && endpoint.TenantID == 0 && endpoint.TenantNetworkID == nil && endpoint.TenantName == "" {
+				errMsg = append(errMsg, fmt.Sprintf("peers entry #%d: since segment_external_id is specified, at least one of: tenant_name, tenant_id, tenant_external_id or tenant_network_id must be specified.", epNo))
 			}
 		}
 	}
