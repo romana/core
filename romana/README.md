@@ -1,11 +1,11 @@
 # Romana Command Line Tools
 
-Romana command line tools provides a romana API reference implementation.
-They provide a simple command line interface to interact with romana services.
+Romana command line tools provide a romana API reference implementation.
+They provide a simple command line interface to interact with Romana services.
 
-## Setting up cli
+## Setting up CLI
 
-**./romana** cli uses a configuration file ~/.romana.yaml which contains
+**./romana** CLI uses a configuration file ~/.romana.yaml which contains
 various parameters for connecting to root service and root service port.
 A sample ~/.romana.yaml file looks as follows:
 
@@ -26,7 +26,7 @@ Verbose: false
 ## Basic Usage
 
 Once a configuration is setup (by default the romana installer will
-populate the ~/.romana.yaml with a valid configuration), firing the
+populate the ~/.romana.yaml with a valid configuration), running the
 *romana* command will display details about commands supported by
 romana.
 
@@ -57,6 +57,9 @@ Flags:
 ### Host sub-commands
 
 #### Adding a new host to romana cluster
+Adding a new host to romana cluster should be done
+using using [static hosts](https://github.com/romana/romana/blob/master/static_hosts.md)
+and this feature is only avaiable here for debugging assistance.
 `
 romana host add [hostname][hostip][romana cidr][(optional)agent port] [flags]
 `
@@ -66,7 +69,7 @@ romana host add [hostname][hostip][romana cidr][(optional)agent port] [flags]
 romana host remove [hostname|hostip] [flags]
 `
 
-#### Listing host in a romana cluster
+#### Listing hosts in a romana cluster
 `
 romana host list [flags]
 `
@@ -79,6 +82,11 @@ romana host show [hostname1][hostname2]... [flags]
 ### Tenant sub-commands
 
 #### Create a new tenant in romana cluster
+Creating a new tenant is only necessary on certain platforms
+like openstack (where the tenant has to exist previously on
+that platform), for platforms like kubernetes, tenants are
+created automatically and no command line interaction is
+needed in those cases.
 `
 romana tenant create [tenantname] [flags]
 `
@@ -88,7 +96,7 @@ romana tenant create [tenantname] [flags]
 romana tenant delete [tenantname] [flags]
 `
 
-#### Listing tenant in a romana cluster
+#### Listing tenants in a romana cluster
 `
 romana tenant list [flags]
 `
@@ -101,6 +109,10 @@ romana tenant show [tenantname1][tenantname2]... [flags]
 ### Segment sub-commands
 
 #### Add a new segment to a specific tenant in romana cluster
+Adding a new segment to a specific tenant is only necessary on
+certain platforms like openstack, for platforms like kubernetes,
+segments are created automatically and no command line interaction
+is needed in those cases.
 `
 romana segment add [tenantName][segmentName] [flags]
 `
@@ -119,7 +131,7 @@ romana segment list [tenantName][tenantName]... [flags]
 
 #### Add a new policy to romana cluster
 Adding policies to romana cluster involves them being applied
-to various backends like openstack VM's, Kubernetes Pods, etc
+to various backends like openstack VMs, Kubernetes Pods, etc
 for various platforms supported by romana.
 `
 romana policy add [policyFile] [flags]
