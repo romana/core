@@ -5,8 +5,8 @@ A sample romana policy is shown below, a detailed version can be found [here](po
 
 #### Applying New Policy
 Romana policies can be applied by calling the Policy API
-directly or using Roman CLI. A example of applying policy
-is show below:
+directly or using the Romana CLI. An example of applying
+a policy is shown below:
 ```bash
 $ cat policy.sample.json
 {
@@ -28,8 +28,31 @@ $ cat policy.sample.json
 		"Description": "sample policy opening ssh, http and https ports"
 	}]
 }
+
 $ romana policy add policy.sample.json 
 New Policies Processed:
 Id	 Policy Name	 Direction	 Successful Applied?	
-1 	 policy1 	 ingress 	 true 
+1 	 policy1 	 ingress 	 true
+
+$ romana policy list -f json
+[{
+	"direction": "ingress",
+	"description": "sample policy opening ssh, http and https ports",
+	"name": "policy1",
+	"id": 1,
+	"external_id": "policy1",
+	"appliedto": [{
+		"Tenant": "demo",
+		"Segment": "frontend"
+	}],
+	"peers": [{}],
+	"rules": [{
+		"protocol": "TCP",
+		"ports": [
+			22,
+			80,
+			443
+		]
+	}]
+}]
 ```
