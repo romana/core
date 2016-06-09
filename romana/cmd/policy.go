@@ -359,11 +359,17 @@ func policyList(cmd *cli.Command, args []string) error {
 			"Description\t",
 		)
 		for _, p := range policies {
+			var tID uint64
+			var sID uint64
+			if len(p.AppliedTo) > 0 {
+				tID = p.AppliedTo[0].TenantID
+				sID = p.AppliedTo[0].SegmentID
+			}
 			fmt.Fprintln(w, p.ID, "\t",
 				p.Name, "\t",
 				p.Direction, "\t",
-				p.AppliedTo[0].TenantID, "\t",
-				p.AppliedTo[0].SegmentID, "\t",
+				tID, "\t",
+				sID, "\t",
 				p.ExternalID, "\t",
 				p.Description, "\t",
 			)
