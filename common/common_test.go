@@ -105,7 +105,9 @@ func TestPolicyValidation(t *testing.T) {
 		Rule{Ports: badPorts, Protocol: "tcp"},
 		Rule{PortRanges: badPortRanges, Protocol: "udp"},
 	}
-	policy := Policy{Rules: rules, Direction: PolicyDirectionEgress, AppliedTo: goodAppliedTo}
+
+	// 2. Test no applied to
+	policy := Policy{Rules: rules, Direction: PolicyDirectionEgress}
 	err := policy.Validate()
 	if err == nil {
 		t.Error("Unexpected nil")
@@ -113,6 +115,18 @@ func TestPolicyValidation(t *testing.T) {
 	err2 := err.(HttpError)
 	log.Printf("Bad ports/ranges: %v", err2)
 	det := (err2.Details).([]string)
+	expect(t, det[0], "Rule #1: The following ports are invalid: 65536, 100000.")
+	expect(t, det[1], "Rule #2: The following port ranges are invalid: 3-65536, 10-4.")
+	expect(t, det[2], "Required 'applied_to' entry missing.")
+
+	policy = Policy{Rules: rules, Direction: PolicyDirectionEgress, AppliedTo: goodAppliedTo}
+	err = policy.Validate()
+	if err == nil {
+		t.Error("Unexpected nil")
+	}
+	err2 = err.(HttpError)
+	log.Printf("Bad ports/ranges: %v", err2)
+	det = (err2.Details).([]string)
 	expect(t, det[0], "Rule #1: The following ports are invalid: 65536, 100000.")
 	expect(t, det[1], "Rule #2: The following port ranges are invalid: 3-65536, 10-4.")
 
@@ -133,7 +147,7 @@ func TestPolicyValidation(t *testing.T) {
 	expect(t, det[1], "Rule #1: No protocol specified.")
 	expect(t, det[2], "Rule #2: Invalid protocol: xxxx.")
 
-	// 3. Test mismatch of proto and ports
+	// 4. Test mismatch of proto and ports
 	rules = Rules{
 		Rule{Ports: []uint{10, 40}, Protocol: "icmp"},
 		Rule{IcmpType: 1, Protocol: "udp"},
@@ -151,7 +165,7 @@ func TestPolicyValidation(t *testing.T) {
 	expect(t, det[1], "Rule #2: ICMP protocol is not specified but ICMP Code and/or ICMP Type are also specified.")
 	expect(t, det[2], "Rule #3: Invalid ICMP code for type 3: 33.")
 
-	// 4. Test tenant ID in applied.
+	// 5. Test tenant ID in applied.
 	rules = Rules{
 		Rule{Ports: []uint{10, 40}, Protocol: "tcp"},
 	}

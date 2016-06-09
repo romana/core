@@ -20,7 +20,6 @@ package common
 import (
 	"encoding/json"
 	"fmt"
-	"net"
 	"strings"
 )
 
@@ -112,18 +111,15 @@ type PortUpdateMessage struct {
 // has an IP address and routes to/from. It can be a container,
 // a Kubernetes POD, a VM, etc.
 type Endpoint struct {
-	Any     string `json:"any,omitempty"`
-	Peer    string `json:"peer,omitempty"`
-	CidrStr string `json:"cidr,omitempty"`
-	// TODO this can be collapsed into Cidr but needs
-	// work on JSON marshaller/unmarshaller to do that.
-	Cidr              net.IPNet `json:"-"`
-	TenantID          uint64    `json:"tenant_id,omitempty"`
-	TenantExternalID  string    `json:"tenant_external_id,omitempty"`
-	TenantNetworkID   *uint64   `json:"tenant_network_id,omitempty"`
-	SegmentID         uint64    `json:"segment_id,omitempty"`
-	SegmentExternalID string    `json:"segment_external_id,omitempty"`
-	SegmentNetworkID  *uint64   `json:"segment_network_id,omitempty"`
+	Any               string  `json:"any,omitempty"`
+	Peer              string  `json:"peer,omitempty"`
+	CidrBlock         string  `json:"cidr_block,omitempty"`
+	TenantID          uint64  `json:"tenant_id,omitempty"`
+	TenantExternalID  string  `json:"tenant_external_id,omitempty"`
+	TenantNetworkID   *uint64 `json:"tenant_network_id,omitempty"`
+	SegmentID         uint64  `json:"segment_id,omitempty"`
+	SegmentExternalID string  `json:"segment_external_id,omitempty"`
+	SegmentNetworkID  *uint64 `json:"segment_network_id,omitempty"`
 }
 
 func (e Endpoint) String() string {
@@ -323,10 +319,14 @@ func (p *Policy) Validate() error {
 	}
 
 	// 3. Validate AppliedTo
-	for i, endpoint := range p.AppliedTo {
-		epNo := i + 1
-		if endpoint.TenantExternalID == "" && endpoint.TenantID == 0 && endpoint.TenantNetworkID == nil {
-			errMsg = append(errMsg, fmt.Sprintf("applied_to entry #%d: at least one of tenant_id or tenant_external_id or tenant_network_id must be specified.", epNo))
+	if len(p.AppliedTo) == 0 {
+		errMsg = append(errMsg, fmt.Sprintf("Required 'applied_to' entry missing."))
+	} else {
+		for i, endpoint := range p.AppliedTo {
+			epNo := i + 1
+			if endpoint.TenantExternalID == "" && endpoint.TenantID == 0 && endpoint.TenantNetworkID == nil {
+				errMsg = append(errMsg, fmt.Sprintf("applied_to entry #%d: at least one of tenant_id or tenant_external_id or tenant_network_id must be specified.", epNo))
+			}
 		}
 	}
 	// 4. Validate peers

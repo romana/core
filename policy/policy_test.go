@@ -290,6 +290,8 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	log.Printf("Added policy result: %s", policyOut)
 	c.Assert(policyOut.Name, check.Equals, "pol1")
 	c.Assert(policyOut.ID, check.Equals, uint64(1))
+	c.Assert(len(policyOut.AppliedTo), check.Equals, len(policyIn.AppliedTo))
+	c.Assert(len(policyOut.Peers), check.Equals, len(policyIn.Peers))
 	c.Assert(client.GetStatusCode(), check.Equals, 200)
 
 	log.Println("2. Add policy pol2")
