@@ -123,7 +123,7 @@ func (a *Agent) Routes() common.Routes {
 		common.Route{
 			Method:  "GET",
 			Pattern: "/status",
-			Handler: a.status,
+			Handler: a.statusHandler,
 		},
 	}
 	return routes
@@ -174,16 +174,8 @@ func (a *Agent) listPolicies(input interface{}, ctx common.RestContext) (interfa
 	return nil, nil
 }
 
-// status is a placeholder. TODO.
-func (a *Agent) status(input interface{}, ctx common.RestContext) (interface{}, error) {
-	networkInterfaces, err := a.listNetworkInterfaces()
-	if err != nil {
-		return nil, err
-	}
-	return networkInterfaces, nil
-}
-
-func (a *Agent) listNetworkInterfaces() ([]NetworkInterface, error) {
+// statusHandler reports operational statistics.
+func (a *Agent) statusHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
 	networkInterfaces, err := a.store.listNetworkInterfaces()
 	if err != nil {
 		return nil, err
@@ -313,11 +305,6 @@ func (a *Agent) interfaceHandle(netif NetIf) error {
 	return nil
 }
 
-func (a *Agent) addNetworkInterface(netif NetIf) error {
-	iface := &NetworkInterface{Name: netif.Name, Status: "active"}
-	return a.store.addNetworkInterface(iface)
-}
-
 // Initialize implements the Initialize method of common.Service
 // interface.
 func (a *Agent) Initialize() error {
@@ -341,6 +328,7 @@ func (a *Agent) Initialize() error {
 	return nil
 }
 
+// CreateSchema creates database schema.
 func CreateSchema(rootServiceUrl string, overwrite bool) error {
 	log.Println("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
 	a := &Agent{}
@@ -360,4 +348,10 @@ func CreateSchema(rootServiceUrl string, overwrite bool) error {
 		return err
 	}
 	return a.store.CreateSchema(overwrite)
+}
+
+// addNetworkInterface creates new NetworkInterface record in database.
+func (a *Agent) addNetworkInterface(netif NetIf) error {
+	iface := &NetworkInterface{Name: netif.Name, Status: "active"}
+	return a.store.addNetworkInterface(iface)
 }

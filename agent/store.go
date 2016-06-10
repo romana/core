@@ -4,10 +4,13 @@ import (
 	"github.com/romana/core/common"
 )
 
+// agentStore is a backing storage
 type agentStore struct {
 	common.DbStore
 }
 
+// Entities implements Entities method of
+// Service interface.
 func (agentStore *agentStore) Entities() []interface{} {
 	retval := make([]interface{}, 2)
 	retval[0] = new(Route)
@@ -15,6 +18,7 @@ func (agentStore *agentStore) Entities() []interface{} {
 	return retval
 }
 
+// Route is a model to store managed routes
 type Route struct {
 	ID     uint64 `sql:"AUTO_INCREMENT"`
 	IP     string
@@ -24,6 +28,7 @@ type Route struct {
 	status string
 }
 
+// targetKind is a an IP route destination type.
 type targetKind string
 
 const (
@@ -31,12 +36,15 @@ const (
 	gateway targetKind = "gw"
 )
 
+// NetworkInterface is a model to store managed network interfaces
 type NetworkInterface struct {
 	ID     uint64 `sql:"AUTO_INCREMENT"`
 	Name   string
 	Status string
 }
 
+// CreateSchemaPostProcess implements CreateSchemaPostProcess method of
+// Service interface.
 func (agentStore *agentStore) CreateSchemaPostProcess() error {
 	return nil
 }
