@@ -102,6 +102,9 @@ func (a *Agent) Routes() common.Routes {
 			Method:  "DELETE",
 			Pattern: "/pod",
 			Handler: a.k8sPodDownHandler,
+			MakeMessage: func() interface{} {
+				return &NetworkRequest{}
+			},
 		},
 		common.Route{
 			Method:  "POST",
