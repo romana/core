@@ -48,6 +48,8 @@ type Agent struct {
 
 	// Whether this is running in test mode.
 	testMode bool
+
+	store agentStore
 }
 
 // SetConfig implements SetConfig function of the Service interface.
@@ -61,8 +63,17 @@ func (a *Agent) SetConfig(config common.ServiceConfig) error {
 	a.waitForIfaceTry = int(config.ServiceSpecific["wait_for_iface_try"].(float64))
 	a.networkConfig = &NetworkConfig{}
 
+	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
+	a.store = agentStore{}
+	a.store.ServiceStore = &a.store
+	a.store.SetConfig(storeConfig)
+
 	log.Printf("Agent.SetConfig() finished.")
 	return nil
+}
+
+func (a *Agent) createSchema(overwrite bool) error {
+	return a.store.CreateSchema(overwrite)
 }
 
 // Routes implements Routes function of Service interface.
@@ -230,6 +241,7 @@ func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 		return agentError(err)
 	}
 
+	a.addNetworkInterface(netif)
 	log.Print("Agent: All good", netif)
 	return nil
 }
@@ -274,13 +286,24 @@ func (a *Agent) interfaceHandle(netif NetIf) error {
 		return agentError(err)
 	}
 
+	a.addNetworkInterface(netif)
 	log.Print("All good", netif)
 	return nil
+}
+
+func (a *Agent) addNetworkInterface(netif NetIf) error {
+	iface := &NetworkInterface{Name: netif.Name, Status: "active"}
+	return a.store.addNetworkInterface(iface)
 }
 
 // Initialize implements the Initialize method of common.Service
 // interface.
 func (a *Agent) Initialize() error {
+	err := a.store.Connect()
+	if err != nil {
+		return err
+	}
+
 	log.Printf("Entering Agent.Initialize()")
 	if err := a.identifyCurrentHost(); err != nil {
 		log.Print("Agent: ", agentError(err))
@@ -294,4 +317,25 @@ func (a *Agent) Initialize() error {
 		return agentError(err)
 	}
 	return nil
+}
+
+func CreateSchema(rootServiceUrl string, overwrite bool) error {
+	log.Println("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
+	a := &Agent{}
+
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootServiceUrl))
+	if err != nil {
+		return err
+	}
+
+	config, err := client.GetServiceConfig(a.Name())
+	if err != nil {
+		return err
+	}
+
+	err = a.SetConfig(*config)
+	if err != nil {
+		return err
+	}
+	return a.store.CreateSchema(overwrite)
 }
