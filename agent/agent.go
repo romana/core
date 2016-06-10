@@ -99,6 +99,11 @@ func (a *Agent) Routes() common.Routes {
 			UseRequestToken: true,
 		},
 		common.Route{
+			Method:  "DELETE",
+			Pattern: "/pod",
+			Handler: a.k8sPodDownHandler,
+		},
+		common.Route{
 			Method:  "POST",
 			Pattern: "/policies",
 			Handler: a.addPolicy,
@@ -181,6 +186,28 @@ func (a *Agent) statusHandler(input interface{}, ctx common.RestContext) (interf
 		return nil, err
 	}
 	return networkInterfaces, nil
+}
+
+// k8sPodDownHandler cleans up after pod deleted.
+func (a *Agent) k8sPodDownHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
+	log.Println("Agent: Entering k8sPodDownHandler()")
+	netReq := input.(*NetworkRequest)
+	netif := netReq.NetIf
+
+	iface, err := a.store.findNetworkInterface(netif.Name)
+	if err != nil {
+		return nil, err
+	}
+
+	err = a.store.deleteNetworkInterface(iface)
+	if err != nil {
+		return nil, err
+	}
+
+	// Spawn new thread to process the request
+	log.Printf("Agent: Got request for network configuration: %v\n", netReq)
+
+	return "OK", nil
 }
 
 // k8sPodUpHandler handles HTTP requests for endpoints provisioning.

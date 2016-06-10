@@ -49,6 +49,34 @@ func (agentStore *agentStore) CreateSchemaPostProcess() error {
 	return nil
 }
 
+func (agentStore *agentStore) deleteNetworkInterface(iface *NetworkInterface) error {
+	db := agentStore.DbStore.Db
+	agentStore.DbStore.Db.Delete(iface)
+	err := common.MakeMultiError(db.GetErrors())
+	if err != nil {
+		return err
+	}
+	if db.Error != nil {
+		return db.Error
+	}
+
+	return nil
+}
+
+func (agentStore *agentStore) findNetworkInterface(ifaceName string) (*NetworkInterface, error) {
+	var iface NetworkInterface
+	db := agentStore.DbStore.Db
+	agentStore.DbStore.Db.Where("name = ?", ifaceName).First(&iface)
+	err := common.MakeMultiError(db.GetErrors())
+	if err != nil {
+		return nil, err
+	}
+	if db.Error != nil {
+		return nil, db.Error
+	}
+	return &iface, nil
+}
+
 func (agentStore *agentStore) addNetworkInterface(iface *NetworkInterface) error {
 	db := agentStore.DbStore.Db
 	agentStore.DbStore.Db.Create(iface)
