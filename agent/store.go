@@ -57,3 +57,13 @@ func (agentStore *agentStore) addNetworkInterface(iface *NetworkInterface) error
 	}
 	return nil
 }
+
+func (agentStore *agentStore) listNetworkInterfaces() ([]NetworkInterface, error) {
+	var networkInterfaces []NetworkInterface
+	agentStore.DbStore.Db.Find(&networkInterfaces)
+	err := common.MakeMultiError(agentStore.DbStore.Db.GetErrors())
+	if err != nil {
+		return nil, err
+	}
+	return networkInterfaces, nil
+}

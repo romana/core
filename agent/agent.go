@@ -120,6 +120,11 @@ func (a *Agent) Routes() common.Routes {
 			Pattern: "/policies",
 			Handler: a.listPolicies,
 		},
+		common.Route{
+			Method:  "GET",
+			Pattern: "/status",
+			Handler: a.status,
+		},
 	}
 	return routes
 }
@@ -167,6 +172,23 @@ func (a *Agent) deletePolicy(input interface{}, ctx common.RestContext) (interfa
 // listPolicies is a placeholder. TODO.
 func (a *Agent) listPolicies(input interface{}, ctx common.RestContext) (interface{}, error) {
 	return nil, nil
+}
+
+// status is a placeholder. TODO.
+func (a *Agent) status(input interface{}, ctx common.RestContext) (interface{}, error) {
+	networkInterfaces, err := a.listNetworkInterfaces()
+	if err != nil {
+		return nil, err
+	}
+	return networkInterfaces, nil
+}
+
+func (a *Agent) listNetworkInterfaces() ([]NetworkInterface, error) {
+	networkInterfaces, err := a.store.listNetworkInterfaces()
+	if err != nil {
+		return nil, err
+	}
+	return networkInterfaces, nil
 }
 
 // k8sPodUpHandler handles HTTP requests for endpoints provisioning.
