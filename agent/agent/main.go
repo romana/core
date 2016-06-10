@@ -26,12 +26,23 @@ import (
 
 // main function is entrypoint to everything.
 func main() {
+	createSchema := flag.Bool("createSchema", false, "Create schema")
+	overwriteSchema := flag.Bool("overwriteSchema", false, "Overwrite schema")
 	var rootURL = flag.String("rootURL", "", "URL to root service URL")
 	var version = flag.Bool("version", false, "Build Information.")
 	username := flag.String("username", "", "Username")
 	password := flag.String("password", "", "Password")
 
 	flag.Parse()
+
+	if *createSchema || *overwriteSchema {
+		err := agent.CreateSchema(*rootURL, *overwriteSchema)
+		if err != nil {
+			panic(err)
+		}
+		fmt.Println("Schema created.")
+		return
+	}
 
 	if *version {
 		fmt.Println(common.BuildInfo())
