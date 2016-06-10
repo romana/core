@@ -357,7 +357,7 @@ func (policy *PolicySvc) createSchema(overwrite bool) error {
 	return nil
 }
 
-// Run mainly runs IPAM service.
+// Run mainly runs Policy service.
 func Run(rootServiceUrl string, cred *common.Credential) (*common.RestServiceInfo, error) {
 	clientConfig := common.GetDefaultRestClientConfig(rootServiceUrl)
 	clientConfig.Credential = cred

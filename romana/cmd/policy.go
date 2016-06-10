@@ -31,6 +31,9 @@ import (
 	config "github.com/spf13/viper"
 )
 
+// Policies structure is used to keep track of
+// security policies and their status, as to if
+// they were applied successfully or not.
 type Policies struct {
 	SecurityPolicies    []common.Policy
 	AppliedSuccessfully []bool
@@ -79,8 +82,17 @@ var policyListCmd = &cli.Command{
 	SilenceUsage: true,
 }
 
-// policyAdd adds kubernetes policy for a specific tenant
-// using the policyFile provided.
+// policyAdd adds romana policy for a specific tenant
+// using the policyFile provided or through input pipe.
+// The features supported are:
+//  * Policy addition through file with single policy in it
+//  * Policy addition through file with multiple policies
+//    in it supporting the SecurityPolicies construct as
+//    shown in policy/policy.sample.json
+//  * Both the above formats but taking input from standard
+//    input (STDIN) instead of a file
+//  * Tabular and json output for indication of policy
+//    addition
 func policyAdd(cmd *cli.Command, args []string) error {
 	var buf []byte
 	var policyFile string
@@ -219,9 +231,9 @@ func policyAdd(cmd *cli.Command, args []string) error {
 	return nil
 }
 
-// getPolicyIDs returns a slice of Policy IDs for a given
-// policy name, since multiple policies with same name
-// can exists.
+// getPolicyID returns a Policy ID for a given policy
+// name, since multiple policies with same name can
+// exists, it returns the first one from them.
 func getPolicyID(policyName string) (uint64, error) {
 	rootURL := config.GetString("RootURL")
 
@@ -245,9 +257,10 @@ func getPolicyID(policyName string) (uint64, error) {
 	return policy.ID, nil
 }
 
-// policyRemove removes policy using the policyName provided,
-// it return error if policy not found, or returns a list of
-// policy ID's if multiple policies with same name are found.
+// policyRemove removes policy using the policy name provided
+// as argument through args. It returns error if policy is not
+// found, or returns a list of policy ID's if multiple policies
+// with same name are found.
 func policyRemove(cmd *cli.Command, args []string) error {
 	var policyName string
 	policyIDPresent := false
@@ -346,11 +359,17 @@ func policyList(cmd *cli.Command, args []string) error {
 			"Description\t",
 		)
 		for _, p := range policies {
+			var tID uint64
+			var sID uint64
+			if len(p.AppliedTo) > 0 {
+				tID = p.AppliedTo[0].TenantID
+				sID = p.AppliedTo[0].SegmentID
+			}
 			fmt.Fprintln(w, p.ID, "\t",
 				p.Name, "\t",
 				p.Direction, "\t",
-				p.AppliedTo[0].TenantID, "\t",
-				p.AppliedTo[0].SegmentID, "\t",
+				tID, "\t",
+				sID, "\t",
 				p.ExternalID, "\t",
 				p.Description, "\t",
 			)

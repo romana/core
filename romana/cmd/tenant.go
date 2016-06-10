@@ -126,7 +126,10 @@ func tenantCreate(cmd *cli.Command, args []string) error {
 		// 	return err
 		// }
 		// adaptor.GetTenantUUID below wouldn't be needed once
-		// adaptor.CreateTenant is supported.
+		// adaptor.CreateTenant is supported because CreateTenant
+		// will create a new tenant for a specific platform
+		// instead of polling for an already created one using
+		// GetTenantUUID.
 		if externalID == "" {
 			tntUUID, err = adaptor.GetTenantUUID(tnt)
 			if err != nil {

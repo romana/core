@@ -48,7 +48,7 @@ func (l *kubeListener) manageResources(ns Event, terminators map[string]chan Don
 	}
 }
 
-// Conductor manages a set of goroutines one per namespace.
+// conductor manages a set of goroutines one per namespace.
 func (l *kubeListener) conductor(in <-chan Event, done <-chan Done) <-chan Event {
 	// done in arguments is a channel that can be used to stop Conductor itsefl
 	// while map of Done's below is for terminating managed gorotines.
