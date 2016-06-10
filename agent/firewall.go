@@ -35,7 +35,7 @@ package agent
 
 import (
 	"fmt"
-	"log"
+	"github.com/golang/glog"
 	"net"
 	"strconv"
 	"strings"
@@ -150,7 +150,7 @@ func (fw *Firewall) isChainExist(chain int) bool {
 	if err != nil {
 		return false
 	}
-	log.Printf("isChainExist(): iptables -L %s returned %s", fw.chains[chain].chainName, string(output))
+	glog.Infof("isChainExist(): iptables -L %s returned %s", fw.chains[chain].chainName, string(output))
 	return true
 }
 
@@ -172,9 +172,9 @@ func (fw *Firewall) isRuleExist(ruleSpec []string) bool {
 func (fw *Firewall) detectMissingChains() []int {
 	var ret []int
 	for chain := range fw.chains {
-		log.Print("Testing chain", chain)
+		glog.Infof("Testing chain", chain)
 		if !fw.isChainExist(chain) {
-			log.Print(">> Testing chain success", chain)
+			glog.Infof(">> Testing chain success", chain)
 			ret = append(ret, chain)
 		}
 	}
@@ -211,12 +211,12 @@ func (fw *Firewall) ensureIptablesRule(ruleSpec []string, ruleOrder int) error {
 		args = append(args, ruleSpec...)
 		_, err := fw.Agent.Helper.Executor.Exec(cmd, args)
 		if err != nil {
-			log.Print("Creating iptables rule failed ", ruleSpec)
+			glog.Error("Creating iptables rule failed ", ruleSpec)
 			return err
 		}
-		log.Print("Rule created ", ruleSpec)
+		glog.Infof("Rule created ", ruleSpec)
 	} else {
-		log.Print("Rule already exist ", ruleSpec)
+		glog.Infof("Rule already exist ", ruleSpec)
 	}
 	return nil
 }
@@ -227,25 +227,25 @@ func (fw *Firewall) ensureIptablesRule(ruleSpec []string, ruleOrder int) error {
 func (fw *Firewall) DivertTrafficToRomanaIptablesChain(chain int) error {
 	// Should be like that
 	// iptables -A INPUT -i tap1234 -j ROMANA-T0S1-INPUT
-	log.Print("Diverting traffic into chain number ", chain)
+	glog.Infof("Diverting traffic into chain number ", chain)
 	baseChain := fw.chains[chain].baseChain
 	for _, directionLiteral := range fw.chains[chain].directions {
 		direction := fmt.Sprintf("-%s", directionLiteral)
 		chainName := fw.chains[chain].chainName
 		ruleSpec := []string{baseChain, direction, fw.interfaceName, "-j", chainName}
 		if err := fw.ensureIptablesRule(ruleSpec, bottomRule); err != nil {
-			log.Print("Diverting traffic failed", chain)
+			glog.Error("Diverting traffic failed", chain)
 			return err
 		}
 	}
-	log.Print("Diverting traffic success", chain)
+	glog.Info("Diverting traffic success", chain)
 	return nil
 }
 
 // CreateRules creates iptables rules for the given Romana chain
 // to allow a traffic to flow between the Host and Endpoint.
 func (fw *Firewall) CreateRules(chain int) error {
-	log.Print("Creating firewall rules for chain", chain)
+	glog.Info("Creating firewall rules for chain", chain)
 	for rule := range fw.chains[chain].rules {
 		chainName := fw.chains[chain].chainName
 		ruleSpec := []string{chainName}
@@ -253,27 +253,27 @@ func (fw *Firewall) CreateRules(chain int) error {
 		ruleSpec = append(ruleSpec, []string{"-j", "ACCEPT"}...)
 		err := fw.ensureIptablesRule(ruleSpec, topRule)
 		if err != nil {
-			log.Print("Creating firewall rules failed")
+			glog.Error("Creating firewall rules failed")
 			return err
 		}
 	}
-	log.Print("Creating firewall rules success")
+	glog.Info("Creating firewall rules success")
 	return nil
 }
 
 // CreateU32Rules creates wildcard iptables rules for the given Romana chain.
 // These rules serve to restrict traffic between segments and tenants.
 func (fw *Firewall) CreateU32Rules(chain int) error {
-	log.Print("Creating U32 firewall rules for chain", chain)
+	glog.Info("Creating U32 firewall rules for chain", chain)
 	chainName := fw.chains[chain].chainName
 	cmd := "/sbin/iptables"
 	args := []string{"-A", chainName, "-m", "u32", "--u32", fw.u32Filter, "-j", "ACCEPT"}
 	_, err := fw.Agent.Helper.Executor.Exec(cmd, args)
 	if err != nil {
-		log.Print("Creating U32 firewall rules failed")
+		glog.Error("Creating U32 firewall rules failed")
 		return err
 	}
-	log.Print("Creating U32 firewall rules success")
+	glog.Info("Creating U32 firewall rules success")
 	return nil
 }
 
@@ -286,15 +286,15 @@ func (fw *Firewall) CreateDefaultDropRule(chain int) error {
 // CreateDefaultRule creates iptables rule for a chain with the
 // specified target
 func (fw *Firewall) CreateDefaultRule(chain int, target string) error {
-	log.Printf("Creating default %s rules for chain %d", target, chain)
+	glog.Infof("Creating default %s rules for chain %d", target, chain)
 	chainName := fw.chains[chain].chainName
 	ruleSpec := []string{chainName, "-j", target}
 	err := fw.ensureIptablesRule(ruleSpec, bottomRule)
 	if err != nil {
-		log.Printf("Creating default %s rules failed", target)
+		glog.Errorf("Creating default %s rules failed", target)
 		return err
 	}
-	log.Print("Creating default drop rules success")
+	glog.Info("Creating default drop rules success")
 	return nil
 }
 
@@ -452,7 +452,7 @@ func (fw *Firewall) deleteChains() error {
 			if curChain != "" {
 				// We may have rules to delete from the previously processed chain.
 				if len(curRules) > 0 {
-					log.Printf("Process %d rules to delete for chain %s: %v", len(curRules), curChain, curRules)
+					glog.V(1).Infof("Process %d rules to delete for chain %s: %v", len(curRules), curChain, curRules)
 					// Delete rules in reverse order (so that we don't change rule number
 					// on the fly)
 					for i := len(curRules) - 1; i >= 0; i-- {
@@ -461,13 +461,13 @@ func (fw *Firewall) deleteChains() error {
 						args := []string{"-D", curChain, ruleNoStr}
 						out2, err := fw.Agent.Helper.Executor.Exec(cmd, args)
 						if len(out2) > 0 {
-							log.Printf("executing iptables -D %s %d: %s", curChain, ruleNo, string(out2))
+							glog.V(1).Infof("executing iptables -D %s %d: %s", curChain, ruleNo, string(out2))
 						}
 						if err != nil {
-							log.Printf("Deleting rule %d: %v", ruleNo, err)
+							glog.Errorf("Deleting rule %d: %v", ruleNo, err)
 							return err
 						}
-						log.Printf("Deleting rule %d: OK", ruleNo)
+						glog.V(1).Infof("Deleting rule %d: OK", ruleNo)
 					}
 					curRules = make([]int, 0)
 					ruleCnt = 0
@@ -477,10 +477,10 @@ func (fw *Firewall) deleteChains() error {
 			ruleCnt = 0
 			curRules = make([]int, 0)
 			if chainMap[curChain] == curChain {
-				log.Printf("Chain %s is ours, skipping for now...", curChain)
+				glog.V(1).Infof("Chain %s is ours, skipping for now...", curChain)
 				continue
 			}
-			log.Printf("Entering chain %s on line %d", curChain, lineNo)
+			glog.V(1).Infof("Entering chain %s on line %d", curChain, lineNo)
 			skipLine = true
 			continue
 		}
@@ -489,7 +489,7 @@ func (fw *Firewall) deleteChains() error {
 		ruleCnt++
 
 		if chainMap[refChain] == refChain {
-			log.Printf("Chain %s refers to our chain %s in rule %d (line %d), adding to removal list", curChain, refChain, ruleCnt, lineNo)
+			glog.V(1).Infof("Chain %s refers to our chain %s in rule %d (line %d), adding to removal list", curChain, refChain, ruleCnt, lineNo)
 			curRules = append(curRules, ruleCnt)
 		}
 	}
@@ -497,14 +497,14 @@ func (fw *Firewall) deleteChains() error {
 	for chain := range fw.chains {
 		chainName := fw.chains[chain].chainName
 		if !fw.isChainExist(chain) {
-			log.Printf("Chain %d: %s does not really exist.", chain, chainName)
+			glog.V(1).Infof("Chain %d: %s does not really exist.", chain, chainName)
 			continue
 		}
-		log.Printf("Deleting chain %d (%s)", chain, chainName)
+		glog.V(1).Infof("Deleting chain %d (%s)", chain, chainName)
 		args := []string{"-F", chainName}
 		out, err := fw.Agent.Helper.Executor.Exec(cmd, args)
 		if len(out) > 0 {
-			log.Printf("iptables -F said %s", string(out))
+			glog.V(1).Infof("iptables -F said %s", string(out))
 		}
 		if err != nil {
 			errStr += fmt.Sprintf("Error executing iptables --flush %s: %v. ", chainName, err)
@@ -514,7 +514,7 @@ func (fw *Firewall) deleteChains() error {
 		args = []string{"-X", chainName}
 		out, err = fw.Agent.Helper.Executor.Exec(cmd, args)
 		if len(out) > 0 {
-			log.Printf("iptables -X %s said %s", chainName, string(out))
+			glog.V(1).Infof("iptables -X %s said %s", chainName, string(out))
 		}
 		if err != nil {
 			errStr += fmt.Sprintf("Error executing iptables -X %s: %v. ", chainName, err)
@@ -529,14 +529,14 @@ func (fw *Firewall) deleteChains() error {
 
 // provisionFirewallRules provisions rules for a new pod in Kubernetes.
 func provisionK8SFirewallRules(netReq NetworkRequest, agent *Agent) error {
-	log.Print("Firewall: Initializing")
+	glog.Info("Firewall: Initializing")
 	fw, err := NewFirewall(netReq.NetIf, agent)
 	if err != nil {
-		log.Fatal("Failed to initialize firewall ", err)
+		glog.Fatal("Failed to initialize firewall ", err)
 	}
 
 	missingChains := fw.detectMissingChains()
-	log.Print("Firewall: creating chains")
+	glog.Info("Firewall: creating chains")
 	err = fw.CreateChains(missingChains)
 	if err != nil {
 		return err
@@ -566,14 +566,14 @@ func provisionK8SFirewallRules(netReq NetworkRequest, agent *Agent) error {
 // all traffic to/from/through netif.name interface to a proper chains.
 // Currently tested with Romana ML2 driver.
 func provisionFirewallRules(netif NetIf, agent *Agent) error {
-	log.Print("Firewall: Initializing")
+	glog.Info("Firewall: Initializing")
 	fw, err := NewFirewall(netif, agent)
 	if err != nil {
-		log.Fatal("Failed to initialize firewall ", err)
+		glog.Fatal("Failed to initialize firewall ", err)
 	}
 
 	missingChains := fw.detectMissingChains()
-	log.Print("Firewall: creating chains")
+	glog.Info("Firewall: creating chains")
 	err = fw.CreateChains(missingChains)
 	if err != nil {
 		return err

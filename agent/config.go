@@ -19,7 +19,7 @@ import (
 	"github.com/romana/core/common"
 	//	"github.com/romana/core/topology"
 
-	"log"
+	"github.com/golang/glog"
 	"net"
 )
 
@@ -96,14 +96,14 @@ func (a Agent) identifyCurrentHost() error {
 	if err != nil {
 		return agentError(err)
 	}
-	log.Println("Retrieved hosts list, found", len(hosts), "hosts")
+	glog.Infoln("Retrieved hosts list, found", len(hosts), "hosts")
 
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
 		return err
 	}
 
-	log.Printf("Searching %d interfaces for a matching host configuration: %v", len(addrs), addrs)
+	glog.Infof("Searching %d interfaces for a matching host configuration: %v", len(addrs), addrs)
 
 	// Find an interface that matches a Romana CIDR
 	// and store that interface's IP address.
@@ -111,7 +111,7 @@ func (a Agent) identifyCurrentHost() error {
 	for i, host := range hosts {
 		_, romanaCIDR, err := net.ParseCIDR(host.RomanaIp)
 		if err != nil {
-			log.Printf("Unable to parse '%s' (%s). Skipping.", host.RomanaIp, err)
+			glog.Warningf("Unable to parse '%s' (%s). Skipping.", host.RomanaIp, err)
 			continue
 		}
 		for _, addr := range addrs {
@@ -132,7 +132,7 @@ func (a Agent) identifyCurrentHost() error {
 				// This will be used for creating inter-host routes.
 				a.networkConfig.otherHosts = append(a.networkConfig.otherHosts, hosts[0:i]...)
 				a.networkConfig.otherHosts = append(a.networkConfig.otherHosts, hosts[i+1:]...)
-				log.Println("Found match for CIDR", romanaCIDR, "using address", ipnet.IP)
+				glog.Infoln("Found match for CIDR", romanaCIDR, "using address", ipnet.IP)
 				return nil
 			}
 		}
