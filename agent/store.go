@@ -1,12 +1,17 @@
 package agent
 
 import (
+	"github.com/golang/glog"
 	"github.com/romana/core/common"
+	"sync"
 )
 
-// agentStore is a backing storage
+// agentStore is a backing storage. Agent will likely use
+// sqlite which is not very reliable in concurrent access scenario,
+// so we are going to serialize access with mutex.
 type agentStore struct {
 	common.DbStore
+	mu sync.Mutex
 }
 
 // Entities implements Entities method of
@@ -50,6 +55,14 @@ func (agentStore *agentStore) CreateSchemaPostProcess() error {
 }
 
 func (agentStore *agentStore) deleteNetworkInterface(iface *NetworkInterface) error {
+	glog.Info("Acquiring store mutex for deleteNetworkInterface")
+	agentStore.mu.Lock()
+	defer func() {
+		glog.Info("Releasing store mutex for deleteNetworkInterface")
+		agentStore.mu.Unlock()
+	}()
+	glog.Info("Acquired store mutex for deleteNetworkInterface")
+
 	db := agentStore.DbStore.Db
 	agentStore.DbStore.Db.Delete(iface)
 	err := common.MakeMultiError(db.GetErrors())
@@ -64,6 +77,14 @@ func (agentStore *agentStore) deleteNetworkInterface(iface *NetworkInterface) er
 }
 
 func (agentStore *agentStore) findNetworkInterface(ifaceName string) (*NetworkInterface, error) {
+	glog.Info("Acquiring store mutex for findNetworkInterface")
+	agentStore.mu.Lock()
+	defer func() {
+		glog.Info("Releasing store mutex for findNetworkInterface")
+		agentStore.mu.Unlock()
+	}()
+	glog.Info("Acquired store mutex for findNetworkInterface")
+
 	var iface NetworkInterface
 	db := agentStore.DbStore.Db
 	agentStore.DbStore.Db.Where("name = ?", ifaceName).First(&iface)
@@ -78,6 +99,14 @@ func (agentStore *agentStore) findNetworkInterface(ifaceName string) (*NetworkIn
 }
 
 func (agentStore *agentStore) addNetworkInterface(iface *NetworkInterface) error {
+	glog.Info("Acquiring store mutex for addNetworkInterface")
+	agentStore.mu.Lock()
+	defer func() {
+		glog.Info("Releasing store mutex for addNetworkInterface")
+		agentStore.mu.Unlock()
+	}()
+	glog.Info("Acquired store mutex for addNetworkInterface")
+
 	db := agentStore.DbStore.Db
 	agentStore.DbStore.Db.Create(iface)
 	if db.Error != nil {
@@ -95,6 +124,14 @@ func (agentStore *agentStore) addNetworkInterface(iface *NetworkInterface) error
 }
 
 func (agentStore *agentStore) listNetworkInterfaces() ([]NetworkInterface, error) {
+	glog.Info("Acquiring store mutex for listNetworkInterfaces")
+	agentStore.mu.Lock()
+	defer func() {
+		glog.Info("Releasing store mutex for listNetworkInterfaces")
+		agentStore.mu.Unlock()
+	}()
+	glog.Info("Acquired store mutex for listNetworkInterfaces")
+
 	var networkInterfaces []NetworkInterface
 	agentStore.DbStore.Db.Find(&networkInterfaces)
 	err := common.MakeMultiError(agentStore.DbStore.Db.GetErrors())
