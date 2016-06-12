@@ -18,8 +18,8 @@ package agent
 
 import (
 	"fmt"
+	"github.com/golang/glog"
 	"github.com/romana/core/common"
-	"log"
 )
 
 // Agent provides access to configuration and helper functions, shared across
@@ -54,7 +54,7 @@ type Agent struct {
 
 // SetConfig implements SetConfig function of the Service interface.
 func (a *Agent) SetConfig(config common.ServiceConfig) error {
-	log.Println(config)
+	glog.Infoln(config)
 	a.config = config
 	leaseFileName := config.ServiceSpecific["lease_file"].(string)
 	lf := NewLeaseFile(leaseFileName, a)
@@ -68,7 +68,7 @@ func (a *Agent) SetConfig(config common.ServiceConfig) error {
 	a.store.ServiceStore = &a.store
 	a.store.SetConfig(storeConfig)
 
-	log.Printf("Agent.SetConfig() finished.")
+	glog.Infof("Agent.SetConfig() finished.")
 	return nil
 }
 
@@ -143,7 +143,7 @@ func Run(rootServiceURL string, cred *common.Credential, testMode bool) (*common
 	agent := &Agent{testMode: testMode}
 	helper := NewAgentHelper(agent)
 	agent.Helper = &helper
-	log.Printf("Agent: Getting configuration from %s", rootServiceURL)
+	glog.Infof("Agent: Getting configuration from %s", rootServiceURL)
 
 	config, err := client.GetServiceConfig(agent.Name())
 	if err != nil {
@@ -185,10 +185,10 @@ func (a *Agent) statusHandler(input interface{}, ctx common.RestContext) (interf
 
 // k8sPodUpHandler handles HTTP requests for endpoints provisioning.
 func (a *Agent) k8sPodUpHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
-	log.Println("Agent: Entering k8sPodUpHandler()")
+	glog.Infof("Agent: Entering k8sPodUpHandler()")
 	netReq := input.(*NetworkRequest)
 
-	log.Printf("Agent: Got request for network configuration: %v\n", netReq)
+	glog.Infof("Agent: Got request for network configuration: %v\n", netReq)
 	// Spawn new thread to process the request
 
 	// TODO don't know if fork-bombs are possible in go but if they are this
@@ -209,7 +209,7 @@ func (a *Agent) index(input interface{}, ctx common.RestContext) (interface{}, e
 	// Parse out NetIf form the request
 	netif := input.(*NetIf)
 
-	log.Printf("Got interface: Name %s, IP %s Mac %s\n", netif.Name, netif.IP, netif.Mac)
+	glog.Infof("Got interface: Name %s, IP %s Mac %s\n", netif.Name, netif.IP, netif.Mac)
 	// Spawn new thread to process the request
 
 	// TODO don't know if fork-bombs are possible in go but if they are this
@@ -228,7 +228,7 @@ func (a *Agent) index(input interface{}, ctx common.RestContext) (interface{}, e
 // 2. Creates ip route pointing new interface
 // 3. Provisions firewall rules
 func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
-	log.Println("Agent: Entering k8sPodUpHandle()")
+	glog.Info("Agent: Entering k8sPodUpHandle()")
 
 	netif := netReq.NetIf
 	if netif.Name == "" {
@@ -239,24 +239,24 @@ func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 		// retry ? ... considering openstack will give up as well after
 		// timeout
 		msg := fmt.Sprintf("Requested interface not available in time - %s", netif.Name)
-		log.Println("Agent: ", msg)
+		glog.Infoln("Agent: ", msg)
 		return agentErrorString(msg)
 	}
 
-	log.Print("Agent: creating endpoint routes")
+	glog.Info("Agent: creating endpoint routes")
 	if err := a.Helper.ensureRouteToEndpoint(&netif); err != nil {
-		log.Print(agentError(err))
+		glog.Error(agentError(err))
 		return agentError(err)
 	}
-	log.Print("Agent: provisioning firewall")
+	glog.Info("Agent: provisioning firewall")
 
 	if err := provisionK8SFirewallRules(netReq, a); err != nil {
-		log.Print(agentError(err))
+		glog.Error(agentError(err))
 		return agentError(err)
 	}
 
 	a.addNetworkInterface(netif)
-	log.Print("Agent: All good", netif)
+	glog.Info("Agent: All good", netif)
 	return nil
 }
 
@@ -268,7 +268,7 @@ func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 // 4. Provisions static DHCP lease for new interface
 // 5. Provisions firewall rules
 func (a *Agent) interfaceHandle(netif NetIf) error {
-	log.Print("Agent: processing request to provision new interface")
+	glog.Info("Agent: processing request to provision new interface")
 	if !a.Helper.waitForIface(netif.Name) {
 		// TODO should we resubmit failed interface in queue for later
 		// retry ? ... considering oenstack will give up as well after
@@ -278,30 +278,30 @@ func (a *Agent) interfaceHandle(netif NetIf) error {
 
 	// dhcpPid is only needed here for fail fast check
 	// will try to poll the pid again in provisionLease
-	log.Print("Agent: checking if DHCP is running")
+	glog.Info("Agent: checking if DHCP is running")
 	_, err := a.Helper.DhcpPid()
 	if err != nil {
-		log.Print(agentError(err))
+		glog.Error(agentError(err))
 		return agentError(err)
 	}
-	log.Print("Agent: creating endpoint routes")
+	glog.Info("Agent: creating endpoint routes")
 	if err := a.Helper.ensureRouteToEndpoint(&netif); err != nil {
-		log.Print(agentError(err))
+		glog.Error(agentError(err))
 		return agentError(err)
 	}
-	log.Print("Agent: provisioning DHCP")
+	glog.Info("Agent: provisioning DHCP")
 	if err := a.leaseFile.provisionLease(&netif); err != nil {
-		log.Print(agentError(err))
+		glog.Error(agentError(err))
 		return agentError(err)
 	}
-	log.Print("Agent: provisioning firewall")
+	glog.Info("Agent: provisioning firewall")
 	if err := provisionFirewallRules(netif, a); err != nil {
-		log.Print(agentError(err))
+		glog.Error(agentError(err))
 		return agentError(err)
 	}
 
 	a.addNetworkInterface(netif)
-	log.Print("All good", netif)
+	glog.Info("All good", netif)
 	return nil
 }
 
@@ -313,16 +313,16 @@ func (a *Agent) Initialize() error {
 		return err
 	}
 
-	log.Printf("Entering Agent.Initialize()")
+	glog.Infof("Entering Agent.Initialize()")
 	if err := a.identifyCurrentHost(); err != nil {
-		log.Print("Agent: ", agentError(err))
+		glog.Error("Agent: ", agentError(err))
 		return agentError(err)
 	}
 
 	// Ensure we have all the routes to our neighbours
-	log.Print("Agent: ensuring interhost routes exist")
+	glog.Info("Agent: ensuring interhost routes exist")
 	if err := a.Helper.ensureInterHostRoutes(); err != nil {
-		log.Print("Agent: ", agentError(err))
+		glog.Error("Agent: ", agentError(err))
 		return agentError(err)
 	}
 	return nil
