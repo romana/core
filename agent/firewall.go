@@ -51,8 +51,9 @@ const (
 	targetDrop   = "DROP"
 	targetAccept = "ACCEPT"
 
-	bottomRule = 0
-	topRule    = 1
+	ensureLast   = 0
+	ensureFirst  = 1
+	ensureAbsent = 2
 )
 
 // Firewall describes state of firewall rules for the given endpoint.
@@ -196,29 +197,37 @@ func (fw *Firewall) CreateChains(newChains []int) error {
 }
 
 // ensureIptablesRule verifies if given iptables rule exists and creates if it's not.
-func (fw *Firewall) ensureIptablesRule(ruleSpec []string, ruleOrder int) error {
-	if !fw.isRuleExist(ruleSpec) {
-		cmd := "/sbin/iptables"
-		args := []string{}
+func (fw *Firewall) ensureIptablesRule(ruleSpec []string, opType int) error {
+	ruleExists := fw.isRuleExist(ruleSpec)
+	cmd := "/sbin/iptables"
+	args := []string{}
+	message := "Rule deletion"
 
-		switch ruleOrder {
-		case bottomRule:
+	if ruleExists && opType == ensureAbsent {
+		args = append(args, []string{"-D"}...)
+
+	} else if !ruleExists {
+
+		switch opType {
+		case ensureLast:
 			args = append(args, []string{"-A"}...)
-		case topRule:
+		case ensureFirst:
 			args = append(args, []string{"-I"}...)
 		}
-
-		args = append(args, ruleSpec...)
-		_, err := fw.Agent.Helper.Executor.Exec(cmd, args)
-		if err != nil {
-			glog.Error("Creating iptables rule failed ", ruleSpec)
-			return err
-		}
-		glog.Infof("Rule created ", ruleSpec)
 	} else {
-		glog.Infof("Rule already exist ", ruleSpec)
+		glog.Infof("In ensureIptablesRule - nothing to do ", ruleSpec)
+		return nil
 	}
-	return nil
+
+	args = append(args, ruleSpec...)
+	_, err := fw.Agent.Helper.Executor.Exec(cmd, args)
+	if err != nil {
+		glog.Error(message, "failed ", ruleSpec)
+	} else {
+		glog.Infof(message, "successful ", ruleSpec)
+	}
+
+	return err
 }
 
 // DivertTrafficToRomanaIptablesChain injects iptables rules to send traffic
@@ -233,7 +242,7 @@ func (fw *Firewall) DivertTrafficToRomanaIptablesChain(chain int) error {
 		direction := fmt.Sprintf("-%s", directionLiteral)
 		chainName := fw.chains[chain].chainName
 		ruleSpec := []string{baseChain, direction, fw.interfaceName, "-j", chainName}
-		if err := fw.ensureIptablesRule(ruleSpec, bottomRule); err != nil {
+		if err := fw.ensureIptablesRule(ruleSpec, ensureLast); err != nil {
 			glog.Error("Diverting traffic failed", chain)
 			return err
 		}
@@ -251,7 +260,7 @@ func (fw *Firewall) CreateRules(chain int) error {
 		ruleSpec := []string{chainName}
 		ruleSpec = append(ruleSpec, strings.Split(fw.chains[chain].rules[rule], " ")...)
 		ruleSpec = append(ruleSpec, []string{"-j", "ACCEPT"}...)
-		err := fw.ensureIptablesRule(ruleSpec, topRule)
+		err := fw.ensureIptablesRule(ruleSpec, ensureFirst)
 		if err != nil {
 			glog.Error("Creating firewall rules failed")
 			return err
@@ -289,7 +298,7 @@ func (fw *Firewall) CreateDefaultRule(chain int, target string) error {
 	glog.Infof("Creating default %s rules for chain %d", target, chain)
 	chainName := fw.chains[chain].chainName
 	ruleSpec := []string{chainName, "-j", target}
-	err := fw.ensureIptablesRule(ruleSpec, bottomRule)
+	err := fw.ensureIptablesRule(ruleSpec, ensureLast)
 	if err != nil {
 		glog.Errorf("Creating default %s rules failed", target)
 		return err
