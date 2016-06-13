@@ -177,9 +177,8 @@ func ReadConfig(fname string) (Config, error) {
 		}
 		log.Println("Read configuration from", fname)
 		return *config, nil
-	} else {
-		return *config, errors.New("Empty filename.")
 	}
+	return *config, errors.New("Empty filename.")
 }
 
 // WriteConfig writes config from file to structure

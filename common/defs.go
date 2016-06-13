@@ -354,9 +354,8 @@ func (p *Policy) Validate() error {
 
 	if len(errMsg) == 0 {
 		return nil
-	} else {
-		return NewUnprocessableEntityError(errMsg)
 	}
+	return NewUnprocessableEntityError(errMsg)
 }
 
 // RestServiceInfo describes information about a running
