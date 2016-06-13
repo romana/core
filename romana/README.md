@@ -136,6 +136,10 @@ for various platforms supported by romana.
 ```
 romana policy add [policyFile] [flags]
 ```
+Alternatively policies can be added using standard input.
+```
+cat policy.json | romana policy add
+```
 
 #### Remove a specific policy from romana cluster
 ```
