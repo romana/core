@@ -80,7 +80,8 @@ type Store interface {
 	CreateSchema(bool) error
 	// Find finds all entries in the store based on the query string. If
 	// single is specified then it is expected that only one result is to be found --
-	// multiple results will yield an errror.
+	// multiple results will yield an errror. Here "entities" *must* be a pointer to an array
+	// of entities to find (for example, it has to be &[]Tenant{}, not Tenant{}).
 	Find(query url.Values, entities interface{}, single bool) (interface{}, error)
 }
 
@@ -110,7 +111,7 @@ type DbStore struct {
 // Find generically implements Find() of store interface.
 func (dbStore *DbStore) Find(query url.Values, entities interface{}, single bool) (interface{}, error) {
 	queryStringFieldToDbField := make(map[string]string)
-	
+
 	t := reflect.TypeOf(entities).Elem().Elem()
 	for i := 0; i < t.NumField(); i++ {
 		structField := t.Field(i)
@@ -178,7 +179,7 @@ func (dbStore *DbStore) Find(query url.Values, entities interface{}, single bool
 		return nil, err
 	}
 	rowCount := reflect.ValueOf(entities).Elem().Len()
-	
+
 	if rowCount == 0 {
 		return nil, NewError404(t.String(), fmt.Sprintf("%#v", whereMap))
 	}
