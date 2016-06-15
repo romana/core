@@ -129,12 +129,19 @@ romana segment list [tenantName][tenantName]... [flags]
 
 ### Policy sub-commands
 
+#### Sample Romana Policy
+A sample romana policy is shown [here](policy/policy.sample.json).
+
 #### Add a new policy to romana cluster
 Adding policies to romana cluster involves them being applied
 to various backends like openstack VMs, Kubernetes Pods, etc
 for various platforms supported by romana.
 ```
 romana policy add [policyFile] [flags]
+```
+Alternatively policies can be added using standard input.
+```
+cat policy.json | romana policy add
 ```
 
 #### Remove a specific policy from romana cluster

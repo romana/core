@@ -98,7 +98,7 @@ func policyAdd(cmd *cli.Command, args []string) error {
 	var policyFile string
 	var err error
 	isFile := true
-	isJson := config.GetString("Format") == "json"
+	isJSON := config.GetString("Format") == "json"
 
 	if len(args) == 0 {
 		isFile = false
@@ -166,8 +166,8 @@ func policyAdd(cmd *cli.Command, args []string) error {
 		reqPolicies.AppliedSuccessfully[i] = true
 	}
 
-	if isJson {
-		for i, _ := range reqPolicies.SecurityPolicies {
+	if isJSON {
+		for i := range reqPolicies.SecurityPolicies {
 			// check if any of policy markers are present in the map.
 			_, exOk := result[i]["external_id"]
 			_, idOk := result[i]["id"]

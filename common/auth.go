@@ -52,10 +52,9 @@ type Credential struct {
 func MakeCredentialFromCliArgs(username string, password string) *Credential {
 	if username == "" {
 		return &Credential{Type: CredentialNone}
-	} else {
-		if password == "" {
-			password = Environ()[PasswordEnvironmentVariable]
-		}
-		return &Credential{Type: CredentialUsernamePassword, Username: username, Password: password}
 	}
+	if password == "" {
+		password = Environ()[PasswordEnvironmentVariable]
+	}
+	return &Credential{Type: CredentialUsernamePassword, Username: username, Password: password}
 }
