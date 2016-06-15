@@ -211,9 +211,3 @@ func CreateSchema(rootServiceUrl string, overwrite bool) error {
 func (a *Agent) createSchema(overwrite bool) error {
 	return a.store.CreateSchema(overwrite)
 }
-
-// addNetworkInterface creates new NetworkInterface record in database.
-func (a *Agent) addNetworkInterface(netif NetIf) error {
-	iface := &NetworkInterface{Name: netif.Name, Status: "active"}
-	return a.store.addNetworkInterface(iface)
-}

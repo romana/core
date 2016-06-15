@@ -50,10 +50,6 @@ const (
 
 	targetDrop   = "DROP"
 	targetAccept = "ACCEPT"
-
-	ensureLast   = 0
-	ensureFirst  = 1
-	ensureAbsent = 2
 )
 
 // Firewall describes state of firewall rules for the given endpoint.
@@ -196,12 +192,34 @@ func (fw *Firewall) CreateChains(newChains []int) error {
 	return nil
 }
 
+// opType for ensureIptablesRule
+type opIptablesAction int
+
+const (
+	ensureLast opIptablesAction = iota
+	ensureFirst
+	ensureAbsent
+)
+
+func (i opIptablesAction) String() string {
+	var result string
+	switch i {
+	case ensureLast:
+		result = "Ensuring rule at the bottom"
+	case ensureFirst:
+		result = "Ensuring rule at the top"
+	case ensureAbsent:
+		result = "Ensuring rule is absent"
+	}
+
+	return result
+}
+
 // ensureIptablesRule verifies if given iptables rule exists and creates if it's not.
-func (fw *Firewall) ensureIptablesRule(ruleSpec []string, opType int) error {
+func (fw *Firewall) ensureIptablesRule(ruleSpec []string, opType opIptablesAction) error {
 	ruleExists := fw.isRuleExist(ruleSpec)
 	cmd := "/sbin/iptables"
 	args := []string{}
-	message := "Rule deletion"
 
 	if ruleExists && opType == ensureAbsent {
 		args = append(args, []string{"-D"}...)
@@ -222,48 +240,119 @@ func (fw *Firewall) ensureIptablesRule(ruleSpec []string, opType int) error {
 	args = append(args, ruleSpec...)
 	_, err := fw.Agent.Helper.Executor.Exec(cmd, args)
 	if err != nil {
-		glog.Error(message, "failed ", ruleSpec)
+		glog.Errorf("%s filed %s", opType, ruleSpec)
 	} else {
-		glog.Infof(message, "successful ", ruleSpec)
+		glog.Infof("%s success %s", opType, ruleSpec)
 	}
 
 	return err
 }
 
+// opType for DivertTrafficToRomanaIptablesChain
+type opDivertTrafficAction int
+
+const (
+	installDivertRules opDivertTrafficAction = iota
+	removeDivertRules
+)
+
+func (d opDivertTrafficAction) String() string {
+	var result string
+	switch d {
+	case installDivertRules:
+		result = "Installing divert rules"
+	case removeDivertRules:
+		result = "Removing divert rules"
+	}
+	return result
+}
+
 // DivertTrafficToRomanaIptablesChain injects iptables rules to send traffic
 // into the ROMANA chain.
 // We need to do this for each tenant/segment pair as each pair will have different chain name.
-func (fw *Firewall) DivertTrafficToRomanaIptablesChain(chain int) error {
+func (fw *Firewall) DivertTrafficToRomanaIptablesChain(chain int, opType opDivertTrafficAction) error {
 	// Should be like that
 	// iptables -A INPUT -i tap1234 -j ROMANA-T0S1-INPUT
-	glog.Infof("Diverting traffic into chain number ", chain)
+	glog.Infof("In DivertTrafficToRomanaIptablesChain() processing chain number %s with action %s", chain, opType)
+
+	var action opIptablesAction
+	switch opType {
+	case installDivertRules:
+		action = ensureLast
+	case removeDivertRules:
+		action = ensureAbsent
+	}
+
 	baseChain := fw.chains[chain].baseChain
 	for _, directionLiteral := range fw.chains[chain].directions {
 		direction := fmt.Sprintf("-%s", directionLiteral)
 		chainName := fw.chains[chain].chainName
 		ruleSpec := []string{baseChain, direction, fw.interfaceName, "-j", chainName}
-		if err := fw.ensureIptablesRule(ruleSpec, ensureLast); err != nil {
-			glog.Error("Diverting traffic failed", chain)
-			return err
+
+		// First create rule record in database.
+		rule, err0 := fw.addIPtablesRule(ruleSpec)
+		if err0 != nil {
+			glog.Error("In DivertTrafficToRomanaIptablesChain() failed to process chain number", chain)
+			return err0
 		}
+
+		// Then create actuall rule in the system.
+		if err1 := fw.ensureIptablesRule(ruleSpec, action); err1 != nil {
+			glog.Error("In DivertTrafficToRomanaIptablesChain() failed to process chain number ", chain)
+			return err1
+		}
+
+		// Finally, set 'active' flag in database record.
+		if err2 := fw.Agent.store.switchIPtablesRule(rule, setRuleActive); err2 != nil {
+			glog.Error("In DivertTrafficToRomanaIptablesChain() iptables rule created but activation failed ", rule.Body)
+			return err2
+		}
+
 	}
-	glog.Info("Diverting traffic success", chain)
+	glog.Info("DivertTrafficToRomanaIptablesChain() successfully processed chain number", chain)
 	return nil
+}
+
+// addIPtablesRule creates new iptable rule in database.
+func (fw *Firewall) addIPtablesRule(ruleSpec []string) (*IPtablesRule, error) {
+	rule := new(IPtablesRule)
+	rule.Body = strings.Join(ruleSpec, " ")
+	rule.State = setRuleInactive.String()
+	if err := fw.Agent.store.addIPtablesRule(rule); err != nil {
+		glog.Error("In addIPtablesRule failed to add ", rule.Body)
+		return nil, err
+	}
+
+	return rule, nil
 }
 
 // CreateRules creates iptables rules for the given Romana chain
 // to allow a traffic to flow between the Host and Endpoint.
 func (fw *Firewall) CreateRules(chain int) error {
-	glog.Info("Creating firewall rules for chain", chain)
+	glog.Info("In CreateRules() for chain", chain)
 	for rule := range fw.chains[chain].rules {
 		chainName := fw.chains[chain].chainName
 		ruleSpec := []string{chainName}
 		ruleSpec = append(ruleSpec, strings.Split(fw.chains[chain].rules[rule], " ")...)
 		ruleSpec = append(ruleSpec, []string{"-j", "ACCEPT"}...)
-		err := fw.ensureIptablesRule(ruleSpec, ensureFirst)
-		if err != nil {
-			glog.Error("Creating firewall rules failed")
-			return err
+
+		// First create rule record in database.
+		rule, err0 := fw.addIPtablesRule(ruleSpec)
+		if err0 != nil {
+			glog.Error("In CreateRules() create db record for iptables rule ", ruleSpec)
+			return err0
+		}
+
+		err1 := fw.ensureIptablesRule(ruleSpec, ensureFirst)
+		if err1 != nil {
+			glog.Error("In CreateRules() failed to create install firewall rule ", ruleSpec)
+			return err1
+		}
+
+		// Finally, set 'active' flag in database record.
+		if err2 := fw.Agent.store.switchIPtablesRule(rule, setRuleActive); err2 != nil {
+			glog.Error("In CreateRules() iptables rule created but activation failed ", rule.Body)
+			return err2
 		}
 	}
 	glog.Info("Creating firewall rules success")
@@ -272,6 +361,7 @@ func (fw *Firewall) CreateRules(chain int) error {
 
 // CreateU32Rules creates wildcard iptables rules for the given Romana chain.
 // These rules serve to restrict traffic between segments and tenants.
+// * Deprecated, outdated *
 func (fw *Firewall) CreateU32Rules(chain int) error {
 	glog.Info("Creating U32 firewall rules for chain", chain)
 	chainName := fw.chains[chain].chainName
@@ -295,15 +385,30 @@ func (fw *Firewall) CreateDefaultDropRule(chain int) error {
 // CreateDefaultRule creates iptables rule for a chain with the
 // specified target
 func (fw *Firewall) CreateDefaultRule(chain int, target string) error {
-	glog.Infof("Creating default %s rules for chain %d", target, chain)
+	glog.Infof("In CreateDefaultRule() %s rules for chain %d", target, chain)
 	chainName := fw.chains[chain].chainName
 	ruleSpec := []string{chainName, "-j", target}
-	err := fw.ensureIptablesRule(ruleSpec, ensureLast)
-	if err != nil {
-		glog.Errorf("Creating default %s rules failed", target)
-		return err
+
+	// First create rule record in database.
+	rule, err0 := fw.addIPtablesRule(ruleSpec)
+	if err0 != nil {
+		glog.Error("In CreateDefaultRules() create db record for iptables rule ", ruleSpec)
+		return err0
 	}
-	glog.Info("Creating default drop rules success")
+
+	err1 := fw.ensureIptablesRule(ruleSpec, ensureLast)
+	if err1 != nil {
+		glog.Errorf("In CreateDefaultRules() %s rules failed", target)
+		return err1
+	}
+
+	// Finally, set 'active' flag in database record.
+	if err2 := fw.Agent.store.switchIPtablesRule(rule, setRuleActive); err2 != nil {
+		glog.Error("In CreateDefaultRules() iptables rule created but activation failed ", rule.Body)
+		return err2
+	}
+
+	glog.Info("In CreateDefaultRules() success")
 	return nil
 }
 
@@ -561,7 +666,7 @@ func provisionK8SFirewallRules(netReq NetworkRequest, agent *Agent) error {
 	}
 
 	for chain := range fw.chains {
-		if err := fw.DivertTrafficToRomanaIptablesChain(chain); err != nil {
+		if err := fw.DivertTrafficToRomanaIptablesChain(chain, installDivertRules); err != nil {
 			return err
 		}
 	}
@@ -597,10 +702,63 @@ func provisionFirewallRules(netif NetIf, agent *Agent) error {
 	}
 
 	for chain := range fw.chains {
-		if err := fw.DivertTrafficToRomanaIptablesChain(chain); err != nil {
+		if err := fw.DivertTrafficToRomanaIptablesChain(chain, installDivertRules); err != nil {
 			return err
 		}
 	}
 
+	return nil
+}
+
+// cleanupFirewall deletes stale iptables rules when interface goes away
+func cleanupFirewall(netif NetIf, agent *Agent) error {
+	// No full initialization here due to netif might not have IP.
+	fw := Firewall{Agent: agent}
+
+	if err := fw.deleteIPtablesRulesBySubstring(netif.Name); err != nil {
+		glog.Error("In cleanupFirewall() failed to clean firewall for %s ", netif.Name)
+		return err
+	}
+
+	return nil
+}
+
+// deleteIPtablesRulesBySubstring uninstalls iptables rules matching given
+// substring and deletes them from database. Has no effect on 'inactive' rules.
+func (fw *Firewall) deleteIPtablesRulesBySubstring(substring string) error {
+	rules, err := fw.Agent.store.findIPtablesRules(substring)
+	if err != nil {
+		return err
+	}
+
+	for _, rule := range *rules {
+		if rule.State == setRuleInactive.String() {
+			continue
+		}
+
+		err = fw.deleteIPtablesRule(&rule)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (fw *Firewall) deleteIPtablesRule(rule *IPtablesRule) error {
+	if err := fw.Agent.store.switchIPtablesRule(rule, setRuleInactive); err != nil {
+		glog.Error("In deleteIPtablesRule() failed to deactivate the rule", rule.Body)
+		return err
+	}
+
+	if err1 := fw.ensureIptablesRule(strings.Split(rule.Body, " "), ensureAbsent); err1 != nil {
+		glog.Errorf("In deleteIPtablesRule() rule %s set inactive but failed to uninstall", rule.Body)
+		return err1
+	}
+
+	if err2 := fw.Agent.store.deleteIPtablesRule(rule); err2 != nil {
+		glog.Errorf("In deleteIPtablesRule() rule %s set inactive and uninstalled but failed to delete DB record", rule.Body)
+		return err2
+	}
 	return nil
 }

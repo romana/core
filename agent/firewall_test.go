@@ -89,7 +89,7 @@ func TestDivertTraffic(t *testing.T) {
 	fw, _ := NewFirewall(NetIf{"eth0", "A", ip}, &agent)
 
 	// 0 is a first standard chain - INPUT
-	fw.DivertTrafficToRomanaIptablesChain(0)
+	fw.DivertTrafficToRomanaIptablesChain(0, installDivertRules)
 
 	expect := "/sbin/iptables -C INPUT -i eth0 -j ROMANA-T0S0-INPUT\n/sbin/iptables -A INPUT -i eth0 -j ROMANA-T0S0-INPUT"
 

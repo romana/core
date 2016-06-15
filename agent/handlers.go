@@ -25,11 +25,11 @@ func (a *Agent) listPolicies(input interface{}, ctx common.RestContext) (interfa
 
 // statusHandler reports operational statistics.
 func (a *Agent) statusHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
-	networkInterfaces, err := a.store.listNetworkInterfaces()
+	iptablesRules, err := a.store.listIPtablesRules()
 	if err != nil {
 		return nil, err
 	}
-	return networkInterfaces, nil
+	return iptablesRules, nil
 }
 
 // k8sPodDownHandler cleans up after pod deleted.
@@ -38,12 +38,8 @@ func (a *Agent) k8sPodDownHandler(input interface{}, ctx common.RestContext) (in
 	netReq := input.(*NetworkRequest)
 	netif := netReq.NetIf
 
-	iface, err := a.store.findNetworkInterface(netif.Name)
-	if err != nil {
-		return nil, err
-	}
-
-	err = a.store.deleteNetworkInterface(iface)
+	fw := Firewall{Agent: a}
+	err := fw.deleteIPtablesRulesBySubstring(netif.Name)
 	if err != nil {
 		return nil, err
 	}
@@ -126,7 +122,6 @@ func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 		return agentError(err)
 	}
 
-	a.addNetworkInterface(netif)
 	glog.Info("Agent: All good", netif)
 	return nil
 }
@@ -171,7 +166,6 @@ func (a *Agent) interfaceHandle(netif NetIf) error {
 		return agentError(err)
 	}
 
-	a.addNetworkInterface(netif)
 	glog.Info("All good", netif)
 	return nil
 }
