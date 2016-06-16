@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/golang/glog"
 	"github.com/romana/core/common"
+	"github.com/romana/core/firewall"
 )
 
 // addPolicy is a placeholder. TODO
@@ -25,24 +26,30 @@ func (a *Agent) listPolicies(input interface{}, ctx common.RestContext) (interfa
 
 // statusHandler reports operational statistics.
 func (a *Agent) statusHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
-	iptablesRules, err := a.store.listIPtablesRules()
-	if err != nil {
-		return nil, err
-	}
-	return iptablesRules, nil
+	/*
+		iptablesRules, err := a.store.listIPtablesRules()
+		if err != nil {
+			return nil, err
+		}
+		return iptablesRules, nil
+	*/
+
+	return nil, nil
 }
 
 // k8sPodDownHandler cleans up after pod deleted.
 func (a *Agent) k8sPodDownHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
 	glog.Infoln("Agent: Entering k8sPodDownHandler()")
 	netReq := input.(*NetworkRequest)
-	netif := netReq.NetIf
+	/*
+		netif := netReq.NetIf
 
-	fw := Firewall{Agent: a}
-	err := fw.deleteIPtablesRulesBySubstring(netif.Name)
-	if err != nil {
-		return nil, err
-	}
+		fw := Firewall{Agent: a}
+		err := fw.deleteIPtablesRulesBySubstring(netif.Name)
+		if err != nil {
+			return nil, err
+		}
+	*/
 
 	// Spawn new thread to process the request
 	glog.Infof("Agent: Got request for network configuration: %v\n", netReq)
@@ -115,9 +122,15 @@ func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 		glog.Error(agentError(err))
 		return agentError(err)
 	}
-	glog.Info("Agent: provisioning firewall")
 
-	if err := provisionK8SFirewallRules(netReq, a); err != nil {
+	glog.Info("Agent: provisioning firewall")
+	fw, err := firewall.NewFirewall(a.Helper.Executor, a.store, a.networkConfig, firewall.OpenStackPlatform)
+	if err != nil {
+		glog.Error(agentError(err))
+		return agentError(err)
+	}
+
+	if err := fw.ProvisionEndpoint(netif); err != nil {
 		glog.Error(agentError(err))
 		return agentError(err)
 	}
@@ -160,8 +173,15 @@ func (a *Agent) interfaceHandle(netif NetIf) error {
 		glog.Error(agentError(err))
 		return agentError(err)
 	}
+
 	glog.Info("Agent: provisioning firewall")
-	if err := provisionFirewallRules(netif, a); err != nil {
+	fw, err := firewall.NewFirewall(a.Helper.Executor, a.store, a.networkConfig, firewall.OpenStackPlatform)
+	if err != nil {
+		glog.Error(agentError(err))
+		return agentError(err)
+	}
+
+	if err := fw.ProvisionEndpoint(netif); err != nil {
 		glog.Error(agentError(err))
 		return agentError(err)
 	}

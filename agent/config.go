@@ -61,6 +61,11 @@ func (c *NetworkConfig) EndpointBits() uint {
 	return c.dc.EndpointBits
 }
 
+// RomanaGW returns current romana gateway.
+func (c *NetworkConfig) RomanaGW() net.IP {
+	return c.romanaGW
+}
+
 // identifyCurrentHost discovers network configuration
 // of the host we are running on.
 // We need to know public IP and Romana gateway IP of the current host.
