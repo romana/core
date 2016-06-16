@@ -150,7 +150,7 @@ func (firewallStore *firewallStore) findIPtablesRules(subString string) (*[]IPta
 
 	var rules []IPtablesRule
 	db := firewallStore.DbStore.Db
-	firewallStore.DbStore.Db.Where("body LIKE = %?%", subString).Find(&rules)
+	firewallStore.DbStore.Db.Where("body LIKE %?%", subString).Find(&rules)
 	err := common.MakeMultiError(db.GetErrors())
 	if err != nil {
 		return nil, err
