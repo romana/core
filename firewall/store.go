@@ -48,13 +48,13 @@ type IPtablesRule struct {
 }
 
 func (firewallStore *firewallStore) addIPtablesRule(rule *IPtablesRule) error {
-	glog.Info("Acquiring store mutex for addNetworkInterface")
+	glog.Info("Acquiring store mutex for addIPtablesRule")
 	firewallStore.mu.Lock()
 	defer func() {
-		glog.Info("Releasing store mutex for addNetworkInterface")
+		glog.Info("Releasing store mutex for addIPtablesRule")
 		firewallStore.mu.Unlock()
 	}()
-	glog.Info("Acquired store mutex for addNetworkInterface")
+	glog.Info("Acquired store mutex for addIPtablesRule")
 
 	db := firewallStore.DbStore.Db
 	firewallStore.DbStore.Db.Create(rule)
