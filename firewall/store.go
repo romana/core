@@ -56,8 +56,7 @@ type IPtablesRule struct {
 func (firewallStore *firewallStore) addIPtablesRule(rule *IPtablesRule) error {
 	glog.Info("Acquiring store mutex for addIPtablesRule")
 	if rule == nil {
-		glog.Error("In addIPtablesRule(), received nil rule")
-		panic()
+		panic("In addIPtablesRule(), received nil rule")
 	}
 
 	firewallStore.mu.Lock()
@@ -71,8 +70,7 @@ func (firewallStore *firewallStore) addIPtablesRule(rule *IPtablesRule) error {
 	db := firewallStore.GetDb()
 	glog.Info("In addIPtablesRule() after GetDb")
 	if db == nil {
-		glog.Error("In addIPtablesRule(), db is nil")
-		panic()
+		panic("In addIPtablesRule(), db is nil")
 	}
 
 	firewallStore.DbStore.Db.Create(rule)
