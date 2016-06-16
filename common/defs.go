@@ -20,6 +20,7 @@ package common
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"strings"
 )
 
@@ -329,7 +330,7 @@ func (p *Policy) Validate() error {
 		for i, endpoint := range p.AppliedTo {
 			epNo := i + 1
 			if endpoint.TenantExternalID == "" && endpoint.TenantID == 0 && endpoint.TenantNetworkID == nil {
-						errMsg = append(errMsg, fmt.Sprintf("applied_to entry #%d: at least one of: tenant_name, tenant_id, tenant_external_id or tenant_network_id must be specified.", epNo))
+				errMsg = append(errMsg, fmt.Sprintf("applied_to entry #%d: at least one of: tenant_name, tenant_id, tenant_external_id or tenant_network_id must be specified.", epNo))
 			}
 		}
 	}

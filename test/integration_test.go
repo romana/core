@@ -354,7 +354,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	// Find by name - should be an error for findOne (there's 2 of them)
 	err = client.Get("/findOne/tenants?name=name1", &t2Out)
 	if err == nil {
-		c.Error("Expected error %s", err)
+		c.Error("Expected error")
 	} else {
 		myLog(c, "Expected error %s", err)
 	}
