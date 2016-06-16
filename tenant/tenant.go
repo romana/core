@@ -31,7 +31,6 @@ type TenantSvc struct {
 }
 
 const (
-	findPath           = "/find"
 	tenantsPath        = "/tenants"
 	segmentsPath       = "/segments"
 	tenantNameQueryVar = "tenantName"
@@ -50,11 +49,6 @@ func (tsvc *TenantSvc) Routes() common.Routes {
 			Method:  "GET",
 			Pattern: tenantsPath + "/{tenantId}",
 			Handler: tsvc.getTenant,
-		},
-		common.Route{
-			Method:  "GET",
-			Pattern: findPath + tenantsPath,
-			Handler: tsvc.findTenantsByName,
 		},
 		common.Route{
 			Method:  "GET",

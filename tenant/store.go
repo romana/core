@@ -91,10 +91,6 @@ func (tenantStore *tenantStore) addTenant(tenant *Tenant) error {
 	var tenants []Tenant
 	tenantStore.DbStore.Db.Find(&tenants)
 
-	if tenant.ExternalID == "" {
-		tenant.ExternalID = hex.EncodeToString(uuid.NewRandom())
-	}
-
 	tenant.Seq = uint64(len(tenants))
 	db := tenantStore.DbStore.Db
 	tenantStore.DbStore.Db.Create(tenant)
@@ -157,10 +153,6 @@ func (tenantStore *tenantStore) addSegment(tenantId uint64, segment *Segment) er
 		return db.Error
 	}
 	segment.Seq = uint64(len(segments))
-
-	if segment.ExternalID == "" {
-		segment.ExternalID = hex.EncodeToString(uuid.NewRandom())
-	}
 
 	tenantStore.DbStore.Db.NewRecord(*segment)
 	err = common.MakeMultiError(db.GetErrors())
