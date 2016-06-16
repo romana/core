@@ -18,6 +18,7 @@ package firewall
 import (
 	"github.com/romana/core/common"
 	"net"
+	"sync"
 )
 
 // mockNetworkConfig implements NetConfig
@@ -89,6 +90,7 @@ func makeMockStore() firewallStore {
 	mockStore.ServiceStore = &mockStore
 	mockStore.SetConfig(storeConfig.ServiceSpecific)
 	mockStore.CreateSchema(true) // overwrite
+	mockStore.mu = new(sync.Mutex)
 
 	return mockStore
 }

@@ -467,7 +467,7 @@ func (fw Iptables) ProvisionEndpoint(netif FirewallEndpoint) error {
 // Cleanup implements Firewall interface.
 func (fw Iptables) Cleanup(netif FirewallEndpoint) error {
 	if err := fw.deleteIPtablesRulesBySubstring(netif.GetName()); err != nil {
-		glog.Error("In Cleanup() failed to clean firewall for %s ", netif.GetName())
+		glog.Errorf("In Cleanup() failed to clean firewall for %s", netif.GetName())
 		return err
 	}
 

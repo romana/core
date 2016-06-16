@@ -17,7 +17,6 @@ package firewall
 
 import (
 	"github.com/golang/glog"
-	"github.com/jinzhu/gorm"
 	"github.com/romana/core/common"
 	"sync"
 )
@@ -28,13 +27,13 @@ type FirewallStore interface {
 	GetDb() common.DbStore
 
 	// GetMutex return instance of mutex used guard firewall database.
-	GetMutex() sync.Mutex
+	GetMutex() *sync.Mutex
 }
 
 // firewallStore implement FirewallStore
 type firewallStore struct {
 	common.DbStore
-	mu sync.Mutex
+	mu *sync.Mutex
 }
 
 // Entities implements Entities method of
@@ -50,9 +49,14 @@ func (fs firewallStore) CreateSchemaPostProcess() error {
 	return nil
 }
 
-func (fs firewallStore) GetDb() *gorm.DB {
-	glog.Info("In GetDb()")
-	return fs.Db
+// GetDb implements firewall.FirewallStore
+func (fs firewallStore) GetDb() common.DbStore {
+	return fs.DbStore
+}
+
+// GetMutex implements firewall.FirewallStore
+func (fs firewallStore) GetMutex() *sync.Mutex {
+	return fs.mu
 }
 
 // IPtablesRule represents a single iptables rule managed by the agent.
@@ -76,8 +80,8 @@ func (firewallStore *firewallStore) addIPtablesRule(rule *IPtablesRule) error {
 	}()
 	glog.Info("Acquired store mutex for addIPtablesRule")
 
-	// db := firewallStore.DbStore.Db
-	db := firewallStore.GetDb()
+	db := firewallStore.DbStore.Db
+	// db := firewallStore.GetDb()
 	glog.Info("In addIPtablesRule() after GetDb")
 	if db == nil {
 		panic("In addIPtablesRule(), db is nil")
