@@ -22,6 +22,16 @@ import (
 	"sync"
 )
 
+// FirewallStore defines how database should be passed into firewall instance.
+type FirewallStore interface {
+	// GetDb Returns fully initialized DbStore object
+	GetDb() common.DbStore
+
+	// GetMutex return instance of mutex used guard firewall database.
+	GetMutex() sync.Mutex
+}
+
+// firewallStore implement FirewallStore
 type firewallStore struct {
 	common.DbStore
 	mu sync.Mutex

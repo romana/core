@@ -9,10 +9,20 @@ import (
 
 // agentStore is a backing storage. Agent will likely use
 // sqlite which is not very reliable in concurrent access scenario,
-// so we are going to serialize access with mutex.
+// so we are going to guard access with mutex.
 type agentStore struct {
 	common.DbStore
 	mu sync.Mutex
+}
+
+// GetDb implements firewall.FirewallStore
+func (agentStore agentStore) GetDb() common.DbStore {
+	return agentStore.DbStore
+}
+
+// GetMutex implements firewall.FirewallStore
+func (agentStore agentStore) GetMutex() sync.Mutex {
+	return agentStore.mu
 }
 
 // Entities implements Entities method of

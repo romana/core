@@ -1,7 +1,6 @@
 package firewall
 
 import (
-	"errors"
 	utilexec "github.com/romana/core/pkg/util/exec"
 	"net"
 )
@@ -29,12 +28,11 @@ type NetConfig interface {
 
 // NewFirewall returns fully initialized firewall struct, with rules and chains
 // configured for given endpoint.
-func NewFirewall(executor utilexec.Executable, store interface{}, nc NetConfig, platform FirewallPlatform) (Firewall, error) {
+func NewFirewall(executor utilexec.Executable, store FirewallStore, nc NetConfig, platform FirewallPlatform) (Firewall, error) {
 
-	fwstore, ok := store.(firewallStore)
-	if ok {
-		return Iptables{}, errors.New("Failed to cast store to firewallStore type")
-	}
+	fwstore := firewallStore{}
+	fwstore.DbStore = store.GetDb()
+	fwstore.mu = store.GetMutex()
 
 	fw := new(Iptables)
 	fw.Store = fwstore
