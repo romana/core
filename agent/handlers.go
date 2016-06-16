@@ -44,7 +44,7 @@ func (a *Agent) k8sPodDownHandler(input interface{}, ctx common.RestContext) (in
 	netReq := input.(*NetworkRequest)
 	netif := netReq.NetIf
 
-	fw, err := firewall.NewFirewall(a.Helper.Executor, a.store, a.networkConfig, firewall.OpenStackPlatform)
+	fw, err := firewall.NewFirewall(a.Helper.Executor, a.store, a.networkConfig, firewall.KubernetesPlatform)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +127,7 @@ func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 	}
 
 	glog.Info("Agent: provisioning firewall")
-	fw, err := firewall.NewFirewall(a.Helper.Executor, a.store, a.networkConfig, firewall.OpenStackPlatform)
+	fw, err := firewall.NewFirewall(a.Helper.Executor, a.store, a.networkConfig, firewall.KubernetesPlatform)
 	if err != nil {
 		glog.Error(agentError(err))
 		return agentError(err)
