@@ -89,8 +89,8 @@ func myLog(c *check.C, args ...interface{}) {
 // TestHostMarshaling tests marshaling/unmarshaling of Host
 // structure to/from proper JSON.
 func (s *MySuite) TestHostMarshaling(c *check.C) {
-	host := Host{}
-	host.Id = 1
+	host := common.Host{}
+	host.ID = 1
 	host.RomanaIp = "192.168.0.1/16"
 	host.Ip = "10.1.1.1"
 	host.Name = "host1"
@@ -99,14 +99,14 @@ func (s *MySuite) TestHostMarshaling(c *check.C) {
 	json, _ := m.Marshal(host)
 	marshaledJSONStr := string(json)
 	myLog(c, "Marshaled ", host, "to", marshaledJSONStr)
-	expectedJSONStr := "{\"id\":1,\"name\":\"host1\",\"ip\":\"10.1.1.1\",\"romana_ip\":\"192.168.0.1/16\",\"agent_port\":9999}"
+	expectedJSONStr := "{\"id\":1,\"name\":\"host1\",\"ip\":\"10.1.1.1\",\"romana_ip\":\"192.168.0.1/16\",\"agent_port\":9999,\"links\":null}"
 	c.Assert(marshaledJSONStr, check.Equals, expectedJSONStr)
-	host2 := Host{}
+	host2 := common.Host{}
 	err := m.Unmarshal([]byte(expectedJSONStr), &host2)
 	if err != nil {
 		c.Error(err)
 	}
-	c.Assert(host2.Id, check.Equals, uint64(1))
+	c.Assert(host2.ID, check.Equals, uint64(1))
 	c.Assert(host2.Ip, check.Equals, "10.1.1.1")
 	c.Assert(host2.RomanaIp, check.Equals, "192.168.0.1/16")
 	c.Assert(host2.AgentPort, check.Equals, uint64(9999))
@@ -145,7 +145,7 @@ func (s *MySuite) TestTopology(c *check.C) {
 	myLog(c, "Host list URL: ", hostsURL)
 
 	// Get list of hosts - should be empty for now.
-	var hostList []Host
+	var hostList []common.Host
 	client.Get(hostsRelURL, &hostList)
 	myLog(c, "Host list: ", hostList)
 	c.Assert(len(hostList), check.Equals, 0)
@@ -158,7 +158,7 @@ func (s *MySuite) TestTopology(c *check.C) {
 	//	time.Sleep(time.Hour)
 
 	c.Assert(newHostResp.Ip, check.Equals, "10.10.10.10")
-	c.Assert(newHostResp.Id, check.Equals, "1")
+	c.Assert(newHostResp.ID, check.Equals, uint64(1))
 
 	newHostReq = common.Host{Ip: "10.10.10.11", AgentPort: 9999, Name: "host11", RomanaIp: "15.15.15.16"}
 	newHostResp = common.Host{}
@@ -166,9 +166,9 @@ func (s *MySuite) TestTopology(c *check.C) {
 	myLog(c, "Response: ", newHostResp)
 
 	c.Assert(newHostResp.Ip, check.Equals, "10.10.10.11")
-	c.Assert(newHostResp.Id, check.Equals, "2")
+	c.Assert(newHostResp.ID, check.Equals, uint64(2))
 
-	var hostList2 []Host
+	var hostList2 []common.Host
 	client.Get(hostsRelURL, &hostList2)
 	myLog(c, "Host list: ", hostList2)
 	c.Assert(len(hostList2), check.Equals, 2)

@@ -111,7 +111,6 @@ type Host struct {
 	RomanaIp  string `json:"romana_ip"`
 	AgentPort uint64 `json:"agent_port,omitempty"`
 	Links     Links  `json:"links" sql:"-"`
-
 }
 
 // Message to register with the root service the actual

@@ -192,7 +192,7 @@ func hostShow(cmd *cli.Command, args []string) error {
 			"Romana CIDR\t",
 			"Agent Port\t")
 		for _, host := range hosts {
-			fmt.Fprintln(w, host.Id, "\t",
+			fmt.Fprintln(w, host.ID, "\t",
 				host.Name, "\t",
 				host.Ip, "\t",
 				host.RomanaIp, "\t",
@@ -244,7 +244,7 @@ func hostList(cmd *cli.Command, args []string) error {
 			"Romana CIDR\t",
 			"Agent Port\t")
 		for _, host := range hosts {
-			fmt.Fprintln(w, host.Id, "\t",
+			fmt.Fprintln(w, host.ID, "\t",
 				host.Name, "\t",
 				host.Ip, "\t",
 				host.RomanaIp, "\t",

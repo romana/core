@@ -449,7 +449,6 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	}
 	myLog(c, "Added segment s2 to t2: %s", t2s2Out)
 
-
 	// Add segment s3 to tenant t3
 	t3s3In := tenant.Segment{Name: "s3", ExternalID: "s3", TenantID: t3Out.ID}
 	t3s3Out := tenant.Segment{}
@@ -458,7 +457,6 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 		c.Error(err)
 	}
 	myLog(c, "Added segment s3 to t3: %s", t3s3Out)
-
 
 	// Get IP for t1, s1, h1
 	myLog(c, "IPAM Test: Get first IP")
