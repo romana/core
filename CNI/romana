@@ -54,6 +54,7 @@ get_args           () { echo $CNI_ARGS | xargs -d";" -n1 ;}
 get_config_item    () { echo $INPUT | jq -r ".${1}"; }
 get_romana_gate    () { A=$(ip a show romana-gw | awk '/inet / { print $2 }'); echo ${A%%/*}; }
 get_romana_mask    () { A=$(ip a show romana-gw | awk '/inet / { print $2 }'); echo ${A##*/}; }
+get_iface_name     () { A=$(ip ro show $1 | awk '{ print $3 }'); echo ${A}; }
 log                () { echo "$*"; }
 log_env            () { env; }
 die () {
@@ -200,11 +201,35 @@ set_up_pod () {
 	echo -n $R
 }
 
+pod_down () {
+	POD=$(get_args | get_pod)
+	log "--- POD = $POD ---"
+	NAMESPACE=$(get_args | get_pod_ns)
+	log "--- NAMESPACE = $NAMESPACE ---"
+	KUBEARGS="$KUBEARGS --namespace=$NAMESPACE"
+	log "--- KUBEARGS = $KUBEARGS ---"
+	POD_IP=$( $KUBECTL $KUBEARGS get pod $POD -o json | jq -r '.status.podIP' )
+	log "--- POD_IP = ${POD_IP} ---"
+	IFACE=$( get_iface_name "$POD_IP" )
+	log "--- IFACE = ${IFACE} ---"
+
+	# Just a dummy ip to stisfy the request
+	IP="0.0.0.0"
+
+	log "$(req "${IFACE}" "$IP" "$NS_ISOLATION")"
+	# Romana agent does the rest (endpoint route and firewall)
+	curl -s -XDELETE -H 'content-type: application/json' -d "$(req "${IFACE}" "$IP")" http://localhost:9604/pod 2>&1 >> $LOGFILE
+
+	# Restore stdout - ready to talk back to kubernetes
+	exec 1>&6
+}
+
 case $CNI_COMMAND in
 	ADD)
 		set_up_pod
 		;;
 	DEL)
+		pod_down
 		# Currently not implemented
 		# interfaces and routes will go away automatically
 		# iptables rules need to be deleted but agent is not ready yet
