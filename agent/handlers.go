@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"github.com/golang/glog"
 	"github.com/romana/core/common"
-	"github.com/romana/core/firewall"
+	"github.com/romana/core/pkg/util/firewall"
 )
 
 // addPolicy is a placeholder. TODO
