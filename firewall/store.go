@@ -17,6 +17,7 @@ package firewall
 
 import (
 	"github.com/golang/glog"
+	"github.com/jinzhu/gorm"
 	"github.com/romana/core/common"
 	"sync"
 )
@@ -39,6 +40,11 @@ func (fs firewallStore) CreateSchemaPostProcess() error {
 	return nil
 }
 
+func (fs firewallStore) GetDb() *gorm.DB {
+	glog.Info("In GetDb()")
+	return fs.Db
+}
+
 // IPtablesRule represents a single iptables rule managed by the agent.
 // TODO rename FirewallRule
 type IPtablesRule struct {
@@ -56,8 +62,11 @@ func (firewallStore *firewallStore) addIPtablesRule(rule *IPtablesRule) error {
 	}()
 	glog.Info("Acquired store mutex for addIPtablesRule")
 
-	db := firewallStore.DbStore.Db
+	// db := firewallStore.DbStore.Db
+	db := firewallStore.GetDb()
+	glog.Info("In addIPtablesRule() after GetDb")
 	firewallStore.DbStore.Db.Create(rule)
+	glog.Info("In addIPtablesRule() after Db.Create")
 	if db.Error != nil {
 		return db.Error
 	}
