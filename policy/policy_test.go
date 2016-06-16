@@ -198,8 +198,8 @@ func (s *mockSvc) Routes() common.Routes {
 		Method:  "GET",
 		Pattern: "/hosts",
 		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
-			hosts := make([]common.HostMessage, 1)
-			hosts[0] = common.HostMessage{Ip: "127.0.0.1", AgentPort: s.mySuite.servicePort}
+			hosts := make([]common.Host, 1)
+			hosts[0] = common.Host{Ip: "127.0.0.1", AgentPort: s.mySuite.servicePort}
 			return hosts, nil
 		},
 	}

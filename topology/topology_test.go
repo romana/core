@@ -149,9 +149,9 @@ func (s *MySuite) TestTopology(c *check.C) {
 	client.Get(hostsRelURL, &hostList)
 	myLog(c, "Host list: ", hostList)
 	c.Assert(len(hostList), check.Equals, 0)
-	newHostReq := common.HostMessage{Ip: "10.10.10.10", AgentPort: 9999, Name: "host10", RomanaIp: "15.15.15.15"}
+	newHostReq := common.Host{Ip: "10.10.10.10", AgentPort: 9999, Name: "host10", RomanaIp: "15.15.15.15"}
 
-	newHostResp := common.HostMessage{}
+	newHostResp := common.Host{}
 	client.Post(hostsRelURL, newHostReq, &newHostResp)
 	myLog(c, "Response: ", newHostResp)
 	myLog(c, "Waiting for....", time.Hour)
@@ -160,8 +160,8 @@ func (s *MySuite) TestTopology(c *check.C) {
 	c.Assert(newHostResp.Ip, check.Equals, "10.10.10.10")
 	c.Assert(newHostResp.Id, check.Equals, "1")
 
-	newHostReq = common.HostMessage{Ip: "10.10.10.11", AgentPort: 9999, Name: "host11", RomanaIp: "15.15.15.16"}
-	newHostResp = common.HostMessage{}
+	newHostReq = common.Host{Ip: "10.10.10.11", AgentPort: 9999, Name: "host11", RomanaIp: "15.15.15.16"}
+	newHostResp = common.Host{}
 	client.Post(hostsRelURL, newHostReq, &newHostResp)
 	myLog(c, "Response: ", newHostResp)
 

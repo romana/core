@@ -133,25 +133,6 @@ func (links Links) FindByRel(rel string) string {
 
 }
 
-//type HostInfo struct {
-//	Ip        string `json:"ip"`
-//	RomanaIp  string `json:"romana_ip"`
-//	AgentPort int    `json:"agentPort"`
-//	Name      string `json:"name"`
-//}
-
-// HostMessage is a structure representing information
-// about the host for the purposes of REST communications
-type HostMessage struct {
-	Id        string `json:"id"`
-	Name      string `json:"name"`
-	Ip        string `json:"ip"`
-	RomanaIp  string `json:"romana_ip"`
-	AgentPort uint64 `json:"agent_port"`
-	Links     Links  `json:"links"`
-	//    Tor string       `json:"tor"`
-}
-
 // Service is the interface that microservices implement.
 type Service interface {
 	// SetConfig sets the configuration, validating it if needed

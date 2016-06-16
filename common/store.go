@@ -129,7 +129,13 @@ func (dbStore *DbStore) Find(query url.Values, entities interface{}, single bool
 			if jTag == "" {
 				log.Printf("No JSON tag for %s", fieldName)
 			} else {
-				queryStringField = jTag
+				jTagElts := strings.Split(jTag, ",")
+				// This takes care of ",omitempty"
+				if len(jTagElts) > 1 {
+					queryStringField = jTagElts[0]
+				} else {
+					queryStringField = jTag
+				}
 			}
 			gormTag := fieldTag.Get("gorm")
 			log.Printf("Gorm tag for %s: %s (%v)", fieldName, gormTag, fieldTag)
@@ -153,7 +159,7 @@ func (dbStore *DbStore) Find(query url.Values, entities interface{}, single bool
 				}
 			}
 		}
-		log.Printf("Query string field %s, struct field %s, DB field %s", queryStringField, fieldName, dbField)
+		log.Printf("For %s, query string field %s, struct field %s, DB field %s", t, queryStringField, fieldName, dbField)
 		queryStringFieldToDbField[queryStringField] = dbField
 	}
 	log.Printf("%#v", queryStringFieldToDbField)

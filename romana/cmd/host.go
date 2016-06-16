@@ -119,7 +119,7 @@ func hostAdd(cmd *cli.Command, args []string) error {
 		return err
 	}
 
-	host := common.HostMessage{
+	host := common.Host{
 		Name:      hostname,
 		Ip:        hostip,
 		RomanaIp:  romanacidr,
@@ -127,7 +127,7 @@ func hostAdd(cmd *cli.Command, args []string) error {
 	}
 	fmt.Printf("Host (%v) added successfully.\n", host)
 
-	data := common.HostMessage{}
+	data := common.Host{}
 	err = client.Post(topologyURL+"/hosts", host, &data)
 	if err != nil {
 		fmt.Printf("Error adding host (%s).\n", hostname)
@@ -161,8 +161,8 @@ func hostShow(cmd *cli.Command, args []string) error {
 	}
 
 	hostURL := index.Links.FindByRel("host-list")
-	data := []common.HostMessage{}
-	hosts := []common.HostMessage{}
+	data := []common.Host{}
+	hosts := []common.Host{}
 	err = client.Get(hostURL, &data)
 	if err != nil {
 		return err
@@ -222,7 +222,7 @@ func hostList(cmd *cli.Command, args []string) error {
 	}
 
 	hostURL := index.Links.FindByRel("host-list")
-	hosts := []common.HostMessage{}
+	hosts := []common.Host{}
 	err = client.Get(hostURL, &hosts)
 	if err != nil {
 		return err

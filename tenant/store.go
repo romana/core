@@ -16,11 +16,8 @@
 package tenant
 
 import (
-	"encoding/hex"
 	"github.com/romana/core/common"
 	"log"
-
-	"github.com/pborman/uuid"
 )
 
 // Backing store
@@ -41,17 +38,17 @@ func (tenantStore *tenantStore) Entities() []interface{} {
 
 type Tenant struct {
 	ID         uint64 `sql:"AUTO_INCREMENT"`
-	ExternalID string `sql:"not null;unique" gorm:"COLUMN:external_id" json:"external_id"`
-	Name       string
+	ExternalID string `sql:"not null;unique" json:"external_id,omitempty" gorm:"COLUMN:external_id"`
+	Name       string `json:"name"`
 	Segments   []Segment
 	Seq        uint64
 }
 
 type Segment struct {
 	ID         uint64 `sql:"AUTO_INCREMENT"`
-	ExternalID string `sql:"not null;" gorm:"COLUMN:external_id" json:"external_id"`
+	ExternalID string `sql:"not null;" json:"external_id,omitempty" gorm:"COLUMN:external_id"`
 	TenantID   uint64 `gorm:"COLUMN:tenant_id" json:"tenant_id"`
-	Name       string
+	Name       string `json:"name"`
 	Seq        uint64
 }
 

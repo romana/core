@@ -66,18 +66,29 @@ func (ipam *IPAM) Routes() common.Routes {
 // allocateIP finds internal Romana information based on tenantID/tenantName and other provided parameters, then adds
 // that endpoint to IPAM, and passes through the allocated IP
 func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interface{}, error) {
+	// TODO
+	// This is the current state of calling this service from other environments:
+	// 1. OpenStack (IPAM plugin driver):
+	// https://github.com/romana/networking-romana/blob/stable/liberty/networking_romana/driver/ipam_romana.py#L120
+	//
+	// url = ("%s/allocateIP?tenantID=%s&segmentName=%s&hostName=%s" %
+	//               (self.ipam_url, address_request.tenant_id,
+	//                address_request.segment_id, address_request.host_id))
+	// 2. Kubernetes (CNI Plugin)
+	// https://github.com/romana/kube/blob/master/CNI/romana#L134
+	// IP=$(curl -s "http://$ROMANA_MASTER_IP:9601/allocateIP?tenantName=${tenant}&segmentName=${segment}&hostName=${node}" | get_json_kv | get_ip)
+
 	tenantParam := ""
 	tenantLookupField := ""
 
 	if tenantID := ctx.QueryVariables.Get("tenantID"); tenantID != "" {
+		// This is how IPAM plugin driver calls us.
 		tenantParam = tenantID
 		tenantLookupField = "external_id"
 	} else if tenantName := ctx.QueryVariables.Get("tenantName"); tenantName != "" {
-		// TODO this is being called now from the IPAM driver which uses tenantName but
-		// really is passing ID - so we should look up by an ID here. This is temporary until
-		// we fix up the IPAM driver to do the right calls.
+		// This is how CNI plugin calls us.
 		tenantParam = tenantName
-		tenantLookupField = "external_id"
+		tenantLookupField = "name"
 	}
 
 	// check for missing/empty required parameters
@@ -117,37 +128,14 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 		return nil, err
 	}
 
-	index := common.IndexResponse{}
-	err = client.Get(topoUrl, &index)
+	hostsUrl := fmt.Sprintf("%s/findOne/hosts?name=%s", topoUrl, hostName)
+	host := common.Host{}
+	err = client.Get(hostsUrl, &host)
 	if err != nil {
-		log.Printf("IPAM encountered an error: %v", err)
+		log.Printf("IPAM encountered an error finding tenants: %v", err)
 		return nil, err
 	}
-
-	hostsURL := index.Links.FindByRel("host-list")
-	var hosts []common.HostMessage
-
-	err = client.Get(hostsURL, &hosts)
-	if err != nil {
-		log.Printf("IPAM encountered an error: %v", err)
-		return nil, err
-	}
-
-	found := false
-	for _, h := range hosts {
-		if h.Name == hostName {
-			found = true
-			endpoint.HostId = h.Id
-			break
-		}
-	}
-
-	if !found {
-		msg := fmt.Sprintf("Host with name %s not found", hostName)
-		err := errors.New(msg)
-		log.Printf("IPAM encountered an error: %v", err)
-		return nil, err
-	}
+	endpoint.HostId = fmt.Sprintf("%d", host.ID)
 	log.Printf("Host name %s has ID %s", hostName, endpoint.HostId)
 
 	tenantSvcUrl, err := client.GetServiceUrl("tenant")
@@ -157,7 +145,6 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 	}
 
 	// TODO follow links once tenant service supports it. For now...
-
 	tenantsUrl := fmt.Sprintf("%s/findOne/tenants?%s=%s", tenantSvcUrl, tenantLookupField, tenantParam)
 	ten := tenant.Tenant{}
 	err = client.Get(tenantsUrl, &ten)
@@ -168,7 +155,7 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 	endpoint.TenantID = fmt.Sprintf("%d", ten.ID)
 	log.Printf("IPAM: Tenant '%s' has ID %s, original %d", tenantParam, endpoint.TenantID, ten.ID)
 
-	segmentsUrl := fmt.Sprintf("/findOne/segments?tenant_id=%s&name=%s", endpoint.TenantID, segmentName)
+	segmentsUrl := fmt.Sprintf("%s/findOne/segments?tenant_id=%s&name=%s", tenantSvcUrl, endpoint.TenantID, segmentName)
 	segment := tenant.Segment{}
 	err = client.Get(segmentsUrl, &segment)
 	if err != nil {
@@ -204,7 +191,7 @@ func (ipam *IPAM) addEndpoint(input interface{}, ctx common.RestContext) (interf
 	}
 
 	hostsURL := index.Links.FindByRel("host-list")
-	host := common.HostMessage{}
+	host := common.Host{}
 
 	hostInfoURL := fmt.Sprintf("%s/%s", hostsURL, endpoint.HostId)
 	err = client.Get(hostInfoURL, &host)

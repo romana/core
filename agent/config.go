@@ -30,7 +30,7 @@ import (
 type NetworkConfig struct {
 	// Current host network configuration
 	romanaGW   net.IP
-	otherHosts []common.HostMessage
+	otherHosts []common.Host
 	dc         common.Datacenter
 }
 
@@ -91,7 +91,7 @@ func (a Agent) identifyCurrentHost() error {
 	}
 
 	hostURL := index.Links.FindByRel("host-list")
-	hosts := []common.HostMessage{}
+	hosts := []common.Host{}
 	err = client.Get(hostURL, &hosts)
 	if err != nil {
 		return agentError(err)

@@ -102,6 +102,18 @@ type ServiceMessage string
 
 // Struct definitions
 
+// Host is a structure representing information
+// about the host.
+type Host struct {
+	ID        uint64 `sql:"AUTO_INCREMENT" json:"id,omitempty"`
+	Name      string `json:"name"`
+	Ip        string `json:"ip"`
+	RomanaIp  string `json:"romana_ip"`
+	AgentPort uint64 `json:"agent_port,omitempty"`
+	Links     Links  `json:"links" sql:"-"`
+
+}
+
 // Message to register with the root service the actual
 // port a service is listening on.
 type PortUpdateMessage struct {

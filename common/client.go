@@ -130,7 +130,7 @@ func (rc *RestClient) GetStatusCode() int {
 
 // ListHost queries the Topology service in order to return a list of currently
 // configured hosts in a Romana cluster.
-func (rc *RestClient) ListHosts() ([]HostMessage, error) {
+func (rc *RestClient) ListHosts() ([]Host, error) {
 	// Save the current state of things, so we can restore after call to root.
 	savedUrl := rc.url
 	// Restore this after we're done so we don't lose this
@@ -149,7 +149,7 @@ func (rc *RestClient) ListHosts() ([]HostMessage, error) {
 	}
 	hostsRelURL := topIndex.Links.FindByRel("host-list")
 
-	var hostList []HostMessage
+	var hostList []Host
 	err = rc.Get(hostsRelURL, &hostList)
 	return hostList, err
 }
