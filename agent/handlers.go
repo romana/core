@@ -31,7 +31,7 @@ func (a *Agent) statusHandler(input interface{}, ctx common.RestContext) (interf
 		return nil, err
 	}
 
-	iptablesRules, err := firewall.ListRules()
+	iptablesRules, err := fw.ListRules()
 	if err != nil {
 		return nil, err
 	}
