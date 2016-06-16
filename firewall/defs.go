@@ -23,13 +23,13 @@ type NetConfig interface {
 	TenantBits() uint
 	SegmentBits() uint
 	EndpointBits() uint
-	EndpointNetmaskSize() uint
+	EndpointNetmaskSize() uint64
 	RomanaGW() net.IP
 }
 
 // NewFirewall returns fully initialized firewall struct, with rules and chains
 // configured for given endpoint.
-func NewFirewall(executor utilexec.Executable, store interface{}, platform FirewallPlatform, nc NetConfig) (Firewall, error) {
+func NewFirewall(executor utilexec.Executable, store interface{}, nc NetConfig, platform FirewallPlatform) (Firewall, error) {
 
 	fwstore, ok := store.(firewallStore)
 	if ok {

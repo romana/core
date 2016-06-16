@@ -24,7 +24,7 @@ import (
 type mockNetworkConfig struct{}
 
 // EndpointNetmaskSize returns integer value (aka size) of endpoint netmask.
-func (c mockNetworkConfig) EndpointNetmaskSize() uint {
+func (c mockNetworkConfig) EndpointNetmaskSize() uint64 {
 	// dc.EndpointSpaceBits = 0
 	return 32
 }
