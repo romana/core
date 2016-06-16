@@ -36,23 +36,23 @@ func (a *Agent) statusHandler(input interface{}, ctx common.RestContext) (interf
 		return nil, err
 	}
 	return iptablesRules, nil
-
-	return nil, nil
 }
 
 // k8sPodDownHandler cleans up after pod deleted.
 func (a *Agent) k8sPodDownHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
 	glog.Infoln("Agent: Entering k8sPodDownHandler()")
 	netReq := input.(*NetworkRequest)
-	/*
-		netif := netReq.NetIf
+	netif := netReq.NetIf
 
-		fw := Firewall{Agent: a}
-		err := fw.deleteIPtablesRulesBySubstring(netif.Name)
-		if err != nil {
-			return nil, err
-		}
-	*/
+	fw, err := firewall.NewFirewall(a.Helper.Executor, a.store, a.networkConfig, firewall.OpenStackPlatform)
+	if err != nil {
+		return nil, err
+	}
+
+	err := fw.Cleanup(netif)
+	if err != nil {
+		return nil, err
+	}
 
 	// Spawn new thread to process the request
 	glog.Infof("Agent: Got request for network configuration: %v\n", netReq)

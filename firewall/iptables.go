@@ -464,10 +464,10 @@ func (fw Iptables) ProvisionEndpoint(netif FirewallEndpoint) error {
 	return err
 }
 
-// cleanupIptables deletes stale iptables rules when interface goes away
+// Cleanup implements Firewall interface.
 func (fw Iptables) Cleanup(netif FirewallEndpoint) error {
 	if err := fw.deleteIPtablesRulesBySubstring(netif.GetName()); err != nil {
-		glog.Error("In cleanupFirewall() failed to clean firewall for %s ", netif.GetName())
+		glog.Error("In Cleanup() failed to clean firewall for %s ", netif.GetName())
 		return err
 	}
 
@@ -496,6 +496,7 @@ func (fw *Iptables) deleteIPtablesRulesBySubstring(substring string) error {
 	return nil
 }
 
+// deleteIPtablesRule attempts to uninstall and delete the given rule.
 func (fw *Iptables) deleteIPtablesRule(rule *IPtablesRule) error {
 	if err := fw.Store.switchIPtablesRule(rule, setRuleInactive); err != nil {
 		glog.Error("In deleteIPtablesRule() failed to deactivate the rule", rule.Body)
