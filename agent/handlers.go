@@ -26,13 +26,16 @@ func (a *Agent) listPolicies(input interface{}, ctx common.RestContext) (interfa
 
 // statusHandler reports operational statistics.
 func (a *Agent) statusHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
-	/*
-		iptablesRules, err := a.store.listIPtablesRules()
-		if err != nil {
-			return nil, err
-		}
-		return iptablesRules, nil
-	*/
+	fw, err := firewall.NewFirewall(a.Helper.Executor, a.store, a.networkConfig, firewall.OpenStackPlatform)
+	if err != nil {
+		return nil, err
+	}
+
+	iptablesRules, err := firewall.ListRules()
+	if err != nil {
+		return nil, err
+	}
+	return iptablesRules, nil
 
 	return nil, nil
 }

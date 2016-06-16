@@ -546,3 +546,8 @@ func (fw Iptables) EnsureRule(ruleSpec []string, opType opIptablesAction) error 
 
 	return err
 }
+
+// ListRules implemets Firewall interface
+func (fw Iptables) ListRules() ([]IPtablesRule, error) {
+	return fw.Store.listIPtablesRules()
+}

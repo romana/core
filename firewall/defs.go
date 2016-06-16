@@ -12,6 +12,9 @@ type Firewall interface {
 	// EnsureRule checks if specified rule in desired state.
 	EnsureRule(ruleSpec []string, op opIptablesAction) error
 
+	// ListRules returns a list of firewall rules.
+	ListRules() ([]IPtablesRule, error)
+
 	// Cleanup deletes DB records and uninstall rules associated with given endpoint.
 	Cleanup(netif FirewallEndpoint) error
 }
