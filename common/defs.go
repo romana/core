@@ -340,8 +340,14 @@ func (p *Policy) Validate() error {
 	} else {
 		for i, endpoint := range p.AppliedTo {
 			epNo := i + 1
-			if endpoint.TenantExternalID == "" && endpoint.TenantID == 0 && endpoint.TenantNetworkID == nil {
-				errMsg = append(errMsg, fmt.Sprintf("applied_to entry #%d: at least one of: tenant_name, tenant_id, tenant_external_id or tenant_network_id must be specified.", epNo))
+			if endpoint.TenantExternalID == "" &&
+				endpoint.TenantID == 0 &&
+				endpoint.TenantName == "" &&
+				endpoint.TenantNetworkID == nil {
+				errMsg = append(errMsg,
+					fmt.Sprintf("applied_to entry #%d: at least one of: "+
+						"tenant, tenant_id, tenant_external_id or tenant_network_id "+
+						"must be specified.", epNo))
 			}
 		}
 	}
@@ -352,8 +358,15 @@ func (p *Policy) Validate() error {
 			errMsg = append(errMsg, fmt.Sprintf("peers entry #%d: Invalid value for Any: '%s', only '' and %s allowed.", epNo, endpoint.Peer, Wildcard))
 		}
 		if endpoint.SegmentID != 0 || endpoint.SegmentExternalID != "" {
-			if endpoint.TenantExternalID == "" && endpoint.TenantID == 0 && endpoint.TenantNetworkID == nil && endpoint.TenantName == "" {
-				errMsg = append(errMsg, fmt.Sprintf("peers entry #%d: since segment_external_id is specified, at least one of: tenant_name, tenant_id, tenant_external_id or tenant_network_id must be specified.", epNo))
+			if endpoint.TenantExternalID == "" &&
+				endpoint.TenantID == 0 &&
+				endpoint.TenantNetworkID == nil &&
+				endpoint.TenantName == "" {
+				errMsg = append(errMsg,
+					fmt.Sprintf("peers entry #%d: since segment_external_id "+
+						"is specified, at least one of: tenant, tenant_id, "+
+						"tenant_external_id or tenant_network_id must be "+
+						"specified.", epNo))
 			}
 		}
 	}
