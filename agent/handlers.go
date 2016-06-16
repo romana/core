@@ -49,7 +49,7 @@ func (a *Agent) k8sPodDownHandler(input interface{}, ctx common.RestContext) (in
 		return nil, err
 	}
 
-	err := fw.Cleanup(netif)
+	err = fw.Cleanup(netif)
 	if err != nil {
 		return nil, err
 	}
