@@ -16,7 +16,6 @@
 package ipam
 
 import (
-	"errors"
 	"fmt"
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
@@ -77,35 +76,25 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 	// 2. Kubernetes (CNI Plugin)
 	// https://github.com/romana/kube/blob/master/CNI/romana#L134
 	// IP=$(curl -s "http://$ROMANA_MASTER_IP:9601/allocateIP?tenantName=${tenant}&segmentName=${segment}&hostName=${node}" | get_json_kv | get_ip)
-
-	tenantParam := ""
-	tenantLookupField := ""
-
+	ten := &tenant.Tenant{}
 	if tenantID := ctx.QueryVariables.Get("tenantID"); tenantID != "" {
 		// This is how IPAM plugin driver calls us.
-		tenantParam = tenantID
-		tenantLookupField = "external_id"
+		ten.ExternalID = tenantID
 	} else if tenantName := ctx.QueryVariables.Get("tenantName"); tenantName != "" {
-		// This is how CNI plugin calls us.
-		tenantParam = tenantName
-		tenantLookupField = "name"
+		ten.Name = tenantName
+	} else {
+		return nil, common.NewError400("Either tenantID or tenantName must be specified.")
 	}
 
-	// check for missing/empty required parameters
-	if tenantParam == "" {
-		err := errors.New("Missing or empty tenantName/tenantID parameter")
-		log.Printf("IPAM encountered an error: %v", err)
-		return nil, err
-	}
 	segmentName := ctx.QueryVariables.Get("segmentName")
 	if segmentName == "" {
-		err := errors.New("Missing or empty segmentName parameter")
+		err := common.NewError400("Missing or empty segmentName parameter")
 		log.Printf("IPAM encountered an error: %v", err)
 		return nil, err
 	}
 	hostName := ctx.QueryVariables.Get("hostName")
 	if hostName == "" {
-		err := errors.New("Missing or empty hostName parameter")
+		err := common.NewError400("Missing or empty hostName parameter")
 		log.Printf("IPAM encountered an error: %v", err)
 		return nil, err
 	}
@@ -121,48 +110,31 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 		log.Printf("IPAM encountered an error: %v", err)
 		return nil, err
 	}
-	// Get host info from topology service
-	topoUrl, err := client.GetServiceUrl("topology")
-	if err != nil {
-		log.Printf("IPAM encountered an error: %v", err)
-		return nil, err
-	}
 
-	hostsUrl := fmt.Sprintf("%s/findOne/hosts?name=%s", topoUrl, hostName)
-	host := common.Host{}
-	err = client.Get(hostsUrl, &host)
+	host := &common.Host{}
+	host.Name = hostName
+	err = client.FindOne(host)
 	if err != nil {
-		log.Printf("IPAM encountered an error finding tenants: %v", err)
+		log.Printf("IPAM encountered an error finding host for name %s %v", hostName, err)
 		return nil, err
 	}
 	endpoint.HostId = fmt.Sprintf("%d", host.ID)
 	log.Printf("Host name %s has ID %s", hostName, endpoint.HostId)
 
-	tenantSvcUrl, err := client.GetServiceUrl("tenant")
+	err = client.FindOne(ten)
 	if err != nil {
-		log.Printf("IPAM encountered an error: %v", err)
-		return nil, err
-	}
-
-	// TODO follow links once tenant service supports it. For now...
-	tenantsUrl := fmt.Sprintf("%s/findOne/tenants?%s=%s", tenantSvcUrl, tenantLookupField, tenantParam)
-	ten := tenant.Tenant{}
-	err = client.Get(tenantsUrl, &ten)
-	if err != nil {
-		log.Printf("IPAM encountered an error finding tenants: %v", err)
+		log.Printf("IPAM encountered an error finding tenants %+v: %v", ten, err)
 		return nil, err
 	}
 	endpoint.TenantID = fmt.Sprintf("%d", ten.ID)
-	log.Printf("IPAM: Tenant '%s' has ID %s, original %d", tenantParam, endpoint.TenantID, ten.ID)
-
-	segmentsUrl := fmt.Sprintf("%s/findOne/segments?tenant_id=%s&name=%s", tenantSvcUrl, endpoint.TenantID, segmentName)
-	segment := tenant.Segment{}
-	err = client.Get(segmentsUrl, &segment)
+	seg := &tenant.Segment{Name: segmentName, TenantID: ten.ID}
+	err = client.FindOne(seg)
 	if err != nil {
-		log.Printf("IPAM encountered an error finding segments: %v", err)
+		log.Printf("IPAM encountered an error finding segments: %+v: %v", seg, err)
 		return nil, err
 	}
-	endpoint.SegmentID = fmt.Sprintf("%d", segment.ID)
+
+	endpoint.SegmentID = fmt.Sprintf("%d", seg.ID)
 	log.Printf("Segment name %s has ID %s", segmentName, endpoint.SegmentID)
 	return ipam.addEndpoint(&endpoint, ctx)
 }
@@ -323,7 +295,7 @@ func (ipam *IPAM) Initialize() error {
 
 	dcURL := index.Links.FindByRel("datacenter")
 	dc := common.Datacenter{}
-	log.Printf("IPAM received datacenter information from topology service: %#v\n", dc)
+	log.Printf("IPAM received datacenter information from topology service: %+v\n", dc)
 	err = client.Get(dcURL, &dc)
 	if err != nil {
 		return err

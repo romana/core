@@ -142,7 +142,7 @@ func (policy *PolicySvc) augmentEndpoint(endpoint *common.Endpoint) error {
 			}
 			endpoint.SegmentNetworkID = &segment.Seq
 		} else if endpoint.SegmentExternalID != "" || endpoint.SegmentName != "" {
-			segmentsUrl := fmt.Sprintf("%s/findOne/segments?tenant_id=%d&", tenantSvcUrl, *endpoint.TenantNetworkID)
+			segmentsUrl := fmt.Sprintf("%s/findOne/segments?tenant_id=%d&", tenantSvcUrl, ten.ID)
 			if endpoint.SegmentExternalID != "" {
 				segmentsUrl += "external_id=" + endpoint.TenantExternalID + "&"
 			}
@@ -223,7 +223,7 @@ func (policy *PolicySvc) distributePolicy(policyDoc *common.Policy) error {
 		url := fmt.Sprintf("http://%s:%d/policies", host.Ip, host.AgentPort)
 		log.Printf("Sending policy %s to agent at %s", policyDoc.Name, url)
 		result := make(map[string]interface{})
-		err = policy.client.Post(url, policyDoc, result)
+		err = policy.client.Post(url, policyDoc, &result)
 		log.Printf("Agent at %s returned %v", host.Ip, result)
 		if err != nil {
 			errStr = append(errStr, fmt.Sprintf("Error applying policy %d to host %s: %v. ", policyDoc.ID, host.Ip, err))
