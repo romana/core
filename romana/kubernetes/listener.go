@@ -137,24 +137,29 @@ func (l *kubeListener) getOrAddSegment(tenantServiceURL string, namespace string
 	ten := &tenant.Tenant{}
 	ten.Name = namespace
 	err := l.restClient.FindOne(ten)
-	if err != nil { 
+	if err != nil {
 		return nil, err
 	}
-	
+
 	seg := &tenant.Segment{}
 	seg.Name = kubeSegmentName
 	seg.TenantID = ten.ID
-	err := l.restClient.FindOne(ten)
-	if err == nil { 
+	err = l.restClient.FindOne(ten)
+	if err == nil {
 		return seg, nil
 	}
-	
+
 	switch err := err.(type) {
 	case common.HttpError:
 		if err.StatusCode == http.StatusNotFound {
 			// Not found, so let's create a segment.
 			segreq := tenant.Segment{Name: kubeSegmentName, TenantID: ten.ID}
-			err2 := l.restClient.Post(segmentsURL, segreq, seg)
+			segURL, err2 := l.restClient.GetServiceUrl("tenant")
+			if err2 != nil {
+				return nil, err2
+			}
+			segURL = fmt.Sprintf("%s/tenants/%d/segments", segURL, ten.ID)
+			err2 = l.restClient.Post(segURL, segreq, seg)
 			if err2 == nil {
 				// Successful creation.
 				return seg, nil
