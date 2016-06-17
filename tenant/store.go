@@ -151,6 +151,10 @@ func (tenantStore *tenantStore) addSegment(tenantId uint64, segment *Segment) er
 	}
 	segment.Seq = uint64(len(segments))
 
+	if segment.ExternalID == "" {
+		segment.ExternalID = segment.Name
+	}
+
 	tenantStore.DbStore.Db.NewRecord(*segment)
 	err = common.MakeMultiError(db.GetErrors())
 	if err != nil {
