@@ -111,7 +111,7 @@ func (policy *PolicySvc) augmentEndpoint(endpoint *common.Endpoint) error {
 				return err
 			}
 		} else if endpoint.TenantExternalID != "" || endpoint.TenantName != "" {
-			tenantsUrl := "/findOne/tenants?"
+			tenantsUrl := fmt.Sprintf("%s/findOne/tenants?", tenantSvcUrl)
 			if endpoint.TenantExternalID != "" {
 				tenantsUrl += "external_id=" + endpoint.TenantExternalID + "&"
 			}
@@ -142,7 +142,7 @@ func (policy *PolicySvc) augmentEndpoint(endpoint *common.Endpoint) error {
 			}
 			endpoint.SegmentNetworkID = &segment.Seq
 		} else if endpoint.SegmentExternalID != "" || endpoint.SegmentName != "" {
-			segmentsUrl := "/findOne/segments?"
+			segmentsUrl := fmt.Sprintf("%s/findOne/segments?tenant_id=%d&", tenantSvcUrl, *endpoint.TenantNetworkID)
 			if endpoint.SegmentExternalID != "" {
 				segmentsUrl += "external_id=" + endpoint.TenantExternalID + "&"
 			}

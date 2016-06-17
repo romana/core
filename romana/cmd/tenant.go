@@ -57,7 +57,7 @@ func init() {
 	tenantCmd.AddCommand(tenantShowCmd)
 	tenantCmd.AddCommand(tenantListCmd)
 	tenantCmd.AddCommand(tenantDeleteCmd)
-	tenantCreateCmd.Flags().StringVarP(&externalID, "externalID", "i", "", "External ID")
+	tenantCreateCmd.Flags().StringVarP(&externalID, "externalid", "i", "", "External ID")
 }
 
 var tenantCreateCmd = &cli.Command{
