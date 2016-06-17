@@ -121,7 +121,6 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 	endpoint.HostId = fmt.Sprintf("%d", host.ID)
 	log.Printf("Host name %s has ID %s", hostName, endpoint.HostId)
 
-	
 	err = client.FindOne(ten)
 	if err != nil {
 		log.Printf("IPAM encountered an error finding tenants %+v: %v", ten, err)
@@ -134,7 +133,7 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 		log.Printf("IPAM encountered an error finding segments: %+v: %v", seg, err)
 		return nil, err
 	}
-	
+
 	endpoint.SegmentID = fmt.Sprintf("%d", seg.ID)
 	log.Printf("Segment name %s has ID %s", segmentName, endpoint.SegmentID)
 	return ipam.addEndpoint(&endpoint, ctx)

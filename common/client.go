@@ -223,7 +223,7 @@ func (rc *RestClient) FindOne(entity interface{}) error {
 		if queryString != "" {
 			queryString += "&"
 		}
-		
+
 		queryString += fmt.Sprintf("%s=%v", queryStringFieldName, fieldValue)
 	}
 	url := svcURL + queryString
