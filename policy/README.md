@@ -10,23 +10,22 @@ a policy is shown below:
 ```bash
 $ cat policy.sample.json
 {
-	"SecurityPolicies": [{
-		"Name": "policy1",
-		"AppliedTo": [{
-			"Tenant": "demo",
-			"Segment": "frontend"
-		}],
-		"Direction": "Ingress",
-		"Peers": [{
-			"CidrBlock": "0.0.0.0/0"
-		}],
-		"Rules": [{
-			"Protocol": "TCP",
-			"Ports": [22, 80, 443],
-			"IsStateful": true
-		}],
-		"Description": "sample policy opening ssh, http and https ports"
-	}]
+    "securitypolicies": [{
+        "name": "policy1",
+        "description": "sample policy opening ssh, http and https ports",
+        "direction": "ingress",
+        "applied_to": [{
+            "tenant": "demo",
+            "segment": "default"
+        }],
+        "peers": [{
+            "cidr": "0.0.0.0/0"
+        }],
+        "rules": [{
+            "protocol": "tcp",
+            "ports": [22, 80, 443]
+        }]
+    }]
 }
 
 $ romana policy add policy.sample.json 
@@ -41,11 +40,13 @@ $ romana policy list -f json
 	"name": "policy1",
 	"id": 1,
 	"external_id": "policy1",
-	"appliedto": [{
-		"Tenant": "demo",
-		"Segment": "frontend"
+	"applied_to": [{
+		"tenant": "demo",
+		"segment": "default"
 	}],
-	"peers": [{}],
+	"peers": [{
+		"cidr": "0.0.0.0/0"
+	}],
 	"rules": [{
 		"protocol": "TCP",
 		"ports": [

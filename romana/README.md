@@ -130,7 +130,7 @@ romana segment list [tenantName][tenantName]... [flags]
 ### Policy sub-commands
 
 #### Sample Romana Policy
-A sample romana policy is shown [here](policy/policy.sample.json).
+A sample romana policy is shown [here](../policy/policy.sample.json).
 
 #### Add a new policy to romana cluster
 Adding policies to romana cluster involves them being applied
