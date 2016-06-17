@@ -29,7 +29,7 @@ import (
 func String(i interface{}) string {
 	j, e := json.Marshal(i)
 	if e != nil {
-		return fmt.Sprintf("%#v", i)
+		return fmt.Sprintf("%+v", i)
 	}
 	return string(j)
 }
@@ -93,8 +93,8 @@ type TokenMessage struct {
 //  }
 // part of the response.
 type LinkResponse struct {
-	Href string
-	Rel  string
+	Href string `json:"href,omitempty"`
+	Rel  string `json:"rel,omitempty"`
 }
 
 // Type definitions
@@ -106,11 +106,11 @@ type ServiceMessage string
 // about the host.
 type Host struct {
 	ID        uint64 `sql:"AUTO_INCREMENT" json:"id,omitempty"`
-	Name      string `json:"name"`
-	Ip        string `json:"ip"`
-	RomanaIp  string `json:"romana_ip"`
+	Name      string `json:"name,omitempty"`
+	Ip        string `json:"ip,omitempty"`
+	RomanaIp  string `json:"romana_ip,omitempty"`
 	AgentPort uint64 `json:"agent_port,omitempty"`
-	Links     Links  `json:"links" sql:"-"`
+	Links     Links  `json:"links,omitempty" sql:"-"`
 }
 
 // Message to register with the root service the actual
@@ -161,7 +161,7 @@ func (p PortRange) String() string {
 // 4. If Protocol specified is "icmp", Ports and PortRanges fields should be blank.
 // 5. If Protocol specified is not "icmp", Icmptype and IcmpCode should be unspecified.
 type Rule struct {
-	Protocol   string      `json:"protocol"`
+	Protocol   string      `json:"protocol,omitempty"`
 	Ports      []uint      `json:"ports,omitempty"`
 	PortRanges []PortRange `json:"port_ranges,omitempty"`
 	// IcmpType only applies if Protocol value is ICMP and
@@ -197,7 +197,7 @@ type Policy struct {
 	Name string `json:"name"`
 	// ID is Romana-generated unique (within Romana deployment) ID of this policy,
 	// to be used in REST requests. It will be ignored when set by user.
-	ID uint64 `json:"id,omitempty",sql:"AUTO_INCREMENT"`
+	ID uint64 `json:"id,omitempty" sql:"AUTO_INCREMENT"`
 	// ExternalID is an optional identifier of this policy in an external system working
 	// with Romana in this deployment (e.g., Open Stack).
 	ExternalID string `json:"external_id,omitempty",sql:"not null;unique"`
@@ -215,7 +215,7 @@ func (p Policy) String() string {
 
 // isValidProto checks if the Protocol specified in Rule is valid.
 // The following protocols are recognized:
-// - any -- wildcard
+// - any -- see Wildcard
 // - tcp
 // - udp
 // - icmp
@@ -410,14 +410,14 @@ type Datacenter struct {
 	// We don't need to store this, but calculate and pass around
 	Prefix      uint64 `json:"prefix"`
 	Cidr        string `json:"cidr,omitempty"`
-	PrefixBits  uint   `json:"prefix_bits"`
-	PortBits    uint   `json:"port_bits"`
-	TenantBits  uint   `json:"tenant_bits"`
-	SegmentBits uint   `json:"segment_bits"`
+	PrefixBits  uint   `json:"prefix_bits,omitempty"`
+	PortBits    uint   `json:"port_bits,omitempty"`
+	TenantBits  uint   `json:"tenant_bits,omitempty"`
+	SegmentBits uint   `json:"segment_bits,omitempty"`
 	// We don't need to store this, but calculate and pass around
-	EndpointBits      uint   `json:"endpoint_bits"`
-	EndpointSpaceBits uint   `json:"endpoint_space_bits"`
-	Name              string `json:"name"`
+	EndpointBits      uint   `json:"endpoint_bits,omitempty"`
+	EndpointSpaceBits uint   `json:"endpoint_space_bits,omitempty"`
+	Name              string `json:"name,omitempty"`
 }
 
 func (dc Datacenter) String() string {

@@ -133,22 +133,31 @@ func Run(rootServiceURL string, cred *common.Credential) (*common.RestServiceInf
 
 // getOrAddSegment finds a segment (based on segment selector).
 // If not found, it adds one.
-func (l *kubeListener) getOrAddSegment(tenantServiceURL string, namespace string, kubeSegmentID string) (*tenant.Segment, error) {
-	segment := &tenant.Segment{}
-	segmentsURL := fmt.Sprintf("%s/tenants/%s/segments", tenantServiceURL, namespace)
-	err := l.restClient.Get(fmt.Sprintf("%s/%s", segmentsURL, kubeSegmentID), segment)
-	if err == nil {
-		return segment, nil
+func (l *kubeListener) getOrAddSegment(tenantServiceURL string, namespace string, kubeSegmentName string) (*tenant.Segment, error) {
+	ten := &tenant.Tenant{}
+	ten.Name = namespace
+	err := l.restClient.FindOne(ten)
+	if err != nil { 
+		return nil, err
 	}
+	
+	seg := &tenant.Segment{}
+	seg.Name = kubeSegmentName
+	seg.TenantID = ten.ID
+	err := l.restClient.FindOne(ten)
+	if err == nil { 
+		return seg, nil
+	}
+	
 	switch err := err.(type) {
 	case common.HttpError:
 		if err.StatusCode == http.StatusNotFound {
 			// Not found, so let's create a segment.
-			segreq := tenant.Segment{Name: kubeSegmentID, ExternalID: kubeSegmentID}
-			err2 := l.restClient.Post(segmentsURL, segreq, segment)
+			segreq := tenant.Segment{Name: kubeSegmentName, TenantID: ten.ID}
+			err2 := l.restClient.Post(segmentsURL, segreq, seg)
 			if err2 == nil {
 				// Successful creation.
-				return segment, nil
+				return seg, nil
 			}
 			// Creation of non-existing segment gave an error.
 			switch err2 := err2.(type) {
@@ -207,7 +216,7 @@ func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Po
 	ns := kubePolicy.Metadata.Namespace
 	// TODO actually look up tenant K8S ID.
 	t, tenantURL, err := l.resolveTenantByName(ns)
-	log.Printf("translateNetworkPolicy(): For namespace %s got %#v / %#v", ns, t, err)
+	log.Printf("translateNetworkPolicy(): For namespace %s got %+v / %+v", ns, t, err)
 	if err != nil {
 		return *romanaPolicy, err
 	}

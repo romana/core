@@ -29,6 +29,7 @@ import (
 	"net/http"
 	"net/url"
 	"reflect"
+	"strings"
 	"time"
 )
 
@@ -153,6 +154,82 @@ func (rc *RestClient) ListHosts() ([]Host, error) {
 	err = rc.Get(hostsRelURL, &hostList)
 	return hostList, err
 }
+
+// FindOne is a convenience function, which queries the appropriate service
+// and retrieves one entity based on provided structure, and puts the results
+// into the same structure. The provided argument, entity, should be a pointer
+// to the desired structure, e.g., &common.Host{}.
+func (rc *RestClient) FindOne(entity interface{}) error {
+	structType := reflect.TypeOf(entity).Elem()
+	entityName := structType.String()
+	entityDottedNames := strings.Split(entityName, ".")
+	if len(entityDottedNames) > 1 {
+		entityName = entityDottedNames[1]
+	}
+	entityName = strings.ToLower(entityName)
+	var serviceName string
+	switch entityName {
+	case "tenant":
+		serviceName = "tenant"
+	case "segment":
+		serviceName = "tenant"
+	case "host":
+		serviceName = "topology"
+	default:
+		return NewError("Do not know where to find entity '%s'", entityName)
+	}
+
+	svcURL, err := rc.GetServiceUrl(serviceName)
+	if err != nil {
+		return err
+	}
+	if !strings.HasSuffix(svcURL, "/") {
+		svcURL += "/"
+	}
+	svcURL += "findOne/" + entityName + "s?"
+	queryString := ""
+	structValue := reflect.ValueOf(entity).Elem()
+
+	for i := 0; i < structType.NumField(); i++ {
+		structField := structType.Field(i)
+		fieldTag := structField.Tag
+		fieldName := structField.Name
+		queryStringFieldName := strings.ToLower(fieldName)
+		omitEmpty := false
+		if fieldTag != "" {
+			jTag := fieldTag.Get("json")
+			if jTag != "" {
+				jTagElts := strings.Split(jTag, ",")
+				// This takes care of ",omitempty"
+				if len(jTagElts) > 1 {
+					queryStringFieldName = jTagElts[0]
+					for _, jTag2 := range jTagElts {
+						if jTag2 == "omitempty" {
+							omitEmpty = true
+							break
+						} // if jTag2
+					} // for / jTagElts
+				} else {
+					queryStringFieldName = jTag
+				}
+			} // if jTag
+		} // if fieldTag
+		fieldValue := structValue.Field(i).Interface()
+		if omitEmpty && IsZeroValue(fieldValue) {
+			log.Printf("Skipping field %s: %v - empty", fieldName, fieldValue)
+			continue
+		}
+
+		if queryString != "" {
+			queryString += "&"
+		}
+		
+		queryString += fmt.Sprintf("%s=%v", queryStringFieldName, fieldValue)
+	}
+	url := svcURL + queryString
+	log.Printf("Trying to find one %s at %s", entityName, url)
+	return rc.Get(url, entity)
+} // func
 
 // GetServiceUrl is a convenience function, which, given the root
 // service URL and name of desired service, returns the URL of that service.

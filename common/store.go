@@ -162,7 +162,7 @@ func (dbStore *DbStore) Find(query url.Values, entities interface{}, single bool
 		log.Printf("For %s, query string field %s, struct field %s, DB field %s", t, queryStringField, fieldName, dbField)
 		queryStringFieldToDbField[queryStringField] = dbField
 	}
-	log.Printf("%#v", queryStringFieldToDbField)
+	log.Printf("%+v", queryStringFieldToDbField)
 	whereMap := make(map[string]interface{})
 
 	for k, v := range query {
@@ -177,7 +177,7 @@ func (dbStore *DbStore) Find(query url.Values, entities interface{}, single bool
 		whereMap[dbFieldName] = v[0]
 	}
 
-	log.Printf("Querying with %#v - %T", whereMap, entities)
+	log.Printf("Querying with %+v - %T", whereMap, entities)
 
 	db := dbStore.Db.Where(whereMap).Find(entities)
 	err := GetDbErrors(db)
@@ -187,14 +187,14 @@ func (dbStore *DbStore) Find(query url.Values, entities interface{}, single bool
 	rowCount := reflect.ValueOf(entities).Elem().Len()
 
 	if rowCount == 0 {
-		return nil, NewError404(t.String(), fmt.Sprintf("%#v", whereMap))
+		return nil, NewError404(t.String(), fmt.Sprintf("%+v", whereMap))
 	}
 
 	if single {
 		if rowCount == 1 {
 			return reflect.ValueOf(entities).Elem().Index(0).Interface(), nil
 		} else {
-			return nil, NewError500(fmt.Sprintf("Multiple results found for %#v", query))
+			return nil, NewError500(fmt.Sprintf("Multiple results found for %+v", query))
 		}
 	}
 
