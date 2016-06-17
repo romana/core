@@ -99,7 +99,7 @@ func (s *MySuite) TestHostMarshaling(c *check.C) {
 	json, _ := m.Marshal(host)
 	marshaledJSONStr := string(json)
 	myLog(c, "Marshaled ", host, "to", marshaledJSONStr)
-	expectedJSONStr := "{\"id\":1,\"name\":\"host1\",\"ip\":\"10.1.1.1\",\"romana_ip\":\"192.168.0.1/16\",\"agent_port\":9999,\"links\":null}"
+	expectedJSONStr := "{\"id\":1,\"name\":\"host1\",\"ip\":\"10.1.1.1\",\"romana_ip\":\"192.168.0.1/16\",\"agent_port\":9999}"
 	c.Assert(marshaledJSONStr, check.Equals, expectedJSONStr)
 	host2 := common.Host{}
 	err := m.Unmarshal([]byte(expectedJSONStr), &host2)
