@@ -135,18 +135,18 @@ func (e Event) handleNamespaceEvent(l *kubeListener) {
 	log.Printf("Processing namespace event == %v and phase %v", e.Type, e.Object.Status)
 
 	if e.Type == KubeEventAdded {
-		tenantReq := tenant.Tenant{Name: e.Object.Metadata.Name, ExternalID: e.Object.Metadata.Name}
+		tenantReq := tenant.Tenant{Name: e.Object.Metadata.Name, ExternalID: e.Object.Metadata.Uid}
 		tenantResp := tenant.Tenant{}
-		log.Printf("processor: Posting to /tenants: %#v", tenantReq)
+		log.Printf("processor: Posting to /tenants: %+v", tenantReq)
 		tenantUrl, err := l.restClient.GetServiceUrl("tenant")
 		if err != nil {
-			log.Printf("Error adding tenant %s: %#v", tenantReq.Name, err)
+			log.Printf("Error adding tenant %s: %+v", tenantReq.Name, err)
 		} else {
 			err := l.restClient.Post(fmt.Sprintf("%s/tenants", tenantUrl), tenantReq, &tenantResp)
 			if err != nil {
-				log.Printf("Error adding tenant %s: %#v", tenantReq.Name, err)
+				log.Printf("Error adding tenant %s: %+v", tenantReq.Name, err)
 			} else {
-				log.Printf("Added tenant: %#v", tenantResp)
+				log.Printf("Added tenant: %+v", tenantResp)
 			}
 		}
 	} else {
@@ -155,9 +155,9 @@ func (e Event) handleNamespaceEvent(l *kubeListener) {
 		// tenantResp := tenant.Tenant{}
 		// err = client.Delete("/tenants", tenantReq, &tenantResp)
 		// if err != nil {
-		// 	log.Printf("Error adding tenant %s: %#v", tenantReq.Name, err)
+		// 	log.Printf("Error adding tenant %s: %+v", tenantReq.Name, err)
 		// } else {
-		// 	log.Printf("Added tenant: %#v", tenantResp)
+		// 	log.Printf("Added tenant: %+v", tenantResp)
 		// }
 	}
 
@@ -197,8 +197,8 @@ func CreateDefaultPolicy(o KubeObject, l *kubeListener) {
 		Direction: common.PolicyDirectionIngress,
 		Name:      policyName,
 		AppliedTo: []common.Endpoint{{TenantNetworkID: &tenant.Seq}},
-		Peers:     []common.Endpoint{{Peer: "any"}},
-		Rules:     []common.Rule{{Protocol: "any"}},
+		Peers:     []common.Endpoint{{Peer: common.Wildcard}},
+		Rules:     []common.Rule{{Protocol: common.Wildcard}},
 	}
 
 	log.Printf("In CreateDefaultPolicy with policy %v\n", romanaPolicy)
