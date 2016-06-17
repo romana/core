@@ -320,6 +320,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 		c.Error(err)
 	}
 	t1Id := t1Out.ID
+	t1ExtID := t1In.ExternalID
 	c.Assert(t1Out.Seq, check.Equals, uint64(0))
 	myLog(c, "Tenant 1 %s", t1Out)
 
@@ -371,10 +372,13 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	// Find first tenant
 	t1OutFound := tenant.Tenant{}
 	tenant1Path := fmt.Sprintf("/tenants/%d", t1Id)
+	tenant1ExtIDPath := fmt.Sprintf("/tenants/%s", t1ExtID)
 	err = client.Get(tenant1Path, &t1OutFound)
 	if err != nil {
 		c.Error(err)
 	}
+	c.Assert(t1OutFound.Name, check.Equals, "name1")
+	c.Assert(t1OutFound.ExternalID, check.Equals, "t1")
 	myLog(c, "Found %s", t1OutFound)
 
 	// Add tenant with same name, different external ID
@@ -397,6 +401,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 
 	// Add segment s1 to tenant t1
 	tenant1SegmentPath := tenant1Path + "/segments"
+	tenant1ExtIDSegmentPath := tenant1ExtIDPath + "/segments"
 	t1s1In := tenant.Segment{Name: "s1", ExternalID: "s1", TenantID: t1Id}
 	t1s1Out := tenant.Segment{}
 	err = client.Post(tenant1SegmentPath, t1s1In, &t1s1Out)
@@ -413,6 +418,14 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	}
 	c.Assert(len(segments), check.Equals, 1)
 	myLog(c, "Segments list: expected 1 at  %s: %d %s", tenant1SegmentPath, len(segments), segments)
+
+	// List segments using tenant external ID.
+	err = client.Get(tenant1ExtIDSegmentPath, &segments)
+	if err != nil {
+		c.Error(err)
+	}
+	c.Assert(len(segments), check.Equals, 1)
+	myLog(c, "Segments list: expected 1 at  %s: %d %s", tenant1ExtIDSegmentPath, len(segments), segments)
 
 	// Add segment s2 to tenant t1
 	t1s2In := tenant.Segment{Name: "s2", ExternalID: "s2", TenantID: t1Id}
