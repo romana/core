@@ -157,10 +157,15 @@ func tenantCreate(cmd *cli.Command, args []string) error {
 		if err != nil {
 			return err
 		}
-		_, tFound := result["ExternalID"]
+		_, tFound := result["name"]
 		if tFound {
 			var t tenant.Tenant
-			err := ms.Decode(result, &t)
+			dc := &ms.DecoderConfig{TagName: "json", Result: &t}
+			decoder, err := ms.NewDecoder(dc)
+			if err != nil {
+				return err
+			}
+			err = decoder.Decode(result)
 			if err != nil {
 				return err
 			}

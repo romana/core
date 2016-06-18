@@ -174,7 +174,12 @@ func policyAdd(cmd *cli.Command, args []string) error {
 			_, nmOk := result[i]["name"]
 			if exOk || idOk || nmOk {
 				var p common.Policy
-				err := ms.Decode(result[i], &p)
+				dc := &ms.DecoderConfig{TagName: "json", Result: &p}
+				decoder, err := ms.NewDecoder(dc)
+				if err != nil {
+					continue
+				}
+				err = decoder.Decode(result[i])
 				if err != nil {
 					continue
 				}
@@ -214,7 +219,12 @@ func policyAdd(cmd *cli.Command, args []string) error {
 			_, nmOk := result[i]["name"]
 			if exOk || idOk || nmOk {
 				var p common.Policy
-				err := ms.Decode(result[i], &p)
+				dc := &ms.DecoderConfig{TagName: "json", Result: &p}
+				decoder, err := ms.NewDecoder(dc)
+				if err != nil {
+					continue
+				}
+				err = decoder.Decode(result[i])
 				if err != nil {
 					continue
 				}
@@ -320,7 +330,7 @@ func policyRemove(cmd *cli.Command, args []string) error {
 	return nil
 }
 
-// policyList lists policies for a specific tenant.
+// policyList lists policies in tabular or json format.
 func policyList(cmd *cli.Command, args []string) error {
 	rootURL := config.GetString("RootURL")
 
