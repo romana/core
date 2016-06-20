@@ -37,7 +37,7 @@ func NewFirewall(executor utilexec.Executable, store FirewallStore, nc NetConfig
 	fwstore.DbStore = store.GetDb()
 	fwstore.mu = store.GetMutex()
 
-	fw := new(Iptables)
+	fw := new(IPtables)
 	fw.Store = fwstore
 	fw.os = executor
 	fw.Platform = platform
@@ -65,7 +65,7 @@ func (fp FirewallPlatform) String() string {
 	return result
 }
 
-// RuleState is a parameter for ensureIptablesRule function
+// RuleState is a parameter for ensureIPtablesRule function
 // which describes desired state of firewall rule.
 type RuleState int
 

@@ -19,8 +19,8 @@ import (
 	"github.com/golang/glog"
 )
 
-// provisionK8SIptablesRules provisions rules for a new pod in Kubernetes.
-func (fw *Iptables) provisionK8SIptablesRules() error {
+// provisionK8SIPtablesRules provisions rules for a new pod in Kubernetes.
+func (fw *IPtables) provisionK8SIPtablesRules() error {
 	missingChains := fw.detectMissingChains()
 	glog.Info("Firewall: creating chains")
 	err := fw.CreateChains(missingChains)
@@ -38,7 +38,7 @@ func (fw *Iptables) provisionK8SIptablesRules() error {
 	}
 
 	for chain := range fw.chains {
-		if err := fw.DivertTrafficToRomanaIptablesChain(chain, installDivertRules); err != nil {
+		if err := fw.DivertTrafficToRomanaIPtablesChain(chain, installDivertRules); err != nil {
 			return err
 		}
 	}

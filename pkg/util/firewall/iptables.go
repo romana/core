@@ -35,9 +35,9 @@ const (
 	targetAccept = "ACCEPT"
 )
 
-// Iptables implements romana Firewall using iptables.
-type Iptables struct {
-	chains        [numberOfDefaultChains]IptablesChain
+// IPtables implements romana Firewall using iptables.
+type IPtables struct {
+	chains        [numberOfDefaultChains]IPtablesChain
 	u32Filter     string
 	chainPrefix   string
 	interfaceName string
@@ -49,17 +49,17 @@ type Iptables struct {
 	networkConfig NetConfig
 }
 
-// IptablesChain describes state of the particular firewall chain.
-type IptablesChain struct {
+// IPtablesChain describes state of the particular firewall chain.
+type IPtablesChain struct {
 	baseChain  string
 	directions []string
 	rules      []string
 	chainName  string
 }
 
-// NewIptablesChain initializes a new firewall chain.
-func NewIptablesChain(baseChain string, direction []string, rules []string, chainName string) *IptablesChain {
-	return &IptablesChain{baseChain, direction, rules, chainName}
+// NewIPtablesChain initializes a new firewall chain.
+func NewIPtablesChain(baseChain string, direction []string, rules []string, chainName string) *IPtablesChain {
+	return &IPtablesChain{baseChain, direction, rules, chainName}
 }
 
 // Collection of firewall rules.
@@ -71,13 +71,13 @@ func (r *firewallRules) Add(content string) {
 }
 
 // prepareChainName returns a chain name with tenant-segment specific prefix.
-func (fw *Iptables) prepareChainName(chainName string) string {
+func (fw *IPtables) prepareChainName(chainName string) string {
 	return fmt.Sprintf("%s%s", fw.chainPrefix, chainName)
 }
 
 // makeRules generates rules for given endpoint on given platform
 // TODO make platform aware.
-func (fw *Iptables) makeRules(netif FirewallEndpoint) error {
+func (fw *IPtables) makeRules(netif FirewallEndpoint) error {
 	var err error
 	fw.u32Filter, fw.chainPrefix, err = fw.prepareU32Rules(netif.GetIP())
 	if err != nil {
@@ -105,17 +105,17 @@ func (fw *Iptables) makeRules(netif FirewallEndpoint) error {
 		"-m state --state RELATED,ESTABLISHED",
 	}
 
-	fw.chains[inputChainIndex] = IptablesChain{"INPUT", []string{"i"}, inputRules, fw.prepareChainName("INPUT")}
-	fw.chains[outputChainIndex] = IptablesChain{"OUTPUT", []string{"o"}, outputRules, fw.prepareChainName("OUTPUT")}
-	fw.chains[forwardInChainIndex] = IptablesChain{"FORWARD", []string{"i"}, forwardRules, fw.prepareChainName("FORWARD")}
-	fw.chains[forwardOutChainIndex] = IptablesChain{"FORWARD", []string{"o"}, tenantVectorRules, tenantVectorChainName}
+	fw.chains[inputChainIndex] = IPtablesChain{"INPUT", []string{"i"}, inputRules, fw.prepareChainName("INPUT")}
+	fw.chains[outputChainIndex] = IPtablesChain{"OUTPUT", []string{"o"}, outputRules, fw.prepareChainName("OUTPUT")}
+	fw.chains[forwardInChainIndex] = IPtablesChain{"FORWARD", []string{"i"}, forwardRules, fw.prepareChainName("FORWARD")}
+	fw.chains[forwardOutChainIndex] = IPtablesChain{"FORWARD", []string{"o"}, tenantVectorRules, tenantVectorChainName}
 
 	return nil
 }
 
 // isChainExist verifies if given iptables chain exists.
 // Returns true chain exists.
-func (fw *Iptables) isChainExist(chain int) bool {
+func (fw *IPtables) isChainExist(chain int) bool {
 	cmd := "/sbin/iptables"
 	args := []string{"-L", fw.chains[chain].chainName}
 	output, err := fw.os.Exec(cmd, args)
@@ -128,7 +128,7 @@ func (fw *Iptables) isChainExist(chain int) bool {
 
 // isRuleExist verifies if given iptables rule exists.
 // Returns true rule exists.
-func (fw *Iptables) isRuleExist(ruleSpec []string) bool {
+func (fw *IPtables) isRuleExist(ruleSpec []string) bool {
 	cmd := "/sbin/iptables"
 	args := []string{"-C"}
 	args = append(args, ruleSpec...)
@@ -139,9 +139,9 @@ func (fw *Iptables) isRuleExist(ruleSpec []string) bool {
 	return true
 }
 
-// detectMissingChains checks which Iptables chains haven't been created yet.
+// detectMissingChains checks which IPtables chains haven't been created yet.
 // Because we do not want to create chains that already exist.
-func (fw *Iptables) detectMissingChains() []int {
+func (fw *IPtables) detectMissingChains() []int {
 	var ret []int
 	for chain := range fw.chains {
 		glog.Infof("Testing chain", chain)
@@ -153,9 +153,9 @@ func (fw *Iptables) detectMissingChains() []int {
 	return ret
 }
 
-// CreateChains creates Iptables chains such as
+// CreateChains creates IPtables chains such as
 // ROMANA-T0S0-OUTPUT, ROMANA-T0S0-FORWARD, ROMANA-T0S0-INPUT.
-func (fw *Iptables) CreateChains(newChains []int) error {
+func (fw *IPtables) CreateChains(newChains []int) error {
 	for chain := range newChains {
 		cmd := "/sbin/iptables"
 		args := []string{"-N", fw.chains[chain].chainName}
@@ -167,7 +167,7 @@ func (fw *Iptables) CreateChains(newChains []int) error {
 	return nil
 }
 
-// opType for DivertTrafficToRomanaIptablesChain
+// opType for DivertTrafficToRomanaIPtablesChain
 type opDivertTrafficAction int
 
 const (
@@ -186,13 +186,13 @@ func (d opDivertTrafficAction) String() string {
 	return result
 }
 
-// DivertTrafficToRomanaIptablesChain injects iptables rules to send traffic
+// DivertTrafficToRomanaIPtablesChain injects iptables rules to send traffic
 // into the ROMANA chain.
 // We need to do this for each tenant/segment pair as each pair will have different chain name.
-func (fw *Iptables) DivertTrafficToRomanaIptablesChain(chain int, opType opDivertTrafficAction) error {
+func (fw *IPtables) DivertTrafficToRomanaIPtablesChain(chain int, opType opDivertTrafficAction) error {
 	// Should be like that
 	// iptables -A INPUT -i tap1234 -j ROMANA-T0S1-INPUT
-	glog.Infof("In DivertTrafficToRomanaIptablesChain() processing chain number %s with action %s", chain, opType)
+	glog.Infof("In DivertTrafficToRomanaIPtablesChain() processing chain number %s with action %s", chain, opType)
 
 	var action RuleState
 	switch opType {
@@ -211,29 +211,29 @@ func (fw *Iptables) DivertTrafficToRomanaIptablesChain(chain int, opType opDiver
 		// First create rule record in database.
 		rule, err0 := fw.addIPtablesRule(ruleSpec)
 		if err0 != nil {
-			glog.Error("In DivertTrafficToRomanaIptablesChain() failed to process chain number", chain)
+			glog.Error("In DivertTrafficToRomanaIPtablesChain() failed to process chain number", chain)
 			return err0
 		}
 
 		// Then create actuall rule in the system.
 		if err1 := fw.EnsureRule(ruleSpec, action); err1 != nil {
-			glog.Error("In DivertTrafficToRomanaIptablesChain() failed to process chain number ", chain)
+			glog.Error("In DivertTrafficToRomanaIPtablesChain() failed to process chain number ", chain)
 			return err1
 		}
 
 		// Finally, set 'active' flag in database record.
 		if err2 := fw.Store.switchIPtablesRule(rule, setRuleActive); err2 != nil {
-			glog.Error("In DivertTrafficToRomanaIptablesChain() iptables rule created but activation failed ", rule.Body)
+			glog.Error("In DivertTrafficToRomanaIPtablesChain() iptables rule created but activation failed ", rule.Body)
 			return err2
 		}
 
 	}
-	glog.Info("DivertTrafficToRomanaIptablesChain() successfully processed chain number", chain)
+	glog.Info("DivertTrafficToRomanaIPtablesChain() successfully processed chain number", chain)
 	return nil
 }
 
 // addIPtablesRule creates new iptable rule in database.
-func (fw *Iptables) addIPtablesRule(ruleSpec []string) (*IPtablesRule, error) {
+func (fw *IPtables) addIPtablesRule(ruleSpec []string) (*IPtablesRule, error) {
 	rule := new(IPtablesRule)
 	rule.Body = strings.Join(ruleSpec, " ")
 	rule.State = setRuleInactive.String()
@@ -247,7 +247,7 @@ func (fw *Iptables) addIPtablesRule(ruleSpec []string) (*IPtablesRule, error) {
 
 // CreateRules creates iptables rules for the given Romana chain
 // to allow a traffic to flow between the Host and Endpoint.
-func (fw *Iptables) CreateRules(chain int) error {
+func (fw *IPtables) CreateRules(chain int) error {
 	glog.Info("In CreateRules() for chain", chain)
 	for rule := range fw.chains[chain].rules {
 		chainName := fw.chains[chain].chainName
@@ -281,7 +281,7 @@ func (fw *Iptables) CreateRules(chain int) error {
 // CreateU32Rules creates wildcard iptables rules for the given Romana chain.
 // These rules serve to restrict traffic between segments and tenants.
 // * Deprecated, outdated *
-func (fw *Iptables) CreateU32Rules(chain int) error {
+func (fw *IPtables) CreateU32Rules(chain int) error {
 	glog.Info("Creating U32 firewall rules for chain", chain)
 	chainName := fw.chains[chain].chainName
 	cmd := "/sbin/iptables"
@@ -297,13 +297,13 @@ func (fw *Iptables) CreateU32Rules(chain int) error {
 
 // CreateDefaultDropRule creates iptables rules to drop all unidentified traffic
 // in the given chain
-func (fw *Iptables) CreateDefaultDropRule(chain int) error {
+func (fw *IPtables) CreateDefaultDropRule(chain int) error {
 	return fw.CreateDefaultRule(chain, targetDrop)
 }
 
 // CreateDefaultRule creates iptables rule for a chain with the
 // specified target
-func (fw *Iptables) CreateDefaultRule(chain int, target string) error {
+func (fw *IPtables) CreateDefaultRule(chain int, target string) error {
 	glog.Infof("In CreateDefaultRule() %s rules for chain %d", target, chain)
 	chainName := fw.chains[chain].chainName
 	ruleSpec := []string{chainName, "-j", target}
@@ -333,7 +333,7 @@ func (fw *Iptables) CreateDefaultRule(chain int, target string) error {
 
 // prepareTenantSegmentMask returns integer representation of a bitmask
 // for tenant+segment bits in pseudo network.
-func (fw *Iptables) prepareTenantSegmentMask() uint64 {
+func (fw *IPtables) prepareTenantSegmentMask() uint64 {
 	var res uint64
 	tenantBits := fw.networkConfig.TenantBits()
 	segmentBits := fw.networkConfig.SegmentBits()
@@ -350,7 +350,7 @@ func ipToInt(ip net.IP) uint64 {
 }
 
 // PseudoNetNetmaskInt returns integer representation of pseudo net netmask.
-func (fw *Iptables) PseudoNetNetmaskInt() (uint64, error) {
+func (fw *IPtables) PseudoNetNetmaskInt() (uint64, error) {
 	cidr, err := fw.networkConfig.PNetCIDR()
 	if err != nil {
 		return 0, err
@@ -374,7 +374,7 @@ func MaskToInt(mask net.IPMask) (uint64, error) {
 	return imask, nil
 }
 
-// prepareU32Rules generates Iptables rules for U32 iptables module.
+// prepareU32Rules generates IPtables rules for U32 iptables module.
 // This rules implemet Romana tenant/segment filtering
 //   Return the filter rules for the iptables u32 module.
 //   Goal: Filter out any traffic that does not have the same tenant and segment
@@ -396,7 +396,7 @@ func MaskToInt(mask net.IPMask) (uint64, error) {
 //       ROMANA-T<tenant-id>S<segment-id>-
 //   For example, with tenant 1 and segment 2, this would be:
 //       ROMANA-T1S2-
-func (fw *Iptables) prepareU32Rules(ipAddr net.IP) (string, string, error) {
+func (fw *IPtables) prepareU32Rules(ipAddr net.IP) (string, string, error) {
 	fullMask, err := fw.prepareNetmaskBits()
 	if err != nil {
 		return "", "", err
@@ -416,7 +416,7 @@ func (fw *Iptables) prepareU32Rules(ipAddr net.IP) (string, string, error) {
 // prepareNetmaskBits returns integer representation of pseudo network bitmask.
 // Used to prepare u32 firewall rules that would match ip addresses belonging
 // to given tenant/segment pair.
-func (fw *Iptables) prepareNetmaskBits() (uint64, error) {
+func (fw *IPtables) prepareNetmaskBits() (uint64, error) {
 	iCidrMask, err := fw.PseudoNetNetmaskInt()
 	if err != nil {
 		return 0, err
@@ -428,7 +428,7 @@ func (fw *Iptables) prepareNetmaskBits() (uint64, error) {
 
 // extractSegmentID extracts segment id from the given ip address.
 // This is possible because segment id encoded in the ip address.
-func (fw *Iptables) extractSegmentID(addr uint64) uint64 {
+func (fw *IPtables) extractSegmentID(addr uint64) uint64 {
 	endpointBits := fw.networkConfig.EndpointBits()
 	segmentBits := fw.networkConfig.SegmentBits()
 	sid := (addr >> endpointBits) & ((1 << segmentBits) - 1)
@@ -437,7 +437,7 @@ func (fw *Iptables) extractSegmentID(addr uint64) uint64 {
 
 // extractTenantID extracts tenant id from given the ip address.
 // This is possible because tenant id encoded in the ip address.
-func (fw *Iptables) extractTenantID(addr uint64) uint64 {
+func (fw *IPtables) extractTenantID(addr uint64) uint64 {
 	endpointBits := fw.networkConfig.EndpointBits()
 	segmentBits := fw.networkConfig.SegmentBits()
 	tenantBits := fw.networkConfig.TenantBits()
@@ -446,7 +446,7 @@ func (fw *Iptables) extractTenantID(addr uint64) uint64 {
 }
 
 // ProvisionEndpoint creates iptables rules for given endpoint in given platform.
-func (fw Iptables) ProvisionEndpoint(netif FirewallEndpoint) error {
+func (fw IPtables) ProvisionEndpoint(netif FirewallEndpoint) error {
 	glog.Info("In ProvisionEndpoint()")
 	var err error
 
@@ -456,16 +456,16 @@ func (fw Iptables) ProvisionEndpoint(netif FirewallEndpoint) error {
 
 	switch fw.Platform {
 	case KubernetesPlatform:
-		err = fw.provisionK8SIptablesRules()
+		err = fw.provisionK8SIPtablesRules()
 	case OpenStackPlatform:
-		err = fw.provisionIptablesRules()
+		err = fw.provisionIPtablesRules()
 	}
 
 	return err
 }
 
 // Cleanup implements Firewall interface.
-func (fw Iptables) Cleanup(netif FirewallEndpoint) error {
+func (fw IPtables) Cleanup(netif FirewallEndpoint) error {
 	if err := fw.deleteIPtablesRulesBySubstring(netif.GetName()); err != nil {
 		glog.Errorf("In Cleanup() failed to clean firewall for %s", netif.GetName())
 		return err
@@ -476,7 +476,7 @@ func (fw Iptables) Cleanup(netif FirewallEndpoint) error {
 
 // deleteIPtablesRulesBySubstring uninstalls iptables rules matching given
 // substring and deletes them from database. Has no effect on 'inactive' rules.
-func (fw *Iptables) deleteIPtablesRulesBySubstring(substring string) error {
+func (fw *IPtables) deleteIPtablesRulesBySubstring(substring string) error {
 	rules, err := fw.Store.findIPtablesRules(substring)
 	if err != nil {
 		return err
@@ -497,7 +497,7 @@ func (fw *Iptables) deleteIPtablesRulesBySubstring(substring string) error {
 }
 
 // deleteIPtablesRule attempts to uninstall and delete the given rule.
-func (fw *Iptables) deleteIPtablesRule(rule *IPtablesRule) error {
+func (fw *IPtables) deleteIPtablesRule(rule *IPtablesRule) error {
 	if err := fw.Store.switchIPtablesRule(rule, setRuleInactive); err != nil {
 		glog.Error("In deleteIPtablesRule() failed to deactivate the rule", rule.Body)
 		return err
@@ -516,7 +516,7 @@ func (fw *Iptables) deleteIPtablesRule(rule *IPtablesRule) error {
 }
 
 // EnsureRule verifies if given iptables rule exists and creates if it's not.
-func (fw Iptables) EnsureRule(ruleSpec []string, opType RuleState) error {
+func (fw IPtables) EnsureRule(ruleSpec []string, opType RuleState) error {
 	ruleExists := fw.isRuleExist(ruleSpec)
 	cmd := "/sbin/iptables"
 	args := []string{}
@@ -549,6 +549,6 @@ func (fw Iptables) EnsureRule(ruleSpec []string, opType RuleState) error {
 }
 
 // ListRules implements Firewall interface
-func (fw Iptables) ListRules() ([]IPtablesRule, error) {
+func (fw IPtables) ListRules() ([]IPtablesRule, error) {
 	return fw.Store.listIPtablesRules()
 }

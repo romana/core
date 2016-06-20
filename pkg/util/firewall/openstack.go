@@ -19,12 +19,12 @@ import (
 	"github.com/golang/glog"
 )
 
-// provisionIptablesRules orchestrates Iptables to satisfy request
+// provisionIPtablesRules orchestrates IPtables to satisfy request
 // to provision new endpoint.
 // Creates per-tenant, per-segment iptables chains, diverts
 // all traffic to/from/through netif.name interface to a proper chains.
 // Currently tested with Romana ML2 driver.
-func (fw *Iptables) provisionIptablesRules() error {
+func (fw *IPtables) provisionIPtablesRules() error {
 	missingChains := fw.detectMissingChains()
 	glog.Info("Firewall: creating chains")
 	err := fw.CreateChains(missingChains)
@@ -41,7 +41,7 @@ func (fw *Iptables) provisionIptablesRules() error {
 	}
 
 	for chain := range fw.chains {
-		if err := fw.DivertTrafficToRomanaIptablesChain(chain, installDivertRules); err != nil {
+		if err := fw.DivertTrafficToRomanaIPtablesChain(chain, installDivertRules); err != nil {
 			return err
 		}
 	}
