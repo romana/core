@@ -95,7 +95,7 @@ class AgentHandler(BaseHTTPRequestHandler):
 
         policy_def = self.json_data
         policy_def_valid = self.validate_policy(policy_def)
-        
+
         logging.warning("In do_NP_update : policy_def_valid = %s" % policy_def_valid)
 
         if policy_def_valid:
@@ -103,7 +103,6 @@ class AgentHandler(BaseHTTPRequestHandler):
 
             self.send_response(202)
             self.wfile.write("Policy definition accepted")
-            logging.warning("Creating policy %s" % policy_def)
 
             if self.http_method == "DELETE":
                 logging.warning("Deleting policy %s" % policy_def)
@@ -155,7 +154,7 @@ def policy_update(romana_address_scheme, policy_definition, delete_policy=False)
     implemented here. TODO!
 
     """
-    
+
     # PolicyId is a uniq tag that we are going to use to check if rule is applied already
     policy_id      = policy_definition['name']
 
