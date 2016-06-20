@@ -42,7 +42,7 @@ type Route struct {
 	Mask   string
 	Kind   targetKind
 	Spec   string
-	status string
+	Status string
 }
 
 // targetKind is a an IP route destination type.
