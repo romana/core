@@ -8,10 +8,12 @@
 //   http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
-//  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
 // WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 // License for the specific language governing permissions and limitations
 // under the License.
+//
+// IPtables based firewall implementations.
 
 package firewall
 
@@ -114,7 +116,7 @@ func (fw *IPtables) makeRules(netif FirewallEndpoint) error {
 }
 
 // isChainExist verifies if given iptables chain exists.
-// Returns true chain exists.
+// Returns true if chain exists.
 func (fw *IPtables) isChainExist(chain int) bool {
 	cmd := "/sbin/iptables"
 	args := []string{"-L", fw.chains[chain].chainName}
@@ -167,7 +169,8 @@ func (fw *IPtables) CreateChains(newChains []int) error {
 	return nil
 }
 
-// opType for DivertTrafficToRomanaIPtablesChain
+// opDivertTrafficAction is a parameter for DivertTrafficToRomanaIPtablesChain
+// functions that indicates action to be taken.
 type opDivertTrafficAction int
 
 const (

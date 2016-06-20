@@ -1,3 +1,20 @@
+// Copyright (c) 2016 Pani Networks
+// All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License"); you may
+// not use this file except in compliance with the License. You may obtain
+// a copy of the License at
+//
+//   http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+// License for the specific language governing permissions and limitations
+// under the License.
+//
+// This file contains structures exported by the firewall package
+
 package firewall
 
 import (
@@ -5,6 +22,8 @@ import (
 	"net"
 )
 
+// Firewall interface allows different implementation to be used with
+// romana agent.
 type Firewall interface {
 	// ProvisionEndpoint generates and applies rules for given endpoint.
 	ProvisionEndpoint(netif FirewallEndpoint) error
@@ -46,6 +65,8 @@ func NewFirewall(executor utilexec.Executable, store FirewallStore, nc NetConfig
 	return *fw, nil
 }
 
+// FirewallPlatform used as a parameter in the platform aware functions
+// of the package.
 type FirewallPlatform int
 
 const (
@@ -89,7 +110,7 @@ func (i RuleState) String() string {
 	return result
 }
 
-// Interface for agent.NetIf.
+// FirewallEndpoint is an interface for agent to pass endpoint definition.
 type FirewallEndpoint interface {
 	GetMac() string
 	GetIP() net.IP
