@@ -194,7 +194,7 @@ func (fw *Iptables) DivertTrafficToRomanaIptablesChain(chain int, opType opDiver
 	// iptables -A INPUT -i tap1234 -j ROMANA-T0S1-INPUT
 	glog.Infof("In DivertTrafficToRomanaIptablesChain() processing chain number %s with action %s", chain, opType)
 
-	var action opIptablesAction
+	var action RuleState
 	switch opType {
 	case installDivertRules:
 		action = ensureLast
@@ -516,7 +516,7 @@ func (fw *Iptables) deleteIPtablesRule(rule *IPtablesRule) error {
 }
 
 // EnsureRule verifies if given iptables rule exists and creates if it's not.
-func (fw Iptables) EnsureRule(ruleSpec []string, opType opIptablesAction) error {
+func (fw Iptables) EnsureRule(ruleSpec []string, opType RuleState) error {
 	ruleExists := fw.isRuleExist(ruleSpec)
 	cmd := "/sbin/iptables"
 	args := []string{}

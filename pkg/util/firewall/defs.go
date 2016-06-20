@@ -10,7 +10,7 @@ type Firewall interface {
 	ProvisionEndpoint(netif FirewallEndpoint) error
 
 	// EnsureRule checks if specified rule in desired state.
-	EnsureRule(ruleSpec []string, op opIptablesAction) error
+	EnsureRule(ruleSpec []string, op RuleState) error
 
 	// ListRules returns a list of firewall rules.
 	ListRules() ([]IPtablesRule, error)
@@ -65,17 +65,17 @@ func (fp FirewallPlatform) String() string {
 	return result
 }
 
-// opType for ensureIptablesRule.
-// TODO rename in OpFirewallAction
-type opIptablesAction int
+// RuleState is a parameter for ensureIptablesRule function
+// which describes desired state of firewall rule.
+type RuleState int
 
 const (
-	ensureLast opIptablesAction = iota
+	ensureLast RuleState = iota
 	ensureFirst
 	ensureAbsent
 )
 
-func (i opIptablesAction) String() string {
+func (i RuleState) String() string {
 	var result string
 	switch i {
 	case ensureLast:
