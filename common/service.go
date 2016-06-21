@@ -59,10 +59,13 @@ type ServiceUtils struct {
 }
 
 // CreateFindRoute creates Routes for a find functionality given the
-// provided entities. Two routes are created:
+// provided entities. Four routes are created:
 // 1. /findOne/<entityName>s, which will return a single structure (or
-//   an error if more than one entry is found, and
-// 2 /findAll/<entityName>s
+//   an error if more than one entry is found,
+// 2. /findFirst/<entityName>s, which will return the first entity (in order
+//    of their creation).
+// 3. /findLast/<entityName>s -- similar to above.
+// 4. /findAll/<entityName>s
 // Routes will return a 404 if no entries found.
 // Here "entities" *must* be a pointer to an array
 // of entities to find (for example, it has to be &[]Tenant{}, not Tenant{}),
@@ -75,25 +78,38 @@ func CreateFindRoutes(entities interface{}, store Store) Routes {
 		entityName = entityNameElements[1]
 	}
 	entityName = strings.ToLower(entityName)
-	findOnePath := "/findOne/" + entityName + "s"
-	findAllPath := "/findAll/" + entityName + "s"
+	pathSuffix := "/" + entityName + "s"
+
 	routes := Routes{
 		Route{
 			Method:  "GET",
-			Pattern: findAllPath,
+			Pattern: "/" + FindAll + pathSuffix,
 			Handler: func(input interface{}, ctx RestContext) (interface{}, error) {
-				return store.Find(ctx.QueryVariables, entities, false)
+				return store.Find(ctx.QueryVariables, entities, FindAll)
 			},
 		},
 		Route{
 			Method:  "GET",
-			Pattern: findOnePath,
+			Pattern: "/" + FindExactlyOne + pathSuffix,
 			Handler: func(input interface{}, ctx RestContext) (interface{}, error) {
-				return store.Find(ctx.QueryVariables, entities, true)
+				return store.Find(ctx.QueryVariables, entities, FindExactlyOne)
+			},
+		},
+		Route{
+			Method:  "GET",
+			Pattern: "/" + FindFirst + pathSuffix,
+			Handler: func(input interface{}, ctx RestContext) (interface{}, error) {
+				return store.Find(ctx.QueryVariables, entities, FindFirst)
+			},
+		},
+		Route{
+			Method:  "GET",
+			Pattern: "/" + FindLast + pathSuffix,
+			Handler: func(input interface{}, ctx RestContext) (interface{}, error) {
+				return store.Find(ctx.QueryVariables, entities, FindLast)
 			},
 		},
 	}
-	log.Printf("Created %s and %s paths", findOnePath, findAllPath)
 	return routes
 }
 
@@ -283,6 +299,12 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 				}
 				url := fmt.Sprintf("/config/%s/port", service.Name())
 				err = client.Post(url, portMsg, &result)
+				if err != nil {
+					log.Printf("Error attempting to register service %s with root: %+v", service.Name(), err)
+				} else {
+					log.Printf("Register service %s with root: %+v: %+v", service.Name(), portMsg, result)
+					
+				}
 			}
 		}
 	}

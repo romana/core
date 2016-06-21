@@ -136,7 +136,8 @@ func Run(rootServiceURL string, cred *common.Credential) (*common.RestServiceInf
 func (l *kubeListener) getOrAddSegment(tenantServiceURL string, namespace string, kubeSegmentName string) (*tenant.Segment, error) {
 	ten := &tenant.Tenant{}
 	ten.Name = namespace
-	err := l.restClient.FindOne(ten)
+	// TODO this should be changed to find EXACTLY one after deletion functionality is implemented
+	err := l.restClient.Find(ten, common.FindLast)
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +145,7 @@ func (l *kubeListener) getOrAddSegment(tenantServiceURL string, namespace string
 	seg := &tenant.Segment{}
 	seg.Name = kubeSegmentName
 	seg.TenantID = ten.ID
-	err = l.restClient.FindOne(ten)
+	err = l.restClient.Find(seg, common.FindExactlyOne)
 	if err == nil {
 		return seg, nil
 	}

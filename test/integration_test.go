@@ -260,11 +260,13 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	myLog(c, "Entering TestRootTopoTenantIpamInteraction()")
 
 	// 1. Add some hosts to topology service and test.
-	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(s.topoURL))
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(s.rootURL))
 	if err != nil {
 		c.Error(err)
 	}
+	
 	myLog(c, "Calling %s", s.topoURL)
+	client.NewUrl(s.topoURL)
 	topIndex := &common.IndexResponse{}
 	err = client.Get("/", &topIndex)
 	if err != nil {
@@ -325,7 +327,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	myLog(c, "Tenant 1 %s", t1Out)
 
 	// Find by external ID
-	err = client.Get("/findOne/tenants/?external_id=t1", &t1Out)
+	err = client.Get("/findExactlyOne/tenants/?external_id=t1", &t1Out)
 	if err != nil {
 		c.Error(err)
 	}
@@ -333,7 +335,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	c.Assert(t1Out.ExternalID, check.Equals, "t1")
 	c.Assert(t1Out.Seq, check.Equals, uint64(0))
 	// Find by name
-	err = client.Get("/findOne/tenants?name=name1", &t1Out)
+	err = client.Get("/findExactlyOne/tenants?name=name1", &t1Out)
 	if err != nil {
 		c.Error(err)
 	}
@@ -352,13 +354,35 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	c.Assert(t2Out.Seq, check.Equals, uint64(1))
 	myLog(c, "Tenant 2 %s", t2Out)
 
+	tenSingle := tenant.Tenant{}
+	tenSingle.Name = "name1"
 	// Find by name - should be an error for findOne (there's 2 of them)
-	err = client.Get("/findOne/tenants?name=name1", &t2Out)
+	err = client.Find(&tenSingle, common.FindExactlyOne)
 	if err == nil {
 		c.Error(fmt.Sprintf("Expected error %s", err))
 	} else {
 		myLog(c, "Expected error %s", err)
 	}
+
+	// FindFirst
+	tenSingle = tenant.Tenant{}
+	tenSingle.Name = "name1"
+	err = client.Find(&tenSingle, common.FindFirst)
+	if err != nil {
+		c.Error(err)
+	}
+	c.Assert(tenSingle.Name, check.Equals, "name1")
+	c.Assert(tenSingle.ExternalID, check.Equals, "t1")
+
+	// FindLast
+	tenSingle = tenant.Tenant{}
+	tenSingle.Name = "name1"
+	err = client.Find(&tenSingle, common.FindLast)
+	if err != nil {
+		c.Error(err)
+	}
+	c.Assert(tenSingle.Name, check.Equals, "name1")
+	c.Assert(tenSingle.ExternalID, check.Equals, "t2")
 
 	// findAll should find 2 tenants.
 	var tenants []tenant.Tenant

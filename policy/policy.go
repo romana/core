@@ -98,10 +98,8 @@ func (policy *PolicySvc) augmentEndpoint(endpoint *common.Endpoint) error {
 	log.Printf("Policy: Augmenting  %#v", endpoint)
 	// TODO this will have to be changed once we implement
 	// https://paninetworks.kanbanize.com/ctrl_board/3/cards/319/details
-	var ten *tenant.Tenant
-	ten = nil
+	ten := &tenant.Tenant{}
 	if endpoint.TenantNetworkID == nil {
-		ten = &tenant.Tenant{}
 		if endpoint.TenantID != 0 {
 			tenantIDToUse := strconv.FormatUint(endpoint.TenantID, 10)
 			tenantsUrl := fmt.Sprintf("%s/tenants/%s", tenantSvcUrl, tenantIDToUse)
@@ -111,15 +109,13 @@ func (policy *PolicySvc) augmentEndpoint(endpoint *common.Endpoint) error {
 				return err
 			}
 		} else if endpoint.TenantExternalID != "" || endpoint.TenantName != "" {
-			tenantsUrl := fmt.Sprintf("%s/findOne/tenants?", tenantSvcUrl)
 			if endpoint.TenantExternalID != "" {
-				tenantsUrl += "external_id=" + endpoint.TenantExternalID + "&"
+				ten.ExternalID = endpoint.TenantExternalID
 			}
 			if endpoint.TenantName != "" {
-				tenantsUrl += "name=" + endpoint.TenantName
+				ten.Name = endpoint.TenantName
 			}
-			log.Printf("Policy: Finding tenants at %s", tenantsUrl)
-			err = policy.client.Get(tenantsUrl, ten)
+			err = policy.client.Find(ten, common.FindExactlyOne)
 			if err != nil {
 				return err
 			}
@@ -179,12 +175,12 @@ func (policy *PolicySvc) augmentPolicy(policyDoc *common.Policy) error {
 	}
 
 	dcURL := index.Links.FindByRel("datacenter")
-	dc := common.Datacenter{}
-	err = policy.client.Get(dcURL, &dc)
+	dc := &common.Datacenter{}
+	err = policy.client.Get(dcURL, dc)
 	if err != nil {
 		return err
 	}
-	log.Printf("Policy server received datacenter information from topology service: %s\n", dc)
+	log.Printf("Policy server received datacenter information from topology service: %+v\n", dc)
 	policyDoc.Datacenter = dc
 
 	for i, _ := range policyDoc.Rules {
@@ -257,7 +253,7 @@ func (policy *PolicySvc) deletePolicyHandler(input interface{}, ctx common.RestC
 		if err != nil {
 			return nil, err
 		}
-		id, err := policy.store.lookupPolicy(policyDoc.ExternalID, policyDoc.Datacenter.Id)
+		id, err := policy.store.lookupPolicy(policyDoc.ExternalID)
 		log.Printf("Found %d / %v (%T) from external ID %s", id, err, err, policyDoc.ExternalID)
 		if err != nil {
 			return nil, err
@@ -310,7 +306,7 @@ func (policy *PolicySvc) deletePolicy(id uint64) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	policyDoc.Datacenter = common.Datacenter{}
+	policyDoc.Datacenter = nil
 	return policyDoc, nil
 }
 
@@ -321,7 +317,7 @@ func (policy *PolicySvc) listPolicies(input interface{}, ctx common.RestContext)
 		return nil, err
 	}
 	for i, _ := range policies {
-		policies[i].Datacenter = common.Datacenter{}
+		policies[i].Datacenter = nil
 	}
 	return policies, nil
 }
@@ -339,7 +335,7 @@ func (policy *PolicySvc) findPolicyByName(input interface{}, ctx common.RestCont
 	if err != nil {
 		return nil, err
 	}
-	policyDoc.Datacenter = common.Datacenter{}
+	policyDoc.Datacenter = nil
 	return policyDoc, nil
 }
 
@@ -370,7 +366,7 @@ func (policy *PolicySvc) addPolicy(input interface{}, ctx common.RestContext) (i
 		log.Printf("addPolicy(): Error distributing: %v", err)
 		return nil, err
 	}
-	policyDoc.Datacenter = common.Datacenter{}
+	policyDoc.Datacenter = nil
 	return policyDoc, nil
 }
 

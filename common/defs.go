@@ -33,6 +33,7 @@ func String(i interface{}) string {
 	return string(j)
 }
 
+
 // Constants
 const (
 	// For passing in Gorilla Mux context the unmarshalled data
@@ -79,6 +80,7 @@ const (
 	Wildcard = "any"
 	// Name of root service
 	ServiceRoot = "root"
+	
 )
 
 type TokenMessage struct {
@@ -198,7 +200,7 @@ type Policy struct {
 	// with Romana in this deployment (e.g., Open Stack).
 	ExternalID string `json:"external_id,omitempty",sql:"not null;unique"`
 	// Datacenter describes a Romana deployment.
-	Datacenter Datacenter `json:"datacenter,omitempty"`
+	Datacenter *Datacenter `json:"datacenter,omitempty"`
 	AppliedTo  []Endpoint `json:"applied_to,omitempty"`
 	Peers      []Endpoint `json:"peers,omitempty"`
 	Rules      []Rule     `json:"rules,omitempty"`
@@ -415,17 +417,17 @@ type ServiceResponse struct {
 // Datacenter represents the configuration of a datacenter.
 type Datacenter struct {
 	Id        uint64 `json:"id",sql:"AUTO_INCREMENT"`
-	IpVersion uint   `json:"ip_version"`
+	IpVersion uint   `json:"ip_version,omitempty"`
 	// We don't need to store this, but calculate and pass around
-	Prefix      uint64 `json:"prefix"`
+	Prefix      uint64 `json:"prefix,omitempty"`
 	Cidr        string `json:"cidr,omitempty"`
-	PrefixBits  uint   `json:"prefix_bits,omitempty"`
-	PortBits    uint   `json:"port_bits,omitempty"`
-	TenantBits  uint   `json:"tenant_bits,omitempty"`
-	SegmentBits uint   `json:"segment_bits,omitempty"`
+	PrefixBits  uint   `json:"prefix_bits"`
+	PortBits    uint   `json:"port_bits"`
+	TenantBits  uint   `json:"tenant_bits"`
+	SegmentBits uint   `json:"segment_bits"`
 	// We don't need to store this, but calculate and pass around
-	EndpointBits      uint   `json:"endpoint_bits,omitempty"`
-	EndpointSpaceBits uint   `json:"endpoint_space_bits,omitempty"`
+	EndpointBits      uint   `json:"endpoint_bits"`
+	EndpointSpaceBits uint   `json:"endpoint_space_bits"`
 	Name              string `json:"name,omitempty"`
 }
 

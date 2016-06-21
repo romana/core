@@ -69,6 +69,16 @@ func makeStoreConfig(configMap map[string]interface{}) StoreConfig {
 	return storeConfig
 }
 
+type FindFlag string
+
+const (
+	// Flags to store.Find operation
+	FindFirst = "findFirst"
+	FindLast = "findLast"
+	FindExactlyOne = "findExactlyOne" 
+	FindAll = "findAll"
+)
+
 // Store defines generic store interface that can be used
 // by any service for persistence.
 type Store interface {
@@ -78,11 +88,16 @@ type Store interface {
 	Connect() error
 	// Create the schema, dropping existing one if the force flag is specified
 	CreateSchema(bool) error
-	// Find finds all entries in the store based on the query string. If
-	// single is specified then it is expected that only one result is to be found --
-	// multiple results will yield an errror. Here "entities" *must* be a pointer to an array
+	// Find finds entries in the store based on the query string. The meaning of the
+	// flags is as follows:
+	// 1. FindFirst - the first entity (as ordered by primary key) is returned.
+	// 2. FindLast - tha last entity is returned
+	// 3. FindExactlyOne - it is expected that only one result is to be found --
+	// multiple results will yield an errror.
+	// 4. FindAll - returns all.
+	// Here "entities" *must* be a pointer to an array
 	// of entities to find (for example, it has to be &[]Tenant{}, not Tenant{}).
-	Find(query url.Values, entities interface{}, single bool) (interface{}, error)
+	Find(query url.Values, entities interface{}, flag FindFlag) (interface{}, error)
 }
 
 // ServiceStore interface is what each service's store needs to implement.
@@ -109,7 +124,7 @@ type DbStore struct {
 }
 
 // Find generically implements Find() of store interface.
-func (dbStore *DbStore) Find(query url.Values, entities interface{}, single bool) (interface{}, error) {
+func (dbStore *DbStore) Find(query url.Values, entities interface{}, flag FindFlag) (interface{}, error) {
 	queryStringFieldToDbField := make(map[string]string)
 
 	t := reflect.TypeOf(entities).Elem().Elem()
@@ -179,7 +194,28 @@ func (dbStore *DbStore) Find(query url.Values, entities interface{}, single bool
 
 	log.Printf("Querying with %+v - %T", whereMap, entities)
 
-	db := dbStore.Db.Where(whereMap).Find(entities)
+	var db *gorm.DB
+
+	if flag == FindFirst || flag == FindLast {
+		var count int
+		entityPtrVal := reflect.New(reflect.TypeOf(entities).Elem().Elem())
+		entityPtr := entityPtrVal.Interface()
+		if flag == FindFirst {
+			db = dbStore.Db.Where(whereMap).First(entityPtr).Count(&count)
+		} else {
+			db = dbStore.Db.Where(whereMap).Last(entityPtr).Count(&count)
+		}
+		err := GetDbErrors(db)
+		if err != nil {
+			return nil, err
+		}
+		if count == 0 {
+			return nil, NewError404(t.String(), fmt.Sprintf("%+v", whereMap))
+		}
+		return entityPtr, nil
+	}
+
+	db = dbStore.Db.Where(whereMap).Find(entities)
 	err := GetDbErrors(db)
 	if err != nil {
 		return nil, err
@@ -190,7 +226,7 @@ func (dbStore *DbStore) Find(query url.Values, entities interface{}, single bool
 		return nil, NewError404(t.String(), fmt.Sprintf("%+v", whereMap))
 	}
 
-	if single {
+	if flag == FindExactlyOne {
 		if rowCount == 1 {
 			return reflect.ValueOf(entities).Elem().Index(0).Interface(), nil
 		} else {
