@@ -491,9 +491,17 @@ func (fw *IPtables) extractTenantID(addr uint64) uint64 {
 }
 
 // ProvisionEndpoint creates iptables Rules for given endpoint in given environment
-func (fw IPtables) ProvisionEndpoint(netif FirewallEndpoint) error {
+func (fw IPtables) ProvisionEndpoint(netif FirewallEndpoint, rules ...[]*IPtablesRule) error {
 	glog.Info("In ProvisionEndpoint()")
 	var err error
+
+	if len(rules) > 4 {
+		return fmt.Errorf("In ProvisionEndpoint(), too many arguments - %d received, up to 5 supported", len(rules))
+	}
+
+	for chain, r := range rules {
+		fw.SetDefaultRules(r, chain)
+	}
 
 	if err = fw.makeRules(netif); err != nil {
 		return err
