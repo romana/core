@@ -37,7 +37,7 @@ type Firewall interface {
 	SetDefaultRules([]*IPtablesRule, int)
 
 	// ProvisionEndpoint generates and applies rules for given endpoint.
-	ProvisionEndpoint(netif FirewallEndpoint) error
+	ProvisionEndpoint(FirewallEndpoint, ...[]*IPtablesRule) error
 
 	// EnsureRule checks if specified rule in desired state.
 	EnsureRule(*IPtablesRule, RuleState) error
