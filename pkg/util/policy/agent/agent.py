@@ -396,34 +396,51 @@ def _make_rules(policy_rules):
             if stateful:
                 raise Exception("Flag is_stateful not implemented")
 
-            for port in r.get("ports"):
-                in_rules += [ '-p tcp --dport %s -j ACCEPT' % port ]
+            if r.get('ports'):
+                for port in r.get("ports"):
+                    in_rules += [ '-p tcp --dport %s -j ACCEPT' % port ]
 
-            port_range = r.get('port_range')
-            if port_range:
+            if r.get('port_ranges') and (len(r.get('port_ranges')) > 0):
+                # TODO: Multiple port ranges should be supported here
+                #       as policy service does, temporarily use the first
+                #       in the range provided.
+                port_range = r.get('port_ranges')[0]
                 if len(port_range) == 2:
                     in_rules += [ '-p tcp --dport %s:%s -j ACCEPT' % (port_range[0], port_range[1]) ]
                 else:
                     raise Exception("Protocol option port_range must be a list of 2 elements - got %s" % port_range)
 
-        elif r['protocol'].upper() == 'UDP':
-            for port in r.get("ports"):
-                in_rules += [ '-p udp --dport %s -j ACCEPT' % port ]
+            if not(r.get('ports') or r.get('port_ranges')):
+                in_rules += [ '-p tcp -j ACCEPT' ]
 
-            port_range = r.get('port_range')
-            if port_range:
+        elif r['protocol'].upper() == 'UDP':
+            if r.get('ports'):
+                for port in r.get("ports"):
+                    in_rules += [ '-p udp --dport %s -j ACCEPT' % port ]
+
+            if r.get('port_ranges') and (len(r.get('port_ranges')) > 0):
+                # TODO: Multiple port ranges should be supported here
+                #       as policy service does, temporarily use the first
+                #       in the range provided.
+                port_range = r.get('port_ranges')[0]
                 if len(port_range) == 2:
                     in_rules += [ '-p udp --dport %s:%s -j ACCEPT' % (port_range[0], port_range[1]) ]
                 else:
                     raise Exception("Protocol option port_range must be a list of 2 elements - got %s" % port_range)
 
+            if not(r.get('ports') or r.get('port_ranges')):
+                in_rules += [ '-p udp -j ACCEPT' ]
+
         elif r['protocol'].upper() == 'ICMP':
-            icmp_types = r.get('icmp_type_code')
+            icmp_type = r.get('icmp_type')
+            icmp_code = r.get('icmp_code')
             in_rules = []
-            if icmp_types:
-                for icmp_type in icmp_types:
-                    in_rules.append('-p icmp --icmp-type %s -j ACCEPT' % icmp_type)
-            in_rules.append('-p icmp -j ACCEPT')
+            if icmp_type and icmp_code:
+                in_rules.append('-p icmp --icmp-type %s/%s -j ACCEPT' % (icmp_type, icmp_code))
+            elif icmp_type:
+                in_rules.append('-p icmp --icmp-type %s -j ACCEPT' % icmp_type)
+            else:
+                in_rules.append('-p icmp -j ACCEPT')
 
         elif r['protocol'].upper() == 'ANY':
             in_rules = [ '-j ACCEPT' ]
