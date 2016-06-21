@@ -28,15 +28,13 @@ type Firewall interface {
 	// Provider is a name of current firewall implementation.
 	Provider() string
 
-	// SetDefaultRules configures firewall instance to install default rules
-	// when provisioning endpoint.
-	// Last parameter is a chain number one of InputChainIndex, OutputChainIndex,
-	// ForwardInChainIndex, ForwardOutChainIndex.
-	// TODO Not pretty, need to find a way to reduce agent knowledge
-	// about firewall type.
-	SetDefaultRules([]*IPtablesRule, int)
-
 	// ProvisionEndpoint generates and applies rules for given endpoint.
+	// Last parameter variadic of default firewall rules to be applied,
+	// there can be up to 4 of these parameters in following order
+	// 1. Input default rules
+	// 2. Output default rules
+	// 3. Forward default rules
+	// 4. Tenant wide default rules
 	ProvisionEndpoint(FirewallEndpoint, ...[]*IPtablesRule) error
 
 	// EnsureRule checks if specified rule in desired state.
