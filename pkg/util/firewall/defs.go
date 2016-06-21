@@ -50,7 +50,7 @@ type NetConfig interface {
 
 // NewFirewall returns fully initialized firewall struct, with rules and chains
 // configured for given endpoint.
-func NewFirewall(executor utilexec.Executable, store FirewallStore, nc NetConfig, platform FirewallPlatform) (Firewall, error) {
+func NewFirewall(executor utilexec.Executable, store FirewallStore, nc NetConfig, env FirewallEnvironment) (Firewall, error) {
 
 	fwstore := firewallStore{}
 	fwstore.DbStore = store.GetDb()
@@ -59,27 +59,27 @@ func NewFirewall(executor utilexec.Executable, store FirewallStore, nc NetConfig
 	fw := new(IPtables)
 	fw.Store = fwstore
 	fw.os = executor
-	fw.Platform = platform
+	fw.Environment = env
 	fw.networkConfig = nc
 
 	return *fw, nil
 }
 
-// FirewallPlatform used as a parameter in the platform aware functions
+// FirewallEnvironment used as a parameter in the environment aware functions
 // of the package.
-type FirewallPlatform int
+type FirewallEnvironment int
 
 const (
-	KubernetesPlatform FirewallPlatform = iota
-	OpenStackPlatform
+	KubernetesEnvironment FirewallEnvironment = iota
+	OpenStackEnvironment
 )
 
-func (fp FirewallPlatform) String() string {
+func (fp FirewallEnvironment) String() string {
 	var result string
 	switch fp {
-	case KubernetesPlatform:
+	case KubernetesEnvironment:
 		return "Kubernetes"
-	case OpenStackPlatform:
+	case OpenStackEnvironment:
 		return "OpenStack"
 	}
 

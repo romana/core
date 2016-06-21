@@ -39,7 +39,7 @@ func TestNewChains(t *testing.T) {
 	fw := IPtables{
 		os:            mockExec,
 		Store:         firewallStore{},
-		Platform:      KubernetesPlatform,
+		Environment:   KubernetesEnvironment,
 		networkConfig: mockNetworkConfig{},
 	}
 
@@ -64,7 +64,7 @@ func TestCreateChains(t *testing.T) {
 	fw := IPtables{
 		os:            mockExec,
 		Store:         firewallStore{},
-		Platform:      KubernetesPlatform,
+		Environment:   KubernetesEnvironment,
 		networkConfig: mockNetworkConfig{},
 	}
 	fw.makeRules(mockFirewallEndpoint{"eth0", "A", net.ParseIP("127.0.0.1")})
@@ -96,7 +96,7 @@ func TestDivertTraffic(t *testing.T) {
 	fw := IPtables{
 		os:            mockExec,
 		Store:         mockStore,
-		Platform:      KubernetesPlatform,
+		Environment:   KubernetesEnvironment,
 		networkConfig: mockNetworkConfig{},
 	}
 	fw.makeRules(mockFirewallEndpoint{"eth0", "A", net.ParseIP("127.0.0.1")})
@@ -125,7 +125,7 @@ func TestCreateDefaultRules(t *testing.T) {
 	fw := IPtables{
 		os:            mockExec,
 		Store:         mockStore,
-		Platform:      KubernetesPlatform,
+		Environment:   KubernetesEnvironment,
 		networkConfig: mockNetworkConfig{},
 	}
 	fw.makeRules(mockFirewallEndpoint{"eth0", "A", ip})
@@ -152,7 +152,7 @@ func TestCreateDefaultRules(t *testing.T) {
 	fw = IPtables{
 		os:            mockExec,
 		Store:         mockStore,
-		Platform:      KubernetesPlatform,
+		Environment:   KubernetesEnvironment,
 		networkConfig: mockNetworkConfig{},
 	}
 	fw.makeRules(mockFirewallEndpoint{"eth0", "A", ip})
@@ -181,7 +181,7 @@ func TestCreateRules(t *testing.T) {
 	fw := IPtables{
 		os:            mockExec,
 		Store:         mockStore,
-		Platform:      KubernetesPlatform,
+		Environment:   KubernetesEnvironment,
 		networkConfig: mockNetworkConfig{},
 	}
 	fw.makeRules(mockFirewallEndpoint{"eth0", "A", net.ParseIP("127.0.0.1")})
@@ -211,7 +211,7 @@ func TestCreateU32Rules(t *testing.T) {
 	fw := IPtables{
 		os:            mockExec,
 		Store:         mockStore,
-		Platform:      KubernetesPlatform,
+		Environment:   KubernetesEnvironment,
 		networkConfig: mockNetworkConfig{},
 	}
 	fw.makeRules(mockFirewallEndpoint{"eth0", "A", net.ParseIP("127.0.0.1")})

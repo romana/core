@@ -43,7 +43,7 @@ type IPtables struct {
 	u32Filter     string
 	chainPrefix   string
 	interfaceName string
-	Platform      FirewallPlatform
+	Environment   FirewallEnvironment
 	Store         firewallStore
 	os            utilexec.Executable
 
@@ -77,8 +77,7 @@ func (fw *IPtables) prepareChainName(chainName string) string {
 	return fmt.Sprintf("%s%s", fw.chainPrefix, chainName)
 }
 
-// makeRules generates rules for given endpoint on given platform
-// TODO make platform aware.
+// makeRules generates rules for given endpoint on given environment
 func (fw *IPtables) makeRules(netif FirewallEndpoint) error {
 	var err error
 	fw.u32Filter, fw.chainPrefix, err = fw.prepareU32Rules(netif.GetIP())
@@ -195,14 +194,14 @@ func (d opDivertTrafficAction) String() string {
 func (fw *IPtables) DivertTrafficToRomanaIPtablesChain(chain int, opType opDivertTrafficAction) error {
 	// Should be like that
 	// iptables -A INPUT -i tap1234 -j ROMANA-T0S1-INPUT
-	glog.Infof("In DivertTrafficToRomanaIPtablesChain() processing chain number %s with action %s", chain, opType)
+	glog.Infof("In DivertTrafficToRomanaIPtablesChain() processing chain number %s with state %s", chain, opType)
 
-	var action RuleState
+	var state RuleState
 	switch opType {
 	case installDivertRules:
-		action = ensureLast
+		state = ensureLast
 	case removeDivertRules:
-		action = ensureAbsent
+		state = ensureAbsent
 	}
 
 	baseChain := fw.chains[chain].baseChain
@@ -219,7 +218,7 @@ func (fw *IPtables) DivertTrafficToRomanaIPtablesChain(chain int, opType opDiver
 		}
 
 		// Then create actuall rule in the system.
-		if err1 := fw.EnsureRule(ruleSpec, action); err1 != nil {
+		if err1 := fw.EnsureRule(ruleSpec, state); err1 != nil {
 			glog.Error("In DivertTrafficToRomanaIPtablesChain() failed to process chain number ", chain)
 			return err1
 		}
@@ -448,7 +447,7 @@ func (fw *IPtables) extractTenantID(addr uint64) uint64 {
 	return tid
 }
 
-// ProvisionEndpoint creates iptables rules for given endpoint in given platform.
+// ProvisionEndpoint creates iptables rules for given endpoint in given environment
 func (fw IPtables) ProvisionEndpoint(netif FirewallEndpoint) error {
 	glog.Info("In ProvisionEndpoint()")
 	var err error
@@ -457,10 +456,10 @@ func (fw IPtables) ProvisionEndpoint(netif FirewallEndpoint) error {
 		return err
 	}
 
-	switch fw.Platform {
-	case KubernetesPlatform:
+	switch fw.Environment {
+	case KubernetesEnvironment:
 		err = fw.provisionK8SIPtablesRules()
-	case OpenStackPlatform:
+	case OpenStackEnvironment:
 		err = fw.provisionIPtablesRules()
 	}
 
