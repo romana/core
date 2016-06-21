@@ -35,6 +35,18 @@ func (agentStore *agentStore) Entities() []interface{} {
 	return retval
 }
 
+//
+func NewStore(config common.ServiceConfig) *agentStore {
+	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
+	store := agentStore{
+		mu: &sync.Mutex{},
+	}
+	store.ServiceStore = &store
+	store.SetConfig(storeConfig)
+
+	return &store
+}
+
 // Route is a model to store managed routes
 type Route struct {
 	ID     uint64 `sql:"AUTO_INCREMENT"`

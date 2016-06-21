@@ -63,10 +63,7 @@ func (a *Agent) SetConfig(config common.ServiceConfig) error {
 	a.waitForIfaceTry = int(config.ServiceSpecific["wait_for_iface_try"].(float64))
 	a.networkConfig = &NetworkConfig{}
 
-	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
-	a.store = agentStore{}
-	a.store.ServiceStore = &a.store
-	a.store.SetConfig(storeConfig)
+	a.store = *NewStore(config)
 
 	glog.Infof("Agent.SetConfig() finished.")
 	return nil
