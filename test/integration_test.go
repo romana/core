@@ -264,7 +264,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	if err != nil {
 		c.Error(err)
 	}
-	
+
 	myLog(c, "Calling %s", s.topoURL)
 	client.NewUrl(s.topoURL)
 	topIndex := &common.IndexResponse{}

@@ -73,10 +73,10 @@ type FindFlag string
 
 const (
 	// Flags to store.Find operation
-	FindFirst = "findFirst"
-	FindLast = "findLast"
-	FindExactlyOne = "findExactlyOne" 
-	FindAll = "findAll"
+	FindFirst      = "findFirst"
+	FindLast       = "findLast"
+	FindExactlyOne = "findExactlyOne"
+	FindAll        = "findAll"
 )
 
 // Store defines generic store interface that can be used
