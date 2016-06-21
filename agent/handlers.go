@@ -26,7 +26,7 @@ func (a *Agent) listPolicies(input interface{}, ctx common.RestContext) (interfa
 
 // statusHandler reports operational statistics.
 func (a *Agent) statusHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
-	fw, err := firewall.NewFirewall(a.Helper.Executor, a.store, a.networkConfig, firewall.OpenStackPlatform)
+	fw, err := firewall.NewFirewall(a.Helper.Executor, a.store, a.networkConfig, firewall.OpenStackEnvironment)
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +44,7 @@ func (a *Agent) k8sPodDownHandler(input interface{}, ctx common.RestContext) (in
 	netReq := input.(*NetworkRequest)
 	netif := netReq.NetIf
 
-	fw, err := firewall.NewFirewall(a.Helper.Executor, a.store, a.networkConfig, firewall.KubernetesPlatform)
+	fw, err := firewall.NewFirewall(a.Helper.Executor, a.store, a.networkConfig, firewall.KubernetesEnvironment)
 	if err != nil {
 		return nil, err
 	}
@@ -127,7 +127,7 @@ func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 	}
 
 	glog.Info("Agent: provisioning firewall")
-	fw, err := firewall.NewFirewall(a.Helper.Executor, a.store, a.networkConfig, firewall.KubernetesPlatform)
+	fw, err := firewall.NewFirewall(a.Helper.Executor, a.store, a.networkConfig, firewall.KubernetesEnvironment)
 	if err != nil {
 		glog.Error(agentError(err))
 		return agentError(err)
@@ -178,7 +178,7 @@ func (a *Agent) interfaceHandle(netif NetIf) error {
 	}
 
 	glog.Info("Agent: provisioning firewall")
-	fw, err := firewall.NewFirewall(a.Helper.Executor, a.store, a.networkConfig, firewall.OpenStackPlatform)
+	fw, err := firewall.NewFirewall(a.Helper.Executor, a.store, a.networkConfig, firewall.OpenStackEnvironment)
 	if err != nil {
 		glog.Error(agentError(err))
 		return agentError(err)
