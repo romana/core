@@ -23,8 +23,8 @@ import (
 
 // provisionIPtablesRules orchestrates IPtables to satisfy request
 // to provision new endpoint.
-// Creates per-tenant, per-segment iptables chains, diverts
-// all traffic to/from/through netif.name interface to a proper chains.
+// Creates per-tenant, per-segment iptables Chains, diverts
+// all traffic to/from/through netif.name interface to a proper Chains.
 // Currently tested with Romana ML2 driver.
 func (fw *IPtables) provisionIPtablesRules() error {
 	missingChains := fw.detectMissingChains()
@@ -42,7 +42,7 @@ func (fw *IPtables) provisionIPtablesRules() error {
 		}
 	}
 
-	for chain := range fw.chains {
+	for _, chain := range fw.Chains {
 		if err := fw.DivertTrafficToRomanaIPtablesChain(chain, installDivertRules); err != nil {
 			return err
 		}

@@ -29,17 +29,17 @@ func (fw *IPtables) provisionK8SIPtablesRules() error {
 	if err != nil {
 		return err
 	}
-	for chain := range fw.chains {
+	for chain := range fw.Chains {
 		if err := fw.CreateRules(chain); err != nil {
 			return err
 		}
 	}
 
-	if err := fw.CreateDefaultDropRule(forwardOutChainIndex); err != nil {
+	if err := fw.CreateDefaultDropRule(ForwardOutChainIndex); err != nil {
 		return err
 	}
 
-	for chain := range fw.chains {
+	for _, chain := range fw.Chains {
 		if err := fw.DivertTrafficToRomanaIPtablesChain(chain, installDivertRules); err != nil {
 			return err
 		}

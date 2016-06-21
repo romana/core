@@ -49,6 +49,36 @@ func (a *Agent) k8sPodDownHandler(input interface{}, ctx common.RestContext) (in
 		return nil, err
 	}
 
+	// Allow ICMP, DHCP and SSH between host and instances.
+	hostAddr := a.networkConfig.RomanaGW()
+	inputRules := []*firewall.IPtablesRule{
+		&firewall.IPtablesRule{
+			Body: "-d 255.255.255.255/32 -p udp -m udp --sport 68 --dport 67",
+		},
+	}
+	fw.SetDefaultRules(inputRules, firewall.InputChainIndex)
+
+	outputRules := []*firewall.IPtablesRule{
+		&firewall.IPtablesRule{
+			Body: fmt.Sprintf("-s %s/32 -p udp -m udp --sport 67 --dport 68", hostAddr),
+		},
+	}
+	fw.SetDefaultRules(outputRules, firewall.OutputChainIndex)
+
+	forwardRules := []*firewall.IPtablesRule{
+		&firewall.IPtablesRule{
+			Body: "-m comment --comment Outgoing",
+		},
+	}
+	fw.SetDefaultRules(forwardRules, firewall.ForwardInChainIndex)
+
+	tenantVectorRules := []*firewall.IPtablesRule{
+		&firewall.IPtablesRule{
+			Body: "-m state --state RELATED,ESTABLISHED",
+		},
+	}
+	fw.SetDefaultRules(tenantVectorRules, firewall.ForwardOutChainIndex)
+
 	err = fw.Cleanup(netif)
 	if err != nil {
 		return nil, err

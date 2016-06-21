@@ -102,7 +102,7 @@ func TestDivertTraffic(t *testing.T) {
 	fw.makeRules(mockFirewallEndpoint{"eth0", "A", net.ParseIP("127.0.0.1")})
 
 	// 0 is a first standard chain - INPUT
-	fw.DivertTrafficToRomanaIPtablesChain(0, installDivertRules)
+	fw.DivertTrafficToRomanaIPtablesChain(fw.Chains[InputChainIndex], installDivertRules)
 
 	expect := "/sbin/iptables -C INPUT -i eth0 -j ROMANA-T0S0-INPUT\n/sbin/iptables -A INPUT -i eth0 -j ROMANA-T0S0-INPUT"
 
@@ -186,8 +186,15 @@ func TestCreateRules(t *testing.T) {
 	}
 	fw.makeRules(mockFirewallEndpoint{"eth0", "A", net.ParseIP("127.0.0.1")})
 
+	fw.SetDefaultRules([]*IPtablesRule{
+		&IPtablesRule{
+			Body: "-d 255.255.255.255/32 -p udp -m udp --sport 68 --dport 67 -j ACCEPT",
+		},
+	}, InputChainIndex)
+
+	//	fw.Chains[inputChainIndex].Rules =
 	// 0 is a first standard chain - INPUT
-	fw.CreateRules(0)
+	fw.CreateRules(InputChainIndex)
 
 	expect := strings.Join([]string{
 		"/sbin/iptables -C ROMANA-T0S0-INPUT -d 255.255.255.255/32 -p udp -m udp --sport 68 --dport 67 -j ACCEPT",
