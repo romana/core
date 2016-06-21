@@ -39,7 +39,7 @@ func (tenantStore *tenantStore) Entities() []interface{} {
 
 type Tenant struct {
 	ID         uint64    `sql:"AUTO_INCREMENT" json:"id,omitempty"`
-	ExternalID string    `sql:"not null;unique" json:"external_id,omitempty" gorm:"COLUMN:external_id"`
+	ExternalID string    `sql:"not null" json:"external_id,omitempty" gorm:"COLUMN:external_id"`
 	Name       string    `json:"name,omitempty"`
 	Segments   []Segment `json:"segments,omitempty"`
 	Seq        uint64    `json:"seq,omitempty"`
@@ -47,7 +47,7 @@ type Tenant struct {
 
 type Segment struct {
 	ID         uint64 `sql:"AUTO_INCREMENT" json:"id,omitempty"`
-	ExternalID string `sql:"not null;" json:"external_id,omitempty" gorm:"COLUMN:external_id"`
+	ExternalID string `sql:"not null" json:"external_id,omitempty" gorm:"COLUMN:external_id"`
 	TenantID   uint64 `gorm:"COLUMN:tenant_id" json:"tenant_id,omitempty"`
 	Name       string `json:"name,omitempty"`
 	Seq        uint64 `json:"seq,omitempty"`
@@ -89,11 +89,16 @@ func (tenantStore *tenantStore) addTenant(tenant *Tenant) error {
 	var tenants []Tenant
 	tx := tenantStore.DbStore.Db.Begin()
 
-	tx.Find(&tenants)
+	tx = tx.Find(&tenants)
+	err := common.GetDbErrors(tx)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
 	tenant.Seq = uint64(len(tenants))
 
-	tx.Create(tenant)
-	err := common.GetDbErrors(tx)
+	tx = tx.Create(tenant)
+	err = common.GetDbErrors(tx)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -105,22 +110,20 @@ func (tenantStore *tenantStore) addTenant(tenant *Tenant) error {
 func (tenantStore *tenantStore) addSegment(tenantId uint64, segment *Segment) error {
 	var err error
 	tx := tenantStore.DbStore.Db.Begin()
-	// TODO(gg): better way of getting sequence
+
 	var segments []Segment
-	db := tx.Where("tenant_id = ?", tenantId).Find(&segments)
+	tx = tx.Where("tenant_id = ?", tenantId).Find(&segments)
 	err = common.GetDbErrors(tx)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
-	segment.Seq = uint64(len(segments))
 
+	segment.Seq = uint64(len(segments))
 	segment.TenantID = tenantId
-	if segment.ExternalID == "" {
-		segment.ExternalID = segment.Name
-	}
 	tx = tx.Create(segment)
-	err = common.GetDbErrors(db)
+	err = common.GetDbErrors(tx)
+
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -165,7 +168,8 @@ func (tenantStore *tenantStore) getSegment(tenantId string, segmentId string) (S
 func (tenantStore *tenantStore) CreateSchemaPostProcess() error {
 	db := tenantStore.Db
 	log.Printf("tenantStore.CreateSchemaPostProcess(), DB is %v", db)
-	db.Model(&Segment{}).AddUniqueIndex("idx_tenant_segment_extid", "tenant_id", "external_id")
+	db.Model(&Tenant{}).AddUniqueIndex("idx_name_extid", "name", "external_id")
+	db.Model(&Segment{}).AddUniqueIndex("idx_tenant_name_extid", "tenant_id", "name", "external_id")
 	err := common.MakeMultiError(db.GetErrors())
 	if err != nil {
 		return err
