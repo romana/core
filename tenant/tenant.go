@@ -86,10 +86,10 @@ func (tsvc *TenantSvc) Routes() common.Routes {
 // specific details provided as input. It returns full details
 // about the created tenant or HTTP Error.
 func (tsvc *TenantSvc) addTenant(input interface{}, ctx common.RestContext) (interface{}, error) {
-	log.Println("In addTenant()")
+	log.Println("TenantService: Entering addTenant()")
 	newTenant := input.(*Tenant)
 	err := tsvc.store.addTenant(newTenant)
-
+	log.Printf("TenantService: Attempting to add tenant %+v: %+v", newTenant, err)
 	if err != nil {
 		return nil, err
 	}
