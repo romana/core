@@ -303,7 +303,7 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 					log.Printf("Error attempting to register service %s with root: %+v", service.Name(), err)
 				} else {
 					log.Printf("Register service %s with root: %+v: %+v", service.Name(), portMsg, result)
-					
+
 				}
 			}
 		}

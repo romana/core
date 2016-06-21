@@ -33,7 +33,6 @@ func String(i interface{}) string {
 	return string(j)
 }
 
-
 // Constants
 const (
 	// For passing in Gorilla Mux context the unmarshalled data
@@ -80,7 +79,6 @@ const (
 	Wildcard = "any"
 	// Name of root service
 	ServiceRoot = "root"
-	
 )
 
 type TokenMessage struct {
@@ -201,9 +199,9 @@ type Policy struct {
 	ExternalID string `json:"external_id,omitempty",sql:"not null;unique"`
 	// Datacenter describes a Romana deployment.
 	Datacenter *Datacenter `json:"datacenter,omitempty"`
-	AppliedTo  []Endpoint `json:"applied_to,omitempty"`
-	Peers      []Endpoint `json:"peers,omitempty"`
-	Rules      []Rule     `json:"rules,omitempty"`
+	AppliedTo  []Endpoint  `json:"applied_to,omitempty"`
+	Peers      []Endpoint  `json:"peers,omitempty"`
+	Rules      []Rule      `json:"rules,omitempty"`
 	//	Tags       []Tag      `json:"tags,omitempty"`
 }
 
