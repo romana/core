@@ -499,12 +499,12 @@ func (fw IPtables) ProvisionEndpoint(netif FirewallEndpoint, rules ...[]*IPtable
 		return fmt.Errorf("In ProvisionEndpoint(), too many arguments - %d received, up to 5 supported", len(rules))
 	}
 
-	for chain, r := range rules {
-		fw.SetDefaultRules(r, chain)
-	}
-
 	if err = fw.makeRules(netif); err != nil {
 		return err
+	}
+
+	for chain, r := range rules {
+		fw.SetDefaultRules(r, chain)
 	}
 
 	switch fw.Environment {
