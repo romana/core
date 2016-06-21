@@ -115,7 +115,7 @@ func (policy *PolicySvc) augmentEndpoint(endpoint *common.Endpoint) error {
 			if endpoint.TenantName != "" {
 				ten.Name = endpoint.TenantName
 			}
-			err = policy.client.Find(ten, common.FindExactlyOne)
+			err = policy.client.Find(ten, common.FindLast)
 			if err != nil {
 				return err
 			}
