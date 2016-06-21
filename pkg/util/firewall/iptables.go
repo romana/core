@@ -23,6 +23,7 @@ import (
 	utilexec "github.com/romana/core/pkg/util/exec"
 	"net"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -163,7 +164,8 @@ func (fw *IPtables) isChainExist(chain int) bool {
 // Returns true rule exists.
 func (fw *IPtables) isRuleExist(rule *IPtablesRule) bool {
 	cmd := "/sbin/iptables"
-	args := []string{"-C", rule.Body}
+	body := strings.Split(rule.Body, " ")
+	args := append([]string{"-C"}, body...)
 	_, err := fw.os.Exec(cmd, args)
 	if err != nil {
 		return false
@@ -348,7 +350,7 @@ func (fw *IPtables) CreateDefaultRule(chain int, target string) error {
 	body := fmt.Sprintf("%s %s %s", chainName, "-j", target)
 	rule := &IPtablesRule{
 		Body:  body,
-		State: setRuleActive.String(),
+		State: setRuleInactive.String(),
 	}
 
 	// First create rule record in database.
@@ -580,10 +582,10 @@ func (fw IPtables) EnsureRule(rule *IPtablesRule, opType RuleState) error {
 		return nil
 	}
 
-	args = append(args, rule.Body)
+	args = append(args, strings.Split(rule.Body, " ")...)
 	_, err := fw.os.Exec(cmd, args)
 	if err != nil {
-		glog.Errorf("%s filed %s", opType, rule.Body)
+		glog.Errorf("%s failed %s", opType, rule.Body)
 	} else {
 		glog.Infof("%s success %s", opType, rule.Body)
 	}
