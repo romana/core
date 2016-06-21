@@ -77,15 +77,15 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 	// https://github.com/romana/kube/blob/master/CNI/romana#L134
 	// IP=$(curl -s "http://$ROMANA_MASTER_IP:9601/allocateIP?tenantName=${tenant}&segmentName=${segment}&hostName=${node}" | get_json_kv | get_ip)
 	ten := &tenant.Tenant{}
-	var tenantFindFlag common.FindFlag
+	var findFlag common.FindFlag
 	if tenantID := ctx.QueryVariables.Get("tenantID"); tenantID != "" {
 		// This is how IPAM plugin driver calls us.
 		ten.ExternalID = tenantID
-		tenantFindFlag = common.FindExactlyOne
+		findFlag = common.FindExactlyOne
 	} else if tenantName := ctx.QueryVariables.Get("tenantName"); tenantName != "" {
 		// This is because CNI plugin right now calls us by name
 		ten.Name = tenantName
-		tenantFindFlag = common.FindLast
+		findFlag = common.FindLast
 	} else {
 		return nil, common.NewError400("Either tenantID or tenantName must be specified.")
 	}
@@ -125,14 +125,14 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 	endpoint.HostId = fmt.Sprintf("%d", host.ID)
 	log.Printf("Host name %s has ID %s", hostName, endpoint.HostId)
 
-	err = client.Find(ten, tenantFindFlag)
+	err = client.Find(ten, findFlag)
 	if err != nil {
 		log.Printf("IPAM encountered an error finding tenants %+v: %v", ten, err)
 		return nil, err
 	}
 	endpoint.TenantID = fmt.Sprintf("%d", ten.ID)
 	seg := &tenant.Segment{Name: segmentName, TenantID: ten.ID}
-	err = client.Find(seg, common.FindExactlyOne)
+	err = client.Find(seg, findFlag)
 	if err != nil {
 		log.Printf("IPAM encountered an error finding segments: %+v: %v", seg, err)
 		return nil, err
