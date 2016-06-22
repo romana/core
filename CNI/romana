@@ -158,7 +158,7 @@ set_up_pod () {
 
 	# Ensure segment exists
 	log "-- Ensuring segment for tenant $NAMESPACE --"
-	SEGMENT_CHECK=$($ROMANA_CLI segment list $NAMESPACE -f json | jq -r --arg seg $SEGMENT  '.[] |.Segments[] | if .Name==$seg then "OK" else empty end')
+	SEGMENT_CHECK=$($ROMANA_CLI segment list $NAMESPACE -f json | jq -r --arg seg $SEGMENT  '.[] |.Segments[] | if .name==$seg then "OK" else empty end')
 	if ! [[ $SEGMENT_CHECK ]]; then
 		log "--- SEGMENT $SEGMENT does not exist - creating ---"
 		$ROMANA_CLI segment add $NAMESPACE $SEGMENT -i $SEGMENT
