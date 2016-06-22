@@ -144,20 +144,20 @@ func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 	// Allow ICMP, DHCP and SSH between host and instances.
 	inboundChain := chainNames[firewall.InputChainIndex]
 	inboundRule := firewall.NewFirewallRule()
-	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, inboundRule))
+	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-d 255.255.255.255/32 -p udp -m udp --sport 68 --dport 67"))
 
 	hostAddr := a.networkConfig.RomanaGW()
 	outboundChain := chainNames[firewall.OutputChainIndex]
 	outboundRule := firewall.NewFirewallRule()
 	outboundRule.SetBody(fmt.Sprintf("%s -s %s/32 -p udp -m udp --sport 67 --dport 68", outboundChain, hostAddr))
 
-	// forwardInChain := chainNames[firewall.ForwardInChainIndex]
+	forwardInChain := chainNames[firewall.ForwardInChainIndex]
 	forwardInRule := firewall.NewFirewallRule()
-	forwardInRule.SetBody("-m comment --comment Outgoing")
+	forwardInRule.SetBody("%s %s", forwardInChain, "-m comment --comment Outgoing")
 
-	// forwardOutChain := chainNames[firewall.ForwardOutChainIndex]
+	forwardOutChain := chainNames[firewall.ForwardOutChainIndex]
 	forwardOutRule := firewall.NewFirewallRule()
-	forwardOutRule.SetBody("-m state --state RELATED,ESTABLISHED")
+	forwardOutRule.SetBody("%s %s", forwardOutChain, "-m state --state RELATED,ESTABLISHED")
 
 	fw.SetDefaultRules([]firewall.FirewallRule{inboundRule, outboundRule, forwardInRule, forwardOutRule})
 
