@@ -143,27 +143,39 @@ func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 	hostAddr := a.networkConfig.RomanaGW()
 	hostMask, _ := a.networkConfig.RomanaGWMask().Size()
 
-	// Default firewall rules for OpenStack
+	// Default firewall rules for Kubernetes
 	// Allow ICMP, DHCP and SSH between host and instances.
+	var defaultRules []firewall.FirewallRule
+
 	inboundChain := chainNames[firewall.InputChainIndex]
 	inboundRule := firewall.NewFirewallRule()
 	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-p tcp --sport 22 -j ACCEPT"))
+	defaultRules = append(defaultRules, inboundRule)
+
+	inboundRule = firewall.NewFirewallRule()
 	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-p icmp --icmp-type 0 -j ACCEPT"))
+	defaultRules = append(defaultRules, inboundRule)
+
+	inboundRule = firewall.NewFirewallRule()
 	inboundRule.SetBody(fmt.Sprintf("%s -d %s/%d %s", inboundChain, hostAddr, hostMask, "-j DROP"))
+	defaultRules = append(defaultRules, inboundRule)
 
 	outboundChain := chainNames[firewall.OutputChainIndex]
 	outboundRule := firewall.NewFirewallRule()
 	outboundRule.SetBody(fmt.Sprintf("%s %s", outboundChain, "-p tcp --dport 22 -j ACCEPT"))
+	defaultRules = append(defaultRules, outboundRule)
 
 	forwardInChain := chainNames[firewall.ForwardInChainIndex]
 	forwardInRule := firewall.NewFirewallRule()
 	forwardInRule.SetBody(fmt.Sprintf("%s %s", forwardInChain, "-m comment --comment Outgoing -j ACCEPT"))
+	defaultRules = append(defaultRules, forwardInRule)
 
 	forwardOutChain := chainNames[firewall.ForwardOutChainIndex]
 	forwardOutRule := firewall.NewFirewallRule()
 	forwardOutRule.SetBody(fmt.Sprintf("%s %s", forwardOutChain, "-m state --state RELATED,ESTABLISHED -j ACCEPT"))
+	defaultRules = append(defaultRules, forwardOutRule)
 
-	fw.SetDefaultRules([]firewall.FirewallRule{inboundRule, outboundRule, forwardInRule, forwardOutRule})
+	fw.SetDefaultRules(defaultRules)
 
 	if err := fw.ProvisionEndpoint(); err != nil {
 		glog.Error(agentError(err))
