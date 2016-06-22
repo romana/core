@@ -153,7 +153,7 @@ func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 
 	outboundChain := chainNames[firewall.OutputChainIndex]
 	outboundRule := firewall.NewFirewallRule()
-	outboundRule.SetBody(fmt.Sprintf("%s %s", outboundChain, "-p tcp -dport 22 -j ACCEPT"))
+	outboundRule.SetBody(fmt.Sprintf("%s %s", outboundChain, "-p tcp --dport 22 -j ACCEPT"))
 
 	forwardInChain := chainNames[firewall.ForwardInChainIndex]
 	forwardInRule := firewall.NewFirewallRule()
@@ -238,7 +238,7 @@ func (a *Agent) interfaceHandle(netif NetIf) error {
 	outboundChain := chainNames[firewall.OutputChainIndex]
 	outboundRule := firewall.NewFirewallRule()
 	outboundRule.SetBody(fmt.Sprintf("%s -s %s/32 -p udp -m udp --sport 67 --dport 68 -j ACCEPT", outboundChain, hostAddr))
-	outboundRule.SetBody(fmt.Sprintf("%s %s", outboundChain, "-p tcp -dport 22 -j ACCEPT"))
+	outboundRule.SetBody(fmt.Sprintf("%s %s", outboundChain, "-p tcp --dport 22 -j ACCEPT"))
 
 	forwardInChain := chainNames[firewall.ForwardInChainIndex]
 	forwardInRule := firewall.NewFirewallRule()
