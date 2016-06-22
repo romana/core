@@ -55,7 +55,7 @@ type IPtables struct {
 func (fw *IPtables) Init(netif FirewallEndpoint) error {
 	err := fw.makeRules(netif)
 	if err != nil {
-		fw.setInit()
+		fw.initialized = true
 	}
 
 	return err
@@ -557,7 +557,7 @@ func (fw *IPtables) extractTenantID(addr uint64) uint64 {
 
 // ProvisionEndpoint creates iptables Rules for given endpoint in given environment
 func (fw IPtables) ProvisionEndpoint() error {
-	glog.Info("In ProvisionEndpoint()")
+	glog.Info("In ProvisionEndpoint() with firewall init = ", fw.initialized)
 
 	if !fw.initialized {
 		return fmt.Errorf("In ProvisionEndpoint(), can not provision uninitialized firewall, use Init()")
@@ -661,9 +661,4 @@ func (fw IPtables) EnsureRule(rule *IPtablesRule, opType RuleState) error {
 // ListRules implements Firewall interface
 func (fw IPtables) ListRules() ([]IPtablesRule, error) {
 	return fw.Store.listIPtablesRules()
-}
-
-// setInit is a setter method for fw.initialized
-func (fw *IPtables) setInit() {
-	fw.initialized = true
 }
