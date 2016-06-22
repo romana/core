@@ -159,7 +159,7 @@ func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 	forwardOutRule := firewall.NewFirewallRule()
 	forwardOutRule.SetBody("-m state --state RELATED,ESTABLISHED")
 
-	fw.SetDefaultRules([]firewall.FirewallRule{*inboundRule, *outboundRule, *forwardInRule, *forwardOutRule})
+	fw.SetDefaultRules([]firewall.FirewallRule{inboundRule, outboundRule, forwardInRule, forwardOutRule})
 
 	if err := fw.ProvisionEndpoint(); err != nil {
 		glog.Error(agentError(err))
