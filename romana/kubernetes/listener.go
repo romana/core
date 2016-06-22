@@ -227,7 +227,7 @@ func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Po
 	if kubeSegmentID == "" {
 		return *romanaPolicy, common.NewError("Expected segment to be specified in podSelector part as '%s'", l.segmentLabelName)
 	}
-	 
+
 	segment, err := l.getOrAddSegment(ns, kubeSegmentID)
 	if err != nil {
 		return *romanaPolicy, err

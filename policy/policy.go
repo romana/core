@@ -138,7 +138,7 @@ func (policy *PolicySvc) augmentEndpoint(endpoint *common.Endpoint) error {
 			}
 			endpoint.SegmentNetworkID = &segment.Seq
 		} else if endpoint.SegmentExternalID != "" || endpoint.SegmentName != "" {
-			segmentsUrl := fmt.Sprintf("%s/findOne/segments?tenant_id=%d&", tenantSvcUrl, ten.ID)
+			segmentsUrl := fmt.Sprintf("%s/findLast/segments?tenant_id=%d&", tenantSvcUrl, ten.ID)
 			if endpoint.SegmentExternalID != "" {
 				segmentsUrl += "external_id=" + endpoint.TenantExternalID + "&"
 			}
