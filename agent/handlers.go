@@ -139,7 +139,7 @@ func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 	}
 
 	metadata := fw.Metadata()
-	chainNames := metadata.chains([]string)
+	chainNames := metadata["chains"].([]string)
 
 	// Allow ICMP, DHCP and SSH between host and instances.
 	inboundChain := chainNames[firewall.InputChainIndex]
@@ -151,15 +151,15 @@ func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 	outboundRule := firewall.NewFirewallRule()
 	outboundRule.SetBody(fmt.Sprintf("%s -s %s/32 -p udp -m udp --sport 67 --dport 68", outboundChain, hostAddr))
 
-	forwardInChain := ChainNames[firewall.ForwardInChainIndex]
+	// forwardInChain := chainNames[firewall.ForwardInChainIndex]
 	forwardInRule := firewall.NewFirewallRule()
 	forwardInRule.SetBody("-m comment --comment Outgoing")
 
-	forwardOutChain := ChainNames[firewall.ForwardOutChainIndex]
+	// forwardOutChain := chainNames[firewall.ForwardOutChainIndex]
 	forwardOutRule := firewall.NewFirewallRule()
 	forwardOutRule.SetBody("-m state --state RELATED,ESTABLISHED")
 
-	fw.SetDefaultRules([]FirewallRule{inboundRule, outboundRule, forwardInRule, forwardOutRule})
+	fw.SetDefaultRules([]firewall.FirewallRule{inboundRule, outboundRule, forwardInRule, forwardOutRule})
 
 	if err := fw.ProvisionEndpoint(); err != nil {
 		glog.Error(agentError(err))
@@ -206,13 +206,13 @@ func (a *Agent) interfaceHandle(netif NetIf) error {
 	}
 
 	glog.Info("Agent: provisioning firewall")
-	fw, err := firewall.NewFirewall(a.Helper.Executor, a.store, a.networkConfig, firewall.OpenStackEnvironment)
+	fw, err := firewall.NewFirewall(a.Helper.Executor, a.store, a.networkConfig)
 	if err != nil {
 		glog.Error(agentError(err))
 		return agentError(err)
 	}
 
-	if err := fw.ProvisionEndpoint(netif); err != nil {
+	if err := fw.ProvisionEndpoint(); err != nil {
 		glog.Error(agentError(err))
 		return agentError(err)
 	}
