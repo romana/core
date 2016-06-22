@@ -29,9 +29,10 @@ import (
 // config of the current host.
 type NetworkConfig struct {
 	// Current host network configuration
-	romanaGW   net.IP
-	otherHosts []common.HostMessage
-	dc         common.Datacenter
+	romanaGW     net.IP
+	romanaGWMask net.IPMask
+	otherHosts   []common.HostMessage
+	dc           common.Datacenter
 }
 
 // EndpointNetmaskSize returns integer value (aka size) of endpoint netmask.
@@ -64,6 +65,11 @@ func (c *NetworkConfig) EndpointBits() uint {
 // RomanaGW returns current romana gateway.
 func (c *NetworkConfig) RomanaGW() net.IP {
 	return c.romanaGW
+}
+
+// RomanaGW returns current romana gateway.
+func (c *NetworkConfig) RomanaGWMask() net.IPMask {
+	return c.romanaGWMask
 }
 
 // identifyCurrentHost discovers network configuration
@@ -133,6 +139,7 @@ func (a Agent) identifyCurrentHost() error {
 				}
 				// OK, we're happy with this result
 				a.networkConfig.romanaGW = ipnet.IP
+				a.networkConfig.romanaGWMask = ipnet.Mask
 				// Retain the other hosts that were listed.
 				// This will be used for creating inter-host routes.
 				a.networkConfig.otherHosts = append(a.networkConfig.otherHosts, hosts[0:i]...)
