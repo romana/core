@@ -127,43 +127,40 @@ func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 	}
 
 	glog.Info("Agent: provisioning firewall")
-	fw, err := firewall.NewFirewall(a.Helper.Executor, a.store, a.networkConfig, firewall.KubernetesEnvironment)
+	fw, err := firewall.NewFirewall(a.Helper.Executor, a.store, a.networkConfig)
 	if err != nil {
 		glog.Error(agentError(err))
 		return agentError(err)
 	}
 
+	if err1 := fw.Init(netif); err1 != nil {
+		glog.Error(agentError(err))
+		return agentError(err)
+	}
+
+	metadata := fw.Metadata()
+
 	// Allow ICMP, DHCP and SSH between host and instances.
+	inboundChain := metadata.chain[firewall.InputChainIndex].ChainName
+	inboundRule := firewall.NewFirewallRule()
+	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, inboundRule))
+
 	hostAddr := a.networkConfig.RomanaGW()
-	inputRules := []*firewall.IPtablesRule{
-		&firewall.IPtablesRule{
-			Body: "-d 255.255.255.255/32 -p udp -m udp --sport 68 --dport 67",
-		},
-	}
-	//	fw.SetDefaultRules(inputRules, firewall.InputChainIndex)
+	outboundChain := metadata.chain[firewall.OutputChainIndex].ChainName
+	outboundRule := firewall.NewFirewallRule()
+	outboundRule.SetBody(fmt.Sprintf("%s -s %s/32 -p udp -m udp --sport 67 --dport 68", outboundChain, hostAddr))
 
-	outputRules := []*firewall.IPtablesRule{
-		&firewall.IPtablesRule{
-			Body: fmt.Sprintf("-s %s/32 -p udp -m udp --sport 67 --dport 68", hostAddr),
-		},
-	}
-	//	fw.SetDefaultRules(outputRules, firewall.OutputChainIndex)
+	forwardInChain := metadata.chain[firewall.ForwardInChainIndex].ChainName
+	forwardInRule := firewall.NewFirewallRule()
+	forwardInRule.SetBody("-m comment --comment Outgoing")
 
-	forwardRules := []*firewall.IPtablesRule{
-		&firewall.IPtablesRule{
-			Body: "-m comment --comment Outgoing",
-		},
-	}
-	//	fw.SetDefaultRules(forwardRules, firewall.ForwardInChainIndex)
+	forwardOutChain := metadata.chain[firewall.ForwardOutChainIndex].ChainName
+	forwardOutRule := firewall.NewFirewallRule()
+	forwardOutRule.SetBody("-m state --state RELATED,ESTABLISHED")
 
-	tenantVectorRules := []*firewall.IPtablesRule{
-		&firewall.IPtablesRule{
-			Body: "-m state --state RELATED,ESTABLISHED",
-		},
-	}
-	//	fw.SetDefaultRules(tenantVectorRules, firewall.ForwardOutChainIndex)
+	fw.SetDefaultRules([]FirewallRule{inboundRule, outboundRule, forwardInRule, forwardOutRule})
 
-	if err := fw.ProvisionEndpoint(netif, inputRules, outputRules, forwardRules, tenantVectorRules); err != nil {
+	if err := fw.ProvisionEndpoint(); err != nil {
 		glog.Error(agentError(err))
 		return agentError(err)
 	}

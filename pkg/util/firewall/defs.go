@@ -25,25 +25,34 @@ import (
 // Firewall interface allows different implementation to be used with
 // romana agent.
 type Firewall interface {
-	// Provider is a name of current firewall implementation.
-	Provider() string
+	// Init prepares firewall instance for using ProvisionEndpoint method.
+	Init(FirewallEndpoint) error
+
+	// SetDefaultRules allows to inject a set of rules to be installed during
+	// ProvisionEndpoint run.
+	SetDefaultRules([]FirewallRule) error
 
 	// ProvisionEndpoint generates and applies rules for given endpoint.
-	// Last parameter variadic of default firewall rules to be applied,
-	// there can be up to 4 of these parameters in following order
-	// 1. Input default rules
-	// 2. Output default rules
-	// 3. Forward default rules
-	// 4. Tenant wide default rules
-	ProvisionEndpoint(FirewallEndpoint, ...[]*IPtablesRule) error
+	// Make sure to run Init first.
+	ProvisionEndpoint() error
 
 	// EnsureRule checks if specified rule in desired state.
 	EnsureRule(*IPtablesRule, RuleState) error
 
+	// Metadata provides access to the metadata associated with current instance of firewall.
+	// Access method, does not require Init.
+	Metadata() map[string]interface{}
+
+	// Provider is a name of current firewall implementation.
+	// Access method, does not require Init.
+	Provider() string
+
 	// ListRules returns a list of firewall rules.
+	// Access method, does not require Init.
 	ListRules() ([]IPtablesRule, error)
 
 	// Cleanup deletes DB records and uninstall rules associated with given endpoint.
+	// Does not require Init.
 	Cleanup(netif FirewallEndpoint) error
 }
 
@@ -59,7 +68,7 @@ type NetConfig interface {
 
 // NewFirewall returns fully initialized firewall struct, with rules and chains
 // configured for given endpoint.
-func NewFirewall(executor utilexec.Executable, store FirewallStore, nc NetConfig, env FirewallEnvironment) (Firewall, error) {
+func NewFirewall(executor utilexec.Executable, store FirewallStore, nc NetConfig) (Firewall, error) {
 
 	fwstore := firewallStore{}
 	fwstore.DbStore = store.GetDb()
@@ -68,10 +77,9 @@ func NewFirewall(executor utilexec.Executable, store FirewallStore, nc NetConfig
 	fw := new(IPtables)
 	fw.Store = fwstore
 	fw.os = executor
-	fw.Environment = env
 	fw.networkConfig = nc
 
-	return *fw, nil
+	return fw, nil
 }
 
 // FirewallEnvironment used as a parameter in the environment aware functions
@@ -124,4 +132,17 @@ type FirewallEndpoint interface {
 	GetMac() string
 	GetIP() net.IP
 	GetName() string
+}
+
+// FirewallRule is an interface that represents abstract firewall rule.
+// Firewall users should use it to inject rules into the firewall.
+type FirewallRule interface {
+	GetBody() string
+	SetBody(string)
+	GetType() string
+}
+
+// NewFirewallrule returns firewall rule of appropriate type.
+func NewFirewallRule() FirewallRule {
+	return new(IPtablesRule)
 }

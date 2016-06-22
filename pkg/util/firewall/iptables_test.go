@@ -102,7 +102,7 @@ func TestDivertTraffic(t *testing.T) {
 	fw.makeRules(mockFirewallEndpoint{"eth0", "A", net.ParseIP("127.0.0.1")})
 
 	// 0 is a first standard chain - INPUT
-	fw.DivertTrafficToRomanaIPtablesChain(fw.Chains[InputChainIndex], installDivertRules)
+	fw.DivertTrafficToRomanaIPtablesChain(fw.chains[InputChainIndex], installDivertRules)
 
 	expect := "/sbin/iptables -C INPUT -i eth0 -j ROMANA-T0S0-INPUT\n/sbin/iptables -A INPUT -i eth0 -j ROMANA-T0S0-INPUT"
 
@@ -184,15 +184,15 @@ func TestCreateRules(t *testing.T) {
 		Environment:   KubernetesEnvironment,
 		networkConfig: mockNetworkConfig{},
 	}
-	fw.makeRules(mockFirewallEndpoint{"eth0", "A", net.ParseIP("127.0.0.1")})
+	fw.Init(mockFirewallEndpoint{"eth0", "A", net.ParseIP("127.0.0.1")})
 
-	fw.SetDefaultRules([]*IPtablesRule{
-		&IPtablesRule{
-			Body: "-d 255.255.255.255/32 -p udp -m udp --sport 68 --dport 67 -j ACCEPT",
-		},
-	}, InputChainIndex)
+	rule := NewFirewallRule()
+	rule.SetBody("ROMANA-T0S0-INPUT -d 255.255.255.255/32 -p udp -m udp --sport 68 --dport 67 -j ACCEPT")
+	rules := []FirewallRule{rule}
 
-	//	fw.Chains[inputChainIndex].Rules =
+	fw.SetDefaultRules(rules)
+
+	//	fw.chains[inputChainIndex].Rules =
 	// 0 is a first standard chain - INPUT
 	fw.CreateRules(InputChainIndex)
 

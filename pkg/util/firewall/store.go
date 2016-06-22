@@ -62,11 +62,25 @@ func (fs firewallStore) GetMutex() *sync.Mutex {
 }
 
 // IPtablesRule represents a single iptables rule managed by the agent.
-// TODO rename FirewallRule
 type IPtablesRule struct {
 	ID    uint64 `sql:"AUTO_INCREMENT"`
 	Body  string
 	State string
+}
+
+// GetBody implements FirewallRule interface.
+func (r IPtablesRule) GetBody() string {
+	return r.Body
+}
+
+// GetType implements FirewallRule interface.
+func (r IPtablesRule) GetType() string {
+	return "iptables"
+}
+
+// SetBody implements FirewallRule interface
+func (r *IPtablesRule) SetBody(body string) {
+	r.Body = body
 }
 
 func (firewallStore *firewallStore) addIPtablesRule(rule *IPtablesRule) error {
