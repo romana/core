@@ -27,6 +27,19 @@ import (
 	config "github.com/spf13/viper"
 )
 
+// reverse returns a given element in reverse
+// order from a tenant.Tenant slice
+func reverse(t []tenant.Tenant) chan tenant.Tenant {
+	r := make(chan tenant.Tenant)
+	go func() {
+		for i, _ := range t {
+			r <- t[len(t)-1-i]
+		}
+		close(r)
+	}()
+	return r
+}
+
 // GetTenantID return romana Tenant ID
 // corresponding to romana name.
 func GetTenantID(name string) (uint64, error) {
@@ -48,7 +61,7 @@ func GetTenantID(name string) (uint64, error) {
 		return 0, err
 	}
 
-	for _, t := range tenants {
+	for t := range reverse(tenants) {
 		if t.Name == name {
 			return t.ID, nil
 		}
