@@ -149,12 +149,12 @@ func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 
 	// ProvisionEndpoint applies default rules in reverse order
 	// so DROP goes first
-	inboundRule = firewall.NewFirewallRule()
+	inboundChain := chainNames[firewall.InputChainIndex]
+	inboundRule := firewall.NewFirewallRule()
 	inboundRule.SetBody(fmt.Sprintf("%s -d %s/%d %s", inboundChain, hostAddr, hostMask, "-j DROP"))
 	defaultRules = append(defaultRules, inboundRule)
 
-	inboundChain := chainNames[firewall.InputChainIndex]
-	inboundRule := firewall.NewFirewallRule()
+	inboundRule = firewall.NewFirewallRule()
 	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-p tcp --sport 22 -j ACCEPT"))
 	defaultRules = append(defaultRules, inboundRule)
 
