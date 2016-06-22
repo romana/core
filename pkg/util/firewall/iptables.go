@@ -55,9 +55,10 @@ type IPtables struct {
 func (fw *IPtables) Init(netif FirewallEndpoint) error {
 	err := fw.makeRules(netif)
 	if err != nil {
-		fw.initialized = true
+		return fmt.Errorf("In Firewall.Init() error %s", err)
 	}
 
+	fw.initialized = true
 	return err
 }
 
