@@ -153,11 +153,11 @@ func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 
 	forwardInChain := chainNames[firewall.ForwardInChainIndex]
 	forwardInRule := firewall.NewFirewallRule()
-	forwardInRule.SetBody("%s %s", forwardInChain, "-m comment --comment Outgoing")
+	forwardInRule.SetBody(fmt.Sprintf("%s %s", forwardInChain, "-m comment --comment Outgoing"))
 
 	forwardOutChain := chainNames[firewall.ForwardOutChainIndex]
 	forwardOutRule := firewall.NewFirewallRule()
-	forwardOutRule.SetBody("%s %s", forwardOutChain, "-m state --state RELATED,ESTABLISHED")
+	forwardOutRule.SetBody(fmt.Sprintf("%s %s", forwardOutChain, "-m state --state RELATED,ESTABLISHED"))
 
 	fw.SetDefaultRules([]firewall.FirewallRule{inboundRule, outboundRule, forwardInRule, forwardOutRule})
 
