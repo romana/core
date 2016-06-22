@@ -26,7 +26,7 @@ func (a *Agent) listPolicies(input interface{}, ctx common.RestContext) (interfa
 
 // statusHandler reports operational statistics.
 func (a *Agent) statusHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
-	fw, err := firewall.NewFirewall(a.Helper.Executor, a.store, a.networkConfig, firewall.OpenStackEnvironment)
+	fw, err := firewall.NewFirewall(a.Helper.Executor, a.store, a.networkConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +44,7 @@ func (a *Agent) k8sPodDownHandler(input interface{}, ctx common.RestContext) (in
 	netReq := input.(*NetworkRequest)
 	netif := netReq.NetIf
 
-	fw, err := firewall.NewFirewall(a.Helper.Executor, a.store, a.networkConfig, firewall.KubernetesEnvironment)
+	fw, err := firewall.NewFirewall(a.Helper.Executor, a.store, a.networkConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -139,22 +139,23 @@ func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 	}
 
 	metadata := fw.Metadata()
+	chainNames := metadata.chains([]string)
 
 	// Allow ICMP, DHCP and SSH between host and instances.
-	inboundChain := metadata.chain[firewall.InputChainIndex].ChainName
+	inboundChain := chainNames[firewall.InputChainIndex]
 	inboundRule := firewall.NewFirewallRule()
 	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, inboundRule))
 
 	hostAddr := a.networkConfig.RomanaGW()
-	outboundChain := metadata.chain[firewall.OutputChainIndex].ChainName
+	outboundChain := chainNames[firewall.OutputChainIndex]
 	outboundRule := firewall.NewFirewallRule()
 	outboundRule.SetBody(fmt.Sprintf("%s -s %s/32 -p udp -m udp --sport 67 --dport 68", outboundChain, hostAddr))
 
-	forwardInChain := metadata.chain[firewall.ForwardInChainIndex].ChainName
+	forwardInChain := ChainNames[firewall.ForwardInChainIndex]
 	forwardInRule := firewall.NewFirewallRule()
 	forwardInRule.SetBody("-m comment --comment Outgoing")
 
-	forwardOutChain := metadata.chain[firewall.ForwardOutChainIndex].ChainName
+	forwardOutChain := ChainNames[firewall.ForwardOutChainIndex]
 	forwardOutRule := firewall.NewFirewallRule()
 	forwardOutRule.SetBody("-m state --state RELATED,ESTABLISHED")
 

@@ -63,10 +63,15 @@ func (fw *IPtables) Init(netif FirewallEndpoint) error {
 
 // Metadata implements Firewall interface
 func (fw IPtables) Metadata() map[string]interface{} {
+	var chains []string
+	for _, chain := range fw.chains {
+		chains = append(chains, chain.ChainName)
+	}
+
 	var metadata map[string]interface{}
 	metadata["provider"] = fw.Provider()
 	metadata["chainPrefix"] = fw.chainPrefix
-	metadata["chains"] = fw.chains
+	metadata["chains"] = chains
 
 	return metadata
 }
