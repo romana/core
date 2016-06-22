@@ -68,7 +68,7 @@ func (fw IPtables) Metadata() map[string]interface{} {
 		chains = append(chains, chain.ChainName)
 	}
 
-	var metadata map[string]interface{}
+	metadata := make(map[string]interface{})
 	metadata["provider"] = fw.Provider()
 	metadata["chainPrefix"] = fw.chainPrefix
 	metadata["chains"] = chains
