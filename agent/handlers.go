@@ -149,7 +149,7 @@ func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 	inboundRule := firewall.NewFirewallRule()
 	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-p tcp --sport 22 -j ACCEPT"))
 	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-p icmp --icmp-type 0 -j ACCEPT"))
-	inboundRule.SetBody(fmt.Sprintf("%s -d %s/%d", inboundChain, hostAddr, hostMask, "-j DROP"))
+	inboundRule.SetBody(fmt.Sprintf("%s -d %s/%d %s", inboundChain, hostAddr, hostMask, "-j DROP"))
 
 	outboundChain := chainNames[firewall.OutputChainIndex]
 	outboundRule := firewall.NewFirewallRule()
@@ -233,7 +233,7 @@ func (a *Agent) interfaceHandle(netif NetIf) error {
 	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-d 255.255.255.255/32 -p udp -m udp --sport 68 --dport 67 -j ACCEPT"))
 	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-p tcp --sport 22 -j ACCEPT"))
 	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-p icmp --icmp-type 0 -j ACCEPT"))
-	inboundRule.SetBody(fmt.Sprintf("%s -d %s/%d", inboundChain, hostAddr, hostMask, "-j DROP"))
+	inboundRule.SetBody(fmt.Sprintf("%s -d %s/%d %s", inboundChain, hostAddr, hostMask, "-j DROP"))
 
 	outboundChain := chainNames[firewall.OutputChainIndex]
 	outboundRule := firewall.NewFirewallRule()
