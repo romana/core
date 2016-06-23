@@ -34,6 +34,8 @@ const (
 
 	targetDrop   = "DROP"
 	targetAccept = "ACCEPT"
+
+	iptablesCmd = "/sbin/iptables"
 )
 
 // IPtables implements romana Firewall using iptables.
@@ -42,7 +44,6 @@ type IPtables struct {
 	u32filter     string
 	chainPrefix   string
 	interfaceName string
-	Environment   FirewallEnvironment
 	Store         firewallStore
 	os            utilexec.Executable
 	initialized   bool
@@ -139,24 +140,15 @@ func NewIPtablesChain(baseChain string, direction []string, rules []*IPtablesRul
 	return &IPtablesChain{baseChain, direction, rules, chainName}
 }
 
-/*
-// Collection of firewall Rules.
-type firewallRules []string
-
-// Add appends a new firewall rule to the collection of firewall Rules.
-func (r *firewallRules) Add(content string) {
-	*r = append(*r, content)
-}
-*/
-
 // prepareChainName returns a chain name with tenant-segment specific prefix.
 func (fw *IPtables) prepareChainName(chainName string) string {
 	return fmt.Sprintf("%s%s", fw.chainPrefix, chainName)
 }
 
-// makeRules generates Rules for given endpoint on given environment
+// makeRules extracts data from netif and initializes tenant/segment
+// specific fields of IPtables struct.
 func (fw *IPtables) makeRules(netif FirewallEndpoint) error {
-	glog.Infof("In makeRules() with %s", netif.GetName())
+	glog.V(1).Infof("In makeRules() with %s", netif.GetName())
 
 	var err error
 	fw.u32filter, fw.chainPrefix, err = fw.prepareU32Rules(netif.GetIP())
@@ -165,26 +157,6 @@ func (fw *IPtables) makeRules(netif FirewallEndpoint) error {
 		return err
 	}
 	fw.interfaceName = netif.GetName()
-
-	/*
-		// Allow ICMP, DHCP and SSH between host and instances.
-		// hostAddr := fw.networkConfig.RomanaGW()
-		inputRules := []string{
-		//	"-d 255.255.255.255/32 -p udp -m udp --sport 68 --dport 67",
-		}
-
-		outputRules := []string{
-		//	fmt.Sprintf("-s %s/32 -p udp -m udp --sport 67 --dport 68", hostAddr),
-		}
-
-		forwardRules := []string{
-		//	"-m comment --comment Outgoing",
-		}
-
-		tenantVectorRules := []string{
-		//	"-m state --state RELATED,ESTABLISHED",
-		}
-	*/
 
 	tenantVectorChainName := fmt.Sprintf("ROMANA-T%d", fw.extractTenantID(ipToInt(netif.GetIP())))
 
@@ -209,30 +181,28 @@ func (fw *IPtables) makeRules(netif FirewallEndpoint) error {
 		ChainName:  tenantVectorChainName,
 	})
 
-	glog.Infof("In makeRules() created chains %v", fw.chains)
+	glog.V(1).Infof("In makeRules() created chains %v", fw.chains)
 	return nil
 }
 
 // isChainExist verifies if given iptables chain exists.
 // Returns true if chain exists.
 func (fw *IPtables) isChainExist(chain int) bool {
-	cmd := "/sbin/iptables"
 	args := []string{"-L", fw.chains[chain].ChainName}
-	output, err := fw.os.Exec(cmd, args)
+	output, err := fw.os.Exec(iptablesCmd, args)
 	if err != nil {
 		return false
 	}
-	glog.Infof("isChainExist(): iptables -L %s returned %s", fw.chains[chain].ChainName, string(output))
+	glog.V(1).Infof("isChainExist(): iptables -L %s returned %s", fw.chains[chain].ChainName, string(output))
 	return true
 }
 
 // isRuleExist verifies if given iptables rule exists.
 // Returns true rule exists.
 func (fw *IPtables) isRuleExist(rule *IPtablesRule) bool {
-	cmd := "/sbin/iptables"
 	body := strings.Split(rule.Body, " ")
 	args := append([]string{"-C"}, body...)
-	_, err := fw.os.Exec(cmd, args)
+	_, err := fw.os.Exec(iptablesCmd, args)
 	if err != nil {
 		return false
 	}
@@ -244,9 +214,9 @@ func (fw *IPtables) isRuleExist(rule *IPtablesRule) bool {
 func (fw *IPtables) detectMissingChains() []int {
 	var ret []int
 	for chain := range fw.chains {
-		glog.Infof("Testing chain", chain)
+		glog.V(2).Infof("Testing chain", chain)
 		if !fw.isChainExist(chain) {
-			glog.Infof(">> Testing chain success", chain)
+			glog.V(2).Infof(">> Testing chain success", chain)
 			ret = append(ret, chain)
 		}
 	}
@@ -257,9 +227,8 @@ func (fw *IPtables) detectMissingChains() []int {
 // ROMANA-T0S0-OUTPUT, ROMANA-T0S0-FORWARD, ROMANA-T0S0-INPUT.
 func (fw *IPtables) CreateChains(newChains []int) error {
 	for chain := range newChains {
-		cmd := "/sbin/iptables"
 		args := []string{"-N", fw.chains[chain].ChainName}
-		_, err := fw.os.Exec(cmd, args)
+		_, err := fw.os.Exec(iptablesCmd, args)
 		if err != nil {
 			return err
 		}
@@ -293,7 +262,7 @@ func (d opDivertTrafficAction) String() string {
 func (fw *IPtables) DivertTrafficToRomanaIPtablesChain(chain IPtablesChain, opType opDivertTrafficAction) error {
 	// Should be like that
 	// iptables -A INPUT -i tap1234 -j ROMANA-T0S1-INPUT
-	glog.Infof("In DivertTrafficToRomanaIPtablesChain() processing chain %v with state %s", chain, opType)
+	glog.V(1).Infof("In DivertTrafficToRomanaIPtablesChain() processing chain %v with state %s", chain, opType)
 
 	var state RuleState
 	switch opType {
@@ -311,7 +280,6 @@ func (fw *IPtables) DivertTrafficToRomanaIPtablesChain(chain IPtablesChain, opTy
 			Body:  body,
 			State: setRuleInactive.String(),
 		}
-		// ruleSpec := []string{baseChain, direction, fw.interfaceName, "-j", chainName}
 
 		// First create rule record in database.
 		err0 := fw.addIPtablesRule(rule)
@@ -333,16 +301,12 @@ func (fw *IPtables) DivertTrafficToRomanaIPtablesChain(chain IPtablesChain, opTy
 		}
 
 	}
-	glog.Info("DivertTrafficToRomanaIPtablesChain() successfully processed chain number", chain)
+	glog.V(1).Info("DivertTrafficToRomanaIPtablesChain() successfully processed chain number", chain)
 	return nil
 }
 
 // addIPtablesRule creates new iptable rule in database.
 func (fw *IPtables) addIPtablesRule(rule *IPtablesRule) error {
-	//	rule := new(IPtablesRule)
-	//	rule.Body = strings.Join(ruleSpec, " ")
-	//	rule.State = setRuleInactive.String()
-
 	if err := fw.Store.addIPtablesRule(rule); err != nil {
 		glog.Error("In addIPtablesRule failed to add ", rule.Body)
 		return err
@@ -356,11 +320,6 @@ func (fw *IPtables) addIPtablesRule(rule *IPtablesRule) error {
 func (fw *IPtables) CreateRules(chain int) error {
 	glog.Info("In CreateRules() for chain", chain)
 	for _, rule := range fw.chains[chain].Rules {
-		//		chainName := fw.chains[chain].ChainName
-		//		ruleSpec := []string{chainName}
-		//		ruleSpec = append(ruleSpec, strings.Split(fw.chains[chain].Rules[rule], " ")...)
-		//		ruleSpec = append(ruleSpec, []string{"-j", "ACCEPT"}...)
-
 		// First create rule record in database.
 		err0 := fw.addIPtablesRule(rule)
 		if err0 != nil {
@@ -380,7 +339,7 @@ func (fw *IPtables) CreateRules(chain int) error {
 			return err2
 		}
 	}
-	glog.Info("Creating firewall rules success")
+	glog.V(1).Info("Creating firewall rules success")
 	return nil
 }
 
@@ -390,9 +349,8 @@ func (fw *IPtables) CreateRules(chain int) error {
 func (fw *IPtables) CreateU32Rules(chain int) error {
 	glog.Info("Creating U32 firewall rules for chain", chain)
 	chainName := fw.chains[chain].ChainName
-	cmd := "/sbin/iptables"
 	args := []string{"-A", chainName, "-m", "u32", "--u32", fw.u32filter, "-j", "ACCEPT"}
-	_, err := fw.os.Exec(cmd, args)
+	_, err := fw.os.Exec(iptablesCmd, args)
 	if err != nil {
 		glog.Error("Creating U32 firewall rules failed")
 		return err
@@ -410,9 +368,8 @@ func (fw *IPtables) CreateDefaultDropRule(chain int) error {
 // CreateDefaultRule creates iptables rule for a chain with the
 // specified target
 func (fw *IPtables) CreateDefaultRule(chain int, target string) error {
-	glog.Infof("In CreateDefaultRule() %s rules for chain %d", target, chain)
+	glog.V(1).Infof("In CreateDefaultRule() %s rules for chain %d", target, chain)
 	chainName := fw.chains[chain].ChainName
-	//	ruleSpec := []string{chainName, "-j", target}
 	body := fmt.Sprintf("%s %s %s", chainName, "-j", target)
 	rule := &IPtablesRule{
 		Body:  body,
@@ -438,7 +395,7 @@ func (fw *IPtables) CreateDefaultRule(chain int, target string) error {
 		return err2
 	}
 
-	glog.Info("In CreateDefaultRules() success")
+	glog.V(1).Info("In CreateDefaultRules() success")
 	return nil
 }
 
@@ -558,21 +515,38 @@ func (fw *IPtables) extractTenantID(addr uint64) uint64 {
 
 // ProvisionEndpoint creates iptables Rules for given endpoint in given environment
 func (fw IPtables) ProvisionEndpoint() error {
-	glog.Info("In ProvisionEndpoint() with firewall init = ", fw.initialized)
+	glog.V(1).Info("In ProvisionEndpoint() with firewall.")
 
 	if !fw.initialized {
 		return fmt.Errorf("In ProvisionEndpoint(), can not provision uninitialized firewall, use Init()")
 	}
 
-	/*
-		for chain, r := range rules {
-			fw.SetDefaultRules(r, chain)
+	missingChains := fw.detectMissingChains()
+	glog.Info("Firewall: creating chains")
+	err := fw.CreateChains(missingChains)
+	if err != nil {
+		return err
+	}
+
+	glog.Info("Firewall: creating rules")
+	for chain := range fw.chains {
+		if err := fw.CreateRules(chain); err != nil {
+			return err
 		}
-	*/
+	}
 
-	err := fw.provisionK8SIPtablesRules()
+	if err := fw.CreateDefaultDropRule(ForwardOutChainIndex); err != nil {
+		return err
+	}
 
-	return err
+	glog.Info("Firewall: diverting traffic")
+	for _, chain := range fw.chains {
+		if err := fw.DivertTrafficToRomanaIPtablesChain(chain, installDivertRules); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 // Cleanup implements Firewall interface.
@@ -629,9 +603,8 @@ func (fw *IPtables) deleteIPtablesRule(rule *IPtablesRule) error {
 // EnsureRule verifies if given iptables rule exists and creates if it's not.
 func (fw IPtables) EnsureRule(rule *IPtablesRule, opType RuleState) error {
 	ruleExists := fw.isRuleExist(rule)
-	cmd := "/sbin/iptables"
-	args := []string{}
 
+	args := []string{}
 	if ruleExists && opType == ensureAbsent {
 		args = append(args, []string{"-D"}...)
 
@@ -649,7 +622,7 @@ func (fw IPtables) EnsureRule(rule *IPtablesRule, opType RuleState) error {
 	}
 
 	args = append(args, strings.Split(rule.Body, " ")...)
-	_, err := fw.os.Exec(cmd, args)
+	_, err := fw.os.Exec(iptablesCmd, args)
 	if err != nil {
 		glog.Errorf("%s failed %s", opType, rule.Body)
 	} else {

@@ -82,27 +82,6 @@ func NewFirewall(executor utilexec.Executable, store FirewallStore, nc NetConfig
 	return fw, nil
 }
 
-// FirewallEnvironment used as a parameter in the environment aware functions
-// of the package.
-type FirewallEnvironment int
-
-const (
-	KubernetesEnvironment FirewallEnvironment = iota
-	OpenStackEnvironment
-)
-
-func (fp FirewallEnvironment) String() string {
-	var result string
-	switch fp {
-	case KubernetesEnvironment:
-		return "Kubernetes"
-	case OpenStackEnvironment:
-		return "OpenStack"
-	}
-
-	return result
-}
-
 // RuleState is a parameter for ensureIPtablesRule function
 // which describes desired state of firewall rule.
 type RuleState int

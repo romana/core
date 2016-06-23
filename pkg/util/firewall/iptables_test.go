@@ -39,11 +39,10 @@ func TestNewChains(t *testing.T) {
 	fw := IPtables{
 		os:            mockExec,
 		Store:         firewallStore{},
-		Environment:   KubernetesEnvironment,
 		networkConfig: mockNetworkConfig{},
 	}
 
-	fw.makeRules(mockFirewallEndpoint{"eth0", "A", net.ParseIP("127.0.0.1")})
+	fw.Init(mockFirewallEndpoint{"eth0", "A", net.ParseIP("127.0.0.1")})
 	newChains := fw.detectMissingChains()
 
 	if len(newChains) != 4 {
@@ -64,11 +63,9 @@ func TestCreateChains(t *testing.T) {
 	fw := IPtables{
 		os:            mockExec,
 		Store:         firewallStore{},
-		Environment:   KubernetesEnvironment,
 		networkConfig: mockNetworkConfig{},
 	}
-	fw.makeRules(mockFirewallEndpoint{"eth0", "A", net.ParseIP("127.0.0.1")})
-
+	fw.Init(mockFirewallEndpoint{"eth0", "A", net.ParseIP("127.0.0.1")})
 	_ = fw.CreateChains([]int{0, 1, 2})
 
 	expect := strings.Join([]string{"/sbin/iptables -N ROMANA-T0S0-INPUT",
@@ -96,12 +93,9 @@ func TestDivertTraffic(t *testing.T) {
 	fw := IPtables{
 		os:            mockExec,
 		Store:         mockStore,
-		Environment:   KubernetesEnvironment,
 		networkConfig: mockNetworkConfig{},
 	}
-	fw.makeRules(mockFirewallEndpoint{"eth0", "A", net.ParseIP("127.0.0.1")})
-
-	// 0 is a first standard chain - INPUT
+	fw.Init(mockFirewallEndpoint{"eth0", "A", net.ParseIP("127.0.0.1")})
 	fw.DivertTrafficToRomanaIPtablesChain(fw.chains[InputChainIndex], installDivertRules)
 
 	expect := "/sbin/iptables -C INPUT -i eth0 -j ROMANA-T0S0-INPUT\n/sbin/iptables -A INPUT -i eth0 -j ROMANA-T0S0-INPUT"
@@ -125,13 +119,10 @@ func TestCreateDefaultRules(t *testing.T) {
 	fw := IPtables{
 		os:            mockExec,
 		Store:         mockStore,
-		Environment:   KubernetesEnvironment,
 		networkConfig: mockNetworkConfig{},
 	}
-	fw.makeRules(mockFirewallEndpoint{"eth0", "A", ip})
-
-	// 0 is a first standard chain - INPUT
-	fw.CreateDefaultRule(0, targetDrop)
+	fw.Init(mockFirewallEndpoint{"eth0", "A", ip})
+	fw.CreateDefaultRule(InputChainIndex, targetDrop)
 
 	// expect
 	expect := strings.Join([]string{"/sbin/iptables -C ROMANA-T0S0-INPUT -j DROP"},
@@ -152,13 +143,10 @@ func TestCreateDefaultRules(t *testing.T) {
 	fw = IPtables{
 		os:            mockExec,
 		Store:         mockStore,
-		Environment:   KubernetesEnvironment,
 		networkConfig: mockNetworkConfig{},
 	}
-	fw.makeRules(mockFirewallEndpoint{"eth0", "A", ip})
-
-	// 0 is a first standard chain - INPUT
-	fw.CreateDefaultRule(0, targetAccept)
+	fw.Init(mockFirewallEndpoint{"eth0", "A", ip})
+	fw.CreateDefaultRule(InputChainIndex, targetAccept)
 
 	// expect
 	expect = strings.Join([]string{"/sbin/iptables -C ROMANA-T0S0-INPUT -j ACCEPT"}, "\n")
@@ -181,7 +169,6 @@ func TestCreateRules(t *testing.T) {
 	fw := IPtables{
 		os:            mockExec,
 		Store:         mockStore,
-		Environment:   KubernetesEnvironment,
 		networkConfig: mockNetworkConfig{},
 	}
 	fw.Init(mockFirewallEndpoint{"eth0", "A", net.ParseIP("127.0.0.1")})
@@ -191,9 +178,6 @@ func TestCreateRules(t *testing.T) {
 	rules := []FirewallRule{rule}
 
 	fw.SetDefaultRules(rules)
-
-	//	fw.chains[inputChainIndex].Rules =
-	// 0 is a first standard chain - INPUT
 	fw.CreateRules(InputChainIndex)
 
 	expect := strings.Join([]string{
@@ -218,13 +202,10 @@ func TestCreateU32Rules(t *testing.T) {
 	fw := IPtables{
 		os:            mockExec,
 		Store:         mockStore,
-		Environment:   KubernetesEnvironment,
 		networkConfig: mockNetworkConfig{},
 	}
-	fw.makeRules(mockFirewallEndpoint{"eth0", "A", net.ParseIP("127.0.0.1")})
-
-	// 0 is a first standard chain - INPUT
-	fw.CreateU32Rules(0)
+	fw.Init(mockFirewallEndpoint{"eth0", "A", net.ParseIP("127.0.0.1")})
+	fw.CreateU32Rules(InputChainIndex)
 
 	expect := strings.Join([]string{"/sbin/iptables -A ROMANA-T0S0-INPUT -m u32 --u32 12&0xFF00FF00=0x7F000000 && 16&0xFF00FF00=0x7F000000 -j ACCEPT"}, "\n")
 
