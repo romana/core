@@ -91,43 +91,68 @@ func (policy *PolicySvc) augmentEndpoint(endpoint *common.Endpoint) error {
 	if err != nil {
 		return err
 	}
-
+	if endpoint.Peer == common.Wildcard {
+		// If a wildcard is specfied, there is nothing to augment
+		return nil
+	}
+	log.Printf("Policy: Augmenting  %#v", endpoint)
 	// TODO this will have to be changed once we implement
 	// https://paninetworks.kanbanize.com/ctrl_board/3/cards/319/details
-	var tenantIDToUse string
 	ten := &tenant.Tenant{}
-	if endpoint.TenantID != 0 {
-		tenantIDToUse = strconv.FormatUint(endpoint.TenantID, 10)
-	} else if endpoint.TenantExternalID != "" {
-		tenantIDToUse = endpoint.TenantExternalID
-	}
-	if tenantIDToUse != "" {
-		tenantsUrl := fmt.Sprintf("%s/tenants/%s", tenantSvcUrl, tenantIDToUse)
-		err = policy.client.Get(tenantsUrl, &ten)
-		if err != nil {
-			return err
+	if endpoint.TenantNetworkID == nil {
+		if endpoint.TenantID != 0 {
+			tenantIDToUse := strconv.FormatUint(endpoint.TenantID, 10)
+			tenantsUrl := fmt.Sprintf("%s/tenants/%s", tenantSvcUrl, tenantIDToUse)
+			log.Printf("Policy: Looking tenant up at %s", tenantsUrl)
+			err = policy.client.Get(tenantsUrl, ten)
+			if err != nil {
+				return err
+			}
+		} else if endpoint.TenantExternalID != "" || endpoint.TenantName != "" {
+			if endpoint.TenantExternalID != "" {
+				ten.ExternalID = endpoint.TenantExternalID
+			}
+			if endpoint.TenantName != "" {
+				ten.Name = endpoint.TenantName
+			}
+			err = policy.client.Find(ten, common.FindLast)
+			if err != nil {
+				return err
+			}
 		}
 		endpoint.TenantNetworkID = &ten.Seq
-		log.Printf("Net ID from %s: %d", tenantsUrl, *endpoint.TenantNetworkID)
 	}
 
-	var segmentIDToUse string
-	if endpoint.SegmentID != 0 {
-		segmentIDToUse = strconv.FormatUint(endpoint.SegmentID, 10)
-	} else if endpoint.SegmentExternalID != "" {
-		segmentIDToUse = endpoint.SegmentExternalID
-	}
-	if segmentIDToUse != "" {
-		tenantsUrl := fmt.Sprintf("%s/tenants/%d/segments/%s", tenantSvcUrl, ten.ID, segmentIDToUse)
-		segment := &tenant.Segment{}
-		err = policy.client.Get(tenantsUrl, &segment)
-		if err != nil {
-			return err
+	if endpoint.SegmentNetworkID == nil {
+		if ten == nil && (endpoint.SegmentID != 0 || endpoint.SegmentExternalID != "" || endpoint.SegmentName != "") {
+			return common.NewError400("No tenant information specified, cannot look up segment.")
 		}
-		endpoint.SegmentNetworkID = &segment.Seq
-		log.Printf("Net ID from %s: %d", tenantsUrl, *endpoint.SegmentNetworkID)
+		segment := &tenant.Segment{}
+		if endpoint.SegmentID != 0 {
+			segmentIDToUse := strconv.FormatUint(endpoint.SegmentID, 10)
+			segmentsUrl := fmt.Sprintf("%s/tenants/%d/segments/%s", tenantSvcUrl, ten.ID, segmentIDToUse)
+			log.Printf("Policy: Looking segment up at %s for %#v", segmentsUrl, endpoint)
+			err = policy.client.Get(segmentsUrl, &segment)
+			if err != nil {
+				return err
+			}
+			endpoint.SegmentNetworkID = &segment.Seq
+		} else if endpoint.SegmentExternalID != "" || endpoint.SegmentName != "" {
+			segmentsUrl := fmt.Sprintf("%s/findLast/segments?tenant_id=%d&", tenantSvcUrl, ten.ID)
+			if endpoint.SegmentExternalID != "" {
+				segmentsUrl += "external_id=" + endpoint.TenantExternalID + "&"
+			}
+			if endpoint.SegmentName != "" {
+				segmentsUrl += "name=" + endpoint.SegmentName
+			}
+			log.Printf("Policy: Finding segments at %s for %#v (Tenant %#v %t)", segmentsUrl, endpoint, ten, ten == nil)
+			err = policy.client.Get(segmentsUrl, &segment)
+			if err != nil {
+				return err
+			}
+			endpoint.SegmentNetworkID = &segment.Seq
+		}
 	}
-
 	return nil
 }
 
@@ -135,6 +160,7 @@ func (policy *PolicySvc) augmentEndpoint(endpoint *common.Endpoint) error {
 // various services.
 func (policy *PolicySvc) augmentPolicy(policyDoc *common.Policy) error {
 	// Get info from topology service
+	log.Printf("Augmenting policy %s", policyDoc.Name)
 	topoUrl, err := policy.client.GetServiceUrl("topology")
 	if err != nil {
 		return err
@@ -149,12 +175,12 @@ func (policy *PolicySvc) augmentPolicy(policyDoc *common.Policy) error {
 	}
 
 	dcURL := index.Links.FindByRel("datacenter")
-	dc := common.Datacenter{}
-	err = policy.client.Get(dcURL, &dc)
+	dc := &common.Datacenter{}
+	err = policy.client.Get(dcURL, dc)
 	if err != nil {
 		return err
 	}
-	log.Printf("Policy server received datacenter information from topology service: %s\n", dc)
+	log.Printf("Policy server received datacenter information from topology service: %+v\n", dc)
 	policyDoc.Datacenter = dc
 
 	for i, _ := range policyDoc.Rules {
@@ -193,7 +219,7 @@ func (policy *PolicySvc) distributePolicy(policyDoc *common.Policy) error {
 		url := fmt.Sprintf("http://%s:%d/policies", host.Ip, host.AgentPort)
 		log.Printf("Sending policy %s to agent at %s", policyDoc.Name, url)
 		result := make(map[string]interface{})
-		err = policy.client.Post(url, policyDoc, result)
+		err = policy.client.Post(url, policyDoc, &result)
 		log.Printf("Agent at %s returned %v", host.Ip, result)
 		if err != nil {
 			errStr = append(errStr, fmt.Sprintf("Error applying policy %d to host %s: %v. ", policyDoc.ID, host.Ip, err))
@@ -227,7 +253,7 @@ func (policy *PolicySvc) deletePolicyHandler(input interface{}, ctx common.RestC
 		if err != nil {
 			return nil, err
 		}
-		id, err := policy.store.lookupPolicy(policyDoc.ExternalID, policyDoc.Datacenter.Id)
+		id, err := policy.store.lookupPolicy(policyDoc.ExternalID)
 		log.Printf("Found %d / %v (%T) from external ID %s", id, err, err, policyDoc.ExternalID)
 		if err != nil {
 			return nil, err
@@ -280,12 +306,20 @@ func (policy *PolicySvc) deletePolicy(id uint64) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
+	policyDoc.Datacenter = nil
 	return policyDoc, nil
 }
 
 // deletePolicy deletes policy...
 func (policy *PolicySvc) listPolicies(input interface{}, ctx common.RestContext) (interface{}, error) {
-	return policy.store.listPolicies()
+	policies, err := policy.store.listPolicies()
+	if err != nil {
+		return nil, err
+	}
+	for i, _ := range policies {
+		policies[i].Datacenter = nil
+	}
+	return policies, nil
 }
 
 // findPolicyByName returns the first policy found corresponding
@@ -297,11 +331,12 @@ func (policy *PolicySvc) findPolicyByName(input interface{}, ctx common.RestCont
 	if nameStr == "" {
 		return nil, common.NewError500(fmt.Sprintf("Expected policy name, got %s", nameStr))
 	}
-	policies, err := policy.store.findPolicyByName(nameStr)
+	policyDoc, err := policy.store.findPolicyByName(nameStr)
 	if err != nil {
 		return nil, err
 	}
-	return policies, nil
+	policyDoc.Datacenter = nil
+	return policyDoc, nil
 }
 
 // addPolicy stores the new policy and sends it to all agents.
@@ -331,6 +366,7 @@ func (policy *PolicySvc) addPolicy(input interface{}, ctx common.RestContext) (i
 		log.Printf("addPolicy(): Error distributing: %v", err)
 		return nil, err
 	}
+	policyDoc.Datacenter = nil
 	return policyDoc, nil
 }
 
@@ -391,13 +427,11 @@ func CreateSchema(rootServiceURL string, overwrite bool) error {
 	if err != nil {
 		return err
 	}
-
 	policySvc := &PolicySvc{}
 	config, err := client.GetServiceConfig(policySvc.Name())
 	if err != nil {
 		return err
 	}
-
 	err = policySvc.SetConfig(*config)
 	if err != nil {
 		return err

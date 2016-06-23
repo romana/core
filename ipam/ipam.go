@@ -16,7 +16,6 @@
 package ipam
 
 import (
-	"errors"
 	"fmt"
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
@@ -66,32 +65,40 @@ func (ipam *IPAM) Routes() common.Routes {
 // allocateIP finds internal Romana information based on tenantID/tenantName and other provided parameters, then adds
 // that endpoint to IPAM, and passes through the allocated IP
 func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interface{}, error) {
-	tenantParam := ""
-	tenantLookupField := ""
-
+	// TODO
+	// This is the current state of calling this service from other environments:
+	// 1. OpenStack (IPAM plugin driver):
+	// https://github.com/romana/networking-romana/blob/stable/liberty/networking_romana/driver/ipam_romana.py#L120
+	//
+	// url = ("%s/allocateIP?tenantID=%s&segmentName=%s&hostName=%s" %
+	//               (self.ipam_url, address_request.tenant_id,
+	//                address_request.segment_id, address_request.host_id))
+	// 2. Kubernetes (CNI Plugin)
+	// https://github.com/romana/kube/blob/master/CNI/romana#L134
+	// IP=$(curl -s "http://$ROMANA_MASTER_IP:9601/allocateIP?tenantName=${tenant}&segmentName=${segment}&hostName=${node}" | get_json_kv | get_ip)
+	ten := &tenant.Tenant{}
+	var findFlag common.FindFlag
 	if tenantID := ctx.QueryVariables.Get("tenantID"); tenantID != "" {
-		tenantParam = tenantID
-		tenantLookupField = "ExternalID"
+		// This is how IPAM plugin driver calls us.
+		ten.ExternalID = tenantID
+		findFlag = common.FindExactlyOne
 	} else if tenantName := ctx.QueryVariables.Get("tenantName"); tenantName != "" {
-		tenantParam = tenantName
-		tenantLookupField = "Name"
+		// This is because CNI plugin right now calls us by name
+		ten.Name = tenantName
+		findFlag = common.FindLast
+	} else {
+		return nil, common.NewError400("Either tenantID or tenantName must be specified.")
 	}
 
-	// check for missing/empty required parameters
-	if tenantParam == "" {
-		err := errors.New("Missing or empty tenantName/tenantID parameter")
-		log.Printf("IPAM encountered an error: %v", err)
-		return nil, err
-	}
 	segmentName := ctx.QueryVariables.Get("segmentName")
 	if segmentName == "" {
-		err := errors.New("Missing or empty segmentName parameter")
+		err := common.NewError400("Missing or empty segmentName parameter")
 		log.Printf("IPAM encountered an error: %v", err)
 		return nil, err
 	}
 	hostName := ctx.QueryVariables.Get("hostName")
 	if hostName == "" {
-		err := errors.New("Missing or empty hostName parameter")
+		err := common.NewError400("Missing or empty hostName parameter")
 		log.Printf("IPAM encountered an error: %v", err)
 		return nil, err
 	}
@@ -107,110 +114,31 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 		log.Printf("IPAM encountered an error: %v", err)
 		return nil, err
 	}
-	// Get host info from topology service
-	topoUrl, err := client.GetServiceUrl("topology")
+
+	host := &common.Host{}
+	host.Name = hostName
+	err = client.Find(host, common.FindExactlyOne)
 	if err != nil {
-		log.Printf("IPAM encountered an error: %v", err)
+		log.Printf("IPAM encountered an error finding host for name %s %v", hostName, err)
 		return nil, err
 	}
-
-	index := common.IndexResponse{}
-	err = client.Get(topoUrl, &index)
-	if err != nil {
-		log.Printf("IPAM encountered an error: %v", err)
-		return nil, err
-	}
-
-	hostsURL := index.Links.FindByRel("host-list")
-	var hosts []common.HostMessage
-
-	err = client.Get(hostsURL, &hosts)
-	if err != nil {
-		log.Printf("IPAM encountered an error: %v", err)
-		return nil, err
-	}
-
-	found := false
-	for _, h := range hosts {
-		if h.Name == hostName {
-			found = true
-			endpoint.HostId = h.Id
-			break
-		}
-	}
-
-	if !found {
-		msg := fmt.Sprintf("Host with name %s not found", hostName)
-		err := errors.New(msg)
-		log.Printf("IPAM encountered an error: %v", err)
-		return nil, err
-	}
+	endpoint.HostId = fmt.Sprintf("%d", host.ID)
 	log.Printf("Host name %s has ID %s", hostName, endpoint.HostId)
 
-	tenantSvcUrl, err := client.GetServiceUrl("tenant")
+	err = client.Find(ten, findFlag)
 	if err != nil {
-		log.Printf("IPAM encountered an error: %v", err)
+		log.Printf("IPAM encountered an error finding tenants %+v: %v", ten, err)
 		return nil, err
 	}
-
-	// TODO follow links once tenant service supports it. For now...
-
-	tenantsUrl := fmt.Sprintf("%s/tenants", tenantSvcUrl)
-	var tenants []tenant.Tenant
-	err = client.Get(tenantsUrl, &tenants)
+	endpoint.TenantID = fmt.Sprintf("%d", ten.ID)
+	seg := &tenant.Segment{Name: segmentName, TenantID: ten.ID}
+	err = client.Find(seg, findFlag)
 	if err != nil {
-		log.Printf("IPAM encountered an error: %v", err)
-		return nil, err
-	}
-	found = false
-	for _, t := range tenants {
-		switch tenantLookupField {
-		case "Name":
-			if t.Name == tenantParam {
-				found = true
-			}
-		case "ExternalID":
-			if t.ExternalID == tenantParam {
-				found = true
-			}
-		}
-
-		if found {
-			endpoint.TenantID = fmt.Sprintf("%d", t.ID)
-			log.Printf("IPAM: Tenant '%s' has ID %s, original %d", tenantParam, endpoint.TenantID, t.ID)
-			break
-		}
-	}
-	if !found {
-		err := fmt.Errorf("Tenant with name '%s' not found", tenantParam)
-		//		log.Printf("IPAM encountered an error: %v", err)
-		return nil, err
-	}
-	log.Printf("IPAM: Tenant name %s has ID %s", tenantParam, endpoint.TenantID)
-
-	segmentsUrl := fmt.Sprintf("/tenants/%s/segments", endpoint.TenantID)
-	var segments []tenant.Segment
-	err = client.Get(segmentsUrl, &segments)
-	if err != nil {
-		log.Printf("IPAM encountered an error: %v", err)
-		return nil, err
-	}
-	found = false
-	//	log.Printf("IPAM found %d segments for tenant %s\n", len(segments), endpoint.TenantID)
-	for _, s := range segments {
-		//		log.Printf("IPAM checking %s (not %s) against %s", s.Name, s.ExternalID, segmentName)
-		if s.Name == segmentName {
-			found = true
-			endpoint.SegmentID = fmt.Sprintf("%d", s.ID)
-			break
-		}
-	}
-	if !found {
-		err := fmt.Errorf("Segment with name '%s' not found in %v", segmentName, segments)
-		log.Printf("IPAM encountered an error: %v", err)
+		log.Printf("IPAM encountered an error finding segments: %+v: %v", seg, err)
 		return nil, err
 	}
 
+	endpoint.SegmentID = fmt.Sprintf("%d", seg.ID)
 	log.Printf("Segment name %s has ID %s", segmentName, endpoint.SegmentID)
 	return ipam.addEndpoint(&endpoint, ctx)
 }
@@ -239,7 +167,7 @@ func (ipam *IPAM) addEndpoint(input interface{}, ctx common.RestContext) (interf
 	}
 
 	hostsURL := index.Links.FindByRel("host-list")
-	host := common.HostMessage{}
+	host := common.Host{}
 
 	hostInfoURL := fmt.Sprintf("%s/%s", hostsURL, endpoint.HostId)
 	err = client.Get(hostInfoURL, &host)
@@ -371,7 +299,7 @@ func (ipam *IPAM) Initialize() error {
 
 	dcURL := index.Links.FindByRel("datacenter")
 	dc := common.Datacenter{}
-	log.Printf("IPAM received datacenter information from topology service: %#v\n", dc)
+	log.Printf("IPAM received datacenter information from topology service: %+v\n", dc)
 	err = client.Get(dcURL, &dc)
 	if err != nil {
 		return err

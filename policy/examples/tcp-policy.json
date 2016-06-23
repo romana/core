@@ -1,0 +1,17 @@
+{
+    "securitypolicies": [{
+        "name": "tcp-policy",
+        "description": "Policy for allowing tcp protocol.",
+        "direction": "ingress",
+        "applied_to": [{
+            "tenant": "demo",
+            "segment": "frontend"
+        }],
+        "peers": [{
+            "peer": "any"
+        }],
+        "rules": [{
+            "protocol": "tcp"
+        }]
+    }]
+}

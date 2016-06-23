@@ -132,33 +132,25 @@ func (e Event) handleNetworkPolicyEvent(l *kubeListener) {
 
 // handleNamespaceEvent by creating or deleting romana tenants.
 func (e Event) handleNamespaceEvent(l *kubeListener) {
-	log.Printf("Processing namespace event == %v and phase %v", e.Type, e.Object.Status)
+	log.Printf("KubeEvent: Processing namespace event == %v and phase %v", e.Type, e.Object.Status)
 
 	if e.Type == KubeEventAdded {
-		tenantReq := tenant.Tenant{Name: e.Object.Metadata.Name, ExternalID: e.Object.Metadata.Name}
+		tenantReq := tenant.Tenant{Name: e.Object.Metadata.Name, ExternalID: e.Object.Metadata.Uid}
 		tenantResp := tenant.Tenant{}
-		log.Printf("processor: Posting to /tenants: %#v", tenantReq)
+		log.Printf("KubeEventAdded: Posting to /tenants: %+v", tenantReq)
 		tenantUrl, err := l.restClient.GetServiceUrl("tenant")
 		if err != nil {
-			log.Printf("Error adding tenant %s: %#v", tenantReq.Name, err)
+			log.Printf("KubeEventAdded:Error adding tenant %s: %+v", tenantReq.Name, err)
 		} else {
 			err := l.restClient.Post(fmt.Sprintf("%s/tenants", tenantUrl), tenantReq, &tenantResp)
 			if err != nil {
-				log.Printf("Error adding tenant %s: %#v", tenantReq.Name, err)
+				log.Printf("KubeEventAdded: Error adding tenant %s: %+v", tenantReq.Name, err)
 			} else {
-				log.Printf("Added tenant: %#v", tenantResp)
+				log.Printf("KubeEventAdded: Added tenant: %+v", tenantResp)
 			}
 		}
-	} else {
-		// TODO finish once UUID is merged
-		// tenantReq := tenant.Tenant{Name: e.Object.Metadata.Name}
-		// tenantResp := tenant.Tenant{}
-		// err = client.Delete("/tenants", tenantReq, &tenantResp)
-		// if err != nil {
-		// 	log.Printf("Error adding tenant %s: %#v", tenantReq.Name, err)
-		// } else {
-		// 	log.Printf("Added tenant: %#v", tenantResp)
-		// }
+	} else if e.Type == KubeEventDeleted {
+		// TODO
 	}
 
 	// Ignore repeated events during namespace termination
@@ -186,9 +178,10 @@ func (o KubeObject) handleAnnotations(l *kubeListener) {
 
 func CreateDefaultPolicy(o KubeObject, l *kubeListener) {
 	log.Printf("In CreateDefaultPolicy for %v\n", o)
-	tenant, _, err := l.resolveTenantByName(o.Metadata.Name)
+	tenant, err := l.resolveTenantByName(o.Metadata.Name)
 	if err != nil {
 		log.Printf("In CreateDefaultPolicy :: Error :: failed to resolve tenant %s \n", err)
+		return
 	}
 
 	policyName := fmt.Sprintf("ns%d", tenant.Seq)
@@ -197,8 +190,8 @@ func CreateDefaultPolicy(o KubeObject, l *kubeListener) {
 		Direction: common.PolicyDirectionIngress,
 		Name:      policyName,
 		AppliedTo: []common.Endpoint{{TenantNetworkID: &tenant.Seq}},
-		Peers:     []common.Endpoint{{Peer: "any"}},
-		Rules:     []common.Rule{{Protocol: "any"}},
+		Peers:     []common.Endpoint{{Peer: common.Wildcard}},
+		Rules:     []common.Rule{{Protocol: common.Wildcard}},
 	}
 
 	log.Printf("In CreateDefaultPolicy with policy %v\n", romanaPolicy)

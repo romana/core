@@ -57,7 +57,7 @@ func init() {
 	tenantCmd.AddCommand(tenantShowCmd)
 	tenantCmd.AddCommand(tenantListCmd)
 	tenantCmd.AddCommand(tenantDeleteCmd)
-	tenantCreateCmd.Flags().StringVarP(&externalID, "externalID", "i", "", "External ID")
+	tenantCreateCmd.Flags().StringVarP(&externalID, "externalid", "i", "", "External ID")
 }
 
 var tenantCreateCmd = &cli.Command{
@@ -157,10 +157,15 @@ func tenantCreate(cmd *cli.Command, args []string) error {
 		if err != nil {
 			return err
 		}
-		_, tFound := result["ExternalID"]
+		_, tFound := result["name"]
 		if tFound {
 			var t tenant.Tenant
-			err := ms.Decode(result, &t)
+			dc := &ms.DecoderConfig{TagName: "json", Result: &t}
+			decoder, err := ms.NewDecoder(dc)
+			if err != nil {
+				return err
+			}
+			err = decoder.Decode(result)
 			if err != nil {
 				return err
 			}

@@ -54,3 +54,12 @@ services:
     config:
       lease_file : /etc/ethers"
       wait_for_iface_try : 6
+  - service: policy
+    api:
+      host: localhost
+      port: 9605
+      auth_public: ../common/testdata/demo.rsa.pub
+    config:
+      store: 
+        type: sqlite3
+        database: /tmp/topology.sqlite3

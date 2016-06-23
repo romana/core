@@ -68,7 +68,7 @@ func (policyStore *policyStore) listPolicies() ([]common.Policy, error) {
 	return policies, err
 }
 
-func (policyStore *policyStore) lookupPolicy(externalID string, dcID uint64) (uint64, error) {
+func (policyStore *policyStore) lookupPolicy(externalID string) (uint64, error) {
 	policyDbEntry := PolicyDb{}
 	log.Printf("Looking up policy with id = %s ", externalID)
 	db := policyStore.DbStore.Db.First(&policyDbEntry, "external_id = ?", externalID)

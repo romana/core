@@ -26,15 +26,6 @@ import (
 	"strconv"
 )
 
-type Host struct {
-	Id        uint64 `sql:"AUTO_INCREMENT" json:"id"`
-	Name      string `json:"name"`
-	Ip        string `json:"ip" sql:"unique"`
-	RomanaIp  string `json:"romana_ip" sql:"unique"`
-	AgentPort uint64 `json:"agent_port"`
-	//	tor         *Tor
-}
-
 type Tor struct {
 	Id         uint64 `sql:"AUTO_INCREMENT"`
 	datacenter *common.Datacenter
@@ -47,7 +38,7 @@ type topoStore struct {
 
 func (topoStore *topoStore) Entities() []interface{} {
 	retval := make([]interface{}, 2)
-	retval[0] = &Host{}
+	retval[0] = &common.Host{}
 	retval[1] = &common.Datacenter{}
 	return retval
 }
@@ -56,8 +47,8 @@ func (topoStore *topoStore) CreateSchemaPostProcess() error {
 	return nil
 }
 
-func (topoStore *topoStore) findHost(id uint64) (Host, error) {
-	host := Host{}
+func (topoStore *topoStore) findHost(id uint64) (common.Host, error) {
+	host := common.Host{}
 	topoStore.DbStore.Db.Where("id = ?", id).First(&host)
 	err := common.MakeMultiError(topoStore.DbStore.Db.GetErrors())
 	if err != nil {
@@ -66,8 +57,8 @@ func (topoStore *topoStore) findHost(id uint64) (Host, error) {
 	return host, nil
 }
 
-func (topoStore *topoStore) listHosts() ([]Host, error) {
-	var hosts []Host
+func (topoStore *topoStore) listHosts() ([]common.Host, error) {
+	var hosts []common.Host
 	log.Println("In listHosts()")
 	topoStore.DbStore.Db.Find(&hosts)
 	err := common.MakeMultiError(topoStore.DbStore.Db.GetErrors())
@@ -78,7 +69,7 @@ func (topoStore *topoStore) listHosts() ([]Host, error) {
 	return hosts, nil
 }
 
-func (topoStore *topoStore) addHost(host *Host) (string, error) {
+func (topoStore *topoStore) addHost(host *common.Host) (string, error) {
 	topoStore.DbStore.Db.NewRecord(*host)
 	db := topoStore.DbStore.Db.Create(host)
 	if db.Error != nil {
@@ -88,5 +79,5 @@ func (topoStore *topoStore) addHost(host *Host) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return strconv.FormatUint(host.Id, 10), nil
+	return strconv.FormatUint(host.ID, 10), nil
 }

@@ -1,35 +1,34 @@
 ### Romana Policy Service and Policy Examples
 
 #### Sample Romana Policy
-A sample romana policy is shown below, a detailed version can be found [here](policy/policy.sample.json).
+Sample Romana polices with various combinations of rules are shown [here](examples/).
 
 #### Applying New Policy
 Romana policies can be applied by calling the Policy API
 directly or using the Romana CLI. An example of applying
 a policy is shown below:
 ```bash
-$ cat policy.sample.json
+$ cat policy.json
 {
-	"SecurityPolicies": [{
-		"Name": "policy1",
-		"AppliedTo": [{
-			"Tenant": "demo",
-			"Segment": "frontend"
-		}],
-		"Direction": "Ingress",
-		"Peers": [{
-			"CidrBlock": "0.0.0.0/0"
-		}],
-		"Rules": [{
-			"Protocol": "TCP",
-			"Ports": [22, 80, 443],
-			"IsStateful": true
-		}],
-		"Description": "sample policy opening ssh, http and https ports"
-	}]
+    "securitypolicies": [{
+        "name": "policy1",
+        "description": "sample policy opening ssh, http and https ports",
+        "direction": "ingress",
+        "applied_to": [{
+            "tenant": "demo",
+            "segment": "default"
+        }],
+        "peers": [{
+            "peer": "any"
+        }],
+        "rules": [{
+            "protocol": "tcp",
+            "ports": [22, 80, 443]
+        }]
+    }]
 }
 
-$ romana policy add policy.sample.json 
+$ romana policy add policy.json 
 New Policies Processed:
 Id	 Policy Name	 Direction	 Successful Applied?	
 1 	 policy1 	 ingress 	 true
@@ -41,11 +40,13 @@ $ romana policy list -f json
 	"name": "policy1",
 	"id": 1,
 	"external_id": "policy1",
-	"appliedto": [{
-		"Tenant": "demo",
-		"Segment": "frontend"
+	"applied_to": [{
+		"tenant": "demo",
+		"segment": "default"
 	}],
-	"peers": [{}],
+	"peers": [{
+		"peer": "any"
+	}],
 	"rules": [{
 		"protocol": "TCP",
 		"ports": [

@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"reflect"
 	"strings"
 	"sync"
 )
@@ -44,6 +45,24 @@ func initEnviron() {
 		keyValue := strings.Split(kv, "=")
 		environ[keyValue[0]] = keyValue[1]
 	}
+}
+
+// IsZeroValue checks whether the provided value is equal to the
+// zero value for the type. Zero values would be:
+//  - 0 for numeric types
+//  - "" for strings
+//  - uninitialized struct for a struct
+//  - zero-size for a slice or a map
+func IsZeroValue(val interface{}) bool {
+	valType := reflect.TypeOf(val)
+	valKind := valType.Kind()
+	if valKind == reflect.Slice || valKind == reflect.Map {
+		valVal := reflect.ValueOf(val)
+		return valVal.Len() == 0
+	}
+	zeroVal := reflect.Zero(valType).Interface()
+	log.Printf("Zero value of %+v (type %T, kind %s) is %+v", val, val, valKind, zeroVal)
+	return val == zeroVal
 }
 
 // CleanURL is similar to path.Clean() but to work on URLs
@@ -80,7 +99,7 @@ func MockPortsInConfig(fname string) error {
 	if err != nil {
 		return err
 	}
-	services := []string{"root", "topology", "ipam", "agent", "tenant"}
+	services := []string{"root", "topology", "ipam", "agent", "tenant", "policy"}
 	for i := range services {
 		svc := services[i]
 		config.Services[svc].Common.Api.Port = 0
