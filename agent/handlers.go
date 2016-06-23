@@ -40,7 +40,7 @@ func (a *Agent) statusHandler(input interface{}, ctx common.RestContext) (interf
 
 // k8sPodDownHandler cleans up after pod deleted.
 func (a *Agent) k8sPodDownHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
-	glog.Infoln("Agent: Entering k8sPodDownHandler()")
+	glog.V(1).Infoln("Agent: Entering k8sPodDownHandler()")
 	netReq := input.(*NetworkRequest)
 	netif := netReq.NetIf
 
@@ -55,7 +55,7 @@ func (a *Agent) k8sPodDownHandler(input interface{}, ctx common.RestContext) (in
 	}
 
 	// Spawn new thread to process the request
-	glog.Infof("Agent: Got request for network configuration: %v\n", netReq)
+	glog.Infof("Agent: Got request for pod teardown %v\n", netReq)
 
 	return "OK", nil
 }
@@ -105,7 +105,7 @@ func (a *Agent) index(input interface{}, ctx common.RestContext) (interface{}, e
 // 2. Creates ip route pointing new interface
 // 3. Provisions firewall rules
 func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
-	glog.Info("Agent: Entering k8sPodUpHandle()")
+	glog.V(1).Info("Agent: Entering k8sPodUpHandle()")
 
 	netif := netReq.NetIf
 	if netif.Name == "" {
@@ -144,7 +144,7 @@ func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 	hostMask, _ := a.networkConfig.RomanaGWMask().Size()
 
 	// Default firewall rules for Kubernetes
-	// Allow ICMP, DHCP and SSH between host and instances.
+	// Allow ICMP, and SSH between host and instances.
 	var defaultRules []firewall.FirewallRule
 
 	// ProvisionEndpoint applies default rules in reverse order
@@ -196,7 +196,7 @@ func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 // 4. Provisions static DHCP lease for new interface
 // 5. Provisions firewall rules
 func (a *Agent) interfaceHandle(netif NetIf) error {
-	glog.Info("Agent: processing request to provision new interface")
+	glog.V(1).Info("Agent: Entering interfaceHandle()")
 	if !a.Helper.waitForIface(netif.Name) {
 		// TODO should we resubmit failed interface in queue for later
 		// retry ? ... considering oenstack will give up as well after
@@ -243,26 +243,44 @@ func (a *Agent) interfaceHandle(netif NetIf) error {
 	// Default firewall rules for OpenStack
 	// Allow ICMP, DHCP and SSH between host and instances.
 	inboundChain := chainNames[firewall.InputChainIndex]
+	var defaultRules []firewall.FirewallRule
+
 	inboundRule := firewall.NewFirewallRule()
-	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-d 255.255.255.255/32 -p udp -m udp --sport 68 --dport 67 -j ACCEPT"))
-	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-p tcp --sport 22 -j ACCEPT"))
-	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-p icmp --icmp-type 0 -j ACCEPT"))
 	inboundRule.SetBody(fmt.Sprintf("%s -d %s/%d %s", inboundChain, hostAddr, hostMask, "-j DROP"))
+	defaultRules = append(defaultRules, inboundRule)
+
+	inboundRule = firewall.NewFirewallRule()
+	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-d 255.255.255.255/32 -p udp -m udp --sport 68 --dport 67 -j ACCEPT"))
+	defaultRules = append(defaultRules, inboundRule)
+
+	inboundRule = firewall.NewFirewallRule()
+	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-p tcp --sport 22 -j ACCEPT"))
+	defaultRules = append(defaultRules, inboundRule)
+
+	inboundRule = firewall.NewFirewallRule()
+	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-p icmp --icmp-type 0 -j ACCEPT"))
+	defaultRules = append(defaultRules, inboundRule)
 
 	outboundChain := chainNames[firewall.OutputChainIndex]
 	outboundRule := firewall.NewFirewallRule()
 	outboundRule.SetBody(fmt.Sprintf("%s -s %s/32 -p udp -m udp --sport 67 --dport 68 -j ACCEPT", outboundChain, hostAddr))
+	defaultRules = append(defaultRules, outboundRule)
+
+	outboundRule = firewall.NewFirewallRule()
 	outboundRule.SetBody(fmt.Sprintf("%s %s", outboundChain, "-p tcp --dport 22 -j ACCEPT"))
+	defaultRules = append(defaultRules, outboundRule)
 
 	forwardInChain := chainNames[firewall.ForwardInChainIndex]
 	forwardInRule := firewall.NewFirewallRule()
 	forwardInRule.SetBody(fmt.Sprintf("%s %s", forwardInChain, "-m comment --comment Outgoing -j ACCEPT"))
+	defaultRules = append(defaultRules, forwardInRule)
 
 	forwardOutChain := chainNames[firewall.ForwardOutChainIndex]
 	forwardOutRule := firewall.NewFirewallRule()
 	forwardOutRule.SetBody(fmt.Sprintf("%s %s", forwardOutChain, "-m state --state RELATED,ESTABLISHED -j ACCEPT"))
+	defaultRules = append(defaultRules, forwardOutRule)
 
-	fw.SetDefaultRules([]firewall.FirewallRule{inboundRule, outboundRule, forwardInRule, forwardOutRule})
+	fw.SetDefaultRules(defaultRules)
 
 	if err := fw.ProvisionEndpoint(); err != nil {
 		glog.Error(agentError(err))

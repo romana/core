@@ -16,10 +16,8 @@
 package agent
 
 import (
-	"github.com/romana/core/common"
-	//	"github.com/romana/core/topology"
-
 	"github.com/golang/glog"
+	"github.com/romana/core/common"
 	"net"
 )
 
@@ -27,6 +25,8 @@ import (
 // This consists of data parsed from the config file as well as
 // runtime or discovered configuration, such as the network
 // config of the current host.
+// NetworkConfig public methods are used to implement
+// firewall.NetConfig interface.
 type NetworkConfig struct {
 	// Current host network configuration
 	romanaGW     net.IP

@@ -35,7 +35,7 @@ func (agentStore *agentStore) Entities() []interface{} {
 	return retval
 }
 
-//
+// NewStore returns initialized agentStore.
 func NewStore(config common.ServiceConfig) *agentStore {
 	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
 	store := agentStore{
@@ -79,13 +79,13 @@ func (agentStore *agentStore) CreateSchemaPostProcess() error {
 }
 
 func (agentStore *agentStore) deleteNetworkInterface(iface *NetworkInterface) error {
-	glog.Info("Acquiring store mutex for deleteNetworkInterface")
+	glog.V(1).Info("Acquiring store mutex for deleteNetworkInterface")
 	agentStore.mu.Lock()
 	defer func() {
-		glog.Info("Releasing store mutex for deleteNetworkInterface")
+		glog.V(1).Info("Releasing store mutex for deleteNetworkInterface")
 		agentStore.mu.Unlock()
 	}()
-	glog.Info("Acquired store mutex for deleteNetworkInterface")
+	glog.V(1).Info("Acquired store mutex for deleteNetworkInterface")
 
 	db := agentStore.DbStore.Db
 	agentStore.DbStore.Db.Delete(iface)
@@ -101,13 +101,13 @@ func (agentStore *agentStore) deleteNetworkInterface(iface *NetworkInterface) er
 }
 
 func (agentStore *agentStore) findNetworkInterface(ifaceName string) (*NetworkInterface, error) {
-	glog.Info("Acquiring store mutex for findNetworkInterface")
+	glog.V(1).Info("Acquiring store mutex for findNetworkInterface")
 	agentStore.mu.Lock()
 	defer func() {
-		glog.Info("Releasing store mutex for findNetworkInterface")
+		glog.V(1).Info("Releasing store mutex for findNetworkInterface")
 		agentStore.mu.Unlock()
 	}()
-	glog.Info("Acquired store mutex for findNetworkInterface")
+	glog.V(1).Info("Acquired store mutex for findNetworkInterface")
 
 	var iface NetworkInterface
 	db := agentStore.DbStore.Db
@@ -123,13 +123,13 @@ func (agentStore *agentStore) findNetworkInterface(ifaceName string) (*NetworkIn
 }
 
 func (agentStore *agentStore) addNetworkInterface(iface *NetworkInterface) error {
-	glog.Info("Acquiring store mutex for addNetworkInterface")
+	glog.V(1).Info("Acquiring store mutex for addNetworkInterface")
 	agentStore.mu.Lock()
 	defer func() {
-		glog.Info("Releasing store mutex for addNetworkInterface")
+		glog.V(1).Info("Releasing store mutex for addNetworkInterface")
 		agentStore.mu.Unlock()
 	}()
-	glog.Info("Acquired store mutex for addNetworkInterface")
+	glog.V(1).Info("Acquired store mutex for addNetworkInterface")
 
 	db := agentStore.DbStore.Db
 	agentStore.DbStore.Db.Create(iface)
@@ -148,13 +148,13 @@ func (agentStore *agentStore) addNetworkInterface(iface *NetworkInterface) error
 }
 
 func (agentStore *agentStore) listNetworkInterfaces() ([]NetworkInterface, error) {
-	glog.Info("Acquiring store mutex for listNetworkInterfaces")
+	glog.V(1).Info("Acquiring store mutex for listNetworkInterfaces")
 	agentStore.mu.Lock()
 	defer func() {
-		glog.Info("Releasing store mutex for listNetworkInterfaces")
+		glog.V(1).Info("Releasing store mutex for listNetworkInterfaces")
 		agentStore.mu.Unlock()
 	}()
-	glog.Info("Acquired store mutex for listNetworkInterfaces")
+	glog.V(1).Info("Acquired store mutex for listNetworkInterfaces")
 
 	var networkInterfaces []NetworkInterface
 	agentStore.DbStore.Db.Find(&networkInterfaces)

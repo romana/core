@@ -116,14 +116,14 @@ func (h Helper) createRoute(ip net.IP, netmask string, via string, dest string, 
 // Error if failed, nil if success.
 func (h Helper) ensureRouteToEndpoint(netif *NetIf) error {
 	mask := fmt.Sprintf("%d", h.Agent.networkConfig.EndpointNetmaskSize())
-	glog.Info("Ensuring routes for ", netif.IP, " ", netif.Name)
-	glog.Info("Acquiring mutex ensureRouteToEndpoint")
+	glog.V(1).Info("Ensuring routes for ", netif.IP, " ", netif.Name)
+	glog.V(1).Info("Acquiring mutex ensureRouteToEndpoint")
 	h.ensureRouteToEndpointMutex.Lock()
 	defer func() {
-		glog.Info("Releasing mutex ensureRouteToEndpoint")
+		glog.V(1).Info("Releasing mutex ensureRouteToEndpoint")
 		h.ensureRouteToEndpointMutex.Unlock()
 	}()
-	glog.Info("Acquired mutex ensureRouteToEndpoint")
+	glog.V(1).Info("Acquired mutex ensureRouteToEndpoint")
 	// If route not exist
 	if err := h.isRouteExist(netif.IP, mask); err != nil {
 
@@ -184,13 +184,13 @@ func (h Helper) ensureLine(path string, token string) error {
 	}
 
 	// wait until no one using the file
-	glog.Info("Acquiring mutex ensureLine")
+	glog.V(1).Info("Acquiring mutex ensureLine")
 	h.ensureLineMutex.Lock()
 	defer func() {
-		glog.Info("Releasing mutex ensureLine")
+		glog.V(1).Info("Releasing mutex ensureLine")
 		h.ensureLineMutex.Unlock()
 	}()
-	glog.Info("Acquired mutex ensureLine")
+	glog.V(1).Info("Acquired mutex ensureLine")
 	lineInFile, err := h.isLineInFile(path, token)
 	if err != nil {
 		return ensureLineError(err)
@@ -208,18 +208,18 @@ func (h Helper) ensureLine(path string, token string) error {
 
 // ensureInterHostRoutes ensures we have routes to every other host.
 func (h Helper) ensureInterHostRoutes() error {
-	glog.Info("Acquiring mutex ensureInterhostRoutes")
+	glog.V(1).Info("Acquiring mutex ensureInterhostRoutes")
 	h.ensureInterHostRoutesMutex.Lock()
 	defer func() {
-		glog.Info("Releasing mutex ensureInterhostRoutes")
+		glog.V(1).Info("Releasing mutex ensureInterhostRoutes")
 		h.ensureInterHostRoutesMutex.Unlock()
 	}()
-	glog.Info("Acquired mutex ensureInterhostRoutes")
+	glog.V(1).Info("Acquired mutex ensureInterhostRoutes")
 
 	via := "via"
-	glog.Infof("In ensureInterHostRoutes over %v\n", h.Agent.networkConfig.otherHosts)
+	glog.V(1).Infof("In ensureInterHostRoutes over %v\n", h.Agent.networkConfig.otherHosts)
 	for _, host := range h.Agent.networkConfig.otherHosts {
-		glog.Infof("In ensureInterHostRoutes ensuring route for %v\n", host)
+		glog.V(2).Infof("In ensureInterHostRoutes ensuring route for %v\n", host)
 		_, romanaCidr, err := net.ParseCIDR(host.RomanaIp)
 		if err != nil {
 			return failedToParseOtherHosts(host.RomanaIp)

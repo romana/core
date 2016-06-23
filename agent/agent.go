@@ -185,7 +185,7 @@ func (a *Agent) Initialize() error {
 
 // CreateSchema creates database schema.
 func CreateSchema(rootServiceUrl string, overwrite bool) error {
-	glog.Infoln("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
+	glog.V(1).Infoln("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
 	a := &Agent{}
 
 	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootServiceUrl))
