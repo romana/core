@@ -1,14 +1,14 @@
 ### Romana Policy Service and Policy Examples
 
 #### Sample Romana Policy
-A sample romana policy is shown below, a detailed version can be found [here](policy/policy.sample.json).
+Sample Romana polices with various combinations of rules are shown [here](examples/).
 
 #### Applying New Policy
 Romana policies can be applied by calling the Policy API
 directly or using the Romana CLI. An example of applying
 a policy is shown below:
 ```bash
-$ cat policy.sample.json
+$ cat policy.json
 {
     "securitypolicies": [{
         "name": "policy1",
@@ -19,7 +19,7 @@ $ cat policy.sample.json
             "segment": "default"
         }],
         "peers": [{
-            "cidr": "0.0.0.0/0"
+            "peer": "any"
         }],
         "rules": [{
             "protocol": "tcp",
@@ -28,7 +28,7 @@ $ cat policy.sample.json
     }]
 }
 
-$ romana policy add policy.sample.json 
+$ romana policy add policy.json 
 New Policies Processed:
 Id	 Policy Name	 Direction	 Successful Applied?	
 1 	 policy1 	 ingress 	 true
@@ -45,7 +45,7 @@ $ romana policy list -f json
 		"segment": "default"
 	}],
 	"peers": [{
-		"cidr": "0.0.0.0/0"
+		"peer": "any"
 	}],
 	"rules": [{
 		"protocol": "TCP",

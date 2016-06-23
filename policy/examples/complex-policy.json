@@ -1,14 +1,14 @@
 {
     "securitypolicies": [{
-        "name": "policy1",
+        "name": "policy-complex-1",
         "description": "Policy for opening tcp 80,443 and udp 53,16000-16100 ports.",
         "direction": "ingress",
         "applied_to": [{
-            "tenant": "tenant1",
-            "segment": "segment1"
-        }, {
             "tenant": "admin",
             "segment": "frontend"
+        }, {
+            "tenant": "admin",
+            "segment": "backend"
         }],
 
         "peers": [{
@@ -20,10 +20,10 @@
         }, {
             "protocol": "udp",
             "ports": [53],
-            "port_ranges": [16000, 16100]
+            "port_ranges": [[16000, 16100]]
         }]
     }, {
-        "name": "policy2",
+        "name": "policy-complex-2",
         "description": "Policy for icmp echo request reply message.",
         "direction": "ingress",
         "applied_to": [{
@@ -32,7 +32,8 @@
         }],
 
         "peers": [{
-            "cidr": "0.0.0.0/0"
+            "tenant": "demo",
+            "segment": "frontend"
         }],
         "rules": [{
             "protocol": "icmp",

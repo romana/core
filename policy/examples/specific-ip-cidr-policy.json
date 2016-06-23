@@ -1,0 +1,20 @@
+{
+    "securitypolicies": [{
+        "name": "ip-cidr-policy",
+        "description": "Policy for allowing icmp, tcp port 22 for 10.0.0.1.",
+        "direction": "ingress",
+        "applied_to": [{
+            "tenant": "demo",
+            "segment": "frontend"
+        }],
+        "peers": [{
+            "cidr": "10.0.0.1/32"
+        }],
+        "rules": [{
+            "protocol": "tcp",
+            "ports": [22]
+        },{
+            "protocol": "icmp"
+        }]
+    }]
+}
