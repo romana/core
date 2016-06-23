@@ -16,7 +16,6 @@
 package tenant
 
 import (
-	"fmt"
 	"log"
 	"strconv"
 
@@ -25,13 +24,12 @@ import (
 
 // TenantSvc provides tenant service.
 type TenantSvc struct {
-	config common.ServiceConfig
 	store  tenantStore
+	config common.ServiceConfig
 	dc     common.Datacenter
 }
 
 const (
-	findPath           = "/find"
 	tenantsPath        = "/tenants"
 	segmentsPath       = "/segments"
 	tenantNameQueryVar = "tenantName"
@@ -50,11 +48,6 @@ func (tsvc *TenantSvc) Routes() common.Routes {
 			Method:  "GET",
 			Pattern: tenantsPath + "/{tenantId}",
 			Handler: tsvc.getTenant,
-		},
-		common.Route{
-			Method:  "GET",
-			Pattern: findPath + tenantsPath,
-			Handler: tsvc.findTenantsByName,
 		},
 		common.Route{
 			Method:  "GET",
@@ -82,6 +75,10 @@ func (tsvc *TenantSvc) Routes() common.Routes {
 			UseRequestToken: false,
 		},
 	}
+	var t = []Tenant{}
+	routes = append(routes, common.CreateFindRoutes(&t, &tsvc.store.DbStore)...)
+	var s = []Segment{}
+	routes = append(routes, common.CreateFindRoutes(&s, &tsvc.store.DbStore)...)
 	return routes
 }
 
@@ -89,10 +86,10 @@ func (tsvc *TenantSvc) Routes() common.Routes {
 // specific details provided as input. It returns full details
 // about the created tenant or HTTP Error.
 func (tsvc *TenantSvc) addTenant(input interface{}, ctx common.RestContext) (interface{}, error) {
-	log.Println("In addTenant()")
+	log.Println("TenantService: Entering addTenant()")
 	newTenant := input.(*Tenant)
 	err := tsvc.store.addTenant(newTenant)
-
+	log.Printf("TenantService: Attempting to add tenant %+v: %+v", newTenant, err)
 	if err != nil {
 		return nil, err
 	}
@@ -123,32 +120,7 @@ func (tsvc *TenantSvc) listSegments(input interface{}, ctx common.RestContext) (
 func (tsvc *TenantSvc) getTenant(input interface{}, ctx common.RestContext) (interface{}, error) {
 	idStr := ctx.PathVariables["tenantId"]
 	log.Printf("In findTenant(%s)\n", idStr)
-	tenants, err := tsvc.store.findTenants(idStr)
-	if err != nil {
-		return nil, err
-	}
-	if len(tenants) == 0 {
-		return nil, common.NewError404("tenant", idStr)
-	}
-	if len(tenants) > 1 {
-		return nil, common.NewError500(fmt.Sprintf("More than one tenant matches %s: %v", idStr, tenants))
-	}
-	return tenants[0], nil
-}
-
-func (tsvc *TenantSvc) findTenantsByName(input interface{}, ctx common.RestContext) (interface{}, error) {
-	nameArr := ctx.QueryVariables[tenantNameQueryVar]
-	if len(nameArr) != 1 {
-		return nil, common.NewError("Expected exactly one value in %s, got %v", tenantNameQueryVar, nameArr)
-	}
-	nameStr := nameArr[0]
-	log.Printf("In findTenant(%s)\n", nameStr)
-
-	tenants, err := tsvc.store.findTenantsByName(nameStr)
-	if err != nil {
-		return nil, err
-	}
-	return tenants, nil
+	return tsvc.store.getTenant(idStr)
 }
 
 func (tsvc *TenantSvc) addSegment(input interface{}, ctx common.RestContext) (interface{}, error) {
@@ -172,17 +144,7 @@ func (tsvc *TenantSvc) getSegment(input interface{}, ctx common.RestContext) (in
 	tenantIdStr := ctx.PathVariables["tenantId"]
 	segmentIdStr := ctx.PathVariables["segmentId"]
 
-	segments, err := tsvc.store.findSegments(tenantIdStr, segmentIdStr)
-	if err != nil {
-		return nil, err
-	}
-	if len(segments) == 0 {
-		return nil, common.NewError404("segment", segmentIdStr)
-	}
-	if len(segments) > 1 {
-		return nil, common.NewError500(fmt.Sprintf("More than one segment matches %s: %v", segmentIdStr, segments))
-	}
-	return segments[0], nil
+	return tsvc.store.getSegment(tenantIdStr, segmentIdStr)
 }
 
 // SetConfig implements SetConfig function of the Service interface.

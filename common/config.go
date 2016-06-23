@@ -149,7 +149,7 @@ func ReadConfig(fname string) (Config, error) {
 		return *config, err
 	}
 	if fname != absFname {
-		log.Printf("Converted %s to %s", fname, absFname)
+		log.Printf("Normalized %s to %s", fname, absFname)
 		fname = absFname
 	}
 
@@ -162,6 +162,7 @@ func ReadConfig(fname string) (Config, error) {
 		log.Printf("Reading config from %s", fname)
 		err = yaml.Unmarshal([]byte(data), &yamlConfig)
 		if err != nil {
+			log.Printf("Error reading config: %v", err)
 			return *config, err
 		}
 		log.Printf("Read config from %s", fname)
@@ -177,9 +178,8 @@ func ReadConfig(fname string) (Config, error) {
 		}
 		log.Println("Read configuration from", fname)
 		return *config, nil
-	} else {
-		return *config, errors.New("Empty filename.")
 	}
+	return *config, errors.New("Empty filename.")
 }
 
 // WriteConfig writes config from file to structure

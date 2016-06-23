@@ -133,22 +133,37 @@ func Run(rootServiceURL string, cred *common.Credential) (*common.RestServiceInf
 
 // getOrAddSegment finds a segment (based on segment selector).
 // If not found, it adds one.
-func (l *kubeListener) getOrAddSegment(tenantServiceURL string, namespace string, kubeSegmentID string) (*tenant.Segment, error) {
-	segment := &tenant.Segment{}
-	segmentsURL := fmt.Sprintf("%s/tenants/%s/segments", tenantServiceURL, namespace)
-	err := l.restClient.Get(fmt.Sprintf("%s/%s", segmentsURL, kubeSegmentID), segment)
-	if err == nil {
-		return segment, nil
+func (l *kubeListener) getOrAddSegment(namespace string, kubeSegmentName string) (*tenant.Segment, error) {
+	ten := &tenant.Tenant{}
+	ten.Name = namespace
+	// TODO this should be changed to find EXACTLY one after deletion functionality is implemented
+	err := l.restClient.Find(ten, common.FindLast)
+	if err != nil {
+		return nil, err
 	}
+
+	seg := &tenant.Segment{}
+	seg.Name = kubeSegmentName
+	seg.TenantID = ten.ID
+	err = l.restClient.Find(seg, common.FindExactlyOne)
+	if err == nil {
+		return seg, nil
+	}
+
 	switch err := err.(type) {
 	case common.HttpError:
 		if err.StatusCode == http.StatusNotFound {
 			// Not found, so let's create a segment.
-			segreq := tenant.Segment{Name: kubeSegmentID, ExternalID: kubeSegmentID}
-			err2 := l.restClient.Post(segmentsURL, segreq, segment)
+			segreq := tenant.Segment{Name: kubeSegmentName, TenantID: ten.ID}
+			segURL, err2 := l.restClient.GetServiceUrl("tenant")
+			if err2 != nil {
+				return nil, err2
+			}
+			segURL = fmt.Sprintf("%s/tenants/%d/segments", segURL, ten.ID)
+			err2 = l.restClient.Post(segURL, segreq, seg)
 			if err2 == nil {
 				// Successful creation.
-				return segment, nil
+				return seg, nil
 			}
 			// Creation of non-existing segment gave an error.
 			switch err2 := err2.(type) {
@@ -181,19 +196,13 @@ func (l *kubeListener) getOrAddSegment(tenantServiceURL string, namespace string
 }
 
 // resolveTenantByName retrieves tenant information from romana.
-func (l *kubeListener) resolveTenantByName(tenantName string) (*tenant.Tenant, string, error) {
+func (l *kubeListener) resolveTenantByName(tenantName string) (*tenant.Tenant, error) {
 	t := &tenant.Tenant{}
-	tenantURL, err := l.restClient.GetServiceUrl("tenant")
+	err := l.restClient.Find(t, common.FindLast)
 	if err != nil {
-		return t, "", err
+		return t, err
 	}
-
-	err = l.restClient.Get(fmt.Sprintf("%s/tenants/%s", tenantURL, tenantName), t)
-	if err != nil {
-		return t, "", err
-	}
-
-	return t, tenantURL, nil
+	return t, nil
 }
 
 // translateNetworkPolicy translates a Kubernetes policy into
@@ -206,8 +215,8 @@ func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Po
 	romanaPolicy := &common.Policy{Direction: common.PolicyDirectionIngress, Name: policyName, ExternalID: policyName}
 	ns := kubePolicy.Metadata.Namespace
 	// TODO actually look up tenant K8S ID.
-	t, tenantURL, err := l.resolveTenantByName(ns)
-	log.Printf("translateNetworkPolicy(): For namespace %s got %#v / %#v", ns, t, err)
+	t, err := l.resolveTenantByName(ns)
+	log.Printf("translateNetworkPolicy(): For namespace %s got %+v / %+v", ns, t, err)
 	if err != nil {
 		return *romanaPolicy, err
 	}
@@ -219,7 +228,7 @@ func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Po
 		return *romanaPolicy, common.NewError("Expected segment to be specified in podSelector part as '%s'", l.segmentLabelName)
 	}
 
-	segment, err := l.getOrAddSegment(tenantURL, ns, kubeSegmentID)
+	segment, err := l.getOrAddSegment(ns, kubeSegmentID)
 	if err != nil {
 		return *romanaPolicy, err
 	}
@@ -238,7 +247,7 @@ func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Po
 			if fromKubeSegmentID == "" {
 				return *romanaPolicy, common.NewError("Expected segment to be specified in podSelector part as '%s'", l.segmentLabelName)
 			}
-			fromSegment, err := l.getOrAddSegment(tenantURL, ns, fromKubeSegmentID)
+			fromSegment, err := l.getOrAddSegment(ns, fromKubeSegmentID)
 			if err != nil {
 				return *romanaPolicy, err
 			}

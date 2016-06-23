@@ -19,12 +19,15 @@ package common
 // interfaces.
 
 import (
+	//		"net/url"
 	"errors"
 	"fmt"
 	"github.com/codegangsta/negroni"
+	//	log "github.com/Sirupsen/logrus"
 	"log"
 	"net"
 	"net/http"
+	"reflect"
 	//	"net/url"
 	"io/ioutil"
 	"os"
@@ -55,17 +58,72 @@ type ServiceUtils struct {
 	RequestIdToTimestamp map[string]int64
 }
 
+// CreateFindRoute creates Routes for a find functionality given the
+// provided entities. Four routes are created:
+// 1. /findOne/<entityName>s, which will return a single structure (or
+//   an error if more than one entry is found,
+// 2. /findFirst/<entityName>s, which will return the first entity (in order
+//    of their creation).
+// 3. /findLast/<entityName>s -- similar to above.
+// 4. /findAll/<entityName>s
+// Routes will return a 404 if no entries found.
+// Here "entities" *must* be a pointer to an array
+// of entities to find (for example, it has to be &[]Tenant{}, not Tenant{}),
+// which will then create /findOne/tenants (returning Tenant structure}
+// and /findAll/tenants (returning []Tenant array) routes.
+func CreateFindRoutes(entities interface{}, store Store) Routes {
+	entityName := reflect.TypeOf(entities).Elem().Elem().String()
+	entityNameElements := strings.Split(entityName, ".")
+	if len(entityNameElements) == 2 {
+		entityName = entityNameElements[1]
+	}
+	entityName = strings.ToLower(entityName)
+	pathSuffix := "/" + entityName + "s"
+
+	routes := Routes{
+		Route{
+			Method:  "GET",
+			Pattern: "/" + FindAll + pathSuffix,
+			Handler: func(input interface{}, ctx RestContext) (interface{}, error) {
+				return store.Find(ctx.QueryVariables, entities, FindAll)
+			},
+		},
+		Route{
+			Method:  "GET",
+			Pattern: "/" + FindExactlyOne + pathSuffix,
+			Handler: func(input interface{}, ctx RestContext) (interface{}, error) {
+				return store.Find(ctx.QueryVariables, entities, FindExactlyOne)
+			},
+		},
+		Route{
+			Method:  "GET",
+			Pattern: "/" + FindFirst + pathSuffix,
+			Handler: func(input interface{}, ctx RestContext) (interface{}, error) {
+				return store.Find(ctx.QueryVariables, entities, FindFirst)
+			},
+		},
+		Route{
+			Method:  "GET",
+			Pattern: "/" + FindLast + pathSuffix,
+			Handler: func(input interface{}, ctx RestContext) (interface{}, error) {
+				return store.Find(ctx.QueryVariables, entities, FindLast)
+			},
+		},
+	}
+	return routes
+}
+
 // AddStatus adds a status of a request
-func (su ServiceUtils) AddStatus(requestId string, value interface{}) {
-	su.RequestIdToStatus[requestId] = value
+func (s ServiceUtils) AddStatus(requestId string, value interface{}) {
+	s.RequestIdToStatus[requestId] = value
 	ts := time.Now().Unix()
-	su.RequestIdToTimestamp[requestId] = ts
+	s.RequestIdToTimestamp[requestId] = ts
 }
 
 // GetStatus gets the status of the request or returns an common.HttpError (404)
 // if not found.
-func (su ServiceUtils) GetStatus(resourceType string, requestId string) (interface{}, error) {
-	val := su.RequestIdToStatus[requestId]
+func (s ServiceUtils) GetStatus(resourceType string, requestId string) (interface{}, error) {
+	val := s.RequestIdToStatus[requestId]
 	if val == nil {
 		return nil, NewError404(resourceType, requestId)
 	}
@@ -89,25 +147,6 @@ func (links Links) FindByRel(rel string) string {
 	}
 	return retval
 
-}
-
-//type HostInfo struct {
-//	Ip        string `json:"ip"`
-//	RomanaIp  string `json:"romana_ip"`
-//	AgentPort int    `json:"agentPort"`
-//	Name      string `json:"name"`
-//}
-
-// HostMessage is a structure representing information
-// about the host for the purposes of REST communications
-type HostMessage struct {
-	Id        string `json:"id"`
-	Name      string `json:"name"`
-	Ip        string `json:"ip"`
-	RomanaIp  string `json:"romana_ip"`
-	AgentPort uint64 `json:"agent_port"`
-	Links     Links  `json:"links"`
-	//    Tor string       `json:"tor"`
 }
 
 // Service is the interface that microservices implement.
@@ -260,6 +299,12 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 				}
 				url := fmt.Sprintf("/config/%s/port", service.Name())
 				err = client.Post(url, portMsg, &result)
+				if err != nil {
+					log.Printf("Error attempting to register service %s with root: %+v", service.Name(), err)
+				} else {
+					log.Printf("Register service %s with root: %+v: %+v", service.Name(), portMsg, result)
+
+				}
 			}
 		}
 	}

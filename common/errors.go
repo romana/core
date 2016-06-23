@@ -190,12 +190,10 @@ func GetDbErrors(db *gorm.DB) error {
 	if errors == nil {
 		if db.Error != nil {
 			return db.Error
-		} else {
-			return nil
 		}
-	} else {
-		return MakeMultiError(errors)
+		return nil
 	}
+	return MakeMultiError(errors)
 }
 
 // Error satisfies Error method on error interface and returns

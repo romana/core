@@ -1,0 +1,17 @@
+{
+    "securitypolicies": [{
+        "name": "icmp-policy",
+        "description": "Policy for allowing icmp protocol.",
+        "direction": "ingress",
+        "applied_to": [{
+            "tenant": "demo",
+            "segment": "frontend"
+        }],
+        "peers": [{
+            "peer": "any"
+        }],
+        "rules": [{
+            "protocol": "icmp"
+        }]
+    }]
+}

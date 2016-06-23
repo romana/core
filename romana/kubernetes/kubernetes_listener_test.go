@@ -116,7 +116,7 @@ func (s *mockSvc) Routes() common.Routes {
 			case *common.Policy:
 				return input, nil
 			default:
-				return nil, common.NewError("Expected common.Policy, got %#v", input)
+				return nil, common.NewError("Expected common.Policy, got %+v", input)
 			}
 		},
 		MakeMessage: func() interface{} { return &common.Policy{} },
@@ -151,7 +151,7 @@ func (s *mockSvc) Routes() common.Routes {
 			s.tenants[s.tenantCounter] = newTenant.ExternalID
 			s.tenantsStr[newTenant.ExternalID] = s.tenantCounter
 			newTenant.ID = s.tenantCounter
-			log.Printf("In tenantAddRoute\n\t%#v\n\t%#v", s.tenants, s.tenantsStr)
+			log.Printf("In tenantAddRoute\n\t%+v\n\t%+v", s.tenants, s.tenantsStr)
 
 			return newTenant, nil
 		},
@@ -162,7 +162,7 @@ func (s *mockSvc) Routes() common.Routes {
 		Method:  "GET",
 		Pattern: "/tenants/{tenantID}",
 		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
-			log.Printf("In tenantGetRoute\n\t%#v\n\t%#v", s.tenants, s.tenantsStr)
+			log.Printf("In tenantGetRoute\n\t%+v\n\t%+v", s.tenants, s.tenantsStr)
 			idStr := ctx.PathVariables["tenantID"]
 			id, err := strconv.ParseUint(idStr, 10, 64)
 			if err != nil {
@@ -197,7 +197,7 @@ func (s *mockSvc) Routes() common.Routes {
 			s.segments[s.segmentCounter] = newSegment.ExternalID
 			s.segmentsStr[newSegment.ExternalID] = s.segmentCounter
 			newSegment.ID = s.segmentCounter
-			log.Printf("In segmentAddRoute\n\t%#v\n\t%#v", s.segments, s.segmentsStr)
+			log.Printf("In segmentAddRoute\n\t%+v\n\t%+v", s.segments, s.segmentsStr)
 			return newSegment, nil
 		},
 		MakeMessage: func() interface{} { return &tenant.Segment{} },
@@ -207,7 +207,7 @@ func (s *mockSvc) Routes() common.Routes {
 		Method:  "GET",
 		Pattern: "/tenants/{tenantID}/segments/{segmentID}",
 		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
-			log.Printf("In segmentGetRoute\n\t%#v\n\t%#v", s.segments, s.segmentsStr)
+			log.Printf("In segmentGetRoute\n\t%+v\n\t%+v", s.segments, s.segmentsStr)
 			idStr := ctx.PathVariables["segmentID"]
 			id, err := strconv.ParseUint(idStr, 10, 64)
 			if err != nil {
@@ -263,7 +263,7 @@ func (s *mockSvc) Routes() common.Routes {
 		Method:  "POST",
 		Pattern: "/config/kubernetes-listener/port",
 		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
-			log.Printf("Received %#v", input)
+			log.Printf("Received %+v", input)
 			return "OK", nil
 		},
 	}
@@ -278,7 +278,7 @@ func (s *mockSvc) Routes() common.Routes {
 		kubeListenerConfigRoute,
 		registerPortRoute,
 	}
-	log.Printf("mockService: Set up routes: %#v", routes)
+	log.Printf("mockService: Set up routes: %+v", routes)
 	return routes
 }
 
@@ -299,7 +299,7 @@ func (s *MySuite) getKubeListenerServiceConfig() *common.ServiceConfig {
 	kubeListenerConfig["segment_label_name"] = "tier"
 
 	svcConfig := common.ServiceConfig{Common: commonConfig, ServiceSpecific: kubeListenerConfig}
-	log.Printf("Test: Returning KubernetesListener config %#v", svcConfig.ServiceSpecific)
+	log.Printf("Test: Returning KubernetesListener config %+v", svcConfig.ServiceSpecific)
 	return &svcConfig
 
 }
@@ -340,7 +340,7 @@ func (s *MySuite) TestListener(c *check.C) {
 	log.Printf("Test: Kubernetes listening on %s (%s)", s.kubeURL, svcInfo.Address)
 
 	cfg := &common.ServiceConfig{Common: common.CommonConfig{Api: &common.Api{Port: 0, RestTimeoutMillis: 100}}}
-	log.Printf("Test: Mock service config:\n\t%#v\n\t%#v\n", cfg.Common.Api, cfg.ServiceSpecific)
+	log.Printf("Test: Mock service config:\n\t%+v\n\t%+v\n", cfg.Common.Api, cfg.ServiceSpecific)
 	svc := &mockSvc{mySuite: s}
 	svc.tenants = make(map[uint64]string)
 	svc.tenantsStr = make(map[string]uint64)

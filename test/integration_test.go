@@ -20,6 +20,7 @@ import (
 	//	"database/sql"
 	"encoding/json"
 	"fmt"
+
 	"github.com/go-check/check"
 	"github.com/romana/core/agent"
 	"github.com/romana/core/common"
@@ -218,29 +219,29 @@ func (s *MySuite) TestAgentStart(c *check.C) {
 	myLog(c, "Host list URL: %s", hostsRelURL)
 
 	// Get list of hosts - should be empty for now.
-	var hostList []common.HostMessage
+	var hostList []common.Host
 	client.Get(hostsRelURL, &hostList)
 	myLog(c, "Host list: %s", hostList)
 	c.Assert(len(hostList), check.Equals, 0)
 
 	// Add host 1
-	newHostReq := common.HostMessage{Ip: "10.10.10.10", RomanaIp: possibleRomanaIps[0], AgentPort: 9999, Name: "HOST1000"}
-	host1 := common.HostMessage{}
+	newHostReq := common.Host{Ip: "10.10.10.10", RomanaIp: possibleRomanaIps[0], AgentPort: 9999, Name: "HOST1000"}
+	host1 := common.Host{}
 	client.Post(hostsRelURL, newHostReq, &host1)
 	myLog(c, "Response: %s", host1)
 	c.Assert(host1.Ip, check.Equals, "10.10.10.10")
-	c.Assert(host1.Id, check.Equals, "1")
+	c.Assert(host1.ID, check.Equals, uint64(1))
 
 	// Add host 2
-	newHostReq = common.HostMessage{Ip: "10.10.10.11", RomanaIp: possibleRomanaIps[1], AgentPort: 9999, Name: "HOST2000"}
-	host2 := common.HostMessage{}
+	newHostReq = common.Host{Ip: "10.10.10.11", RomanaIp: possibleRomanaIps[1], AgentPort: 9999, Name: "HOST2000"}
+	host2 := common.Host{}
 	client.Post(hostsRelURL, newHostReq, &host2)
 	myLog(c, "Response: %s", host2)
 	c.Assert(host2.Ip, check.Equals, "10.10.10.11")
-	c.Assert(host2.Id, check.Equals, "2")
+	c.Assert(host2.ID, check.Equals, uint64(2))
 
 	// Get list of hosts - should have 2 now
-	var hostList2 []common.HostMessage
+	var hostList2 []common.Host
 	client.Get(hostsRelURL, &hostList2)
 	myLog(c, "Hosts list: (expecting 2): %d %v", len(hostList2), hostList2)
 	c.Assert(len(hostList2), check.Equals, 2)
@@ -259,11 +260,13 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	myLog(c, "Entering TestRootTopoTenantIpamInteraction()")
 
 	// 1. Add some hosts to topology service and test.
-	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(s.topoURL))
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(s.rootURL))
 	if err != nil {
 		c.Error(err)
 	}
+
 	myLog(c, "Calling %s", s.topoURL)
+	client.NewUrl(s.topoURL)
 	topIndex := &common.IndexResponse{}
 	err = client.Get("/", &topIndex)
 	if err != nil {
@@ -274,33 +277,33 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	myLog(c, "Host list URL: %s", hostsRelURL)
 
 	// Get list of hosts - should be empty for now.
-	var hostList []common.HostMessage
+	var hostList []common.Host
 	client.Get(hostsRelURL, &hostList)
 	myLog(c, "Host list (expecting empty): %d %v", len(hostList), hostList)
 	c.Assert(len(hostList), check.Equals, 0)
 
 	// Add host 1
-	newHostReq := common.HostMessage{Ip: "10.10.10.10", RomanaIp: "10.0.0.0/16", AgentPort: 9999, Name: "HOST1000"}
-	host1 := common.HostMessage{}
+	newHostReq := common.Host{Ip: "10.10.10.10", RomanaIp: "10.0.0.0/16", AgentPort: 9999, Name: "HOST1000"}
+	host1 := common.Host{}
 	client.Post(hostsRelURL, newHostReq, &host1)
 	myLog(c, "Response: %s", host1)
 	c.Assert(host1.Ip, check.Equals, "10.10.10.10")
 
 	// Get list of hosts - should have 1 now
-	var hostList1 []common.HostMessage
+	var hostList1 []common.Host
 	client.Get(hostsRelURL, &hostList1)
 	myLog(c, "Host list (expecting 1): %d %v", len(hostList1), hostList1)
 	c.Assert(len(hostList1), check.Equals, 1)
 
 	// Add host 2
-	newHostReq = common.HostMessage{Ip: "10.10.10.11", RomanaIp: "10.1.0.0/16", AgentPort: 9999, Name: "HOST2000"}
-	host2 := common.HostMessage{}
+	newHostReq = common.Host{Ip: "10.10.10.11", RomanaIp: "10.1.0.0/16", AgentPort: 9999, Name: "HOST2000"}
+	host2 := common.Host{}
 	client.Post(hostsRelURL, newHostReq, &host2)
 	myLog(c, "Response: %s", host2)
 	c.Assert(host2.Ip, check.Equals, "10.10.10.11")
 
 	// Get list of hosts - should have 2 now
-	var hostList2 []common.HostMessage
+	var hostList2 []common.Host
 	client.Get(hostsRelURL, &hostList2)
 	myLog(c, "Host list (expecting 2): %d %v", len(hostList2), hostList2)
 	c.Assert(len(hostList2), check.Equals, 2)
@@ -312,38 +315,117 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	}
 
 	// Add tenant t1
-	t1In := tenant.Tenant{Name: "t1", ExternalID: "t1"}
+	t1In := tenant.Tenant{Name: "name1", ExternalID: "t1"}
 	t1Out := tenant.Tenant{}
 	err = client.Post("/tenants", t1In, &t1Out)
 	if err != nil {
 		c.Error(err)
 	}
 	t1Id := t1Out.ID
+	t1ExtID := t1In.ExternalID
 	c.Assert(t1Out.Seq, check.Equals, uint64(0))
 	myLog(c, "Tenant 1 %s", t1Out)
 
-	// Add tenant t2
-	t2In := tenant.Tenant{Name: "t2", ExternalID: "t2"}
+	// Find by external ID
+	err = client.Get("/findExactlyOne/tenants/?external_id=t1", &t1Out)
+	if err != nil {
+		c.Error(err)
+	}
+	c.Assert(t1Out.Name, check.Equals, "name1")
+	c.Assert(t1Out.ExternalID, check.Equals, "t1")
+	c.Assert(t1Out.Seq, check.Equals, uint64(0))
+	// Find by name
+	err = client.Get("/findExactlyOne/tenants?name=name1", &t1Out)
+	if err != nil {
+		c.Error(err)
+	}
+	c.Assert(t1Out.Name, check.Equals, "name1")
+	c.Assert(t1Out.ExternalID, check.Equals, "t1")
+
+	// Add tenant with same name, different external ID
+	t2In := tenant.Tenant{Name: "name1", ExternalID: "t2"}
 	t2Out := tenant.Tenant{}
 	err = client.Post("/tenants", t2In, &t2Out)
 	if err != nil {
 		c.Error(err)
 	}
 	t2Id := t2Out.ID
+	c.Assert(t2Out.ExternalID, check.Equals, "t2")
 	c.Assert(t2Out.Seq, check.Equals, uint64(1))
 	myLog(c, "Tenant 2 %s", t2Out)
+
+	tenSingle := tenant.Tenant{}
+	tenSingle.Name = "name1"
+	// Find by name - should be an error for findOne (there's 2 of them)
+	err = client.Find(&tenSingle, common.FindExactlyOne)
+	if err == nil {
+		c.Error(fmt.Sprintf("Expected error %s", err))
+	} else {
+		myLog(c, "Expected error %s", err)
+	}
+
+	// FindFirst
+	tenSingle = tenant.Tenant{}
+	tenSingle.Name = "name1"
+	err = client.Find(&tenSingle, common.FindFirst)
+	if err != nil {
+		c.Error(err)
+	}
+	c.Assert(tenSingle.Name, check.Equals, "name1")
+	c.Assert(tenSingle.ExternalID, check.Equals, "t1")
+
+	// FindLast
+	tenSingle = tenant.Tenant{}
+	tenSingle.Name = "name1"
+	err = client.Find(&tenSingle, common.FindLast)
+	if err != nil {
+		c.Error(err)
+	}
+	c.Assert(tenSingle.Name, check.Equals, "name1")
+	c.Assert(tenSingle.ExternalID, check.Equals, "t2")
+
+	// findAll should find 2 tenants.
+	var tenants []tenant.Tenant
+	err = client.Get("/findAll/tenants?name=name1", &tenants)
+	c.Assert(len(tenants), check.Equals, 2)
+	c.Assert(tenants[0].Name, check.Equals, "name1")
+	c.Assert(tenants[0].ExternalID, check.Equals, "t1")
+	c.Assert(tenants[1].Name, check.Equals, "name1")
+	c.Assert(tenants[1].ExternalID, check.Equals, "t2")
 
 	// Find first tenant
 	t1OutFound := tenant.Tenant{}
 	tenant1Path := fmt.Sprintf("/tenants/%d", t1Id)
+	tenant1ExtIDPath := fmt.Sprintf("/tenants/%s", t1ExtID)
 	err = client.Get(tenant1Path, &t1OutFound)
 	if err != nil {
 		c.Error(err)
 	}
+	c.Assert(t1OutFound.Name, check.Equals, "name1")
+	c.Assert(t1OutFound.ExternalID, check.Equals, "t1")
 	myLog(c, "Found %s", t1OutFound)
+
+	// Add tenant with same name, different external ID
+	t3In := tenant.Tenant{Name: "name2", ExternalID: "t3"}
+	t3Out := tenant.Tenant{}
+	err = client.Post("/tenants", t3In, &t3Out)
+	if err != nil {
+		c.Error(err)
+	}
+	c.Assert(t3Out.Name, check.Equals, "name2")
+	c.Assert(t3Out.ExternalID, check.Equals, "t3")
+	c.Assert(t3Out.Seq, check.Equals, uint64(2))
+	myLog(c, "Tenant 3 %s", t3Out)
+
+	// findAll should find 1 tenants.
+	err = client.Get("/findAll/tenants?name=name2", &tenants)
+	c.Assert(len(tenants), check.Equals, 1)
+	c.Assert(tenants[0].Name, check.Equals, "name2")
+	c.Assert(tenants[0].ExternalID, check.Equals, "t3")
 
 	// Add segment s1 to tenant t1
 	tenant1SegmentPath := tenant1Path + "/segments"
+	tenant1ExtIDSegmentPath := tenant1ExtIDPath + "/segments"
 	t1s1In := tenant.Segment{Name: "s1", ExternalID: "s1", TenantID: t1Id}
 	t1s1Out := tenant.Segment{}
 	err = client.Post(tenant1SegmentPath, t1s1In, &t1s1Out)
@@ -360,6 +442,14 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	}
 	c.Assert(len(segments), check.Equals, 1)
 	myLog(c, "Segments list: expected 1 at  %s: %d %s", tenant1SegmentPath, len(segments), segments)
+
+	// List segments using tenant external ID.
+	err = client.Get(tenant1ExtIDSegmentPath, &segments)
+	if err != nil {
+		c.Error(err)
+	}
+	c.Assert(len(segments), check.Equals, 1)
+	myLog(c, "Segments list: expected 1 at  %s: %d %s", tenant1ExtIDSegmentPath, len(segments), segments)
 
 	// Add segment s2 to tenant t1
 	t1s2In := tenant.Segment{Name: "s2", ExternalID: "s2", TenantID: t1Id}
@@ -396,11 +486,20 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	}
 	myLog(c, "Added segment s2 to t2: %s", t2s2Out)
 
+	// Add segment s3 to tenant t3
+	t3s3In := tenant.Segment{Name: "s3", ExternalID: "s3", TenantID: t3Out.ID}
+	t3s3Out := tenant.Segment{}
+	err = client.Post(fmt.Sprintf("/tenants/%d/segments", t3Out.ID), t3s3In, &t3s3Out)
+	if err != nil {
+		c.Error(err)
+	}
+	myLog(c, "Added segment s3 to t3: %s", t3s3Out)
+
 	// Get IP for t1, s1, h1
 	myLog(c, "IPAM Test: Get first IP")
 	tenantId := fmt.Sprintf("%d", t1Out.ID)
 	segmentId := fmt.Sprintf("%d", t1s1Out.ID)
-	t1s1h1EpIn := ipam.Endpoint{Name: "endpoint1", TenantID: tenantId, SegmentID: segmentId, HostId: host1.Id}
+	t1s1h1EpIn := ipam.Endpoint{Name: "endpoint1", TenantID: tenantId, SegmentID: segmentId, HostId: fmt.Sprintf("%d", host1.ID)}
 	t1s1h1Ep1Out := ipam.Endpoint{}
 	client.NewUrl(s.ipamURL)
 	err = client.Post("/endpoints", t1s1h1EpIn, &t1s1h1Ep1Out)
@@ -452,7 +551,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	// Get IP for t2, s2, h2
 	tenantId = fmt.Sprintf("%d", t2Out.ID)
 	segmentId = fmt.Sprintf("%d", t2s2Out.ID)
-	t2s2h2EpIn := ipam.Endpoint{Name: "endpoint1", TenantID: tenantId, SegmentID: segmentId, HostId: host2.Id}
+	t2s2h2EpIn := ipam.Endpoint{Name: "endpoint1", TenantID: tenantId, SegmentID: segmentId, HostId: fmt.Sprintf("%d", host2.ID)}
 	t2s2h2EpOut := ipam.Endpoint{}
 	err = client.Post("/endpoints", t2s2h2EpIn, &t2s2h2EpOut)
 	if err != nil {
@@ -462,13 +561,11 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	// Expecting 17 because tenant 2 and segment 2: 1 << 12 | 1 << 4
 	c.Assert(t2s2h2EpOut.Ip, check.Equals, "10.1.17.3")
 
-	// Try legacy request using tenantName
+	// Try legacy request using tenantID
 	endpointOut := ipam.Endpoint{}
-	legacyURL := "/allocateIP?tenantName=t1&segmentName=s1&hostName=HOST2000&instanceName=bla"
+	legacyURL := "/allocateIP?tenantID=t1&segmentName=s1&hostName=HOST2000&instanceName=bla"
 	myLog(c, "Calling legacy URL %s", legacyURL)
-
 	err = client.Get(legacyURL, &endpointOut)
-
 	if err != nil {
 		myLog(c, "Error %s\n", err)
 		c.Error(err)
@@ -476,38 +573,11 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	myLog(c, "Legacy received: %s", endpointOut)
 	myLog(c, "Legacy IP: %s", endpointOut.Ip)
 
-	// Try legacy request using tenantName with tenant 2
+	// Try legacy request using tenantName
 	endpointOut = ipam.Endpoint{}
-	legacyURL = "/allocateIP?tenantName=t2&segmentName=s1&hostName=HOST2000&instanceName=bla"
+	legacyURL = "/allocateIP?tenantName=name2&segmentName=s3&hostName=HOST2000&instanceName=bla"
 	myLog(c, "Calling legacy URL %s", legacyURL)
 	//	time.Sleep(time.Hour)
-	err = client.Get(legacyURL, &endpointOut)
-
-	if err != nil {
-		myLog(c, "Error %s\n", err)
-		c.Error(err)
-	}
-	myLog(c, "Legacy received: %s", endpointOut)
-	myLog(c, "Legacy IP: %s", endpointOut.Ip)
-
-	// Try legacy request using tenantName with tenant 2
-	endpointOut = ipam.Endpoint{}
-	legacyURL = "/allocateIP?tenantName=t2&segmentName=s1&hostName=HOST2000&instanceName=bla"
-	myLog(c, "Calling legacy URL", legacyURL)
-
-	err = client.Get(legacyURL, &endpointOut)
-
-	if err != nil {
-		myLog(c, "Error %s\n", err)
-		c.Error(err)
-	}
-	myLog(c, "Legacy received:", endpointOut)
-	myLog(c, "Legacy IP:", endpointOut.Ip)
-
-	// Try legacy request using tenantID
-	legacyURL = "/allocateIP?tenantID=t1&segmentName=s1&hostName=HOST2000&instanceName=bla"
-	myLog(c, "Calling legacy URL %s", legacyURL)
-
 	err = client.Get(legacyURL, &endpointOut)
 
 	if err != nil {

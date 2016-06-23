@@ -24,8 +24,11 @@ import (
 	"github.com/jinzhu/gorm"
 	_ "github.com/mattn/go-sqlite3"
 	"log"
+	"net/url"
 	"os"
+	"reflect"
 	"strconv"
+	"strings"
 )
 
 // StoreConfig stores information needed for a DB connection.
@@ -66,15 +69,35 @@ func makeStoreConfig(configMap map[string]interface{}) StoreConfig {
 	return storeConfig
 }
 
+type FindFlag string
+
+const (
+	// Flags to store.Find operation
+	FindFirst      = "findFirst"
+	FindLast       = "findLast"
+	FindExactlyOne = "findExactlyOne"
+	FindAll        = "findAll"
+)
+
 // Store defines generic store interface that can be used
 // by any service for persistence.
 type Store interface {
 	// SetConfig sets the configuration
-	SetConfig(configMap map[string]interface{}) error
+	SetConfig(map[string]interface{}) error
 	// Connect connects to the store
 	Connect() error
 	// Create the schema, dropping existing one if the force flag is specified
-	CreateSchema(force bool) error
+	CreateSchema(bool) error
+	// Find finds entries in the store based on the query string. The meaning of the
+	// flags is as follows:
+	// 1. FindFirst - the first entity (as ordered by primary key) is returned.
+	// 2. FindLast - tha last entity is returned
+	// 3. FindExactlyOne - it is expected that only one result is to be found --
+	// multiple results will yield an errror.
+	// 4. FindAll - returns all.
+	// Here "entities" *must* be a pointer to an array
+	// of entities to find (for example, it has to be &[]Tenant{}, not Tenant{}).
+	Find(query url.Values, entities interface{}, flag FindFlag) (interface{}, error)
 }
 
 // ServiceStore interface is what each service's store needs to implement.
@@ -98,6 +121,120 @@ type DbStore struct {
 	Config            *StoreConfig
 	Db                *gorm.DB
 	createSchemaFuncs map[string]createSchema
+}
+
+// Find generically implements Find() of store interface.
+func (dbStore *DbStore) Find(query url.Values, entities interface{}, flag FindFlag) (interface{}, error) {
+	queryStringFieldToDbField := make(map[string]string)
+
+	t := reflect.TypeOf(entities).Elem().Elem()
+	for i := 0; i < t.NumField(); i++ {
+		structField := t.Field(i)
+		fieldTag := structField.Tag
+		fieldName := structField.Name
+
+		queryStringField := strings.ToLower(fieldName)
+		dbField := strings.ToLower(fieldName)
+		if fieldTag == "" {
+			// If there is no tag, then query variable is just the same as
+			// the fieldName...
+			log.Printf("No tag for %s", fieldName)
+		} else {
+			jTag := fieldTag.Get("json")
+			if jTag == "" {
+				log.Printf("No JSON tag for %s", fieldName)
+			} else {
+				jTagElts := strings.Split(jTag, ",")
+				// This takes care of ",omitempty"
+				if len(jTagElts) > 1 {
+					queryStringField = jTagElts[0]
+				} else {
+					queryStringField = jTag
+				}
+			}
+			gormTag := fieldTag.Get("gorm")
+			log.Printf("Gorm tag for %s: %s (%v)", fieldName, gormTag, fieldTag)
+			if gormTag != "" {
+				// See model_struct.go:parseTagSetting
+				gormVals := strings.Split(gormTag, ";")
+				for _, gormVal := range gormVals {
+					elts := strings.Split(gormVal, ":")
+					if len(elts) == 0 {
+						continue
+					}
+					k := strings.TrimSpace(strings.ToUpper(elts[0]))
+					if k == "COLUMN" {
+						if len(elts) != 2 {
+							return nil, NewError400(fmt.Sprintf("Expected 2 elements in %s (in %s)", gormVal, gormTag))
+						}
+						dbField = elts[1]
+						break
+					}
+
+				}
+			}
+		}
+		log.Printf("For %s, query string field %s, struct field %s, DB field %s", t, queryStringField, fieldName, dbField)
+		queryStringFieldToDbField[queryStringField] = dbField
+	}
+	log.Printf("%+v", queryStringFieldToDbField)
+	whereMap := make(map[string]interface{})
+
+	for k, v := range query {
+		k = strings.ToLower(k)
+		dbFieldName := queryStringFieldToDbField[k]
+		if dbFieldName == "" {
+			return nil, NewError400(fmt.Sprintf("Unknown field %s in %v", k, t))
+		}
+		if len(v) > 1 {
+			return nil, NewError400("Did not expect multiple values in " + k)
+		}
+		whereMap[dbFieldName] = v[0]
+	}
+
+	log.Printf("Querying with %+v - %T", whereMap, entities)
+
+	var db *gorm.DB
+
+	if flag == FindFirst || flag == FindLast {
+		var count int
+		entityPtrVal := reflect.New(reflect.TypeOf(entities).Elem().Elem())
+		entityPtr := entityPtrVal.Interface()
+		if flag == FindFirst {
+			db = dbStore.Db.Where(whereMap).First(entityPtr).Count(&count)
+		} else {
+			db = dbStore.Db.Where(whereMap).Last(entityPtr).Count(&count)
+		}
+		err := GetDbErrors(db)
+		if err != nil {
+			return nil, err
+		}
+		if count == 0 {
+			return nil, NewError404(t.String(), fmt.Sprintf("%+v", whereMap))
+		}
+		return entityPtr, nil
+	}
+
+	db = dbStore.Db.Where(whereMap).Find(entities)
+	err := GetDbErrors(db)
+	if err != nil {
+		return nil, err
+	}
+	rowCount := reflect.ValueOf(entities).Elem().Len()
+
+	if rowCount == 0 {
+		return nil, NewError404(t.String(), fmt.Sprintf("%+v", whereMap))
+	}
+
+	if flag == FindExactlyOne {
+		if rowCount == 1 {
+			return reflect.ValueOf(entities).Elem().Index(0).Interface(), nil
+		} else {
+			return nil, NewError500(fmt.Sprintf("Multiple results found for %+v", query))
+		}
+	}
+
+	return entities, nil
 }
 
 // SetConfig sets the config object from a map.

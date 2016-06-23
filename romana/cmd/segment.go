@@ -16,6 +16,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strconv"
@@ -25,7 +26,9 @@ import (
 	"github.com/romana/core/romana/util"
 	"github.com/romana/core/tenant"
 
+	ms "github.com/mitchellh/mapstructure"
 	cli "github.com/spf13/cobra"
+	config "github.com/spf13/viper"
 )
 
 // segmentCmd represents the segment commands
@@ -42,7 +45,7 @@ func init() {
 	segmentCmd.AddCommand(segmentAddCmd)
 	segmentCmd.AddCommand(segmentRemoveCmd)
 	segmentCmd.AddCommand(segmentListCmd)
-	segmentAddCmd.Flags().StringVarP(&externalID, "externalID", "i", "", "External ID")
+	segmentAddCmd.Flags().StringVarP(&externalID, "externalid", "i", "", "External ID")
 }
 
 var segmentAddCmd = &cli.Command{
@@ -93,14 +96,52 @@ func segmentAdd(cmd *cli.Command, args []string) error {
 	}
 
 	data := tenant.Segment{Name: seg, ExternalID: externalID}
-	segment := tenant.Segment{}
+	var result map[string]interface{}
 	err = client.Post(tenantURL+"/tenants/"+romanaIDStr+"/segments",
-		data, &segment)
+		data, &result)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Tenant Segment (%s) added successfully.\n", seg)
+	_, tFound := result["name"]
+	if !tFound {
+		var h common.HttpError
+		dc := &ms.DecoderConfig{TagName: "json", Result: &h}
+		decoder, err := ms.NewDecoder(dc)
+		if err != nil {
+			return err
+		}
+		err = decoder.Decode(result)
+		if err != nil {
+			return err
+		}
+		if config.GetString("Format") == "json" {
+			status, _ := json.MarshalIndent(h, "", "\t")
+			fmt.Println(string(status))
+			return fmt.Errorf("HTTP Error")
+		}
+		return fmt.Errorf(h.Error())
+	}
+
+	if config.GetString("Format") == "json" {
+		segment := tenant.Segment{}
+		dc := &ms.DecoderConfig{TagName: "json", Result: &segment}
+		decoder, err := ms.NewDecoder(dc)
+		if err != nil {
+			return err
+		}
+		err = decoder.Decode(result)
+		if err != nil {
+			return err
+		}
+		body, err := json.MarshalIndent(segment, "", "\t")
+		if err != nil {
+			return err
+		}
+		fmt.Println(string(body))
+	} else {
+		fmt.Printf("Tenant Segment (%s) added successfully.\n", seg)
+	}
 	return nil
 }
 

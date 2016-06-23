@@ -131,7 +131,7 @@ func write500(writer http.ResponseWriter, m Marshaller, err error) {
 	httpErr := NewError500(err)
 	// Should never error out - it's a struct we know.
 	outData, _ := m.Marshal(httpErr)
-	log.Printf("Made\n\t%#v\n\tfrom\n\t%#v\n\t%s", httpErr, err, string(outData))
+	log.Printf("Made\n\t%+v\n\tfrom\n\t%+v\n\t%s", httpErr, err, string(outData))
 	writer.Write(outData)
 }
 
@@ -257,149 +257,146 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 			}
 		}
 		return RomanaHandler{httpHandler}
-	} else {
-		httpHandler := func(writer http.ResponseWriter, request *http.Request) {
-			bufStr := ""
-			var inData interface{}
-			if makeMessage == nil {
+	}
+	httpHandler := func(writer http.ResponseWriter, request *http.Request) {
+		bufStr := ""
+		var inData interface{}
+		if makeMessage == nil {
+			inData = nil
+		} else {
+			inData = makeMessage()
+		}
+		var err error
+		contentType := writer.Header().Get("Content-Type")
+		// This should be ok because the middleware took care of negotiating
+		// only the content types we support
+		marshaller := ContentTypeMarshallers[contentType]
+		defaultMarshaller := ContentTypeMarshallers["application/json"]
+
+		if marshaller == nil {
+			// This should never happen... Just in case...
+			log.Printf("No marshaler for [%s] found in %s, %s\n", contentType, ContentTypeMarshallers, ContentTypeMarshallers["application/json"])
+			writer.WriteHeader(http.StatusUnsupportedMediaType)
+			sct := supportedContentTypesMessage
+			dataOut, _ := defaultMarshaller.Marshal(sct)
+			writer.Write(dataOut)
+			return
+		}
+
+		if inData != nil {
+			log.Printf("httpHandler %s %s: inData addr: %d\n", route.Method, route.Pattern, &inData)
+			ct := request.Header.Get("content-type")
+			buf, err := ioutil.ReadAll(request.Body)
+			if buf == nil || len(buf) == 0 {
+				// Null input
 				inData = nil
 			} else {
-				inData = makeMessage()
-			}
-			var err error
-			contentType := writer.Header().Get("Content-Type")
-			// This should be ok because the middleware took care of negotiating
-			// only the content types we support
-			marshaller := ContentTypeMarshallers[contentType]
-			defaultMarshaller := ContentTypeMarshallers["application/json"]
+				bufStr = string(buf)
+				log.Printf("Read %s\n", bufStr)
+				if err != nil {
+					// Error reading...
+					write500(writer, marshaller, err)
+				}
 
-			if marshaller == nil {
-				// This should never happen... Just in case...
-				log.Printf("No marshaler for [%s] found in %s, %s\n", contentType, ContentTypeMarshallers, ContentTypeMarshallers["application/json"])
-				writer.WriteHeader(http.StatusUnsupportedMediaType)
-				sct := supportedContentTypesMessage
-				dataOut, _ := defaultMarshaller.Marshal(sct)
-				writer.Write(dataOut)
-				return
-			}
-
-			if inData != nil {
-				log.Printf("httpHandler %s %s: inData addr: %d\n", route.Method, route.Pattern, &inData)
-				ct := request.Header.Get("content-type")
-				buf, err := ioutil.ReadAll(request.Body)
-				if buf == nil || len(buf) == 0 {
-					// Null input
-					inData = nil
-				} else {
-					bufStr = string(buf)
-					log.Printf("Read %s\n", bufStr)
+				if unmarshaller, ok := ContentTypeMarshallers[ct]; ok {
+					log.Printf("httpHandler %s %s: Attempting to unmarshal [%s] into %T", route.Method, route.Pattern, string(buf), inData)
+					err = unmarshaller.Unmarshal(buf, inData)
 					if err != nil {
-						// Error reading...
-						write500(writer, marshaller, err)
-					}
-
-					if unmarshaller, ok := ContentTypeMarshallers[ct]; ok {
-						log.Printf("httpHandler %s %s: Attempting to unmarshal [%s] into %T", route.Method, route.Pattern, string(buf), inData)
-						err = unmarshaller.Unmarshal(buf, inData)
-						if err != nil {
-							// Error unmarshalling...
-							write400(writer, marshaller, err)
-							return
-						}
-					} else {
-						// Cannot unmarshal
-						dataOut, _ := marshaller.Marshal(supportedContentTypesMessage)
-						writer.WriteHeader(http.StatusNotAcceptable)
-						writer.Write(dataOut)
+						// Error unmarshalling...
+						write400(writer, marshaller, err)
 						return
 					}
+				} else {
+					// Cannot unmarshal
+					dataOut, _ := marshaller.Marshal(supportedContentTypesMessage)
+					writer.WriteHeader(http.StatusNotAcceptable)
+					writer.Write(dataOut)
+					return
 				}
 			}
+		}
 
-			err = request.ParseForm()
-			if err != nil {
-				// Cannot parse form...
-				write400(writer, marshaller, err)
-				return
-			}
-			var token string
-			if route.UseRequestToken {
-				if inData != nil {
-					v := reflect.Indirect(reflect.ValueOf(inData)).FieldByName(RequestTokenQueryParameter)
-					if v.IsValid() {
-						token = v.String()
-						log.Printf("Token from payload %s\n", token)
+		err = request.ParseForm()
+		if err != nil {
+			// Cannot parse form...
+			write400(writer, marshaller, err)
+			return
+		}
+		var token string
+		if route.UseRequestToken {
+			if inData != nil {
+				v := reflect.Indirect(reflect.ValueOf(inData)).FieldByName(RequestTokenQueryParameter)
+				if v.IsValid() {
+					token = v.String()
+					log.Printf("Token from payload %s\n", token)
+				} else {
+					tokens := request.Form[RequestTokenQueryParameter]
+					if len(tokens) != 1 {
+						token = uuid.New()
+						log.Printf("Token created %s\n", token)
 					} else {
-						tokens := request.Form[RequestTokenQueryParameter]
-						if len(tokens) != 1 {
-							token = uuid.New()
-							log.Printf("Token created %s\n", token)
-						} else {
-							log.Printf("Token from query string %s\n", token)
-						}
-						if len(tokens) == 0 {
-							// Token was not sent, the caller does it at his own
-							// risk. There will be no idempotence.
-							token = "1"
-						} else {
-							token = tokens[0]
-						}
+						log.Printf("Token from query string %s\n", token)
+					}
+					if len(tokens) == 0 {
+						// Token was not sent, the caller does it at his own
+						// risk. There will be no idempotence.
+						token = "1"
+					} else {
+						token = tokens[0]
 					}
 				}
 			}
-			restContext := RestContext{PathVariables: mux.Vars(request), QueryVariables: request.Form, RequestToken: token}
+		}
+		restContext := RestContext{PathVariables: mux.Vars(request), QueryVariables: request.Form, RequestToken: token}
+		if route.Hook != nil {
+			log.Printf("doHook() will be called before %s %s: %s", route.Method, route.Pattern, route.Hook.Executable)
+		}
+		out, err := doHook(true, route, restContext, bufStr)
+		if err != nil {
+			write500(writer, marshaller, err)
+			return
+		}
+		restContext.HookOutput = out
+		outData, err := restHandler(inData, restContext)
+		if err == nil {
 			if route.Hook != nil {
-				log.Printf("doHook() will be called before %s %s: %s", route.Method, route.Pattern, route.Hook.Executable)
+				log.Printf("doHook() will be called after %s %s: %s", route.Method, route.Pattern, route.Hook.Executable)
 			}
-			out, err := doHook(true, route, restContext, bufStr)
+			out, err = doHook(false, route, restContext, bufStr)
 			if err != nil {
 				write500(writer, marshaller, err)
 				return
 			}
-			restContext.HookOutput = out
-			outData, err := restHandler(inData, restContext)
+			var wireData []byte
+			switch outData := outData.(type) {
+			case Raw:
+				wireData = []byte(outData.Body)
+			default:
+				wireData, err = marshaller.Marshal(outData)
+			}
+			//				log.Printf("Out data: %s, wire data: %s, error %s\n", outData, wireData, err)
 			if err == nil {
-				if route.Hook != nil {
-					log.Printf("doHook() will be called after %s %s: %s", route.Method, route.Pattern, route.Hook.Executable)
-				}
-				out, err = doHook(false, route, restContext, bufStr)
-				if err != nil {
-					write500(writer, marshaller, err)
-					return
-				}
-				var wireData []byte
-				switch outData := outData.(type) {
-				case Raw:
-					wireData = []byte(outData.Body)
-				default:
-					wireData, err = marshaller.Marshal(outData)
-				}
-				//				log.Printf("Out data: %s, wire data: %s, error %s\n", outData, wireData, err)
-				if err == nil {
-					writer.WriteHeader(http.StatusOK)
-					writer.Write(wireData)
-					return
-				} else {
-					write500(writer, marshaller, err)
-					return
-				}
-			} else {
-				switch err := err.(type) {
-				case HttpError:
-					writer.WriteHeader(err.StatusCode)
-					// Should never error out - it's a struct we know.
-					outData, _ := marshaller.Marshal(err)
-					writer.Write(outData)
-				default:
-					// Error reading...
-					write500(writer, marshaller, err)
-				}
+				writer.WriteHeader(http.StatusOK)
+				writer.Write(wireData)
 				return
 			}
+			write500(writer, marshaller, err)
+			return
+		} else {
+			switch err := err.(type) {
+			case HttpError:
+				writer.WriteHeader(err.StatusCode)
+				// Should never error out - it's a struct we know.
+				outData, _ := marshaller.Marshal(err)
+				writer.Write(outData)
+			default:
+				// Error reading...
+				write500(writer, marshaller, err)
+			}
+			return
 		}
-		return RomanaHandler{httpHandler}
 	}
-
+	return RomanaHandler{httpHandler}
 }
 
 // NewRouter creates router for a new service.

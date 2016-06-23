@@ -28,7 +28,7 @@ import (
 func String(i interface{}) string {
 	j, e := json.Marshal(i)
 	if e != nil {
-		return fmt.Sprintf("%#v", i)
+		return fmt.Sprintf("%+v", i)
 	}
 	return string(j)
 }
@@ -92,14 +92,25 @@ type TokenMessage struct {
 //  }
 // part of the response.
 type LinkResponse struct {
-	Href string
-	Rel  string
+	Href string `json:"href,omitempty"`
+	Rel  string `json:"rel,omitempty"`
 }
 
 // Type definitions
 type ServiceMessage string
 
 // Struct definitions
+
+// Host is a structure representing information
+// about the host.
+type Host struct {
+	ID        uint64 `sql:"AUTO_INCREMENT" json:"id,omitempty"`
+	Name      string `json:"name,omitempty"`
+	Ip        string `json:"ip,omitempty"`
+	RomanaIp  string `json:"romana_ip,omitempty"`
+	AgentPort uint64 `json:"agent_port,omitempty"`
+	Links     Links  `json:"links,omitempty" sql:"-"`
+}
 
 // Message to register with the root service the actual
 // port a service is listening on.
@@ -111,13 +122,14 @@ type PortUpdateMessage struct {
 // has an IP address and routes to/from. It can be a container,
 // a Kubernetes POD, a VM, etc.
 type Endpoint struct {
-	Any               string  `json:"any,omitempty"`
 	Peer              string  `json:"peer,omitempty"`
-	CidrBlock         string  `json:"cidr_block,omitempty"`
+	Cidr              string  `json:"cidr,omitempty"`
 	TenantID          uint64  `json:"tenant_id,omitempty"`
+	TenantName        string  `json:"tenant,omitempty"`
 	TenantExternalID  string  `json:"tenant_external_id,omitempty"`
 	TenantNetworkID   *uint64 `json:"tenant_network_id,omitempty"`
 	SegmentID         uint64  `json:"segment_id,omitempty"`
+	SegmentName       string  `json:"segment,omitempty"`
 	SegmentExternalID string  `json:"segment_external_id,omitempty"`
 	SegmentNetworkID  *uint64 `json:"segment_network_id,omitempty"`
 }
@@ -145,7 +157,7 @@ func (p PortRange) String() string {
 // 4. If Protocol specified is "icmp", Ports and PortRanges fields should be blank.
 // 5. If Protocol specified is not "icmp", Icmptype and IcmpCode should be unspecified.
 type Rule struct {
-	Protocol   string      `json:"protocol"`
+	Protocol   string      `json:"protocol,omitempty"`
 	Ports      []uint      `json:"ports,omitempty"`
 	PortRanges []PortRange `json:"port_ranges,omitempty"`
 	// IcmpType only applies if Protocol value is ICMP and
@@ -181,15 +193,15 @@ type Policy struct {
 	Name string `json:"name"`
 	// ID is Romana-generated unique (within Romana deployment) ID of this policy,
 	// to be used in REST requests. It will be ignored when set by user.
-	ID uint64 `json:"id,omitempty",sql:"AUTO_INCREMENT"`
+	ID uint64 `json:"id,omitempty" sql:"AUTO_INCREMENT"`
 	// ExternalID is an optional identifier of this policy in an external system working
 	// with Romana in this deployment (e.g., Open Stack).
 	ExternalID string `json:"external_id,omitempty",sql:"not null;unique"`
 	// Datacenter describes a Romana deployment.
-	Datacenter Datacenter `json:"datacenter,omitempty"`
-	AppliedTo  []Endpoint `json:"applied_to,omitempty"`
-	Peers      []Endpoint `json:"peers,omitempty"`
-	Rules      []Rule     `json:"rules,omitempty"`
+	Datacenter *Datacenter `json:"datacenter,omitempty"`
+	AppliedTo  []Endpoint  `json:"applied_to,omitempty"`
+	Peers      []Endpoint  `json:"peers,omitempty"`
+	Rules      []Rule      `json:"rules,omitempty"`
 	//	Tags       []Tag      `json:"tags,omitempty"`
 }
 
@@ -199,7 +211,7 @@ func (p Policy) String() string {
 
 // isValidProto checks if the Protocol specified in Rule is valid.
 // The following protocols are recognized:
-// - any -- wildcard
+// - any -- see Wildcard
 // - tcp
 // - udp
 // - icmp
@@ -324,20 +336,33 @@ func (p *Policy) Validate() error {
 	} else {
 		for i, endpoint := range p.AppliedTo {
 			epNo := i + 1
-			if endpoint.TenantExternalID == "" && endpoint.TenantID == 0 && endpoint.TenantNetworkID == nil {
-				errMsg = append(errMsg, fmt.Sprintf("applied_to entry #%d: at least one of tenant_id or tenant_external_id or tenant_network_id must be specified.", epNo))
+			if endpoint.TenantExternalID == "" &&
+				endpoint.TenantID == 0 &&
+				endpoint.TenantName == "" &&
+				endpoint.TenantNetworkID == nil {
+				errMsg = append(errMsg,
+					fmt.Sprintf("applied_to entry #%d: at least one of: "+
+						"tenant, tenant_id, tenant_external_id or tenant_network_id "+
+						"must be specified.", epNo))
 			}
 		}
 	}
 	// 4. Validate peers
 	for i, endpoint := range p.Peers {
 		epNo := i + 1
-		if endpoint.Any != "" && endpoint.Any != Wildcard {
-			errMsg = append(errMsg, fmt.Sprintf("peers entry #%d: Invalid value for Any: '%s', only '' and %s allowed.", epNo, endpoint.Any, Wildcard))
+		if endpoint.Peer != "" && endpoint.Peer != Wildcard {
+			errMsg = append(errMsg, fmt.Sprintf("peers entry #%d: Invalid value for Any: '%s', only '' and %s allowed.", epNo, endpoint.Peer, Wildcard))
 		}
 		if endpoint.SegmentID != 0 || endpoint.SegmentExternalID != "" {
-			if endpoint.TenantExternalID == "" && endpoint.TenantID == 0 && endpoint.TenantNetworkID == nil {
-				errMsg = append(errMsg, fmt.Sprintf("peers entry #%d: since segment_external_id is specified, at least one of tenant_id or tenant_external_id or tenant_network_id must be specified.", epNo))
+			if endpoint.TenantExternalID == "" &&
+				endpoint.TenantID == 0 &&
+				endpoint.TenantNetworkID == nil &&
+				endpoint.TenantName == "" {
+				errMsg = append(errMsg,
+					fmt.Sprintf("peers entry #%d: since segment_external_id "+
+						"is specified, at least one of: tenant, tenant_id, "+
+						"tenant_external_id or tenant_network_id must be "+
+						"specified.", epNo))
 			}
 		}
 	}
@@ -354,9 +379,8 @@ func (p *Policy) Validate() error {
 
 	if len(errMsg) == 0 {
 		return nil
-	} else {
-		return NewUnprocessableEntityError(errMsg)
 	}
+	return NewUnprocessableEntityError(errMsg)
 }
 
 // RestServiceInfo describes information about a running
@@ -391,9 +415,9 @@ type ServiceResponse struct {
 // Datacenter represents the configuration of a datacenter.
 type Datacenter struct {
 	Id        uint64 `json:"id",sql:"AUTO_INCREMENT"`
-	IpVersion uint   `json:"ip_version"`
+	IpVersion uint   `json:"ip_version,omitempty"`
 	// We don't need to store this, but calculate and pass around
-	Prefix      uint64 `json:"prefix"`
+	Prefix      uint64 `json:"prefix,omitempty"`
 	Cidr        string `json:"cidr,omitempty"`
 	PrefixBits  uint   `json:"prefix_bits"`
 	PortBits    uint   `json:"port_bits"`
@@ -402,7 +426,7 @@ type Datacenter struct {
 	// We don't need to store this, but calculate and pass around
 	EndpointBits      uint   `json:"endpoint_bits"`
 	EndpointSpaceBits uint   `json:"endpoint_space_bits"`
-	Name              string `json:"name"`
+	Name              string `json:"name,omitempty"`
 }
 
 func (dc Datacenter) String() string {

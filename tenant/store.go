@@ -16,11 +16,9 @@
 package tenant
 
 import (
-	"encoding/hex"
+	"fmt"
 	"github.com/romana/core/common"
 	"log"
-
-	"github.com/pborman/uuid"
 )
 
 // Backing store
@@ -40,19 +38,19 @@ func (tenantStore *tenantStore) Entities() []interface{} {
 }
 
 type Tenant struct {
-	ID         uint64 `sql:"AUTO_INCREMENT"`
-	ExternalID string `sql:"not null;unique"`
-	Name       string
-	Segments   []Segment
-	Seq        uint64
+	ID         uint64    `sql:"AUTO_INCREMENT" json:"id,omitempty"`
+	ExternalID string    `sql:"not null" json:"external_id,omitempty" gorm:"COLUMN:external_id"`
+	Name       string    `json:"name,omitempty"`
+	Segments   []Segment `json:"segments,omitempty"`
+	Seq        uint64    `json:"seq,omitempty"`
 }
 
 type Segment struct {
-	ID         uint64 `sql:"AUTO_INCREMENT"`
-	ExternalID string `sql:"not null;"`
-	TenantID   uint64
-	Name       string
-	Seq        uint64
+	ID         uint64 `sql:"AUTO_INCREMENT" json:"id,omitempty"`
+	ExternalID string `sql:"not null" json:"external_id,omitempty" gorm:"COLUMN:external_id"`
+	TenantID   uint64 `gorm:"COLUMN:tenant_id" json:"tenant_id,omitempty"`
+	Name       string `json:"name,omitempty"`
+	Seq        uint64 `json:"seq,omitempty"`
 }
 
 func (tenantStore *tenantStore) listTenants() ([]Tenant, error) {
@@ -89,104 +87,80 @@ func (tenantStore *tenantStore) addTenant(tenant *Tenant) error {
 	log.Println("In tenantStore addTenant().")
 
 	var tenants []Tenant
-	tenantStore.DbStore.Db.Find(&tenants)
+	tx := tenantStore.DbStore.Db.Begin()
 
-	if tenant.ExternalID == "" {
-		tenant.ExternalID = hex.EncodeToString(uuid.NewRandom())
-	}
-
-	tenant.Seq = uint64(len(tenants))
-	db := tenantStore.DbStore.Db
-	tenantStore.DbStore.Db.Create(tenant)
-	if db.Error != nil {
-		return db.Error
-	}
-	tenantStore.DbStore.Db.NewRecord(*tenant)
-	err := common.MakeMultiError(db.GetErrors())
+	tx = tx.Find(&tenants)
+	err := common.GetDbErrors(tx)
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
-	if db.Error != nil {
-		return db.Error
+	tenant.Seq = uint64(len(tenants))
+
+	tx = tx.Create(tenant)
+	err = common.GetDbErrors(tx)
+	if err != nil {
+		tx.Rollback()
+		return err
 	}
+	tx.Commit()
 	return nil
-}
-
-func (tenantStore *tenantStore) findTenants(id string) ([]Tenant, error) {
-	var tenants []Tenant
-	log.Println("In findTenant()")
-	db := tenantStore.DbStore.Db.Where("id = ? OR external_id = ?", id, id).Find(&tenants)
-	err := common.MakeMultiError(db.GetErrors())
-	if err != nil {
-		return nil, err
-	}
-	if db.Error != nil {
-		return nil, db.Error
-	}
-	return tenants, nil
-}
-
-func (tenantStore *tenantStore) findTenantsByName(name string) ([]Tenant, error) {
-	var tenants []Tenant
-	log.Println("In findTenant()")
-	db := tenantStore.DbStore.Db.Find(&tenants).Where("name = ?", name)
-	err := common.MakeMultiError(db.GetErrors())
-	if err != nil {
-		return nil, err
-	}
-	if db.Error != nil {
-		return nil, db.Error
-	}
-	if len(tenants) == 0 {
-		return nil, common.NewError404("tenant", name)
-	}
-	return tenants, nil
 }
 
 func (tenantStore *tenantStore) addSegment(tenantId uint64, segment *Segment) error {
 	var err error
+	tx := tenantStore.DbStore.Db.Begin()
 
-	// TODO(gg): better way of getting sequence
 	var segments []Segment
-	db := tenantStore.DbStore.Db.Where("tenant_id = ?", tenantId).Find(&segments)
-	err = common.MakeMultiError(db.GetErrors())
+	tx = tx.Where("tenant_id = ?", tenantId).Find(&segments)
+	err = common.GetDbErrors(tx)
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
-	if db.Error != nil {
-		return db.Error
-	}
+
 	segment.Seq = uint64(len(segments))
-
-	if segment.ExternalID == "" {
-		segment.ExternalID = hex.EncodeToString(uuid.NewRandom())
-	}
-
-	tenantStore.DbStore.Db.NewRecord(*segment)
-	err = common.MakeMultiError(db.GetErrors())
-	if err != nil {
-		return err
-	}
-
-	if db.Error != nil {
-		return db.Error
-	}
-
 	segment.TenantID = tenantId
-	db = tenantStore.DbStore.Db.Create(segment)
-	if db.Error != nil {
-		return db.Error
-	}
+	tx = tx.Create(segment)
+	err = common.GetDbErrors(tx)
 
-	err = common.MakeMultiError(db.GetErrors())
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
-
-	if db.Error != nil {
-		return db.Error
-	}
+	tx.Commit()
 	return nil
+}
+
+func (tenantStore *tenantStore) getTenant(id string) (Tenant, error) {
+	ten := Tenant{}
+	var count int
+	log.Println("In getTenant()")
+	db := tenantStore.DbStore.Db.Where("id = ?", id).First(&ten).Count(&count)
+	err := common.GetDbErrors(db)
+	if err != nil {
+		return ten, err
+	}
+	if count == 0 {
+		return ten, common.NewError404("tenant", id)
+	}
+	return ten, nil
+}
+
+func (tenantStore *tenantStore) getSegment(tenantId string, segmentId string) (Segment, error) {
+	seg := Segment{}
+	var count int
+	db := tenantStore.DbStore.Db.Where("tenant_id = ? AND id = ?", tenantId, segmentId).
+		First(&seg).Count(&count)
+
+	err := common.GetDbErrors(db)
+	if err != nil {
+		return seg, err
+	}
+	if count == 0 {
+		return seg, common.NewError404("segment/tenant", fmt.Sprintf("%s/%s", tenantId, segmentId))
+	}
+	return seg, nil
 }
 
 // CreateSchemaPostProcess implements CreateSchemaPostProcess method of
@@ -194,28 +168,11 @@ func (tenantStore *tenantStore) addSegment(tenantId uint64, segment *Segment) er
 func (tenantStore *tenantStore) CreateSchemaPostProcess() error {
 	db := tenantStore.Db
 	log.Printf("tenantStore.CreateSchemaPostProcess(), DB is %v", db)
-	db.Model(&Segment{}).AddUniqueIndex("idx_tenant_segment_extid", "tenant_id", "external_id")
+	db.Model(&Tenant{}).AddUniqueIndex("idx_name_extid", "name", "external_id")
+	db.Model(&Segment{}).AddUniqueIndex("idx_tenant_name_extid", "tenant_id", "name", "external_id")
 	err := common.MakeMultiError(db.GetErrors())
 	if err != nil {
 		return err
 	}
 	return nil
-}
-
-func (tenantStore *tenantStore) findSegments(tenantId string, segmentId string) ([]Segment, error) {
-	var segments []Segment
-	log.Println("In findSegment()")
-	// TODO should internal ID take precedence?
-	db := tenantStore.DbStore.Db.Joins("JOIN tenants ON segments.tenant_id = tenants.id").
-		Where("(tenants.id = ? OR tenants.external_id = ?) AND (segments.id = ? OR segments.external_id = ?)", tenantId, tenantId, segmentId, segmentId).
-		Find(&segments)
-	err := common.MakeMultiError(db.GetErrors())
-	if err != nil {
-		return nil, err
-	}
-
-	if db.Error != nil {
-		return nil, db.Error
-	}
-	return segments, nil
 }

@@ -65,13 +65,13 @@ func (topology *TopologySvc) Routes() common.Routes {
 			Method:          "POST",
 			Pattern:         hostListPath,
 			Handler:         topology.handleHostListPost,
-			MakeMessage:     func() interface{} { return &common.HostMessage{} },
+			MakeMessage:     func() interface{} { return &common.Host{} },
 			UseRequestToken: false,
 		},
 		common.Route{
 			Method:          "GET",
 			Pattern:         hostListPath + "/{hostId}",
-			Handler:         topology.handleHost,
+			Handler:         topology.handleGetHost,
 			MakeMessage:     nil,
 			UseRequestToken: false,
 		},
@@ -83,11 +83,10 @@ func (topology *TopologySvc) Routes() common.Routes {
 			UseRequestToken: false,
 		},
 	}
+	var h = []common.Host{}
+	routes = append(routes, common.CreateFindRoutes(&h, &topology.store.DbStore)...)
 	return routes
 }
-
-// HostListMessage is just a list of common.HostMessage
-type HostListMessage []common.HostMessage
 
 // handleHost handles request for a specific host's info
 func (topology *TopologySvc) handleDc(input interface{}, ctx common.RestContext) (interface{}, error) {
@@ -100,8 +99,8 @@ func (topology *TopologySvc) Name() string {
 	return "topology"
 }
 
-// handleHost handles request for a specific host's info
-func (topology *TopologySvc) handleHost(input interface{}, ctx common.RestContext) (interface{}, error) {
+// handleGetHost handles request for a specific host's info
+func (topology *TopologySvc) handleGetHost(input interface{}, ctx common.RestContext) (interface{}, error) {
 	log.Println("In handleHost()")
 	idStr := ctx.PathVariables["hostId"]
 	id, err := strconv.ParseUint(idStr, 10, 64)
@@ -116,11 +115,8 @@ func (topology *TopologySvc) handleHost(input interface{}, ctx common.RestContex
 	agentLink := common.LinkResponse{Href: agentURL, Rel: "agent"}
 	hostLink := common.LinkResponse{Href: hostListPath + "/" + idStr, Rel: "self"}
 	collectionLink := common.LinkResponse{Href: hostListPath, Rel: "self"}
-
-	links := []common.LinkResponse{agentLink, hostLink, collectionLink}
-	hostIDStr := strconv.FormatUint(host.Id, 10)
-	hostMessage := common.HostMessage{Id: hostIDStr, RomanaIp: host.RomanaIp, Ip: host.Ip, Name: host.Name, AgentPort: host.AgentPort, Links: links}
-	return hostMessage, nil
+	host.Links = []common.LinkResponse{agentLink, hostLink, collectionLink}
+	return host, nil
 }
 
 func (topology *TopologySvc) handleHostListGet(input interface{}, ctx common.RestContext) (interface{}, error) {
@@ -129,48 +125,40 @@ func (topology *TopologySvc) handleHostListGet(input interface{}, ctx common.Res
 	if err != nil {
 		return nil, err
 	}
-	// TODO nested structures or some sort of easy
-	// way of translating between string and auto-increment ID.
-	retval := make([]common.HostMessage, len(hosts))
-	for i := range hosts {
-		retval[i] = common.HostMessage{Ip: hosts[i].Ip, RomanaIp: hosts[i].RomanaIp, Name: hosts[i].Name, Id: strconv.FormatUint(hosts[i].Id, 10), AgentPort: hosts[i].AgentPort}
-	}
-	return retval, nil
+	return hosts, nil
 }
 
 // handleHostListPost handles addition of a host to the current datacenter.
-// If the HostMessage.AgentPort is not specified, root service is queried for
+// If the Host.AgentPort is not specified, root service is queried for
 // the default Agent port.
 func (topology *TopologySvc) handleHostListPost(input interface{}, ctx common.RestContext) (interface{}, error) {
-	hostMessage := input.(*common.HostMessage)
+	host := input.(*common.Host)
 	var port uint64
 	// If no agent port is specfied in the creation of new host,
 	// get the agent port from root service.
-	log.Printf("Host requested with agent port %d", hostMessage.AgentPort)
-	if hostMessage.AgentPort == 0 {
+	log.Printf("Host requested with agent port %d", host.AgentPort)
+	if host.AgentPort == 0 {
 		// Get the one from configuration
 		agentConfig, err := topology.client.GetServiceConfig("agent")
 		if err != nil {
 			return nil, err
 		}
-		port = agentConfig.Common.Api.Port
+		host.AgentPort = agentConfig.Common.Api.Port
 		if port == 0 {
 			return nil, common.NewError500("Cannot determine port for agent")
 		}
-	} else {
-		port = uint64(hostMessage.AgentPort)
 	}
-	log.Printf("Host will be added with agent port %d", hostMessage.AgentPort)
-	host := Host{Ip: hostMessage.Ip, Name: hostMessage.Name, RomanaIp: hostMessage.RomanaIp, AgentPort: port}
-	id, err := topology.store.addHost(&host)
+	log.Printf("Host will be added with agent port %d", host.AgentPort)
+	_, err := topology.store.addHost(host)
 	if err != nil {
 		return nil, err
 	}
-	returnHostMessage := hostMessage
-	log.Println("Added host", hostMessage)
-	returnHostMessage.Id = id
-
-	return returnHostMessage, nil
+	agentURL := fmt.Sprintf("http://%s:%d", host.Ip, host.AgentPort)
+	agentLink := common.LinkResponse{Href: agentURL, Rel: "agent"}
+	hostLink := common.LinkResponse{Href: hostListPath + "/" + fmt.Sprintf("%d", host.ID), Rel: "self"}
+	collectionLink := common.LinkResponse{Href: hostListPath, Rel: "self"}
+	host.Links = []common.LinkResponse{agentLink, hostLink, collectionLink}
+	return host, nil
 }
 
 func (topology *TopologySvc) handleIndex(input interface{}, ctx common.RestContext) (interface{}, error) {
@@ -216,7 +204,7 @@ func (topology *TopologySvc) SetConfig(config common.ServiceConfig) error {
 	//	if err != nil {
 	//		return err
 	//	}
-	log.Printf("Datacenter information: was %s, decoded to %#v\n", dcMap, dc)
+	log.Printf("Datacenter information: was %s, decoded to %+v\n", dcMap, dc)
 	topology.datacenter = &dc
 	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
 	topology.store = topoStore{}
