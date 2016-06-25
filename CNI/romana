@@ -150,7 +150,7 @@ set_up_pod () {
 	SEGMENT=$( $KUBECTL $KUBEARGS describe pod $POD | get_labels | get_segment )
 	[[ $SEGMENT ]] || SEGMENT="default"
 	log "--- SEGMENT = $SEGMENT ---"
-	NODE=$( $KUBECTL $KUBEARGS get pods -o wide | grep "$POD " | awk '{ print $6 }' )
+	NODE=$( $KUBECTL $KUBEARGS get pods -o json | jq -r --arg podName "$POD" '.items[] | select(.metadata.name==$podName) | .spec.nodeName')
 	log "--- NODE = $NODE ---"
 	NS_ISOLATION=$( $KUBECTL $KUBEARGS get namespace $NAMESPACE -o json | jq -r '.metadata.annotations["net.alpha.kubernetes.io/network-isolation"]' )
 	[[ $NS_ISOLATION != "on" ]] && NS_ISOLATION="off"
