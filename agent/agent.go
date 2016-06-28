@@ -97,7 +97,7 @@ func (a *Agent) Routes() common.Routes {
 		},
 		common.Route{
 			Method:  "POST",
-			Pattern: "/post",
+			Pattern: "/pod",
 			Handler: a.podUpHandler,
 			MakeMessage: func() interface{} {
 				return &NetworkRequest{}
