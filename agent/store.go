@@ -28,10 +28,9 @@ func (agentStore agentStore) GetMutex() *sync.Mutex {
 // Entities implements Entities method of
 // Service interface.
 func (agentStore *agentStore) Entities() []interface{} {
-	retval := make([]interface{}, 3)
+	retval := make([]interface{}, 2)
 	retval[0] = new(Route)
-	retval[1] = new(NetworkInterface)
-	retval[2] = new(firewall.IPtablesRule)
+	retval[1] = new(firewall.IPtablesRule)
 	return retval
 }
 
@@ -65,30 +64,23 @@ const (
 	gateway targetKind = "gw"
 )
 
-// NetworkInterface is a model to store managed network interfaces.
-type NetworkInterface struct {
-	ID     uint64 `sql:"AUTO_INCREMENT"`
-	Name   string
-	Status string
-}
-
 // CreateSchemaPostProcess implements CreateSchemaPostProcess method of
 // Service interface.
 func (agentStore *agentStore) CreateSchemaPostProcess() error {
 	return nil
 }
 
-func (agentStore *agentStore) deleteNetworkInterface(iface *NetworkInterface) error {
-	glog.V(1).Info("Acquiring store mutex for deleteNetworkInterface")
+func (agentStore *agentStore) deleteRoute(route *Route) error {
+	glog.V(1).Info("Acquiring store mutex for deleteRoute")
 	agentStore.mu.Lock()
 	defer func() {
-		glog.V(1).Info("Releasing store mutex for deleteNetworkInterface")
+		glog.V(1).Info("Releasing store mutex for deleteRoute")
 		agentStore.mu.Unlock()
 	}()
-	glog.V(1).Info("Acquired store mutex for deleteNetworkInterface")
+	glog.V(1).Info("Acquired store mutex for deleteRoute")
 
 	db := agentStore.DbStore.Db
-	agentStore.DbStore.Db.Delete(iface)
+	agentStore.DbStore.Db.Delete(route)
 	err := common.MakeMultiError(db.GetErrors())
 	if err != nil {
 		return err
@@ -100,18 +92,18 @@ func (agentStore *agentStore) deleteNetworkInterface(iface *NetworkInterface) er
 	return nil
 }
 
-func (agentStore *agentStore) findNetworkInterface(ifaceName string) (*NetworkInterface, error) {
-	glog.V(1).Info("Acquiring store mutex for findNetworkInterface")
+func (agentStore *agentStore) findRouteByIface(routeIface string) (*Route, error) {
+	glog.V(1).Info("Acquiring store mutex for findRoute")
 	agentStore.mu.Lock()
 	defer func() {
-		glog.V(1).Info("Releasing store mutex for findNetworkInterface")
+		glog.V(1).Info("Releasing store mutex for findRoute")
 		agentStore.mu.Unlock()
 	}()
-	glog.V(1).Info("Acquired store mutex for findNetworkInterface")
+	glog.V(1).Info("Acquired store mutex for findRoute")
 
-	var iface NetworkInterface
+	var route Route
 	db := agentStore.DbStore.Db
-	agentStore.DbStore.Db.Where("name = ?", ifaceName).First(&iface)
+	agentStore.DbStore.Db.Where("ip = ?", routeIface).First(&route)
 	err := common.MakeMultiError(db.GetErrors())
 	if err != nil {
 		return nil, err
@@ -119,24 +111,24 @@ func (agentStore *agentStore) findNetworkInterface(ifaceName string) (*NetworkIn
 	if db.Error != nil {
 		return nil, db.Error
 	}
-	return &iface, nil
+	return &route, nil
 }
 
-func (agentStore *agentStore) addNetworkInterface(iface *NetworkInterface) error {
-	glog.V(1).Info("Acquiring store mutex for addNetworkInterface")
+func (agentStore *agentStore) addRoute(route *Route) error {
+	glog.V(1).Info("Acquiring store mutex for addRoute")
 	agentStore.mu.Lock()
 	defer func() {
-		glog.V(1).Info("Releasing store mutex for addNetworkInterface")
+		glog.V(1).Info("Releasing store mutex for addRoute")
 		agentStore.mu.Unlock()
 	}()
-	glog.V(1).Info("Acquired store mutex for addNetworkInterface")
+	glog.V(1).Info("Acquired store mutex for addRoute")
 
 	db := agentStore.DbStore.Db
-	agentStore.DbStore.Db.Create(iface)
+	agentStore.DbStore.Db.Create(route)
 	if db.Error != nil {
 		return db.Error
 	}
-	agentStore.DbStore.Db.NewRecord(*iface)
+	agentStore.DbStore.Db.NewRecord(*route)
 	err := common.MakeMultiError(db.GetErrors())
 	if err != nil {
 		return err
@@ -147,16 +139,16 @@ func (agentStore *agentStore) addNetworkInterface(iface *NetworkInterface) error
 	return nil
 }
 
-func (agentStore *agentStore) listNetworkInterfaces() ([]NetworkInterface, error) {
-	glog.V(1).Info("Acquiring store mutex for listNetworkInterfaces")
+func (agentStore *agentStore) listRoutes() ([]Route, error) {
+	glog.V(1).Info("Acquiring store mutex for listRoutes")
 	agentStore.mu.Lock()
 	defer func() {
-		glog.V(1).Info("Releasing store mutex for listNetworkInterfaces")
+		glog.V(1).Info("Releasing store mutex for listRoutes")
 		agentStore.mu.Unlock()
 	}()
-	glog.V(1).Info("Acquired store mutex for listNetworkInterfaces")
+	glog.V(1).Info("Acquired store mutex for listRoutes")
 
-	var networkInterfaces []NetworkInterface
+	var networkInterfaces []Route
 	agentStore.DbStore.Db.Find(&networkInterfaces)
 	err := common.MakeMultiError(agentStore.DbStore.Db.GetErrors())
 	if err != nil {
