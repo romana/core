@@ -38,9 +38,9 @@ func (a *Agent) statusHandler(input interface{}, ctx common.RestContext) (interf
 	return iptablesRules, nil
 }
 
-// k8sPodDownHandler cleans up after pod deleted.
-func (a *Agent) k8sPodDownHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
-	glog.V(1).Infoln("Agent: Entering k8sPodDownHandler()")
+// podDownHandler cleans up after pod deleted.
+func (a *Agent) podDownHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
+	glog.V(1).Infoln("Agent: Entering podDownHandler()")
 	netReq := input.(*NetworkRequest)
 	netif := netReq.NetIf
 
@@ -60,9 +60,9 @@ func (a *Agent) k8sPodDownHandler(input interface{}, ctx common.RestContext) (in
 	return "OK", nil
 }
 
-// k8sPodUpHandler handles HTTP requests for endpoints provisioning.
-func (a *Agent) k8sPodUpHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
-	glog.Infof("Agent: Entering k8sPodUpHandler()")
+// podUpHandler handles HTTP requests for endpoints provisioning.
+func (a *Agent) podUpHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
+	glog.Infof("Agent: Entering podUpHandler()")
 	netReq := input.(*NetworkRequest)
 
 	glog.Infof("Agent: Got request for network configuration: %v\n", netReq)
@@ -70,7 +70,7 @@ func (a *Agent) k8sPodUpHandler(input interface{}, ctx common.RestContext) (inte
 
 	// TODO don't know if fork-bombs are possible in go but if they are this
 	// need to be refactored as buffered channel with fixed pool of workers
-	go a.k8sPodUpHandle(*netReq)
+	go a.podUpHandle(*netReq)
 
 	// TODO I wonder if this should actually return something like a
 	// link to a status of this request which will later get updated
@@ -78,11 +78,27 @@ func (a *Agent) k8sPodUpHandler(input interface{}, ctx common.RestContext) (inte
 	return "OK", nil
 }
 
-// index handles HTTP requests for endpoints provisioning.
+// vmDownHandler handles HTTP requests for endpoints teardown.
+func (a *Agent) vmDownHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
+	netif := input.(*NetIf)
+	glog.V(1).Infof("In vmDownHandler() with Name %s, IP %s Mac %s\n", netif.Name, netif.IP, netif.Mac)
+
+	fw, err := firewall.NewFirewall(a.Helper.Executor, a.store, a.networkConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	err = fw.Cleanup(netif)
+	if err != nil {
+		return nil, err
+	}
+
+	return "OK", nil
+}
+
+// vmUpHandler handles HTTP requests for endpoints provisioning.
 // Currently tested with Romana ML2 driver.
-// TODO index should be reserved for an actual index, while this function
-// need to be renamed as interfaceHandler and need to respond on it's own url.
-func (a *Agent) index(input interface{}, ctx common.RestContext) (interface{}, error) {
+func (a *Agent) vmUpHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
 	// Parse out NetIf form the request
 	netif := input.(*NetIf)
 
@@ -91,7 +107,7 @@ func (a *Agent) index(input interface{}, ctx common.RestContext) (interface{}, e
 
 	// TODO don't know if fork-bombs are possible in go but if they are this
 	// need to be refactored as buffered channel with fixed pool of workers
-	go a.interfaceHandle(*netif)
+	go a.vmUpHandle(*netif)
 
 	// TODO I wonder if this should actually return something like a
 	// link to a status of this request which will later get updated
@@ -99,13 +115,13 @@ func (a *Agent) index(input interface{}, ctx common.RestContext) (interface{}, e
 	return "OK", nil
 }
 
-// k8sPodUpHandle does a number of operations on given endpoint to ensure
+// podUpHandle does a number of operations on given endpoint to ensure
 // it's connected:
 // 1. Ensures interface is ready
 // 2. Creates ip route pointing new interface
 // 3. Provisions firewall rules
-func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
-	glog.V(1).Info("Agent: Entering k8sPodUpHandle()")
+func (a *Agent) podUpHandle(netReq NetworkRequest) error {
+	glog.V(1).Info("Agent: Entering podUpHandle()")
 
 	netif := netReq.NetIf
 	if netif.Name == "" {
@@ -188,14 +204,14 @@ func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
 	return nil
 }
 
-// interfaceHandle does a number of operations on given endpoint to ensure
+// vmUpHandle does a number of operations on given endpoint to ensure
 // it's connected:
 // 1. Ensures interface is ready
 // 2. Checks if DHCP is running
 // 3. Creates ip route pointing new interface
 // 4. Provisions static DHCP lease for new interface
 // 5. Provisions firewall rules
-func (a *Agent) interfaceHandle(netif NetIf) error {
+func (a *Agent) vmUpHandle(netif NetIf) error {
 	glog.V(1).Info("Agent: Entering interfaceHandle()")
 	if !a.Helper.waitForIface(netif.Name) {
 		// TODO should we resubmit failed interface in queue for later

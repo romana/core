@@ -73,9 +73,23 @@ func (a *Agent) SetConfig(config common.ServiceConfig) error {
 func (a *Agent) Routes() common.Routes {
 	routes := common.Routes{
 		common.Route{
-			Method:  "POST",
+			Method:  "GET",
 			Pattern: "/",
-			Handler: a.index,
+			Handler: a.statusHandler,
+		},
+		common.Route{
+			Method:  "POST",
+			Pattern: "/vm",
+			Handler: a.vmUpHandler,
+			MakeMessage: func() interface{} {
+				return &NetIf{}
+			},
+			UseRequestToken: false,
+		},
+		common.Route{
+			Method:  "DELETE",
+			Pattern: "/vm",
+			Handler: a.vmDownHandler,
 			MakeMessage: func() interface{} {
 				return &NetIf{}
 			},
@@ -83,8 +97,8 @@ func (a *Agent) Routes() common.Routes {
 		},
 		common.Route{
 			Method:  "POST",
-			Pattern: "/kubernetes-pod-up",
-			Handler: a.k8sPodUpHandler,
+			Pattern: "/post",
+			Handler: a.podUpHandler,
 			MakeMessage: func() interface{} {
 				return &NetworkRequest{}
 			},
@@ -94,7 +108,7 @@ func (a *Agent) Routes() common.Routes {
 		common.Route{
 			Method:  "DELETE",
 			Pattern: "/pod",
-			Handler: a.k8sPodDownHandler,
+			Handler: a.podDownHandler,
 			MakeMessage: func() interface{} {
 				return &NetworkRequest{}
 			},
@@ -120,11 +134,6 @@ func (a *Agent) Routes() common.Routes {
 			Method:  "GET",
 			Pattern: "/policies",
 			Handler: a.listPolicies,
-		},
-		common.Route{
-			Method:  "GET",
-			Pattern: "/status",
-			Handler: a.statusHandler,
 		},
 	}
 	return routes
