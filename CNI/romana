@@ -151,7 +151,7 @@ set_up_pod () {
 	SEGMENT=$( $KUBECTL $KUBEARGS describe pod $POD | get_labels | get_segment )
 	[[ $SEGMENT ]] || SEGMENT="default"
 	log "--- SEGMENT = $SEGMENT ---"
-	NODE=$( $KUBECTL $KUBEARGS get pods -o wide | grep "$POD " | awk '{ print $6 }' )
+	NODE=$( $KUBECTL $KUBEARGS get pods -o json | jq -r --arg podName "$POD" '.items[] | select(.metadata.name==$podName) | .spec.nodeName')
 	log "--- NODE = $NODE ---"
 	NS_ISOLATION=$( $KUBECTL $KUBEARGS get namespace $NAMESPACE -o json | jq -r '.metadata.annotations["net.alpha.kubernetes.io/network-isolation"]' )
 	[[ $NS_ISOLATION != "on" ]] && NS_ISOLATION="off"
@@ -159,7 +159,7 @@ set_up_pod () {
 
 	# Ensure segment exists
 	log "-- Ensuring segment for tenant $NAMESPACE --"
-	SEGMENT_CHECK=$($ROMANA_CLI segment list $NAMESPACE -f json | jq -r --arg seg $SEGMENT  '.[] |.Segments[] | if .name==$seg then "OK" else empty end')
+	SEGMENT_CHECK=$($ROMANA_CLI segment list $NAMESPACE -f json | jq -r --arg seg $SEGMENT  'if . != 0 then (reverse|.[0] |.Segments[] | if .name==$seg then "OK" else empty end) else empty end')
 	if ! [[ $SEGMENT_CHECK ]]; then
 		log "--- SEGMENT $SEGMENT does not exist - creating ---"
 		$ROMANA_CLI segment add $NAMESPACE $SEGMENT -i $SEGMENT
