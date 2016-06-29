@@ -213,7 +213,7 @@ pod_down () {
 	IFACE=$( get_iface_name "$POD_IP" )
 	log "--- IFACE = ${IFACE} ---"
 
-	# Just a dummy ip to stisfy the request
+	# Just a dummy ip to satisfy the request
 	IP="0.0.0.0"
 
 	log "$(req "${IFACE}" "$IP" "$NS_ISOLATION")"
@@ -230,10 +230,6 @@ case $CNI_COMMAND in
 		;;
 	DEL)
 		pod_down
-		# Currently not implemented
-		# interfaces and routes will go away automatically
-		# iptables rules need to be deleted but agent is not ready yet
-		:
 		;;
 	STATUS)
 		# Not implemented in kubernetes yet
