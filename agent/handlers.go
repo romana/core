@@ -253,6 +253,7 @@ func (a *Agent) vmUpHandle(netif NetIf) error {
 
 	metadata := fw.Metadata()
 	chainNames := metadata["chains"].([]string)
+	u32filter := metadata["u32filter"]
 	hostAddr := a.networkConfig.RomanaGW()
 	hostMask, _ := a.networkConfig.RomanaGWMask().Size()
 
@@ -294,6 +295,10 @@ func (a *Agent) vmUpHandle(netif NetIf) error {
 	forwardOutChain := chainNames[firewall.ForwardOutChainIndex]
 	forwardOutRule := firewall.NewFirewallRule()
 	forwardOutRule.SetBody(fmt.Sprintf("%s %s", forwardOutChain, "-m state --state RELATED,ESTABLISHED -j ACCEPT"))
+	defaultRules = append(defaultRules, forwardOutRule)
+
+	forwardOutRule = firewall.NewFirewallRule()
+	forwardOutRule.SetBody(fmt.Sprintf("%s -m u32 --u32 %s %s", forwardOutChain, u32filter, "-j ACCEPT"))
 	defaultRules = append(defaultRules, forwardOutRule)
 
 	fw.SetDefaultRules(defaultRules)

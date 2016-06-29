@@ -74,6 +74,7 @@ func (fw IPtables) Metadata() map[string]interface{} {
 	metadata["provider"] = fw.Provider()
 	metadata["chainPrefix"] = fw.chainPrefix
 	metadata["chains"] = chains
+	metadata["u32filter"] = fw.u32filter
 
 	return metadata
 }
@@ -455,7 +456,7 @@ func MaskToInt(mask net.IPMask) (uint64, error) {
 //      ipAddr = "10.0.1.4"
 //
 //      Return:
-//      filter = '12&0xFF00FF00=0xA000100 && 16&0xFF00FF00=0xA000100'
+//      filter = '12&0xFF00FF00=0xA000100&&16&0xFF00FF00=0xA000100'
 //      chainPrefix = 'ROMANA-T0S1-'
 //
 //   TODO Refactor chain-prefix routine into separate function (prepareChainPrefix).
@@ -474,7 +475,7 @@ func (fw *IPtables) prepareU32Rules(ipAddr net.IP) (string, string, error) {
 		return "", "", err
 	}
 	filter1 := fmt.Sprintf("0x%X=0x%X", fullMask, addr&fullMask)
-	filter := fmt.Sprintf("12&%s && 16&%s", filter1, filter1)
+	filter := fmt.Sprintf("12&%s&&16&%s", filter1, filter1)
 	tenantID := fw.extractTenantID(addr)
 	segmentID := fw.extractSegmentID(addr)
 	chainPrefix := fmt.Sprintf("ROMANA-T%dS%d-", tenantID, segmentID)
