@@ -111,7 +111,7 @@ func (fw *IPtables) SetDefaultRules(rules []FirewallRule) error {
 func (fw *IPtables) injectRule(rule *IPtablesRule) error {
 	rule2arr := strings.Split(rule.Body, " ")
 	if len(rule2arr) < 3 {
-		return fmt.Errorf("In injectRule() can't make sense of the rule %s", rule.Body)
+		return fmt.Errorf("In injectRule() too many elements in rule %s", rule.Body)
 	}
 
 	ruleChain := rule2arr[0]
