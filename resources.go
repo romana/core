@@ -32,10 +32,6 @@ const (
 // for terminating goroutines.
 type Done struct{}
 
-/*
-{"type":"ADDED","object":{"kind":"Namespace","apiVersion":"v1","metadata":{"name":"default","selfLink":"/api/v1/namespaces/default","uid":"d10db271-dc03-11e5-9c86-0213e1312dc5","resourceVersion":"6","creationTimestamp":"2016-02-25T21:07:45Z"},"spec":{"finalizers":["kubernetes"]},"status":{"phase":"Active"}}}
-*/
-
 // Event is a representation of a structure that we receive from kubernetes API.
 type Event struct {
 	Type   string     `json:"Type"`
