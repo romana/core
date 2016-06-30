@@ -70,7 +70,7 @@ func (a *Agent) podUpHandler(input interface{}, ctx common.RestContext) (interfa
 
 	// TODO don't know if fork-bombs are possible in go but if they are this
 	// need to be refactored as buffered channel with fixed pool of workers
-	go a.podUpHandle(*netReq)
+	go a.podUpHandlerAsync(*netReq)
 
 	// TODO I wonder if this should actually return something like a
 	// link to a status of this request which will later get updated
@@ -107,7 +107,7 @@ func (a *Agent) vmUpHandler(input interface{}, ctx common.RestContext) (interfac
 
 	// TODO don't know if fork-bombs are possible in go but if they are this
 	// need to be refactored as buffered channel with fixed pool of workers
-	go a.vmUpHandle(*netif)
+	go a.vmUpHandlerAsync(*netif)
 
 	// TODO I wonder if this should actually return something like a
 	// link to a status of this request which will later get updated
@@ -115,13 +115,13 @@ func (a *Agent) vmUpHandler(input interface{}, ctx common.RestContext) (interfac
 	return "OK", nil
 }
 
-// podUpHandle does a number of operations on given endpoint to ensure
+// podUpHandlerAsync does a number of operations on given endpoint to ensure
 // it's connected:
 // 1. Ensures interface is ready
 // 2. Creates ip route pointing new interface
 // 3. Provisions firewall rules
-func (a *Agent) podUpHandle(netReq NetworkRequest) error {
-	glog.V(1).Info("Agent: Entering podUpHandle()")
+func (a *Agent) podUpHandlerAsync(netReq NetworkRequest) error {
+	glog.V(1).Info("Agent: Entering podUpHandlerAsync()")
 
 	netif := netReq.NetIf
 	if netif.Name == "" {
@@ -204,14 +204,14 @@ func (a *Agent) podUpHandle(netReq NetworkRequest) error {
 	return nil
 }
 
-// vmUpHandle does a number of operations on given endpoint to ensure
+// vmUpHandlerAsync does a number of operations on given endpoint to ensure
 // it's connected:
 // 1. Ensures interface is ready
 // 2. Checks if DHCP is running
 // 3. Creates ip route pointing new interface
 // 4. Provisions static DHCP lease for new interface
 // 5. Provisions firewall rules
-func (a *Agent) vmUpHandle(netif NetIf) error {
+func (a *Agent) vmUpHandlerAsync(netif NetIf) error {
 	glog.V(1).Info("Agent: Entering interfaceHandle()")
 	if !a.Helper.waitForIface(netif.Name) {
 		// TODO should we resubmit failed interface in queue for later
