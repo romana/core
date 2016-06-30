@@ -64,15 +64,17 @@ func (o KubeObject) makeId() string {
 	return id
 }
 
-type PodSelector map[string]string
+type PodSelector struct {
+	MatchLabels map[string]string `json:"matchLabels"`
+}
 
 type FromEntry struct {
-	Pods PodSelector `json:"pods"`
+	Pods PodSelector `json:"podSelector"`
 }
 
 type AllowIncoming struct {
 	From    []FromEntry `json:"from"`
-	ToPorts []ToPort    `json:"toPorts"`
+	ToPorts []ToPort    `json:"ports"`
 }
 
 type ToPort struct {
@@ -82,7 +84,7 @@ type ToPort struct {
 
 // TODO need to find a way to use different specs for different resources.
 type Spec struct {
-	AllowIncoming AllowIncoming `json:"allowIncoming"`
+	AllowIncoming []AllowIncoming `json:"ingress"`
 	PodSelector   PodSelector   `json:"podSelector"`
 }
 
