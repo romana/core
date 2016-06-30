@@ -148,11 +148,11 @@ func (agentStore *agentStore) listRoutes() ([]Route, error) {
 	}()
 	glog.V(1).Info("Acquired store mutex for listRoutes")
 
-	var networkInterfaces []Route
-	agentStore.DbStore.Db.Find(&networkInterfaces)
+	var routes []Route
+	agentStore.DbStore.Db.Find(&routes)
 	err := common.MakeMultiError(agentStore.DbStore.Db.GetErrors())
 	if err != nil {
 		return nil, err
 	}
-	return networkInterfaces, nil
+	return routes, nil
 }
