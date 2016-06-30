@@ -19,7 +19,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"github.com/romana/core/common"
-	//	"gopkg.in/gcfg.v1"
 	"testing"
 	"time"
 )
