@@ -44,6 +44,8 @@ func (a *Agent) podDownHandler(input interface{}, ctx common.RestContext) (inter
 	netReq := input.(*NetworkRequest)
 	netif := netReq.NetIf
 
+	// We need new firewall instance here to use it's Cleanup()
+	// to uninstall firewall rules related to the endpoint.
 	fw, err := firewall.NewFirewall(a.Helper.Executor, a.store, a.networkConfig)
 	if err != nil {
 		return nil, err
@@ -83,6 +85,8 @@ func (a *Agent) vmDownHandler(input interface{}, ctx common.RestContext) (interf
 	netif := input.(*NetIf)
 	glog.V(1).Infof("In vmDownHandler() with Name %s, IP %s Mac %s\n", netif.Name, netif.IP, netif.Mac)
 
+	// We need new firewall instance here to use it's Cleanup()
+	// to uninstall firewall rules related to the endpoint.
 	fw, err := firewall.NewFirewall(a.Helper.Executor, a.store, a.networkConfig)
 	if err != nil {
 		return nil, err
@@ -171,17 +175,8 @@ func (a *Agent) podUpHandlerAsync(netReq NetworkRequest) error {
 	defaultRules = append(defaultRules, inboundRule)
 
 	inboundRule = firewall.NewFirewallRule()
-	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-p tcp --sport 22 -j ACCEPT"))
-	defaultRules = append(defaultRules, inboundRule)
-
-	inboundRule = firewall.NewFirewallRule()
 	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-p icmp --icmp-type 0 -j ACCEPT"))
 	defaultRules = append(defaultRules, inboundRule)
-
-	outboundChain := chainNames[firewall.OutputChainIndex]
-	outboundRule := firewall.NewFirewallRule()
-	outboundRule.SetBody(fmt.Sprintf("%s %s", outboundChain, "-p tcp --dport 22 -j ACCEPT"))
-	defaultRules = append(defaultRules, outboundRule)
 
 	forwardInChain := chainNames[firewall.ForwardInChainIndex]
 	forwardInRule := firewall.NewFirewallRule()
