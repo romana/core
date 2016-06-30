@@ -380,23 +380,23 @@ func (fw *IPtables) CreateDefaultRule(chain int, target string) error {
 	// First create rule record in database.
 	err0 := fw.addIPtablesRule(rule)
 	if err0 != nil {
-		glog.Error("In CreateDefaultRules() create db record for iptables rule ", rule.Body)
+		glog.Error("In CreateDefaultRule() create db record for iptables rule ", rule.Body)
 		return err0
 	}
 
 	err1 := fw.EnsureRule(rule, ensureLast)
 	if err1 != nil {
-		glog.Errorf("In CreateDefaultRules() %s rules failed", target)
+		glog.Errorf("In CreateDefaultRule() %s rules failed", target)
 		return err1
 	}
 
 	// Finally, set 'active' flag in database record.
 	if err2 := fw.Store.switchIPtablesRule(rule, setRuleActive); err2 != nil {
-		glog.Error("In CreateDefaultRules() iptables rule created but activation failed ", rule.Body)
+		glog.Error("In CreateDefaultRule() iptables rule created but activation failed ", rule.Body)
 		return err2
 	}
 
-	glog.V(1).Info("In CreateDefaultRules() success")
+	glog.V(1).Info("In CreateDefaultRule() success")
 	return nil
 }
 
