@@ -44,6 +44,8 @@ type Firewall interface {
 	Metadata() map[string]interface{}
 
 	// Provider is a name of current firewall implementation.
+	// Allows package users to implement behaviour specific
+	// for firewall type e.g. special rules format for iptables.
 	// Access method, does not require Init.
 	Provider() string
 
