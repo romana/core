@@ -239,10 +239,10 @@ func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Po
 	romanaPolicy.Peers = []common.Endpoint{}
 	romanaPolicy.Rules = common.Rules{}
 	// TODO range
-	// from := kubePolicy.Spec.AllowIncoming[0].From
+	// from := kubePolicy.Spec.Ingress[0].From
 	// This is subject to change once the network specification in Kubernetes is finalized.
 	// Right now it is a work in progress.
-	for _, ingress := range kubePolicy.Spec.AllowIncoming {
+	for _, ingress := range kubePolicy.Spec.Ingress {
 		for _, entry := range ingress.From {
 			pods := entry.Pods
 			fromKubeSegmentID := pods.MatchLabels[l.segmentLabelName]
@@ -257,7 +257,7 @@ func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Po
 			romanaPolicy.Peers = append(romanaPolicy.Peers, peer)
 		}
 		// TODO range
-		// toPorts := kubePolicy.Spec.AllowIncoming[0].ToPorts
+		// toPorts := kubePolicy.Spec.Ingress[0].ToPorts
 		for _, toPort := range ingress.ToPorts {
 			proto := strings.ToLower(toPort.Protocol)
 			ports := []uint{toPort.Port}

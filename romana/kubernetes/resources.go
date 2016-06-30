@@ -72,7 +72,7 @@ type FromEntry struct {
 	Pods PodSelector `json:"podSelector"`
 }
 
-type AllowIncoming struct {
+type Ingress struct {
 	From    []FromEntry `json:"from"`
 	ToPorts []ToPort    `json:"ports"`
 }
@@ -84,8 +84,8 @@ type ToPort struct {
 
 // TODO need to find a way to use different specs for different resources.
 type Spec struct {
-	AllowIncoming []AllowIncoming `json:"ingress"`
-	PodSelector   PodSelector   `json:"podSelector"`
+	Ingress     []Ingress   `json:"ingress"`
+	PodSelector PodSelector `json:"podSelector"`
 }
 
 // Metadata is a representation of metadata in kubernetes object
