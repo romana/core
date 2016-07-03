@@ -207,7 +207,7 @@ func TestCreateU32Rules(t *testing.T) {
 	fw.Init(mockFirewallEndpoint{"eth0", "A", net.ParseIP("127.0.0.1")})
 	fw.CreateU32Rules(InputChainIndex)
 
-	expect := strings.Join([]string{"/sbin/iptables -A ROMANA-T0S0-INPUT -m u32 --u32 12&0xFF00FF00=0x7F000000 && 16&0xFF00FF00=0x7F000000 -j ACCEPT"}, "\n")
+	expect := strings.Join([]string{"/sbin/iptables -A ROMANA-T0S0-INPUT -m u32 --u32 12&0xFF00FF00=0x7F000000&&16&0xFF00FF00=0x7F000000 -j ACCEPT"}, "\n")
 
 	if *mockExec.Commands != expect {
 		t.Errorf("Unexpected input from TestCreateU32Rules, expect\n%s, got\n%s", expect, *mockExec.Commands)
