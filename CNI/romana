@@ -150,8 +150,14 @@ set_up_pod () {
 	log "--- SEGMENT = $SEGMENT ---"
 	NODE=$( $KUBECTL $KUBEARGS get pod "$POD" -o json | jq -r '.spec.nodeName')
 	log "--- NODE = $NODE ---"
-	NS_ISOLATION=$( $KUBECTL $KUBEARGS get namespace $NAMESPACE -o json | jq -r '.metadata.annotations["net.alpha.kubernetes.io/network-isolation"]' )
-	[[ $NS_ISOLATION != "on" ]] && NS_ISOLATION="off"
+	NS_ISOLATION="off"
+	NS_POLICY=$( $KUBECTL $KUBEARGS get namespace $NAMESPACE -o json | jq -r '.metadata.annotations["net.beta.kubernetes.io/networkpolicy"] // empty')
+	if [[ "$NS_POLICY" ]]; then
+		INGRESS_ISOLATION=$(jq -r '.ingress.isolation // empty' <<< "$NS_POLICY")
+		if [[ "$INGRESS_ISOLATION" = "DefaultDeny" ]]; then
+			NS_ISOLATION="on"
+		fi
+	fi
 	log "--- NS_ISOLATION = $NS_ISOLATION ---"
 
 	# Ensure segment exists
