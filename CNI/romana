@@ -45,8 +45,6 @@ ROMANA_CLI="romana"
 get_pod            () { while read line; do [[ ${line/=*/} == "K8S_POD_NAME" ]] && echo ${line/*=/} || :; done; }
 get_pod_ns         () { while read line; do [[ ${line/=*/} == "K8S_POD_NAMESPACE" ]] && echo ${line/*=/} || :; done; }
 get_tenant         () { while read line; do [[ ${line/=*/} == "owner" ]] && echo ${line/*=/} || :; done; }
-get_segment        () { while read line; do [[ ${line/=*/} == "segment" ]] && echo ${line/*=/} || :; done; }
-get_labels         () { awk '/Labels/ { print $2}' | xargs -d"," -n1 ; } 
 get_json_kv        () { sed 's/["{}]//g' | xargs -d "," -n1; }
 get_ip             () { while read line; do [[ ${line/:*/} == "ip" ]] && echo ${line/*:/} || :; done; }
 get_nspid          () { echo $1 | awk -F"/" '{ print $3 }'; }
@@ -147,10 +145,10 @@ set_up_pod () {
 	KUBEARGS="$KUBEARGS --namespace=$NAMESPACE"
 #	TENANT=$( $KUBECTL $KUBEARGS describe pod $POD | get_labels | get_tenant )
 #	log "--- TENANT = $TENANT ---"
-	SEGMENT=$( $KUBECTL $KUBEARGS describe pod $POD | get_labels | get_segment )
+	SEGMENT=$( $KUBECTL $KUBEARGS get pod $POD -o json | jq -r 'if .metadata.labels["segment"] then .metadata.labels["segment"] else empty end')
 	[[ $SEGMENT ]] || SEGMENT="default"
 	log "--- SEGMENT = $SEGMENT ---"
-	NODE=$( $KUBECTL $KUBEARGS get pods -o wide | grep "$POD " | awk '{ print $6 }' )
+	NODE=$( $KUBECTL $KUBEARGS get pod "$POD" -o json | jq -r '.spec.nodeName')
 	log "--- NODE = $NODE ---"
 	NS_ISOLATION=$( $KUBECTL $KUBEARGS get namespace $NAMESPACE -o json | jq -r '.metadata.annotations["net.alpha.kubernetes.io/network-isolation"]' )
 	[[ $NS_ISOLATION != "on" ]] && NS_ISOLATION="off"
