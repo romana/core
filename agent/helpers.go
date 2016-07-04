@@ -20,7 +20,7 @@ package agent
 import (
 	"bufio"
 	"fmt"
-	"log"
+	"github.com/golang/glog"
 	"net"
 	"os"
 	"strconv"
@@ -101,7 +101,7 @@ func (h Helper) isRouteExist(ip net.IP, netmask string) error {
 
 // createRoute creates IP route, returns nil if success and error otherwise.
 func (h Helper) createRoute(ip net.IP, netmask string, via string, dest string, extraArgs ...string) error {
-	log.Print("Helper: creating route")
+	glog.Info("Helper: creating route")
 	cmd := "/sbin/ip"
 	targetIP := fmt.Sprintf("%s/%v", ip, netmask)
 	args := []string{"ro", "add", targetIP, via, dest}
@@ -116,14 +116,14 @@ func (h Helper) createRoute(ip net.IP, netmask string, via string, dest string, 
 // Error if failed, nil if success.
 func (h Helper) ensureRouteToEndpoint(netif *NetIf) error {
 	mask := fmt.Sprintf("%d", h.Agent.networkConfig.EndpointNetmaskSize())
-	log.Print("Ensuring routes for ", netif.IP, " ", netif.Name)
-	log.Print("Acquiring mutex ensureRouteToEndpoint")
+	glog.V(1).Info("Ensuring routes for ", netif.IP, " ", netif.Name)
+	glog.V(1).Info("Acquiring mutex ensureRouteToEndpoint")
 	h.ensureRouteToEndpointMutex.Lock()
 	defer func() {
-		log.Print("Releasing mutex ensureRouteToEndpoint")
+		glog.V(1).Info("Releasing mutex ensureRouteToEndpoint")
 		h.ensureRouteToEndpointMutex.Unlock()
 	}()
-	log.Print("Acquired mutex ensureRouteToEndpoint")
+	glog.V(1).Info("Acquired mutex ensureRouteToEndpoint")
 	// If route not exist
 	if err := h.isRouteExist(netif.IP, mask); err != nil {
 
@@ -184,13 +184,13 @@ func (h Helper) ensureLine(path string, token string) error {
 	}
 
 	// wait until no one using the file
-	log.Print("Acquiring mutex ensureLine")
+	glog.V(1).Info("Acquiring mutex ensureLine")
 	h.ensureLineMutex.Lock()
 	defer func() {
-		log.Print("Releasing mutex ensureLine")
+		glog.V(1).Info("Releasing mutex ensureLine")
 		h.ensureLineMutex.Unlock()
 	}()
-	log.Print("Acquired mutex ensureLine")
+	glog.V(1).Info("Acquired mutex ensureLine")
 	lineInFile, err := h.isLineInFile(path, token)
 	if err != nil {
 		return ensureLineError(err)
@@ -208,18 +208,18 @@ func (h Helper) ensureLine(path string, token string) error {
 
 // ensureInterHostRoutes ensures we have routes to every other host.
 func (h Helper) ensureInterHostRoutes() error {
-	log.Print("Acquiring mutex ensureInterhostRoutes")
+	glog.V(1).Info("Acquiring mutex ensureInterhostRoutes")
 	h.ensureInterHostRoutesMutex.Lock()
 	defer func() {
-		log.Print("Releasing mutex ensureInterhostRoutes")
+		glog.V(1).Info("Releasing mutex ensureInterhostRoutes")
 		h.ensureInterHostRoutesMutex.Unlock()
 	}()
-	log.Print("Acquired mutex ensureInterhostRoutes")
+	glog.V(1).Info("Acquired mutex ensureInterhostRoutes")
 
 	via := "via"
-	log.Printf("In ensureInterHostRoutes over %v\n", h.Agent.networkConfig.otherHosts)
+	glog.V(1).Infof("In ensureInterHostRoutes over %v\n", h.Agent.networkConfig.otherHosts)
 	for _, host := range h.Agent.networkConfig.otherHosts {
-		log.Printf("In ensureInterHostRoutes ensuring route for %v\n", host)
+		glog.V(2).Infof("In ensureInterHostRoutes ensuring route for %v\n", host)
 		_, romanaCidr, err := net.ParseCIDR(host.RomanaIp)
 		if err != nil {
 			return failedToParseOtherHosts(host.RomanaIp)
@@ -245,10 +245,10 @@ func (h Helper) ensureInterHostRoutes() error {
 // waitForIface waits for network interface to become available in the system.
 func (h Helper) waitForIface(expectedIface string) bool {
 	for i := 0; i <= h.Agent.waitForIfaceTry; i++ {
-		log.Printf("Helper: Waiting for interface %s, %d attempt", expectedIface, i)
+		glog.Infof("Helper: Waiting for interface %s, %d attempt", expectedIface, i)
 		ifaceList, err := net.Interfaces()
 		if err != nil {
-			log.Println("Warning:Helper: failed to read net.Interfaces()")
+			glog.Warningln("Warning:Helper: failed to read net.Interfaces()")
 		}
 		for iface := range ifaceList {
 			if ifaceList[iface].Name == expectedIface {

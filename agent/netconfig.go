@@ -45,6 +45,21 @@ type NetIf struct {
 	IP   net.IP `form:"ip_address" json:"ip_address,omitempty"`
 }
 
+// GetName implements firewall.FirewallEndpoint
+func (i NetIf) GetName() string {
+	return i.Name
+}
+
+// GetMac implements firewall.FirewallEndpoint
+func (i NetIf) GetMac() string {
+	return i.Mac
+}
+
+// GetIP implements firewall.FirewallEndpoint
+func (i NetIf) GetIP() net.IP {
+	return i.IP
+}
+
 // SetIP parses and sets the IP address of the interface.
 func (netif *NetIf) SetIP(ip string) error {
 	netif.IP = net.ParseIP(ip)

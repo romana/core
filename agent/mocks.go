@@ -78,5 +78,14 @@ func mockAgent() Agent {
 	helper := NewAgentHelper(agent)
 	agent.Helper = &helper
 
+	storeConfig := common.ServiceConfig{ServiceSpecific: map[string]interface{}{
+		"type":     "sqlite3",
+		"database": "/tmp/agent.db"}}
+	agent.store = agentStore{}
+	agent.store.ServiceStore = &agent.store
+	agent.store.SetConfig(storeConfig.ServiceSpecific)
+
+	agent.createSchema(true) // overwrite
+
 	return *agent
 }

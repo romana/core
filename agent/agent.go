@@ -17,9 +17,8 @@
 package agent
 
 import (
-	"fmt"
+	"github.com/golang/glog"
 	"github.com/romana/core/common"
-	"log"
 )
 
 // Agent provides access to configuration and helper functions, shared across
@@ -48,11 +47,14 @@ type Agent struct {
 
 	// Whether this is running in test mode.
 	testMode bool
+
+	// Agent store to keep records about managed resources.
+	store agentStore
 }
 
 // SetConfig implements SetConfig function of the Service interface.
 func (a *Agent) SetConfig(config common.ServiceConfig) error {
-	log.Println(config)
+	glog.Infoln(config)
 	a.config = config
 	leaseFileName := config.ServiceSpecific["lease_file"].(string)
 	lf := NewLeaseFile(leaseFileName, a)
@@ -61,7 +63,9 @@ func (a *Agent) SetConfig(config common.ServiceConfig) error {
 	a.waitForIfaceTry = int(config.ServiceSpecific["wait_for_iface_try"].(float64))
 	a.networkConfig = &NetworkConfig{}
 
-	log.Printf("Agent.SetConfig() finished.")
+	a.store = *NewStore(config)
+
+	glog.Infof("Agent.SetConfig() finished.")
 	return nil
 }
 
@@ -69,9 +73,23 @@ func (a *Agent) SetConfig(config common.ServiceConfig) error {
 func (a *Agent) Routes() common.Routes {
 	routes := common.Routes{
 		common.Route{
-			Method:  "POST",
+			Method:  "GET",
 			Pattern: "/",
-			Handler: a.index,
+			Handler: a.statusHandler,
+		},
+		common.Route{
+			Method:  "POST",
+			Pattern: "/vm",
+			Handler: a.vmUpHandler,
+			MakeMessage: func() interface{} {
+				return &NetIf{}
+			},
+			UseRequestToken: false,
+		},
+		common.Route{
+			Method:  "DELETE",
+			Pattern: "/vm",
+			Handler: a.vmDownHandler,
 			MakeMessage: func() interface{} {
 				return &NetIf{}
 			},
@@ -79,13 +97,21 @@ func (a *Agent) Routes() common.Routes {
 		},
 		common.Route{
 			Method:  "POST",
-			Pattern: "/kubernetes-pod-up",
-			Handler: a.k8sPodUpHandler,
+			Pattern: "/pod",
+			Handler: a.podUpHandler,
 			MakeMessage: func() interface{} {
 				return &NetworkRequest{}
 			},
 			// TODO this is for the future so we ensure idempotence.
 			UseRequestToken: true,
+		},
+		common.Route{
+			Method:  "DELETE",
+			Pattern: "/pod",
+			Handler: a.podDownHandler,
+			MakeMessage: func() interface{} {
+				return &NetworkRequest{}
+			},
 		},
 		common.Route{
 			Method:  "POST",
@@ -127,7 +153,7 @@ func Run(rootServiceURL string, cred *common.Credential, testMode bool) (*common
 	agent := &Agent{testMode: testMode}
 	helper := NewAgentHelper(agent)
 	agent.Helper = &helper
-	log.Printf("Agent: Getting configuration from %s", rootServiceURL)
+	glog.Infof("Agent: Getting configuration from %s", rootServiceURL)
 
 	config, err := client.GetServiceConfig(agent.Name())
 	if err != nil {
@@ -141,157 +167,53 @@ func (a *Agent) Name() string {
 	return "agent"
 }
 
-// addPolicy is a placeholder. TODO
-func (a *Agent) addPolicy(input interface{}, ctx common.RestContext) (interface{}, error) {
-	//	policy := input.(*common.Policy)
-	return nil, nil
-}
-
-// deletePolicy is a placeholder. TODO
-func (a *Agent) deletePolicy(input interface{}, ctx common.RestContext) (interface{}, error) {
-	//	policyId := ctx.PathVariables["policyID"]
-	return nil, nil
-}
-
-// listPolicies is a placeholder. TODO.
-func (a *Agent) listPolicies(input interface{}, ctx common.RestContext) (interface{}, error) {
-	return nil, nil
-}
-
-// k8sPodUpHandler handles HTTP requests for endpoints provisioning.
-func (a *Agent) k8sPodUpHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
-	log.Println("Agent: Entering k8sPodUpHandler()")
-	netReq := input.(*NetworkRequest)
-
-	log.Printf("Agent: Got request for network configuration: %v\n", netReq)
-	// Spawn new thread to process the request
-
-	// TODO don't know if fork-bombs are possible in go but if they are this
-	// need to be refactored as buffered channel with fixed pool of workers
-	go a.k8sPodUpHandle(*netReq)
-
-	// TODO I wonder if this should actually return something like a
-	// link to a status of this request which will later get updated
-	// with success or failure -- Greg.
-	return "OK", nil
-}
-
-// index handles HTTP requests for endpoints provisioning.
-// Currently tested with Romana ML2 driver.
-// TODO index should be reserved for an actual index, while this function
-// need to be renamed as interfaceHandler and need to respond on it's own url.
-func (a *Agent) index(input interface{}, ctx common.RestContext) (interface{}, error) {
-	// Parse out NetIf form the request
-	netif := input.(*NetIf)
-
-	log.Printf("Got interface: Name %s, IP %s Mac %s\n", netif.Name, netif.IP, netif.Mac)
-	// Spawn new thread to process the request
-
-	// TODO don't know if fork-bombs are possible in go but if they are this
-	// need to be refactored as buffered channel with fixed pool of workers
-	go a.interfaceHandle(*netif)
-
-	// TODO I wonder if this should actually return something like a
-	// link to a status of this request which will later get updated
-	// with success or failure -- Greg.
-	return "OK", nil
-}
-
-// k8sPodUpHandle does a number of operations on given endpoint to ensure
-// it's connected:
-// 1. Ensures interface is ready
-// 2. Creates ip route pointing new interface
-// 3. Provisions firewall rules
-func (a *Agent) k8sPodUpHandle(netReq NetworkRequest) error {
-	log.Println("Agent: Entering k8sPodUpHandle()")
-
-	netif := netReq.NetIf
-	if netif.Name == "" {
-		return agentErrorString("Agent: Interface name required")
-	}
-	if !a.Helper.waitForIface(netif.Name) {
-		// TODO should we resubmit failed interface in queue for later
-		// retry ? ... considering openstack will give up as well after
-		// timeout
-		msg := fmt.Sprintf("Requested interface not available in time - %s", netif.Name)
-		log.Println("Agent: ", msg)
-		return agentErrorString(msg)
-	}
-
-	log.Print("Agent: creating endpoint routes")
-	if err := a.Helper.ensureRouteToEndpoint(&netif); err != nil {
-		log.Print(agentError(err))
-		return agentError(err)
-	}
-	log.Print("Agent: provisioning firewall")
-
-	if err := provisionK8SFirewallRules(netReq, a); err != nil {
-		log.Print(agentError(err))
-		return agentError(err)
-	}
-
-	log.Print("Agent: All good", netif)
-	return nil
-}
-
-// interfaceHandle does a number of operations on given endpoint to ensure
-// it's connected:
-// 1. Ensures interface is ready
-// 2. Checks if DHCP is running
-// 3. Creates ip route pointing new interface
-// 4. Provisions static DHCP lease for new interface
-// 5. Provisions firewall rules
-func (a *Agent) interfaceHandle(netif NetIf) error {
-	log.Print("Agent: processing request to provision new interface")
-	if !a.Helper.waitForIface(netif.Name) {
-		// TODO should we resubmit failed interface in queue for later
-		// retry ? ... considering oenstack will give up as well after
-		// timeout
-		return agentErrorString(fmt.Sprintf("Requested interface not available in time - %s", netif.Name))
-	}
-
-	// dhcpPid is only needed here for fail fast check
-	// will try to poll the pid again in provisionLease
-	log.Print("Agent: checking if DHCP is running")
-	_, err := a.Helper.DhcpPid()
-	if err != nil {
-		log.Print(agentError(err))
-		return agentError(err)
-	}
-	log.Print("Agent: creating endpoint routes")
-	if err := a.Helper.ensureRouteToEndpoint(&netif); err != nil {
-		log.Print(agentError(err))
-		return agentError(err)
-	}
-	log.Print("Agent: provisioning DHCP")
-	if err := a.leaseFile.provisionLease(&netif); err != nil {
-		log.Print(agentError(err))
-		return agentError(err)
-	}
-	log.Print("Agent: provisioning firewall")
-	if err := provisionFirewallRules(netif, a); err != nil {
-		log.Print(agentError(err))
-		return agentError(err)
-	}
-
-	log.Print("All good", netif)
-	return nil
-}
-
 // Initialize implements the Initialize method of common.Service
 // interface.
 func (a *Agent) Initialize() error {
-	log.Printf("Entering Agent.Initialize()")
+	glog.Infof("Entering Agent.Initialize()")
+	err := a.store.Connect()
+	if err != nil {
+		glog.Error("Agent.Initialize() : Failed to connect to database.")
+		return err
+	}
+
+	glog.Infof("Attempting to identify current host.")
 	if err := a.identifyCurrentHost(); err != nil {
-		log.Print("Agent: ", agentError(err))
+		glog.Error("Agent: ", agentError(err))
 		return agentError(err)
 	}
 
 	// Ensure we have all the routes to our neighbours
-	log.Print("Agent: ensuring interhost routes exist")
+	glog.Info("Agent: ensuring interhost routes exist")
 	if err := a.Helper.ensureInterHostRoutes(); err != nil {
-		log.Print("Agent: ", agentError(err))
+		glog.Error("Agent: ", agentError(err))
 		return agentError(err)
 	}
 	return nil
+}
+
+// CreateSchema creates database schema.
+func CreateSchema(rootServiceUrl string, overwrite bool) error {
+	glog.V(1).Infoln("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
+	a := &Agent{}
+
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootServiceUrl))
+	if err != nil {
+		return err
+	}
+
+	config, err := client.GetServiceConfig(a.Name())
+	if err != nil {
+		return err
+	}
+
+	err = a.SetConfig(*config)
+	if err != nil {
+		return err
+	}
+	return a.store.CreateSchema(overwrite)
+}
+
+func (a *Agent) createSchema(overwrite bool) error {
+	return a.store.CreateSchema(overwrite)
 }

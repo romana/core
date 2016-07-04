@@ -16,10 +16,8 @@
 package agent
 
 import (
+	"github.com/golang/glog"
 	"github.com/romana/core/common"
-	//	"github.com/romana/core/topology"
-
-	"log"
 	"net"
 )
 
@@ -27,11 +25,14 @@ import (
 // This consists of data parsed from the config file as well as
 // runtime or discovered configuration, such as the network
 // config of the current host.
+// NetworkConfig public methods are used to implement
+// firewall.NetConfig interface.
 type NetworkConfig struct {
 	// Current host network configuration
-	romanaGW   net.IP
+	romanaGW     net.IP
+	romanaGWMask net.IPMask
 	otherHosts []common.Host
-	dc         common.Datacenter
+	dc           common.Datacenter
 }
 
 // EndpointNetmaskSize returns integer value (aka size) of endpoint netmask.
@@ -59,6 +60,16 @@ func (c *NetworkConfig) SegmentBits() uint {
 // EndpointBits returns endpoint bits value from POC config.
 func (c *NetworkConfig) EndpointBits() uint {
 	return c.dc.EndpointBits
+}
+
+// RomanaGW returns current romana gateway.
+func (c *NetworkConfig) RomanaGW() net.IP {
+	return c.romanaGW
+}
+
+// RomanaGW returns current romana gateway.
+func (c *NetworkConfig) RomanaGWMask() net.IPMask {
+	return c.romanaGWMask
 }
 
 // identifyCurrentHost discovers network configuration
@@ -96,14 +107,14 @@ func (a Agent) identifyCurrentHost() error {
 	if err != nil {
 		return agentError(err)
 	}
-	log.Println("Retrieved hosts list, found", len(hosts), "hosts")
+	glog.Infoln("Retrieved hosts list, found", len(hosts), "hosts")
 
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
 		return err
 	}
 
-	log.Printf("Searching %d interfaces for a matching host configuration: %v", len(addrs), addrs)
+	glog.Infof("Searching %d interfaces for a matching host configuration: %v", len(addrs), addrs)
 
 	// Find an interface that matches a Romana CIDR
 	// and store that interface's IP address.
@@ -111,7 +122,7 @@ func (a Agent) identifyCurrentHost() error {
 	for i, host := range hosts {
 		_, romanaCIDR, err := net.ParseCIDR(host.RomanaIp)
 		if err != nil {
-			log.Printf("Unable to parse '%s' (%s). Skipping.", host.RomanaIp, err)
+			glog.Warningf("Unable to parse '%s' (%s). Skipping.", host.RomanaIp, err)
 			continue
 		}
 		for _, addr := range addrs {
@@ -128,11 +139,12 @@ func (a Agent) identifyCurrentHost() error {
 				}
 				// OK, we're happy with this result
 				a.networkConfig.romanaGW = ipnet.IP
+				a.networkConfig.romanaGWMask = ipnet.Mask
 				// Retain the other hosts that were listed.
 				// This will be used for creating inter-host routes.
 				a.networkConfig.otherHosts = append(a.networkConfig.otherHosts, hosts[0:i]...)
 				a.networkConfig.otherHosts = append(a.networkConfig.otherHosts, hosts[i+1:]...)
-				log.Println("Found match for CIDR", romanaCIDR, "using address", ipnet.IP)
+				glog.Infoln("Found match for CIDR", romanaCIDR, "using address", ipnet.IP)
 				return nil
 			}
 		}
