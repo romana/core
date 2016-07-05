@@ -22,6 +22,7 @@ import (
 	"github.com/romana/core/tenant"
 	"log"
 	"net/http"
+	"strings"
 )
 
 const (
@@ -196,19 +197,26 @@ func CreateDefaultPolicy(o KubeObject, l *kubeListener) {
 
 	var desiredAction networkPolicyAction
 
-	if isolation, ok := o.Metadata.Annotations["net.alpha.kubernetes.io/network-isolation"]; ok {
-		log.Printf("Handling default policy on a namespace %s, isolation is now %s \n", o.Metadata.Name, isolation)
-		switch isolation {
-		case "on":
-			desiredAction = networkPolicyActionDelete
-		case "off":
-			desiredAction = networkPolicyActionAdd
-		default:
-			log.Printf("In CreateDefaultPolicy :: Error :: unrecognised annotation on a namespace %s is %s (expected on|off) \n",
-				o.Metadata.Name, isolation)
+	if np, ok := o.Metadata.Annotations["net.beta.kubernetes.io/networkpolicy"]; ok {
+		log.Printf("Handling default policy on a namespace %s, policy is now %s \n", o.Metadata.Name, np)
+		policy := struct {
+			Ingress struct {
+				Isolation string `json:"isolation"`
+			} `json:"ingress"`
+		}{}
+		err := json.NewDecoder(strings.NewReader(np)).Decode(&policy)
+		if err != nil {
+			log.Printf("In CreateDefaultPolicy :: Error decoding network policy: %s", err)
 			return
 		}
 
+		log.Println("Decoded to policy:", policy)
+		if policy.Ingress.Isolation == "DefaultDeny" {
+			log.Println("Isolation enabled")
+			desiredAction = networkPolicyActionDelete
+		} else {
+			desiredAction = networkPolicyActionAdd
+		}
 	} else {
 		log.Printf("Handling default policy on a namespace, no annotation detected assuming non isolated namespace\n")
 		desiredAction = networkPolicyActionAdd
