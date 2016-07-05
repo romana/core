@@ -618,7 +618,7 @@ func (fw IPtables) EnsureRule(rule *IPtablesRule, opType RuleState) error {
 			args = append(args, []string{"-I"}...)
 		}
 	} else {
-		glog.Infof("In EnsureRule - nothing to do ", rule.Body)
+		glog.Infoln("In EnsureRule - nothing to do ", rule.Body)
 		return nil
 	}
 
