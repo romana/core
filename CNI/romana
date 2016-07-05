@@ -151,10 +151,14 @@ set_up_pod () {
 	NODE=$( $KUBECTL $KUBEARGS get pod "$POD" -o json | jq -r '.spec.nodeName')
 	log "--- NODE = $NODE ---"
 	NS_ISOLATION="off"
+	# The metadata value for isolation is now a JSON object. Since we ask kubectl to give us namespace data in JSON, we need two steps to extract it.
+	# Extract the network policy from the namespace annotation. Capture the value.
 	NS_POLICY=$( $KUBECTL $KUBEARGS get namespace $NAMESPACE -o json | jq -r '.metadata.annotations["net.beta.kubernetes.io/networkpolicy"] // empty')
 	if [[ "$NS_POLICY" ]]; then
+		# We have a value. Try to extract the ingress -> isolation field.
 		INGRESS_ISOLATION=$(jq -r '.ingress.isolation // empty' <<< "$NS_POLICY")
 		if [[ "$INGRESS_ISOLATION" = "DefaultDeny" ]]; then
+			# Field was present and matched the known "DefaultDeny" value. Enable isolation.
 			NS_ISOLATION="on"
 		fi
 	fi
