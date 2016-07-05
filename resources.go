@@ -215,7 +215,7 @@ func CreateDefaultPolicy(o KubeObject, l *kubeListener) {
 	}
 
 	if err2 := l.applyNetworkPolicy(desiredAction, *romanaPolicy); err2 != nil {
-		log.Printf("In CreateDefaultPolicy :: Error :: failed to apply %v to the policy %s \n", desiredAction, err)
+		log.Printf("In CreateDefaultPolicy :: Error :: failed to apply %v to the policy %s \n", desiredAction, err2)
 	}
 }
 
