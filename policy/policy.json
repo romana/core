@@ -1,0 +1,108 @@
+swagger: "2.0"
+info:
+  title: Romana policy API
+  description: |
+    Policy provides Policy service.
+  contact:
+    url: http://romana.io
+    email: info@romana.io
+  license:
+    name: Apache License 2.0
+    url: https://github.com/romana/core/blob/master/LICENSE
+  version: 0.9.0
+basePath: /
+schemes:
+- http
+- https
+consumes:
+- text/plain
+- application/vnd.romana.v1+json
+- application/vnd.romana+json
+- application/json
+- application/x-www-form-urlencoded
+produces:
+- text/plain
+- application/vnd.romana.v1+json
+- application/vnd.romana+json
+- application/json
+- application/x-www-form-urlencoded
+paths:
+  /find/policies/{policyName}: {}
+  /policies: {}
+  /policies/{policyID}: {}
+definitions:
+  common.Datacenter:
+    type: object
+    properties:
+      cidr:
+        type: string
+      endpoint_bits:
+        type: integer
+        required: true
+      endpoint_space_bits:
+        type: integer
+        required: true
+      id:
+        type: long
+        format: uint64
+        required: true
+      ip_version:
+        type: integer
+      name:
+        type: string
+      port_bits:
+        type: integer
+        required: true
+      prefix:
+        type: long
+        format: uint64
+      prefix_bits:
+        type: integer
+        required: true
+      segment_bits:
+        type: integer
+        required: true
+      tenant_bits:
+        type: integer
+        required: true
+  common.HttpError:
+    type: object
+    properties:
+      details:
+        type: object
+      resource_id:
+        type: string
+      resource_type:
+        type: string
+      see_also:
+        type: string
+        required: true
+      status_code:
+        type: integer
+        required: true
+  common.Policy:
+    type: object
+    properties:
+      applied_to:
+        type: array
+        items: {}
+      datacenter:
+        $ref: '#/definitions/common.Datacenter'
+      description:
+        type: string
+      direction:
+        type: string
+      external_id:
+        type: string
+      id:
+        type: long
+        format: uint64
+      name:
+        type: string
+        required: true
+      peers:
+        type: array
+        items: {}
+      rules:
+        type: array
+        items: {}

@@ -37,14 +37,18 @@ func (tenantStore *tenantStore) Entities() []interface{} {
 	return retval
 }
 
+// Tenant represents a tenant, a top-level entity.
 type Tenant struct {
-	ID         uint64    `sql:"AUTO_INCREMENT" json:"id,omitempty"`
+	ID uint64 `sql:"AUTO_INCREMENT" json:"id,omitempty"`
+	// ExternalID is an ID of this tenant in a system that is integrated
+	// with Romana: e.g., OpenStack.
 	ExternalID string    `sql:"not null" json:"external_id,omitempty" gorm:"COLUMN:external_id"`
-	Name       string    `json:"name,omitempty"`
-	Segments   []Segment `json:"segments,omitempty"`
+	Name       string    `json:"name,omitempty" romana:"desc=Name is a human-readable name for this tenant."`
+	Segments   []Segment `json:"-"`
 	Seq        uint64    `json:"seq,omitempty"`
 }
 
+// Segment is a subdivision of tenant.
 type Segment struct {
 	ID         uint64 `sql:"AUTO_INCREMENT" json:"id,omitempty"`
 	ExternalID string `sql:"not null" json:"external_id,omitempty" gorm:"COLUMN:external_id"`
