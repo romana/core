@@ -45,8 +45,6 @@ ROMANA_CLI="romana"
 get_pod            () { while read line; do [[ ${line/=*/} == "K8S_POD_NAME" ]] && echo ${line/*=/} || :; done; }
 get_pod_ns         () { while read line; do [[ ${line/=*/} == "K8S_POD_NAMESPACE" ]] && echo ${line/*=/} || :; done; }
 get_tenant         () { while read line; do [[ ${line/=*/} == "owner" ]] && echo ${line/*=/} || :; done; }
-get_segment        () { while read line; do [[ ${line/=*/} == "segment" ]] && echo ${line/*=/} || :; done; }
-get_labels         () { awk '/Labels/ { print $2}' | xargs -d"," -n1 ; } 
 get_json_kv        () { sed 's/["{}]//g' | xargs -d "," -n1; }
 get_ip             () { while read line; do [[ ${line/:*/} == "ip" ]] && echo ${line/*:/} || :; done; }
 get_nspid          () { echo $1 | awk -F"/" '{ print $3 }'; }
@@ -148,13 +146,23 @@ set_up_pod () {
 	KUBEARGS="$KUBEARGS --namespace=$NAMESPACE"
 #	TENANT=$( $KUBECTL $KUBEARGS describe pod $POD | get_labels | get_tenant )
 #	log "--- TENANT = $TENANT ---"
-	SEGMENT=$( $KUBECTL $KUBEARGS describe pod $POD | get_labels | get_segment )
+	SEGMENT=$( $KUBECTL $KUBEARGS get pod $POD -o json | jq -r 'if .metadata.labels["segment"] then .metadata.labels["segment"] else empty end')
 	[[ $SEGMENT ]] || SEGMENT="default"
 	log "--- SEGMENT = $SEGMENT ---"
-	NODE=$( $KUBECTL $KUBEARGS get pods -o json | jq -r --arg podName "$POD" '.items[] | select(.metadata.name==$podName) | .spec.nodeName')
+	NODE=$( $KUBECTL $KUBEARGS get pod "$POD" -o json | jq -r '.spec.nodeName')
 	log "--- NODE = $NODE ---"
-	NS_ISOLATION=$( $KUBECTL $KUBEARGS get namespace $NAMESPACE -o json | jq -r '.metadata.annotations["net.alpha.kubernetes.io/network-isolation"]' )
-	[[ $NS_ISOLATION != "on" ]] && NS_ISOLATION="off"
+	NS_ISOLATION="off"
+	# The metadata value for isolation is now a JSON object. Since we ask kubectl to give us namespace data in JSON, we need two steps to extract it.
+	# Extract the network policy from the namespace annotation. Capture the value.
+	NS_POLICY=$( $KUBECTL $KUBEARGS get namespace $NAMESPACE -o json | jq -r '.metadata.annotations["net.beta.kubernetes.io/networkpolicy"] // empty')
+	if [[ "$NS_POLICY" ]]; then
+		# We have a value. Try to extract the ingress -> isolation field.
+		INGRESS_ISOLATION=$(jq -r '.ingress.isolation // empty' <<< "$NS_POLICY")
+		if [[ "$INGRESS_ISOLATION" = "DefaultDeny" ]]; then
+			# Field was present and matched the known "DefaultDeny" value. Enable isolation.
+			NS_ISOLATION="on"
+		fi
+	fi
 	log "--- NS_ISOLATION = $NS_ISOLATION ---"
 
 	# Ensure segment exists
