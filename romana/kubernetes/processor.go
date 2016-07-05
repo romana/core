@@ -17,10 +17,6 @@ package kubernetes
 
 import ()
 
-/*
-{"type":"ADDED","object":{"apiVersion":"romana.io/demo/v1","kind":"NetworkPolicy","metadata":{"name":"pol1","namespace":"default","selfLink":"/apis/romana.io/demo/v1/namespaces/default/networkpolicys/pol1","uid":"d7036130-e119-11e5-aab8-0213e1312dc5","resourceVersion":"119875","creationTimestamp":"2016-03-03T08:28:00Z","labels":{"owner":"t1"}},"spec":{"allowIncoming":{"from":[{"pods":{"tier":"frontend"}}],"toPorts":[{"port":80,"protocol":"TCP"}]},"podSelector":{"tier":"backend"}}}}
-*/
-
 // Process is a goroutine that consumes resource update events and:
 // 1. On receiving an added or deleted event:
 //    a. If the Object Kind is NetworkPolicy, translates the body (Object of the event)

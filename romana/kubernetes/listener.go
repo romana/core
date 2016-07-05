@@ -223,7 +223,7 @@ func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Po
 	tenantID := t.ID
 	tenantExternalID := t.ExternalID
 
-	kubeSegmentID := kubePolicy.Spec.PodSelector[l.segmentLabelName]
+	kubeSegmentID := kubePolicy.Spec.PodSelector.MatchLabels[l.segmentLabelName]
 	if kubeSegmentID == "" {
 		return *romanaPolicy, common.NewError("Expected segment to be specified in podSelector part as '%s'", l.segmentLabelName)
 	}
@@ -237,13 +237,15 @@ func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Po
 	romanaPolicy.AppliedTo = make([]common.Endpoint, 1)
 	romanaPolicy.AppliedTo[0] = appliedTo
 	romanaPolicy.Peers = []common.Endpoint{}
-	from := kubePolicy.Spec.AllowIncoming.From
+	romanaPolicy.Rules = common.Rules{}
+	// TODO range
+	// from := kubePolicy.Spec.Ingress[0].From
 	// This is subject to change once the network specification in Kubernetes is finalized.
 	// Right now it is a work in progress.
-	if from != nil {
-		for _, entry := range from {
+	for _, ingress := range kubePolicy.Spec.Ingress {
+		for _, entry := range ingress.From {
 			pods := entry.Pods
-			fromKubeSegmentID := pods[l.segmentLabelName]
+			fromKubeSegmentID := pods.MatchLabels[l.segmentLabelName]
 			if fromKubeSegmentID == "" {
 				return *romanaPolicy, common.NewError("Expected segment to be specified in podSelector part as '%s'", l.segmentLabelName)
 			}
@@ -254,9 +256,9 @@ func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Po
 			peer := common.Endpoint{TenantID: tenantID, TenantExternalID: tenantExternalID, SegmentID: fromSegment.ID, SegmentExternalID: fromSegment.ExternalID}
 			romanaPolicy.Peers = append(romanaPolicy.Peers, peer)
 		}
-		toPorts := kubePolicy.Spec.AllowIncoming.ToPorts
-		romanaPolicy.Rules = common.Rules{}
-		for _, toPort := range toPorts {
+		// TODO range
+		// toPorts := kubePolicy.Spec.Ingress[0].ToPorts
+		for _, toPort := range ingress.ToPorts {
 			proto := strings.ToLower(toPort.Protocol)
 			ports := []uint{toPort.Port}
 			rule := common.Rule{Protocol: proto, Ports: ports}

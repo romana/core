@@ -116,7 +116,7 @@ func (h Helper) createRoute(ip net.IP, netmask string, via string, dest string, 
 // Error if failed, nil if success.
 func (h Helper) ensureRouteToEndpoint(netif *NetIf) error {
 	mask := fmt.Sprintf("%d", h.Agent.networkConfig.EndpointNetmaskSize())
-	glog.V(1).Info("Ensuring routes for ", netif.IP, " ", netif.Name)
+	glog.V(1).Infoln("Ensuring routes for ", netif.IP, " ", netif.Name)
 	glog.V(1).Info("Acquiring mutex ensureRouteToEndpoint")
 	h.ensureRouteToEndpointMutex.Lock()
 	defer func() {
