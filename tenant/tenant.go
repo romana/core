@@ -150,7 +150,6 @@ func (tsvc *TenantSvc) getSegment(input interface{}, ctx common.RestContext) (in
 // SetConfig implements SetConfig function of the Service interface.
 // Returns an error if cannot connect to the data store
 func (tsvc *TenantSvc) SetConfig(config common.ServiceConfig) error {
-	log.Println(config)
 	tsvc.config = config
 	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
 	tsvc.store = tenantStore{}

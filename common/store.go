@@ -43,6 +43,11 @@ type StoreConfig struct {
 	Type string
 }
 
+func (sc StoreConfig) String() string {
+	return fmt.Sprintf("Host: %s, Port: %d, Username: ****, Password: ****, Database: %s, Type: %s",
+		sc.Host, sc.Port, sc.Database, sc.Type)
+}
+
 // MakeStoreConfig creates StoreConfig object from a map.
 func makeStoreConfig(configMap map[string]interface{}) StoreConfig {
 	storeConfig := StoreConfig{}
@@ -272,14 +277,17 @@ func (dbStore *DbStore) getConnString() string {
 	switch info.Type {
 	case "sqlite3":
 		connStr = info.Database
+		log.Printf("DB: Connection string: %s", connStr)
 	default:
 		portStr := fmt.Sprintf(":%d", info.Port)
 		if info.Port == 0 {
 			portStr = ":3306"
 		}
-		connStr = fmt.Sprintf("%s:%s@tcp(%s%s)/%s?parseTime=true", info.Username, info.Password, info.Host, portStr, info.Database)
+		connStr = fmt.Sprintf("%s:%s@tcp(%s%s)/%s?parseTime=true", info.Username,
+			info.Password, info.Host, portStr, info.Database)
+		log.Printf("DB: Connection string: ****:****@tcp(%s%s)/%s?parseTime=true",
+			info.Host, portStr, info.Database)
 	}
-	log.Printf("DB: Connection string: %s", connStr)
 	return connStr
 }
 
@@ -290,7 +298,6 @@ func (dbStore *DbStore) Connect() error {
 		return errors.New("No configuration specified.")
 	}
 	connStr := dbStore.getConnString()
-	log.Printf("DB: Connecting to %s", connStr)
 	db, err := gorm.Open(dbStore.Config.Type, connStr)
 	if err != nil {
 		return err
