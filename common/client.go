@@ -445,10 +445,6 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 		return errors.New(fmt.Sprintf("Unsupported scheme %s", rc.url.Scheme))
 	}
 
-	reqBodyStr := ""
-	if reqBody != nil {
-		reqBodyStr = string(reqBody)
-	}
 	bodyStr := ""
 	if body != nil {
 		bodyStr = string(body)
@@ -457,7 +453,7 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 	if err != nil {
 		errStr = fmt.Sprintf("ERROR: <%v>", err)
 	}
-	log.Printf("\n\t=================================\n\t%s %s: %d\n\t%s\n\n\t%s\n\t%s\n\t=================================", method, rc.url, resp.StatusCode, reqBodyStr, bodyStr, errStr)
+	log.Printf("%s %s: %d\n%s", method, rc.url, resp.StatusCode, errStr)
 
 	if err != nil {
 		return err

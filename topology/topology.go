@@ -181,7 +181,6 @@ func (topology *TopologySvc) handleIndex(input interface{}, ctx common.RestConte
 // SetConfig implements SetConfig function of the Service interface.
 // Returns an error if cannot connect to the data store
 func (topology *TopologySvc) SetConfig(config common.ServiceConfig) error {
-	log.Println(config)
 	topology.config = config
 	dcMap := config.ServiceSpecific["datacenter"].(map[string]interface{})
 	dc := common.Datacenter{}

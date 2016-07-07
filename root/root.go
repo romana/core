@@ -51,7 +51,7 @@ const fullConfigKey = "fullConfig"
 
 // SetConfig implements SetConfig function of the Service interface
 func (root *Root) SetConfig(config common.ServiceConfig) error {
-	log.Printf("Entering root.SetConfig(%v)", config)
+	log.Printf("Entering root.SetConfig()")
 	root.config = Config{}
 	root.config.common = &config.Common
 	f := config.ServiceSpecific[fullConfigKey].(common.Config)
@@ -161,7 +161,6 @@ func (root *Root) handleConfig(input interface{}, ctx common.RestContext) (inter
 	pathVars := ctx.PathVariables
 	serviceName := pathVars["serviceName"]
 	log.Printf("Received request for config of %s", serviceName)
-	log.Printf("Looking for %s in %v", serviceName, root.config.full)
 	retval := root.config.full.Services[serviceName]
 	return retval, nil
 }
@@ -210,7 +209,7 @@ func Run(configFileName string) (*common.RestServiceInfo, error) {
 	}
 
 	rootService := &Root{}
-	log.Printf("Initializing root config with\n%v\nand\n%v", fullConfig.Services["root"].Common, fullConfig)
+	log.Printf("Initializing root config")
 	rootServiceConfig := common.ServiceConfig{
 		Common:          fullConfig.Services["root"].Common,
 		ServiceSpecific: make(map[string]interface{}),

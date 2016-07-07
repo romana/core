@@ -243,7 +243,6 @@ func (ipam *IPAM) Name() string {
 // Returns an error if cannot connect to the data store
 func (ipam *IPAM) SetConfig(config common.ServiceConfig) error {
 	// TODO this is a copy-paste of topology service, to refactor
-	log.Println(config)
 	ipam.config = config
 	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
 	log.Printf("IPAM port: %d", config.Common.Api.Port)

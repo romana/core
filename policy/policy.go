@@ -379,7 +379,6 @@ func (policy *PolicySvc) Name() string {
 // Returns an error if cannot connect to the data store
 func (policy *PolicySvc) SetConfig(config common.ServiceConfig) error {
 	// TODO this is a copy-paste of topology service, to refactor
-	log.Println(config)
 	policy.config = config
 	//	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
 	log.Printf("Policy port: %d", config.Common.Api.Port)

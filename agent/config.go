@@ -31,7 +31,7 @@ type NetworkConfig struct {
 	// Current host network configuration
 	romanaGW     net.IP
 	romanaGWMask net.IPMask
-	otherHosts []common.Host
+	otherHosts   []common.Host
 	dc           common.Datacenter
 }
 
