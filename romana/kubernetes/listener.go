@@ -197,7 +197,7 @@ func (l *kubeListener) getOrAddSegment(namespace string, kubeSegmentName string)
 
 // resolveTenantByName retrieves tenant information from romana.
 func (l *kubeListener) resolveTenantByName(tenantName string) (*tenant.Tenant, error) {
-	t := &tenant.Tenant{}
+	t := &tenant.Tenant{Name: tenantName}
 	err := l.restClient.Find(t, common.FindLast)
 	if err != nil {
 		return t, err
