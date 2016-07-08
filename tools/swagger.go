@@ -84,30 +84,30 @@ const (
 //}
 
 type SwaggerSchema struct {
-	Ref              string                     `yaml:"$ref,omitempty"`
-	Title            string                     `yaml:"title,omitempty"`
-	Description      string                     `yaml:"description,omitempty"`
-	Type             string                     `yaml:"type,omitempty"`
-	Format           string                     `yaml:"format,omitempty"`
-	Default          interface{}                `yaml:"default,omitempty"`
-	MultipleOf       int                        `yaml:"multipleOf,omitempty"`
-	Maximum          int                        `yaml:"maximum,omitempty"`
-	ExclusiveMaximum bool                       `yaml:"exclusiveMaximum,omitempty"`
-	Minimum          int                        `yaml:"minimum,omitempty"`
-	ExclusiveMinimum bool                       `yaml:"exclusiveMinimum,omitempty"`
-	MaxLength        int                        `yaml:"maxLength,omitempty"`
-	MinLength        int                        `yaml:"minLength,omitempty"`
-	Pattern          string                     `yaml:"pattern,omitempty"`
-	MaxItems         int                        `yaml:"maxItems,omitempty"`
-	MinItems         int                        `yaml:"minItems,omitempty"`
-	UniqueItems      bool                       `yaml:"uniqueItems,omitempty"`
-	MaxProperties    int                        `yaml:"maxProperties,omitempty"`
-	MinProperties    int                        `yaml:"minProperties,omitempty"`
-	Enum             []interface{}              `yaml:"enum,omitempty"`
-	Items            *SwaggerItems              `yaml:"items,omitempty"`
+	Ref              string        `yaml:"$ref,omitempty"`
+	Title            string        `yaml:"title,omitempty"`
+	Description      string        `yaml:"description,omitempty"`
+	Type             string        `yaml:"type,omitempty"`
+	Format           string        `yaml:"format,omitempty"`
+	Default          interface{}   `yaml:"default,omitempty"`
+	MultipleOf       int           `yaml:"multipleOf,omitempty"`
+	Maximum          int           `yaml:"maximum,omitempty"`
+	ExclusiveMaximum bool          `yaml:"exclusiveMaximum,omitempty"`
+	Minimum          int           `yaml:"minimum,omitempty"`
+	ExclusiveMinimum bool          `yaml:"exclusiveMinimum,omitempty"`
+	MaxLength        int           `yaml:"maxLength,omitempty"`
+	MinLength        int           `yaml:"minLength,omitempty"`
+	Pattern          string        `yaml:"pattern,omitempty"`
+	MaxItems         int           `yaml:"maxItems,omitempty"`
+	MinItems         int           `yaml:"minItems,omitempty"`
+	UniqueItems      bool          `yaml:"uniqueItems,omitempty"`
+	MaxProperties    int           `yaml:"maxProperties,omitempty"`
+	MinProperties    int           `yaml:"minProperties,omitempty"`
+	Enum             []interface{} `yaml:"enum,omitempty"`
+	Items            *SwaggerItems `yaml:"items,omitempty"`
 	// See http://json-schema.org/latest/json-schema-validation.html#anchor61
-	Required         []string                   `yaml:"required,omitempty"`
-	Properties       map[string]SwaggerProperty `yaml:"properties,omitempty"`
+	Required   []string                   `yaml:"required,omitempty"`
+	Properties map[string]SwaggerProperty `yaml:"properties,omitempty"`
 }
 
 type SwaggerItems struct {

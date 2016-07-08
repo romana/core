@@ -112,7 +112,7 @@ func (a *Analyzer) Analyze() error {
 	if lprog == nil {
 		return err
 	}
-	log.Printf("Loaded program: %s, Error: %T %v", lprog, err, err)
+	log.Printf("Loaded program: %v, Error: %T %v", lprog, err, err)
 
 	for _, pkg := range lprog.InitialPackages() {
 		for k, v := range pkg.Types {
@@ -274,7 +274,7 @@ func (a *Analyzer) getImplementors(ifc *types.Interface) []types.Type {
 			retval = append(retval, o.Type())
 			continue
 		} else {
-			log.Printf("%s (%s) does not implement %s: missing %s, wrong type: %s", o.Type(), ifc, fnc, wrongType)
+			log.Printf("%T (%v) does not implement %s: missing %s, wrong type: %t", o, o, ifc, fnc, wrongType)
 		}
 	}
 	return retval
