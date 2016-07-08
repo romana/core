@@ -44,7 +44,7 @@ type Tenant struct {
 	// with Romana: e.g., OpenStack.
 	ExternalID string    `sql:"not null" json:"external_id,omitempty" gorm:"COLUMN:external_id"`
 	Name       string    `json:"name,omitempty" romana:"desc=Name is a human-readable name for this tenant."`
-	Segments   []Segment `json:"-"`
+	Segments   []Segment `json:"segments,omitempty"`
 	Seq        uint64    `json:"seq,omitempty"`
 }
 
