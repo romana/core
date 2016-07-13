@@ -74,7 +74,7 @@ func (s *mockSvc) Routes() common.Routes {
 		Method:  "GET",
 		Pattern: "/tenants/1",
 		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
-			return &tenant.Tenant{ID: 1, Name: "default", ExternalID: "default", Seq: 1}, nil
+			return &tenant.Tenant{ID: 1, Name: "default", ExternalID: "default", NetworkID: 1}, nil
 		},
 	}
 

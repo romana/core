@@ -42,7 +42,7 @@ type Tenant struct {
 	ExternalID string    `sql:"not null" json:"external_id,omitempty" gorm:"COLUMN:external_id"`
 	Name       string    `json:"name,omitempty"`
 	Segments   []Segment `json:"segments,omitempty"`
-	Seq        uint64    `json:"seq,omitempty"`
+	NetworkID        uint64    `json:"network_id,omitempty"`
 }
 
 type Segment struct {
@@ -50,7 +50,7 @@ type Segment struct {
 	ExternalID string `sql:"not null" json:"external_id,omitempty" gorm:"COLUMN:external_id"`
 	TenantID   uint64 `gorm:"COLUMN:tenant_id" json:"tenant_id,omitempty"`
 	Name       string `json:"name,omitempty"`
-	Seq        uint64 `json:"seq,omitempty"`
+	NetworkID        uint64 `json:"network_id,omitempty"`
 }
 
 func (tenantStore *tenantStore) listTenants() ([]Tenant, error) {
@@ -95,7 +95,7 @@ func (tenantStore *tenantStore) addTenant(tenant *Tenant) error {
 		tx.Rollback()
 		return err
 	}
-	tenant.Seq = uint64(len(tenants))
+	tenant.NetworkID = uint64(len(tenants))
 
 	tx = tx.Create(tenant)
 	err = common.GetDbErrors(tx)
@@ -119,7 +119,7 @@ func (tenantStore *tenantStore) addSegment(tenantId uint64, segment *Segment) er
 		return err
 	}
 
-	segment.Seq = uint64(len(segments))
+	segment.NetworkID = uint64(len(segments))
 	segment.TenantID = tenantId
 	tx = tx.Create(segment)
 	err = common.GetDbErrors(tx)
