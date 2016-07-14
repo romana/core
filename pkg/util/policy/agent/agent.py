@@ -401,14 +401,14 @@ def _make_rules(policy_rules):
                     in_rules += [ '-p tcp --dport %s -j ACCEPT' % port ]
 
             if r.get('port_ranges') and (len(r.get('port_ranges')) > 0):
-                # TODO: Multiple port ranges should be supported here
-                #       as policy service does, temporarily use the first
-                #       in the range provided.
-                port_range = r.get('port_ranges')[0]
-                if len(port_range) == 2:
-                    in_rules += [ '-p tcp --dport %s:%s -j ACCEPT' % (port_range[0], port_range[1]) ]
-                else:
-                    raise Exception("Protocol option port_range must be a list of 2 elements - got %s" % port_range)
+                dports = ''
+                for port_range in r.get('port_ranges'):
+                    if len(port_range) == 2:
+                        dports += '%s:%s,' % (port_range[0], port_range[1])
+                    else:
+                        raise Exception("Protocol option port_range must be a list of 2 elements - got %s" % port_range)
+                dports = dports.rstrip(",")
+                in_rules += [ '-p tcp -m multiport --dports %s -j ACCEPT' % (dports) ]
 
             if not(r.get('ports') or r.get('port_ranges')):
                 in_rules += [ '-p tcp -j ACCEPT' ]
@@ -419,14 +419,14 @@ def _make_rules(policy_rules):
                     in_rules += [ '-p udp --dport %s -j ACCEPT' % port ]
 
             if r.get('port_ranges') and (len(r.get('port_ranges')) > 0):
-                # TODO: Multiple port ranges should be supported here
-                #       as policy service does, temporarily use the first
-                #       in the range provided.
-                port_range = r.get('port_ranges')[0]
-                if len(port_range) == 2:
-                    in_rules += [ '-p udp --dport %s:%s -j ACCEPT' % (port_range[0], port_range[1]) ]
-                else:
-                    raise Exception("Protocol option port_range must be a list of 2 elements - got %s" % port_range)
+                dports = ''
+                for port_range in r.get('port_ranges'):
+                    if len(port_range) == 2:
+                        dports += '%s:%s,' % (port_range[0], port_range[1])
+                    else:
+                        raise Exception("Protocol option port_range must be a list of 2 elements - got %s" % port_range)
+                dports = dports.rstrip(",")
+                in_rules += [ '-p udp -m multiport --dports %s -j ACCEPT' % (dports) ]
 
             if not(r.get('ports') or r.get('port_ranges')):
                 in_rules += [ '-p udp -j ACCEPT' ]
