@@ -42,7 +42,7 @@ type Tenant struct {
 	ExternalID string    `sql:"not null" json:"external_id,omitempty" gorm:"COLUMN:external_id"`
 	Name       string    `json:"name,omitempty"`
 	Segments   []Segment `json:"segments,omitempty"`
-	NetworkID        uint64    `json:"network_id,omitempty"`
+	NetworkID  uint64    `json:"network_id,omitempty"`
 }
 
 type Segment struct {
@@ -50,7 +50,7 @@ type Segment struct {
 	ExternalID string `sql:"not null" json:"external_id,omitempty" gorm:"COLUMN:external_id"`
 	TenantID   uint64 `gorm:"COLUMN:tenant_id" json:"tenant_id,omitempty"`
 	Name       string `json:"name,omitempty"`
-	NetworkID        uint64 `json:"network_id,omitempty"`
+	NetworkID  uint64 `json:"network_id,omitempty"`
 }
 
 func (tenantStore *tenantStore) listTenants() ([]Tenant, error) {
