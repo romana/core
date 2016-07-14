@@ -34,11 +34,11 @@ type Endpoint struct {
 	Name         string         `json:"name,omitempty"`
 	RequestToken sql.NullString `json:"request_token" sql:"unique"`
 	// Ordinal number of this Endpoint in the host/tenant combination
-	Seq uint64 `json:"-"`
-	// Calculated effective sequence number of this Endpoint --
+	NetworkID uint64 `json:"-"`
+	// Calculated effective network ID of this Endpoint --
 	// taking into account stride (endpoint space bits)
 	// and alignment thereof. This is used in IP calculation.
-	EffectiveSeq uint64 `json:"-"`
+	EffectiveNetworkID uint64 `json:"-"`
 	// Whether it is in use (for purposes of reclaiming)
 	InUse bool   `json:"-"`
 	Id    uint64 `sql:"AUTO_INCREMENT",json:"-"`
@@ -88,14 +88,13 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *Endpoint, upToEndpointIpInt ui
 	// First, see if there is a formerly allocated IP already that has been released
 	// (marked "in_use")
 	where := filter + "AND in_use = 0"
-	sel := "min(seq), ip"
+	sel := "min(network_id), ip"
 	log.Printf("IpamStore: Calling SELECT %s FROM endpoints WHERE %s;", sel, fmt.Sprintf(strings.Replace(where, "?", "%s", 3), hostId, tenantId, segId))
 	row := tx.Model(Endpoint{}).Where(where, hostId, tenantId, segId).Select(sel).Row()
-	seq := sql.NullInt64{}
+	netID := sql.NullInt64{}
 	var ip string
-	row.Scan(&seq, &ip)
-	log.Printf("IpamStore: minseq: %v, IP: %s", seq, ip)
-	if seq.Valid {
+	row.Scan(&netID, &ip)
+	if netID.Valid {
 		endpoint.Ip = ip
 		tx = tx.Model(Endpoint{}).Where("ip = ?", ip).Update("in_use", true)
 		err = common.MakeMultiError(tx.GetErrors())
@@ -106,24 +105,24 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *Endpoint, upToEndpointIpInt ui
 		tx.Commit()
 		return nil
 	}
-	// Otherwise, find the MAX sequence available for this host/segment combination.
+	// Otherwise, find the MAX network ID available for this host/segment combination.
 	// TODO can this be done in a single query?
 	where = filter + "AND in_use = 1"
-	sel = "ifnull(max(seq),-1)+1"
+	sel = "ifnull(max(network_id),-1)+1"
 	log.Printf("IpamStore: Calling SELECT %s FROM endpoints WHERE %s;", sel, fmt.Sprintf(strings.Replace(where, "?", "%s", 3), hostId, tenantId, segId))
 	row = tx.Model(Endpoint{}).Where(where, hostId, tenantId, segId).Select(sel).Row()
-	seq = sql.NullInt64{}
-	row.Scan(&seq)
-	log.Printf("IpamStore: maxseq: %v", seq)
+	netID = sql.NullInt64{}
+	row.Scan(&netID)
+	log.Printf("IpamStore: max net ID: %v", netID)
 
-	endpoint.Seq = uint64(seq.Int64)
+	endpoint.NetworkID = uint64(netID.Int64)
 
-	log.Printf("IpamStore: New sequence is %d\n", endpoint.Seq)
+	log.Printf("IpamStore: New network ID is %d\n", endpoint.NetworkID)
 
-	endpoint.EffectiveSeq = getEffectiveSeq(endpoint.Seq, stride)
-	log.Printf("IpamStore: Effective sequence for seq %d (stride %d): %d\n", endpoint.Seq, stride, endpoint.EffectiveSeq)
-	ipInt := upToEndpointIpInt | endpoint.EffectiveSeq
-	log.Printf("IpamStore: %d | %d = %d", upToEndpointIpInt, endpoint.EffectiveSeq, ipInt)
+	endpoint.EffectiveNetworkID = getEffectiveNetworkID(endpoint.NetworkID, stride)
+	log.Printf("IpamStore: Effective network ID for network ID %d (stride %d): %d\n", endpoint.NetworkID, stride, endpoint.EffectiveNetworkID)
+	ipInt := upToEndpointIpInt | endpoint.EffectiveNetworkID
+	log.Printf("IpamStore: %d | %d = %d", upToEndpointIpInt, endpoint.EffectiveNetworkID, ipInt)
 	endpoint.Ip = common.IntToIPv4(ipInt).String()
 	tx = tx.Create(endpoint)
 	log.Printf("IpamStore: Creating %v", endpoint)
@@ -137,14 +136,14 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *Endpoint, upToEndpointIpInt ui
 	return nil
 }
 
-// getEffectiveSeq gets effective sequence number of an Endpoint
-// on a given host (see endpoint.EffectiveSeq).
-func getEffectiveSeq(EndpointSeq uint64, stride uint) uint64 {
-	var effectiveEndpointSeq uint64
+// getEffectiveNetworkID gets effective number of an Endpoint
+// on a given host (see endpoint.EffectiveNetworkID).
+func getEffectiveNetworkID(EndpointNetworkID uint64, stride uint) uint64 {
+	var effectiveEndpointNetworkID uint64
 	// We start with 3 because we reserve 1 for gateway
 	// and 2 for DHCP.
-	effectiveEndpointSeq = 3 + (1<<stride)*EndpointSeq
-	return effectiveEndpointSeq
+	effectiveEndpointNetworkID = 3 + (1<<stride)*EndpointNetworkID
+	return effectiveEndpointNetworkID
 }
 
 // Entities implements Entities method of Service interface.
@@ -159,7 +158,7 @@ func (ipamStore *ipamStore) Entities() []interface{} {
 func (ipamStore *ipamStore) CreateSchemaPostProcess() error {
 	db := ipamStore.Db
 	log.Printf("ipamStore.CreateSchemaPostProcess(), DB is %v", db)
-	db.Model(&Endpoint{}).AddUniqueIndex("idx_tenant_segment_host_seq", "tenant_id", "segment_id", "host_id", "seq")
+	db.Model(&Endpoint{}).AddUniqueIndex("idx_tenant_segment_host_network_id", "tenant_id", "segment_id", "host_id", "network_id")
 	err := common.MakeMultiError(db.GetErrors())
 	if err != nil {
 		return err

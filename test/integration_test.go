@@ -323,7 +323,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	}
 	t1Id := t1Out.ID
 	t1ExtID := t1In.ExternalID
-	c.Assert(t1Out.Seq, check.Equals, uint64(0))
+	c.Assert(t1Out.NetworkID, check.Equals, uint64(0))
 	myLog(c, "Tenant 1 %s", t1Out)
 
 	// Find by external ID
@@ -333,7 +333,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	}
 	c.Assert(t1Out.Name, check.Equals, "name1")
 	c.Assert(t1Out.ExternalID, check.Equals, "t1")
-	c.Assert(t1Out.Seq, check.Equals, uint64(0))
+	c.Assert(t1Out.NetworkID, check.Equals, uint64(0))
 	// Find by name
 	err = client.Get("/findExactlyOne/tenants?name=name1", &t1Out)
 	if err != nil {
@@ -351,7 +351,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	}
 	t2Id := t2Out.ID
 	c.Assert(t2Out.ExternalID, check.Equals, "t2")
-	c.Assert(t2Out.Seq, check.Equals, uint64(1))
+	c.Assert(t2Out.NetworkID, check.Equals, uint64(1))
 	myLog(c, "Tenant 2 %s", t2Out)
 
 	tenSingle := tenant.Tenant{}
@@ -414,7 +414,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	}
 	c.Assert(t3Out.Name, check.Equals, "name2")
 	c.Assert(t3Out.ExternalID, check.Equals, "t3")
-	c.Assert(t3Out.Seq, check.Equals, uint64(2))
+	c.Assert(t3Out.NetworkID, check.Equals, uint64(2))
 	myLog(c, "Tenant 3 %s", t3Out)
 
 	// findAll should find 1 tenants.
