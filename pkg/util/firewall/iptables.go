@@ -159,27 +159,25 @@ func (fw *IPtables) makeRules(netif FirewallEndpoint) error {
 	}
 	fw.interfaceName = netif.GetName()
 
-	tenantVectorChainName := fmt.Sprintf("ROMANA-T%d", fw.extractTenantID(ipToInt(netif.GetIP())))
-
 	fw.chains = append(fw.chains, IPtablesChain{
 		BaseChain:  "INPUT",
 		Directions: []string{"i"},
-		ChainName:  fw.prepareChainName("INPUT"),
+		ChainName:  "ROMANA-INPUT",
 	})
 	fw.chains = append(fw.chains, IPtablesChain{
 		BaseChain:  "OUTPUT",
 		Directions: []string{"o"},
-		ChainName:  fw.prepareChainName("OUTPUT"),
+		ChainName:  "ROMANA-FORWARD-IN",
 	})
 	fw.chains = append(fw.chains, IPtablesChain{
 		BaseChain:  "FORWARD",
 		Directions: []string{"i"},
-		ChainName:  fw.prepareChainName("FORWARD"),
+		ChainName:  "ROMANA-FORWARD-OUT",
 	})
 	fw.chains = append(fw.chains, IPtablesChain{
 		BaseChain:  "FORWARD",
 		Directions: []string{"o"},
-		ChainName:  tenantVectorChainName,
+		ChainName:  "ROMANA-FORWARD-IN",
 	})
 
 	glog.V(1).Infof("In makeRules() created chains %v", fw.chains)
