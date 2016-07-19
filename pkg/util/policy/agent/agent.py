@@ -283,7 +283,7 @@ def make_rules(addr_scheme, policy_def, policy_id):
         # to the per-tenant chain and will reach DROP at the end of the chain.
 
         # Per tenant policy chain name.
-        tenant_policy_vector_chain = "ROMANA-T%s" % tenant
+        tenant_policy_vector_chain = "ROMANA-FW-T%s" % tenant
 
         # Tenant wide policy vector chain hosts jumps to the policies
         # applied to a tenant traffic as well as default rules.
@@ -309,6 +309,15 @@ def make_rules(addr_scheme, policy_def, policy_id):
 
         # Chain names are going to be used later to fill in the rules. Store them.
         policy_chains[in_chain_name] = True
+
+        # Ingress chain for traffic between VMs
+        ingress_vm_chain = "ROMANA-FORWARD-IN"
+
+        # Jump from ingress VM chain into per-tenant chain
+        rules[ingress_vm_chain] = [
+            _make_rule(ingress_vm_chain, "-j %s" % tenant_policy_vector_chain),
+            _make_rule(ingress_vm_chain, "-j %s" % "DROP")
+        ]
 
         # Jump from per-tenant chain into per-segment chains and default DROP.
         rules[tenant_policy_vector_chain] = [
