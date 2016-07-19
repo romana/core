@@ -260,7 +260,6 @@ func (rc *RestClient) GetServiceUrl(name string) (string, error) {
 		//		log.Println("Checking", service.Name, "against", name, "links:", service.Links)
 		if service.Name == name {
 			href := service.Links.FindByRel("service")
-			log.Println("href:", href)
 			if href != "" {
 				// Now for a bit of a trick - this href could be relative...
 				// Need to normalize.
