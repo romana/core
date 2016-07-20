@@ -183,9 +183,7 @@ set_up_pod () {
 	[[ $IP ]] || die "Failed to allocate IP address for pod $POD on node $NODE with tenant $NAMESPACE" 2
 
 	# Setting up the networking for Infra namespace
-	sudo ip link add type veth
-	sudo ip link set veth0 name "veth0-${NSPID}"
-	sudo ip link set veth1 name "veth1-${NSPID}"
+	sudo ip link add "veth0-${NSPID}" type veth peer name "veth1-${NSPID}"
 	sudo ip link set "veth1-${NSPID}" netns ${NSPID}
 	sudo nsenter -t ${NSPID} -n ip link set "veth1-${NSPID}" name eth0
 	sudo nsenter -t ${NSPID} -n ip link set eth0 up
