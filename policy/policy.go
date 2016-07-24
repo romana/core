@@ -22,6 +22,8 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"crypto/sha1"
+	"encoding/hex"
 )
 
 // Policy provides Policy service.
@@ -161,6 +163,14 @@ func (policy *PolicySvc) augmentEndpoint(endpoint *common.Endpoint) error {
 func (policy *PolicySvc) augmentPolicy(policyDoc *common.Policy) error {
 	// Get info from topology service
 	log.Printf("Augmenting policy %s", policyDoc.Name)
+
+	// TODO
+	// Important! This should really be done in policy agent.
+	// Only done here as temporary measure.
+	internalId := makeId(policyDoc.AppliedTo)
+	log.Printf("Constructing internal policy name = %s", internalId)
+	policyDoc.Name = internalId
+
 	topoUrl, err := policy.client.GetServiceUrl("topology")
 	if err != nil {
 		return err
@@ -288,6 +298,14 @@ func (policy *PolicySvc) deletePolicy(id uint64) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	// TODO
+	// Important! This should really be done in policy agent.
+	// Only done here as temporary measure.
+	internalId := makeId(policyDoc.AppliedTo)
+	log.Printf("Constructing internal policy name = %s", internalId)
+	policyDoc.Name = internalId
+
 	errStr := make([]string, 0)
 	for _, host := range hosts {
 		// TODO make schema configurable
@@ -418,6 +436,27 @@ func (policy *PolicySvc) Initialize() error {
 	}
 	return nil
 }
+
+// makeId generates uniq id from applied to field.
+func  makeId (allowedTo []common.Endpoint) string {
+	var data string
+
+	for _, e := range allowedTo {
+		if data == "" {
+			data = fmt.Sprintf("%s", e)
+		} else {
+			data = fmt.Sprintf("%s\n%s", data, e)
+		}
+	}
+
+	hasher := sha1.New()
+	hasher.Write([]byte(data))
+	sum := hasher.Sum(nil)
+
+	// Taking 6 bytes of a hash which is 12 chars length
+	return fmt.Sprint(hex.EncodeToString(sum[:6]))
+}
+
 
 // CreateSchema creates schema for Policy service.
 func CreateSchema(rootServiceURL string, overwrite bool) error {
