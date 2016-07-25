@@ -367,6 +367,8 @@ func (policy *PolicySvc) addPolicy(input interface{}, ctx common.RestContext) (i
 		return nil, err
 	}
 
+	log.Printf("addPolicy(): Request for a new policy to be added: %v", policyDoc)
+
 	err = policy.augmentPolicy(policyDoc)
 	if err != nil {
 		log.Printf("addPolicy(): Error augmenting: %v", err)

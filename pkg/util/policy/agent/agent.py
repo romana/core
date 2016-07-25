@@ -34,6 +34,11 @@ parser.add_option('--port', default=9630, dest="port", type="int",
                   help="Port number to listen for incoming requests")
 (options, args) = parser.parse_args()
 
+# TODO errors check
+def get_romana_gw_ip ():
+    res = subprocess.check_output(["ip", "a", "show", "romana-gw"])
+    return res.split("\n")[2].split(" ")[5]
+
 def filter_rules_idx(rules):
     """
     Returns 'sweet spot' in iptables rules, index in *filter table where chain
@@ -442,6 +447,13 @@ def make_rules(addr_scheme, policy_def, policy_id):
             if pr:
                 if pr == "any":
                     jump_rules = [ _make_rule(policy_chain_name, "-j %s") % in_chain_name ]
+
+                elif pr == "host":
+                    jump_rules = [ _make_rule(policy_chain_name, "-s %s -j %s") % (get_romana_gw_ip().split('/')[0], in_chain_name) ]
+
+                elif pr == "local":
+                    jump_rules = [ _make_rule(policy_chain_name, "-d %s -j %s") % (get_romana_gw_ip().split('/')[0], in_chain_name) ]
+
                 else:
                     raise Exception("Unsupported value of peer %s" % pr)
 
