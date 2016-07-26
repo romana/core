@@ -394,22 +394,22 @@ type RestServiceInfo struct {
 
 // Response to /
 type IndexResponse struct {
-	ServiceName string `json:"serviceName"`
-	Links       Links
+	ServiceName string `json:"service_name"`
+	Links       Links  `json:"links"`
 }
 
 // RootIndexResponse represents a response from the / path
 // specific for root service only.
 type RootIndexResponse struct {
-	ServiceName string `json:"serviceName"`
-	Links       Links
-	Services    []ServiceResponse
+	ServiceName string            `json:"service_name"`
+	Links       Links             `json:"links"`
+	Services    []ServiceResponse `json:"services"`
 }
 
 // Service information
 type ServiceResponse struct {
-	Name  string
-	Links Links
+	Name  string `json:"name"`
+	Links Links  `json:"links"`
 }
 
 // Datacenter represents the configuration of a datacenter.
