@@ -350,14 +350,14 @@ def make_rules(addr_scheme, policy_def, policy_id):
             # Ingress chain for traffic between VMs
             ingress_chain = "ROMANA-FORWARD-IN"
 
-        elif dest == 'host':
+        elif dest == 'local':
             # Top level chain for ingress traffic between VMs, applied to all tenants.
             tenant_wide_policy_vector_chain = "ROMANA-OP"
 
             # Ingress chain for traffic between VMs
             ingress_chain = "ROMANA-FORWARD-OUT"
 
-        elif dest == 'local':
+        elif dest == 'host':
             # Top level chain for ingress traffic between host and VMs
             tenant_wide_policy_vector_chain = "ROMANA-OP-IN"
 
