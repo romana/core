@@ -98,6 +98,9 @@ func (policy *PolicySvc) augmentEndpoint(endpoint *common.Endpoint) error {
 		return nil
 	}
 	log.Printf("Policy: Augmenting  %#v", endpoint)
+
+	// Code below tries to resolve tenant name into tenant_network_id if possible.
+	//
 	// TODO this will have to be changed once we implement
 	// https://paninetworks.kanbanize.com/ctrl_board/3/cards/319/details
 	ten := &tenant.Tenant{}
@@ -110,6 +113,9 @@ func (policy *PolicySvc) augmentEndpoint(endpoint *common.Endpoint) error {
 			if err != nil {
 				return err
 			}
+
+			endpoint.TenantNetworkID = &ten.Seq
+
 		} else if endpoint.TenantExternalID != "" || endpoint.TenantName != "" {
 			if endpoint.TenantExternalID != "" {
 				ten.ExternalID = endpoint.TenantExternalID
@@ -121,8 +127,9 @@ func (policy *PolicySvc) augmentEndpoint(endpoint *common.Endpoint) error {
 			if err != nil {
 				return err
 			}
+
+			endpoint.TenantNetworkID = &ten.Seq
 		}
-		endpoint.TenantNetworkID = &ten.NetworkID
 	}
 
 	if endpoint.SegmentNetworkID == nil {
@@ -138,7 +145,7 @@ func (policy *PolicySvc) augmentEndpoint(endpoint *common.Endpoint) error {
 			if err != nil {
 				return err
 			}
-			endpoint.SegmentNetworkID = &segment.NetworkID
+			endpoint.SegmentNetworkID = &segment.Seq
 		} else if endpoint.SegmentExternalID != "" || endpoint.SegmentName != "" {
 			segmentsUrl := fmt.Sprintf("%s/findLast/segments?tenant_id=%d&", tenantSvcUrl, ten.ID)
 			if endpoint.SegmentExternalID != "" {
@@ -152,7 +159,7 @@ func (policy *PolicySvc) augmentEndpoint(endpoint *common.Endpoint) error {
 			if err != nil {
 				return err
 			}
-			endpoint.SegmentNetworkID = &segment.NetworkID
+			endpoint.SegmentNetworkID = &segment.Seq
 		}
 	}
 	return nil
@@ -399,6 +406,7 @@ func (policy *PolicySvc) Name() string {
 // Returns an error if cannot connect to the data store
 func (policy *PolicySvc) SetConfig(config common.ServiceConfig) error {
 	// TODO this is a copy-paste of topology service, to refactor
+	log.Println(config)
 	policy.config = config
 	//	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
 	log.Printf("Policy port: %d", config.Common.Api.Port)
