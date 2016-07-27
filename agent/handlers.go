@@ -174,6 +174,20 @@ func (a *Agent) podUpHandlerAsync(netReq NetworkRequest) error {
 	inboundRule.SetBody(fmt.Sprintf("%s -d %s/%d %s", inboundChain, hostAddr, hostMask, "-j DROP"))
 	defaultRules = append(defaultRules, inboundRule)
 
+	inboundRule = firewall.NewFirewallRule()
+	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-p icmp --icmp-type 0 -j ACCEPT"))
+	defaultRules = append(defaultRules, inboundRule)
+
+	forwardInChain := chainNames[firewall.ForwardInChainIndex]
+	forwardInRule := firewall.NewFirewallRule()
+	forwardInRule.SetBody(fmt.Sprintf("%s %s", forwardInChain, "-m comment --comment Outgoing -j ACCEPT"))
+	defaultRules = append(defaultRules, forwardInRule)
+
+	forwardOutChain := chainNames[firewall.ForwardOutChainIndex]
+	forwardOutRule := firewall.NewFirewallRule()
+	forwardOutRule.SetBody(fmt.Sprintf("%s %s", forwardOutChain, "-m state --state RELATED,ESTABLISHED -j ACCEPT"))
+	defaultRules = append(defaultRules, forwardOutRule)
+
 	fw.SetDefaultRules(defaultRules)
 
 	if err := fw.ProvisionEndpoint(); err != nil {
@@ -232,6 +246,62 @@ func (a *Agent) vmUpHandlerAsync(netif NetIf) error {
 		return agentError(err)
 	}
 
+	metadata := fw.Metadata()
+	chainNames := metadata["chains"].([]string)
+	u32filter := metadata["u32filter"]
+	hostAddr := a.networkConfig.RomanaGW()
+	hostMask, _ := a.networkConfig.RomanaGWMask().Size()
+
+	// Default firewall rules for OpenStack
+	// Allow ICMP, DHCP and SSH between host and instances.
+	inboundChain := chainNames[firewall.InputChainIndex]
+	var defaultRules []firewall.FirewallRule
+
+	inboundRule := firewall.NewFirewallRule()
+	inboundRule.SetBody(fmt.Sprintf("%s -d %s/%d %s", inboundChain, hostAddr, hostMask, "-j DROP"))
+	defaultRules = append(defaultRules, inboundRule)
+
+	inboundRule = firewall.NewFirewallRule()
+	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-d 255.255.255.255/32 -p udp -m udp --sport 68 --dport 67 -j ACCEPT"))
+	defaultRules = append(defaultRules, inboundRule)
+
+	inboundRule = firewall.NewFirewallRule()
+	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-p tcp --sport 22 -j ACCEPT"))
+	defaultRules = append(defaultRules, inboundRule)
+
+	inboundRule = firewall.NewFirewallRule()
+	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-p icmp --icmp-type 0 -j ACCEPT"))
+	defaultRules = append(defaultRules, inboundRule)
+
+	outboundChain := chainNames[firewall.OutputChainIndex]
+	outboundRule := firewall.NewFirewallRule()
+	outboundRule.SetBody(fmt.Sprintf("%s -s %s/32 -p udp -m udp --sport 67 --dport 68 -j ACCEPT", outboundChain, hostAddr))
+	defaultRules = append(defaultRules, outboundRule)
+
+	outboundRule = firewall.NewFirewallRule()
+	outboundRule.SetBody(fmt.Sprintf("%s %s", outboundChain, "-p tcp --dport 22 -j ACCEPT"))
+	defaultRules = append(defaultRules, outboundRule)
+
+	forwardInChain := chainNames[firewall.ForwardInChainIndex]
+	forwardInRule := firewall.NewFirewallRule()
+	forwardInRule.SetBody(fmt.Sprintf("%s %s", forwardInChain, "-m comment --comment Outgoing -j ACCEPT"))
+	defaultRules = append(defaultRules, forwardInRule)
+
+	forwardOutChain := chainNames[firewall.ForwardOutChainIndex]
+	forwardOutRule := firewall.NewFirewallRule()
+	forwardOutRule.SetBody(fmt.Sprintf("%s %s", forwardOutChain, "-m state --state RELATED,ESTABLISHED -j ACCEPT"))
+	defaultRules = append(defaultRules, forwardOutRule)
+
+	forwardOutRule = firewall.NewFirewallRule()
+	forwardOutRule.SetBody(fmt.Sprintf("%s -m u32 --u32 %s %s", forwardOutChain, u32filter, "-j ACCEPT"))
+	defaultRules = append(defaultRules, forwardOutRule)
+
+	fw.SetDefaultRules(defaultRules)
+
+	if err := fw.ProvisionEndpoint(); err != nil {
+		glog.Error(agentError(err))
+		return agentError(err)
+	}
 	if err := fw.ProvisionEndpoint(); err != nil {
 		glog.Error(agentError(err))
 		return agentError(err)
