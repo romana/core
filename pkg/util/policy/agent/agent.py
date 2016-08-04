@@ -355,7 +355,7 @@ def make_rules(addr_scheme, policy_def, policy_id):
             tenant_wide_policy_vector_chain = "ROMANA-OP"
 
             # Ingress chain for traffic between VMs
-            ingress_chain = "ROMANA-FORWARD-OUT"
+            ingress_chain = "ROMANA-FORWARD-IN"
 
         elif dest == 'host':
             # Top level chain for ingress traffic between host and VMs
@@ -452,7 +452,7 @@ def make_rules(addr_scheme, policy_def, policy_id):
                     jump_rules = [ _make_rule(policy_chain_name, "-s %s -j %s") % (get_romana_gw_ip().split('/')[0], in_chain_name) ]
 
                 elif pr == "local":
-                    jump_rules = [ _make_rule(policy_chain_name, "-d %s -j %s") % (get_romana_gw_ip().split('/')[0], in_chain_name) ]
+                    jump_rules = [ _make_rule(policy_chain_name, "-j %s") % (in_chain_name) ]
 
                 else:
                     raise Exception("Unsupported value of peer %s" % pr)
