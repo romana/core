@@ -164,18 +164,18 @@ func (a *Agent) podUpHandlerAsync(netReq NetworkRequest) error {
 	hostMask, _ := a.networkConfig.RomanaGWMask().Size()
 
 	// Default firewall rules for Kubernetes
-	// Allow ICMP, and SSH between host and instances.
 	var defaultRules []firewall.FirewallRule
 
 	// ProvisionEndpoint applies default rules in reverse order
 	// so DROP goes first
 	inboundChain := chainNames[firewall.InputChainIndex]
+
 	inboundRule := firewall.NewFirewallRule()
-	inboundRule.SetBody(fmt.Sprintf("%s -d %s/%d %s", inboundChain, hostAddr, hostMask, "-j DROP"))
+	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-j DROP"))
 	defaultRules = append(defaultRules, inboundRule)
 
 	inboundRule = firewall.NewFirewallRule()
-	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-p icmp --icmp-type 0 -j ACCEPT"))
+	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-m state --state ESTABLISHED -j ACCEPT"))
 	defaultRules = append(defaultRules, inboundRule)
 
 	forwardInChain := chainNames[firewall.ForwardInChainIndex]
@@ -253,34 +253,16 @@ func (a *Agent) vmUpHandlerAsync(netif NetIf) error {
 	hostMask, _ := a.networkConfig.RomanaGWMask().Size()
 
 	// Default firewall rules for OpenStack
-	// Allow ICMP, DHCP and SSH between host and instances.
 	inboundChain := chainNames[firewall.InputChainIndex]
 	var defaultRules []firewall.FirewallRule
 
 	inboundRule := firewall.NewFirewallRule()
-	inboundRule.SetBody(fmt.Sprintf("%s -d %s/%d %s", inboundChain, hostAddr, hostMask, "-j DROP"))
+	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-j DROP"))
 	defaultRules = append(defaultRules, inboundRule)
 
 	inboundRule = firewall.NewFirewallRule()
-	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-d 255.255.255.255/32 -p udp -m udp --sport 68 --dport 67 -j ACCEPT"))
+	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-m state --state ESTABLISHED -j ACCEPT"))
 	defaultRules = append(defaultRules, inboundRule)
-
-	inboundRule = firewall.NewFirewallRule()
-	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-p tcp --sport 22 -j ACCEPT"))
-	defaultRules = append(defaultRules, inboundRule)
-
-	inboundRule = firewall.NewFirewallRule()
-	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-p icmp --icmp-type 0 -j ACCEPT"))
-	defaultRules = append(defaultRules, inboundRule)
-
-	outboundChain := chainNames[firewall.OutputChainIndex]
-	outboundRule := firewall.NewFirewallRule()
-	outboundRule.SetBody(fmt.Sprintf("%s -s %s/32 -p udp -m udp --sport 67 --dport 68 -j ACCEPT", outboundChain, hostAddr))
-	defaultRules = append(defaultRules, outboundRule)
-
-	outboundRule = firewall.NewFirewallRule()
-	outboundRule.SetBody(fmt.Sprintf("%s %s", outboundChain, "-p tcp --dport 22 -j ACCEPT"))
-	defaultRules = append(defaultRules, outboundRule)
 
 	forwardInChain := chainNames[firewall.ForwardInChainIndex]
 	forwardInRule := firewall.NewFirewallRule()
@@ -289,11 +271,11 @@ func (a *Agent) vmUpHandlerAsync(netif NetIf) error {
 
 	forwardOutChain := chainNames[firewall.ForwardOutChainIndex]
 	forwardOutRule := firewall.NewFirewallRule()
-	forwardOutRule.SetBody(fmt.Sprintf("%s %s", forwardOutChain, "-m state --state RELATED,ESTABLISHED -j ACCEPT"))
+	forwardOutRule.SetBody(fmt.Sprintf("%s %s", forwardOutChain, "-m state --state ESTABLISHED -j ACCEPT"))
 	defaultRules = append(defaultRules, forwardOutRule)
 
 	forwardOutRule = firewall.NewFirewallRule()
-	forwardOutRule.SetBody(fmt.Sprintf("%s -m u32 --u32 %s %s", forwardOutChain, u32filter, "-j ACCEPT"))
+	forwardOutRule.SetBody(fmt.Sprintf("%s ! -s %s -m u32 --u32 %s %s", forwardOutChain, hostAddr, u32filter, "-j ACCEPT"))
 	defaultRules = append(defaultRules, forwardOutRule)
 
 	fw.SetDefaultRules(defaultRules)
