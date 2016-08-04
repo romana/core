@@ -174,7 +174,7 @@ func (policy *PolicySvc) augmentPolicy(policyDoc *common.Policy) error {
 	// TODO
 	// Important! This should really be done in policy agent.
 	// Only done here as temporary measure.
-	internalId := makeId(policyDoc.AppliedTo)
+	internalId := makeId(policyDoc.AppliedTo, policyDoc.Name)
 	log.Printf("Constructing internal policy name = %s", internalId)
 	policyDoc.Name = internalId
 
@@ -309,7 +309,7 @@ func (policy *PolicySvc) deletePolicy(id uint64) (interface{}, error) {
 	// TODO
 	// Important! This should really be done in policy agent.
 	// Only done here as temporary measure.
-	internalId := makeId(policyDoc.AppliedTo)
+	internalId := makeId(policyDoc.AppliedTo, policyDoc.Name)
 	log.Printf("Constructing internal policy name = %s", internalId)
 	policyDoc.Name = internalId
 
@@ -448,8 +448,9 @@ func (policy *PolicySvc) Initialize() error {
 }
 
 // makeId generates uniq id from applied to field.
-func  makeId (allowedTo []common.Endpoint) string {
+func  makeId (allowedTo []common.Endpoint, name string) string {
 	var data string
+	data = name
 
 	for _, e := range allowedTo {
 		if data == "" {
