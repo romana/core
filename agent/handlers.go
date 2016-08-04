@@ -160,8 +160,6 @@ func (a *Agent) podUpHandlerAsync(netReq NetworkRequest) error {
 
 	metadata := fw.Metadata()
 	chainNames := metadata["chains"].([]string)
-	hostAddr := a.networkConfig.RomanaGW()
-	hostMask, _ := a.networkConfig.RomanaGWMask().Size()
 
 	// Default firewall rules for Kubernetes
 	var defaultRules []firewall.FirewallRule
@@ -178,15 +176,15 @@ func (a *Agent) podUpHandlerAsync(netReq NetworkRequest) error {
 	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-m state --state ESTABLISHED -j ACCEPT"))
 	defaultRules = append(defaultRules, inboundRule)
 
-	forwardInChain := chainNames[firewall.ForwardInChainIndex]
-	forwardInRule := firewall.NewFirewallRule()
-	forwardInRule.SetBody(fmt.Sprintf("%s %s", forwardInChain, "-m comment --comment Outgoing -j ACCEPT"))
-	defaultRules = append(defaultRules, forwardInRule)
-
 	forwardOutChain := chainNames[firewall.ForwardOutChainIndex]
 	forwardOutRule := firewall.NewFirewallRule()
-	forwardOutRule.SetBody(fmt.Sprintf("%s %s", forwardOutChain, "-m state --state RELATED,ESTABLISHED -j ACCEPT"))
+	forwardOutRule.SetBody(fmt.Sprintf("%s %s", forwardOutChain, "-m comment --comment Outgoing -j RETURN"))
 	defaultRules = append(defaultRules, forwardOutRule)
+
+	forwardInChain := chainNames[firewall.ForwardInChainIndex]
+	forwardInRule := firewall.NewFirewallRule()
+	forwardInRule.SetBody(fmt.Sprintf("%s %s", forwardInChain, "-m state --state RELATED,ESTABLISHED -j ACCEPT"))
+	defaultRules = append(defaultRules, forwardInRule)
 
 	fw.SetDefaultRules(defaultRules)
 
@@ -250,7 +248,6 @@ func (a *Agent) vmUpHandlerAsync(netif NetIf) error {
 	chainNames := metadata["chains"].([]string)
 	u32filter := metadata["u32filter"]
 	hostAddr := a.networkConfig.RomanaGW()
-	hostMask, _ := a.networkConfig.RomanaGWMask().Size()
 
 	// Default firewall rules for OpenStack
 	inboundChain := chainNames[firewall.InputChainIndex]
@@ -264,19 +261,19 @@ func (a *Agent) vmUpHandlerAsync(netif NetIf) error {
 	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-m state --state ESTABLISHED -j ACCEPT"))
 	defaultRules = append(defaultRules, inboundRule)
 
-	forwardInChain := chainNames[firewall.ForwardInChainIndex]
-	forwardInRule := firewall.NewFirewallRule()
-	forwardInRule.SetBody(fmt.Sprintf("%s %s", forwardInChain, "-m comment --comment Outgoing -j ACCEPT"))
-	defaultRules = append(defaultRules, forwardInRule)
-
 	forwardOutChain := chainNames[firewall.ForwardOutChainIndex]
 	forwardOutRule := firewall.NewFirewallRule()
-	forwardOutRule.SetBody(fmt.Sprintf("%s %s", forwardOutChain, "-m state --state ESTABLISHED -j ACCEPT"))
+	forwardOutRule.SetBody(fmt.Sprintf("%s %s", forwardOutChain, "-m comment --comment Outgoing -j RETURN"))
 	defaultRules = append(defaultRules, forwardOutRule)
 
-	forwardOutRule = firewall.NewFirewallRule()
-	forwardOutRule.SetBody(fmt.Sprintf("%s ! -s %s -m u32 --u32 %s %s", forwardOutChain, hostAddr, u32filter, "-j ACCEPT"))
-	defaultRules = append(defaultRules, forwardOutRule)
+	forwardInChain := chainNames[firewall.ForwardInChainIndex]
+	forwardInRule := firewall.NewFirewallRule()
+	forwardInRule.SetBody(fmt.Sprintf("%s %s", forwardInChain, "-m state --state ESTABLISHED -j ACCEPT"))
+	defaultRules = append(defaultRules, forwardInRule)
+
+	forwardInRule = firewall.NewFirewallRule()
+	forwardInRule.SetBody(fmt.Sprintf("%s ! -s %s -m u32 --u32 %s %s", forwardInChain, hostAddr, u32filter, "-j ACCEPT"))
+	defaultRules = append(defaultRules, forwardInRule)
 
 	fw.SetDefaultRules(defaultRules)
 

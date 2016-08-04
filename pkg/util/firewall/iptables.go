@@ -29,8 +29,8 @@ import (
 const (
 	InputChainIndex      = 0
 	OutputChainIndex     = 1
-	ForwardInChainIndex  = 2
-	ForwardOutChainIndex = 3
+	ForwardOutChainIndex = 2
+	ForwardInChainIndex  = 3
 
 	targetDrop   = "DROP"
 	targetAccept = "ACCEPT"
