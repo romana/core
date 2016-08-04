@@ -302,10 +302,6 @@ func (a *Agent) vmUpHandlerAsync(netif NetIf) error {
 		glog.Error(agentError(err))
 		return agentError(err)
 	}
-	if err := fw.ProvisionEndpoint(); err != nil {
-		glog.Error(agentError(err))
-		return agentError(err)
-	}
 
 	glog.Info("All good", netif)
 	return nil
