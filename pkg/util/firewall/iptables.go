@@ -186,6 +186,7 @@ func (fw *IPtables) makeRules(netif FirewallEndpoint) error {
 
 // isChainExist verifies if given iptables chain exists.
 // Returns true if chain exists.
+// *Scheduled for deprecation, use isChainExistByName*
 func (fw *IPtables) isChainExist(chain int) bool {
 	args := []string{"-L", fw.chains[chain].ChainName}
 	output, err := fw.os.Exec(iptablesCmd, args)
@@ -194,6 +195,19 @@ func (fw *IPtables) isChainExist(chain int) bool {
 		return false
 	}
 	glog.V(1).Infof("isChainExist(): iptables -L %s returned %s", fw.chains[chain].ChainName, string(output))
+	return true
+}
+
+// isChainExistByName verifies if given iptables chain exists.
+// Returns true if chain exists.
+func (fw *IPtables) isChainExistByName(chainName string) bool {
+	args := []string{"-L", chainName}
+	output, err := fw.os.Exec(iptablesCmd, args)
+	if err != nil {
+		glog.V(1).Infof("isChainExist(): iptables -L %s returned %s", chainName, err)
+		return false
+	}
+	glog.V(1).Infof("isChainExist(): iptables -L %s returned %s", chainName, string(output))
 	return true
 }
 
@@ -211,6 +225,7 @@ func (fw *IPtables) isRuleExist(rule *IPtablesRule) bool {
 
 // detectMissingChains checks which IPtables chains haven't been created yet.
 // Because we do not want to create chains that already exist.
+// *DEPRECATED*
 func (fw *IPtables) detectMissingChains() []int {
 	var ret []int
 	for chain := range fw.chains {
@@ -228,15 +243,59 @@ func (fw *IPtables) detectMissingChains() []int {
 	return ret
 }
 
+// ensureIPtablesChain checks if iptables chain in a desired state.
+func (fw *IPtables) ensureIPtablesChain(chainName string, opType chainState) error {
+	glog.V(1).Infof("In ensureIPtablesChain(): %s %s", opType.String(), chainName)
+
+	glog.V(2).Infof("In ensureIPtablesChain(): Testing chain ", chainName)
+	exists := fw.isChainExistByName(chainName); 
+	glog.V(2).Infof("In ensureIPtablesChain(): Test for chain %s returned %b", chainName, exists)
+
+	var iptablesAction string
+	switch opType {
+	case ensureChainExists:
+		if exists {
+			glog.V(2).Infof("In ensureIPtablesChain(): nothing to do for chain %s", chainName)
+			return nil
+		} else {
+			iptablesAction = "-N"
+		}
+
+	case ensureChainAbsent:
+		if exists {
+			iptablesAction = "-D"
+		} else {
+			glog.V(2).Infof("In ensureIPtablesChain(): nothing to do for chain %s", chainName)
+			return nil
+		}
+	}
+
+
+	args := []string{iptablesAction, chainName}
+	_, err := fw.os.Exec(iptablesCmd, args)
+	return err
+}
+
 // CreateChains creates IPtables chains such as
 // ROMANA-T0S0-OUTPUT, ROMANA-T0S0-FORWARD, ROMANA-T0S0-INPUT.
-func (fw *IPtables) CreateChains(newChains []int) error {
-	for _, chain := range newChains {
-		args := []string{"-N", fw.chains[chain].ChainName}
-		_, err := fw.os.Exec(iptablesCmd, args)
-		if err != nil {
-			return err
+func (fw *IPtables) CreateChains(chains []IPtablesChain) error {
+	for _, chain := range chains {
+
+		glog.V(2).Infof("Testing chain", chain)
+		if ok := fw.isChainExistByName(chain.ChainName); !ok {
+			glog.V(2).Infof(">> detected missing chain %d, test returned %b", chain, ok)
+
+			args := []string{"-N", chain.ChainName}
+			_, err := fw.os.Exec(iptablesCmd, args)
+			if err != nil {
+				return err
+			}
+
+
+		} else {
+			glog.V(2).Infof(">> detected existing chain %d, test returned %b", chain, ok)
 		}
+
 	}
 	return nil
 }
@@ -526,9 +585,9 @@ func (fw IPtables) ProvisionEndpoint() error {
 		return fmt.Errorf("In ProvisionEndpoint(), can not provision uninitialized firewall, use Init()")
 	}
 
-	missingChains := fw.detectMissingChains()
-	glog.Infof("Firewall: creating chains %v", missingChains)
-	err := fw.CreateChains(missingChains)
+// 	missingChains := fw.detectMissingChains()
+//	glog.Infof("Firewall: creating chains %v", missingChains)
+	err := fw.CreateChains(fw.chains)
 	if err != nil {
 		return err
 	}
