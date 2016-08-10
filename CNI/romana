@@ -189,8 +189,9 @@ set_up_pod () {
 	sudo ip link set "veth1-${NSPID}" netns ${NSPID}
 	sudo nsenter -t ${NSPID} -n ip link set "veth1-${NSPID}" name eth0
 	sudo nsenter -t ${NSPID} -n ip link set eth0 up
-	sudo nsenter -t ${NSPID} -n ip addr add $IP/$GATE_MASK dev eth0
-	sudo nsenter -t ${NSPID} -n ip ro add 0.0.0.0/0 dev eth0
+	sudo nsenter -t ${NSPID} -n ip addr add $IP/32 dev eth0
+	sudo nsenter -t ${NSPID} -n ip ro add $GATE_SRC dev eth0
+	sudo nsenter -t ${NSPID} -n ip ro add default via $GATE_SRC dev eth0
 	sudo ip link set "veth0-${NSPID}" up
 
 	log "$(req "veth0-${NSPID}" "$IP" "$NS_ISOLATION")"
