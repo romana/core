@@ -223,26 +223,6 @@ func (fw *IPtables) isRuleExist(rule *IPtablesRule) bool {
 	return true
 }
 
-// detectMissingChains checks which IPtables chains haven't been created yet.
-// Because we do not want to create chains that already exist.
-// *DEPRECATED*
-func (fw *IPtables) detectMissingChains() []int {
-	var ret []int
-	for chain := range fw.chains {
-		glog.V(2).Infof("Testing chain", chain)
-		if ok := fw.isChainExist(chain); !ok {
-			glog.V(2).Infof(">> detected missing chain %d, test returned %b", chain, ok)
-			ret = append(ret, chain)
-		} else {
-			glog.V(2).Infof(">> detected existing chain %d, test returned %b", chain, ok)
-		}
-
-	}
-
-	glog.V(2).Infof("In detectMissingChains() returning with %v", ret)
-	return ret
-}
-
 // ensureIPtablesChain checks if iptables chain in a desired state.
 func (fw *IPtables) ensureIPtablesChain(chainName string, opType chainState) error {
 	glog.V(1).Infof("In ensureIPtablesChain(): %s %s", opType.String(), chainName)
@@ -280,22 +260,7 @@ func (fw *IPtables) ensureIPtablesChain(chainName string, opType chainState) err
 // ROMANA-T0S0-OUTPUT, ROMANA-T0S0-FORWARD, ROMANA-T0S0-INPUT.
 func (fw *IPtables) CreateChains(chains []IPtablesChain) error {
 	for _, chain := range chains {
-
-		glog.V(2).Infof("Testing chain", chain)
-		if ok := fw.isChainExistByName(chain.ChainName); !ok {
-			glog.V(2).Infof(">> detected missing chain %d, test returned %b", chain, ok)
-
-			args := []string{"-N", chain.ChainName}
-			_, err := fw.os.Exec(iptablesCmd, args)
-			if err != nil {
-				return err
-			}
-
-
-		} else {
-			glog.V(2).Infof(">> detected existing chain %d, test returned %b", chain, ok)
-		}
-
+		fw.ensureIPtablesChain(chain.ChainName, ensureChainExists)
 	}
 	return nil
 }
@@ -585,8 +550,6 @@ func (fw IPtables) ProvisionEndpoint() error {
 		return fmt.Errorf("In ProvisionEndpoint(), can not provision uninitialized firewall, use Init()")
 	}
 
-// 	missingChains := fw.detectMissingChains()
-//	glog.Infof("Firewall: creating chains %v", missingChains)
 	err := fw.CreateChains(fw.chains)
 	if err != nil {
 		return err
