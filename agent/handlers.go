@@ -169,7 +169,7 @@ func (a *Agent) podUpHandlerAsync(netReq NetworkRequest) error {
 	inboundChain := chainNames[firewall.InputChainIndex]
 
 	inboundRule := firewall.NewFirewallRule()
-	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-j DROP"))
+	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-m comment --comment DefaultDrop -j DROP"))
 	defaultRules = append(defaultRules, inboundRule)
 
 	inboundRule = firewall.NewFirewallRule()
@@ -254,7 +254,7 @@ func (a *Agent) vmUpHandlerAsync(netif NetIf) error {
 	var defaultRules []firewall.FirewallRule
 
 	inboundRule := firewall.NewFirewallRule()
-	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-j DROP"))
+	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-m comment --comment DefaultDrop -j DROP"))
 	defaultRules = append(defaultRules, inboundRule)
 
 	inboundRule = firewall.NewFirewallRule()

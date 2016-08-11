@@ -281,6 +281,7 @@ def make_new_full_ruleset(current_rules, new_rules):
     filter_idx = filter_rules_idx(current_rules)-1
 
     rules = []
+    backlog_rules = []
 
     # We only care about *filter table, copy everything before it.
     for rule in current_rules[:filter_idx]:
@@ -294,12 +295,27 @@ def make_new_full_ruleset(current_rules, new_rules):
     # Insert all the rules from all new chains, if they don't exist already.
     for chain in new_rules.keys():
         for rule in new_rules[chain]:
+            # Special handling for DefaultDrop rules
+            if 'DefaultDrop' in rule:
+                backlog_rules.append(rule)
+                continue
+
             if rule not in current_rules:
                 rules.append(rule)
 
     # Copy the rest of original *filter table.
     for rule in current_rules[filter_idx:]:
+        # Special handling for DefaultDrop rules
+        if 'DefaultDrop' in rule:
+            backlog_rules.append(rule)
+            continue
+
         rules.append(rule)
+
+    # Add 'DefaultDrop' rules to the end of the list to ensure they go last.
+    filter_commit_index = -3
+    for rule in set(backlog_rules):
+        rules.insert(filter_commit_index, rule)
 
     # Skip the loop if logging less then DEBUG
     if logging.getLevelName(logging.getLogger().getEffectiveLevel()) == 'DEBUG':
@@ -400,20 +416,20 @@ def make_rules(addr_scheme, policy_def, policy_id):
             # Jump from ingress VM chain into per-tenant chain
             rules[ingress_chain] = [
                 _make_rule(ingress_chain, "-j %s" % tenant_policy_vector_chain),
-                _make_rule(ingress_chain, "-j %s" % "DROP")
+                _make_rule(ingress_chain, "-m comment --comment DefaultDrop -j %s" % "DROP")
             ]
 
             # Jump from per-tenant chain into per-segment chains and default DROP.
             rules[tenant_policy_vector_chain] = [
                 _make_rule(tenant_policy_vector_chain, "-j %s" % target_segment_forward_chain),
                 _make_rule(tenant_policy_vector_chain, "-j %s" % tenant_wide_policy_vector_chain),
-                _make_rule(tenant_policy_vector_chain, "-j DROP")
+                _make_rule(tenant_policy_vector_chain, "-m comment --comment DefaultDrop -j DROP")
             ]
         else:
             # Jump from ingress chain into operator chain.
             rules[ingress_chain] = [
                 _make_rule(ingress_chain, "-j %s" % target_segment_forward_chain),
-                _make_rule(ingress_chain, "-j %s" % "DROP")
+                _make_rule(ingress_chain, "-m comment --comment DefaultDrop -j %s" % "DROP")
             ]
 
 
