@@ -125,56 +125,6 @@ class AgentHandler(BaseHTTPRequestHandler):
         if not all([ policy_def.get(k) for k in expected_fields ]):
             logging.warning("In validate_policy, policy is invalid - some of expected fields are missing, %s" % expected_fields)
             return False
-
-        
-        # Validating compatibility across applied_to and peers list.
-        valid = {
-                "full_tenant" : [ "peer_any", "full_tenant", "cidr" ],
-                "only_tenant" : [ "peer_any", "full_tenant", "cidr" ],
-                "dest_host"        : [ "peer_local", "peer_any" ],
-                "dest_local"       : [ "peer_host", "peer_any"  ],
-                }
-
-        target_types = []
-        peer_types = []
-        for target in policy_def['applied_to']:
-            tenant         = target.get('tenant_network_id')
-            target_segment = target.get('segment_network_id')
-            dest           = target.get('dest')
-
-            if not None in [ tenant, target_segment ]:
-                target_type = "full_tenant"
-            elif tenant != None:
-                target_type = "only_tenant"
-            elif dest != None:
-                target_type = "dest_%s" % dest
-            else:
-                raise Exception("Unsupported value of applied_to %s" % target)
-
-            target_types.append(target_type)
-
-        for peer in policy_def['peers']:
-            tenant         = peer.get('tenant_network_id')
-            segment = peer.get('segment_network_id')
-            peer           = peer.get('peer')
-
-            if not None in [ tenant, segment ]:
-                peer_type = "full_tenant"
-            elif tenant != None:
-                peer_type = "only_tenant"
-            elif peer != None:
-                peer_type = "peer_%s" % peer
-            else:
-                raise Exception("Unsupported value of peers %s" % target)
-            
-            peer_types.append(peer_type)
-            
-        logging.info("In validate_policy with applied_to %s and peers %s" % (target_types, peer_types))
-        for target in target_types:
-            for peer in peer_types:
-                if peer not in valid[target]:
-                    raise Exception("Unsupported value of peer type %s with applied_to type %s" % (peer, target))
-
         return True
 
 
@@ -321,9 +271,8 @@ def make_rules(addr_scheme, policy_def, policy_id):
     # Create chain names for each target and stuff them with default rules
     name = policy_def['name']
     for target in policy_def['applied_to']:
-        tenant         = target.get('tenant_network_id')
+        tenant         = target['tenant_network_id']
         target_segment = target.get('segment_network_id')
-        dest           = target.get('dest')
 
         logging.warning("In make_rules with tenant = %s, target_segment_id = %s, name = %s" %
                 (tenant, target_segment, name))
@@ -333,35 +282,21 @@ def make_rules(addr_scheme, policy_def, policy_id):
         # Unless one of policy chains will ACCEPT the packet it will RETURN
         # to the per-tenant chain and will reach DROP at the end of the chain.
 
+        # Per tenant policy chain name.
+        tenant_policy_vector_chain = "ROMANA-FW-T%s" % tenant
 
-        if tenant:
-            # Per tenant policy chain name.
-            tenant_policy_vector_chain = "ROMANA-FW-T%s" % tenant
+        # Tenant wide policy vector chain hosts jumps to the policies
+        # applied to a tenant traffic as well as default rules.
+        tenant_wide_policy_vector_chain = "ROMANA-T%s-W" % tenant
 
-            # Tenant wide policy vector chain hosts jumps to the policies
-            # applied to a tenant traffic as well as default rules.
-            tenant_wide_policy_vector_chain = "ROMANA-T%s-W" % tenant
+        # The name for the new policy's chain(s). Need to include the tenant ID to
+        # avoid name conflicts.
+        policy_chain_name = "ROMANA-T%dP-%s_" % \
+            (tenant, name)
 
-            # Ingress chain for traffic between VMs
-            ingress_chain = "ROMANA-FORWARD-IN"
-
-        elif dest == 'host':
-            # Top level chain for ingress traffic between VMs, applied to all tenants.
-            tenant_wide_policy_vector_chain = "ROMANA-OP"
-
-            # Ingress chain for traffic between VMs
-            ingress_chain = "ROMANA-FORWARD-OUT"
-
-        elif dest == 'local':
-            # Top level chain for ingress traffic between host and VMs
-            tenant_wide_policy_vector_chain = "ROMANA-OP-IN"
-
-            # Ingress chain for traffic between VMs
-            ingress_chain = "ROMANA-INPUT"
-
-        else:
-            raise Exception("Unsupported value of applied_to %s" % target)
-
+        # Policy chain only hosts match conditions, rules themselves are
+        # applied in this auxiliary chain
+        in_chain_name  = policy_chain_name[:-1] + "-IN_"
 
         # Per segment policy chain to host jumps to the actual policy chains.
         if target_segment:
@@ -372,45 +307,24 @@ def make_rules(addr_scheme, policy_def, policy_id):
             # consider policy to be tenant wide.
             target_segment_forward_chain = tenant_wide_policy_vector_chain
 
-
-
-        # The name for the new policy's chain(s).
-        policy_chain_name = "ROMANA-P-%s_" % \
-            name
-
-        # Policy chain only hosts match conditions, rules themselves are
-        # applied in this auxiliary chain
-        in_chain_name  = policy_chain_name[:-1] + "-IN_"
-
         # Chain names are going to be used later to fill in the rules. Store them.
         policy_chains[in_chain_name] = True
 
-        # There could be either 1 or 2 jumps.
-        # When crating a policy for tenant there will be a jump from ingress chain
-        # into tenant chains followed by jump from tenant chain into the segment chains
-        # or into tenant-wide chain if policy is applied to all the segments.
-        # However, when creating a policy for host-VM traffic (aka operator policy)
-        # there will be only one jump - from ingress chain into operator chain.
-        if tenant:
-            # Jump from ingress VM chain into per-tenant chain
-            rules[ingress_chain] = [
-                _make_rule(ingress_chain, "-j %s" % tenant_policy_vector_chain),
-                _make_rule(ingress_chain, "-j %s" % "DROP")
-            ]
+        # Ingress chain for traffic between VMs
+        ingress_vm_chain = "ROMANA-FORWARD-IN"
 
-            # Jump from per-tenant chain into per-segment chains and default DROP.
-            rules[tenant_policy_vector_chain] = [
-                _make_rule(tenant_policy_vector_chain, "-j %s" % target_segment_forward_chain),
-                _make_rule(tenant_policy_vector_chain, "-j %s" % tenant_wide_policy_vector_chain),
-                _make_rule(tenant_policy_vector_chain, "-j DROP")
-            ]
-        else:
-            # Jump from ingress chain into operator chain.
-            rules[ingress_chain] = [
-                _make_rule(ingress_chain, "-j %s" % target_segment_forward_chain),
-                _make_rule(ingress_chain, "-j %s" % "DROP")
-            ]
+        # Jump from ingress VM chain into per-tenant chain
+        rules[ingress_vm_chain] = [
+            _make_rule(ingress_vm_chain, "-j %s" % tenant_policy_vector_chain),
+            _make_rule(ingress_vm_chain, "-j %s" % "DROP")
+        ]
 
+        # Jump from per-tenant chain into per-segment chains and default DROP.
+        rules[tenant_policy_vector_chain] = [
+            _make_rule(tenant_policy_vector_chain, "-j %s" % target_segment_forward_chain),
+            _make_rule(tenant_policy_vector_chain, "-j %s" % tenant_wide_policy_vector_chain),
+            _make_rule(tenant_policy_vector_chain, "-j DROP")
+        ]
 
         # Jump from per-segment chain into policy chain
         if target_segment_forward_chain not in rules:
@@ -477,15 +391,6 @@ def make_rules(addr_scheme, policy_def, policy_id):
     return rules
 
 
-def _validated_port_range(port_range):
-    if len(port_range) != 2:
-        raise Exception("Port Range must be a list of 2 elements, received %s" % port_range)
-    for p in port_range:
-        if not 0 < p < 65535:
-            raise Exception("Malformed port list, port out of range, received %s" % port_range)
-    return tuple(port_range)
-
-
 def _make_rules(policy_rules):
     """
     For each rule in policy_rules creates in/out rules in iptables_rules.
@@ -504,9 +409,15 @@ def _make_rules(policy_rules):
                 for port in r.get("ports"):
                     in_rules += [ '-p tcp --dport %s -j ACCEPT' % port ]
 
-            if r.get('port_ranges'):
-                dports = ",".join([ "%s:%s" % _validated_port_range(p) for p in r.get('port_ranges') ])
-                in_rules += [ '-p tcp -m multiport --dports %s -j ACCEPT' % (dports) ]
+            if r.get('port_ranges') and (len(r.get('port_ranges')) > 0):
+                # TODO: Multiple port ranges should be supported here
+                #       as policy service does, temporarily use the first
+                #       in the range provided.
+                port_range = r.get('port_ranges')[0]
+                if len(port_range) == 2:
+                    in_rules += [ '-p tcp --dport %s:%s -j ACCEPT' % (port_range[0], port_range[1]) ]
+                else:
+                    raise Exception("Protocol option port_range must be a list of 2 elements - got %s" % port_range)
 
             if not(r.get('ports') or r.get('port_ranges')):
                 in_rules += [ '-p tcp -j ACCEPT' ]
@@ -516,9 +427,15 @@ def _make_rules(policy_rules):
                 for port in r.get("ports"):
                     in_rules += [ '-p udp --dport %s -j ACCEPT' % port ]
 
-            if r.get('port_ranges'):
-                dports = ",".join([ "%s:%s" % _validated_port_range(p) for p in r.get('port_ranges') ])
-                in_rules += [ '-p udp -m multiport --dports %s -j ACCEPT' % (dports) ]
+            if r.get('port_ranges') and (len(r.get('port_ranges')) > 0):
+                # TODO: Multiple port ranges should be supported here
+                #       as policy service does, temporarily use the first
+                #       in the range provided.
+                port_range = r.get('port_ranges')[0]
+                if len(port_range) == 2:
+                    in_rules += [ '-p udp --dport %s:%s -j ACCEPT' % (port_range[0], port_range[1]) ]
+                else:
+                    raise Exception("Protocol option port_range must be a list of 2 elements - got %s" % port_range)
 
             if not(r.get('ports') or r.get('port_ranges')):
                 in_rules += [ '-p udp -j ACCEPT' ]
@@ -622,8 +539,10 @@ def delete_all_rules_for_policy(iptables_rules, policy_name, tenants):
     """
     full_names = []
 
-    full_names += [ 'ROMANA-P-%s%s_' % (policy_name, p)
-                        for p in [ "", "-IN", "-OUT" ] ]
+    for tenant in tenants:
+        tenant_id = tenant.get('tenant_network_id')
+        full_names += [ 'ROMANA-T%dP-%s%s_' % (tenant_id, policy_name, p)
+                            for p in [ "", "-IN", "-OUT" ] ]
 
     # Only transcribe those lines that don't mention any of the chains
     # related to the policy.
