@@ -174,9 +174,9 @@ func (policy *PolicySvc) augmentPolicy(policyDoc *common.Policy) error {
 	// TODO
 	// Important! This should really be done in policy agent.
 	// Only done here as temporary measure.
-	internalId := makeId(policyDoc.AppliedTo, policyDoc.Name)
-	log.Printf("Constructing internal policy name = %s", internalId)
-	policyDoc.Name = internalId
+	externalId := makeId(policyDoc.AppliedTo, policyDoc.Name)
+	log.Printf("Constructing internal policy name = %s", externalId)
+	policyDoc.ExternalID = externalId
 
 	topoUrl, err := policy.client.GetServiceUrl("topology")
 	if err != nil {
@@ -309,9 +309,9 @@ func (policy *PolicySvc) deletePolicy(id uint64) (interface{}, error) {
 	// TODO
 	// Important! This should really be done in policy agent.
 	// Only done here as temporary measure.
-	internalId := makeId(policyDoc.AppliedTo, policyDoc.Name)
-	log.Printf("Constructing internal policy name = %s", internalId)
-	policyDoc.Name = internalId
+	externalId := makeId(policyDoc.AppliedTo, policyDoc.Name)
+	log.Printf("Constructing internal policy name = %s", externalId)
+	policyDoc.ExternalID = externalId
 
 	errStr := make([]string, 0)
 	for _, host := range hosts {

@@ -211,7 +211,7 @@ def policy_update(romana_address_scheme, policy_definition, delete_policy=False)
     """
 
     # PolicyId is a uniq tag that we are going to use to check if rule is applied already
-    policy_id      = policy_definition['name']
+    policy_id      = policy_definition['external_id']
 
     # Create the new rules, based on the Romana addressing scheme and the
     # policy definition.
@@ -234,7 +234,7 @@ def policy_update(romana_address_scheme, policy_definition, delete_policy=False)
     # Remove ALL rules relating in any way to a policy of the specified name.
     clean_rules = \
         delete_all_rules_for_policy(iptables_rules,
-                                policy_definition['name'],
+                                policy_id,
                                 policy_definition['applied_to'])
 
     if delete_policy:
@@ -340,7 +340,7 @@ def make_rules(addr_scheme, policy_def, policy_id):
     policy_chains = {}
 
     # Create chain names for each target and stuff them with default rules
-    name = policy_def['name']
+    name = policy_def['external_id']
     for target in policy_def['applied_to']:
         tenant         = target.get('tenant_network_id')
         target_segment = target.get('segment_network_id')
@@ -651,15 +651,31 @@ def delete_all_rules_for_policy(iptables_rules, policy_name, tenants):
     to this rule, such as 'ROMANA-P-foo_', 'ROMANA-P-foo-IN_' for each tenant.
 
     """
+
+    # Some dirty logs. No need to run all this loops if logging level less then DEBUG
+    if logging.getLevelName(logging.getLogger().getEffectiveLevel()) == 'DEBUG':
+        logging.debug("In delete_all_rules_for_policy")
+        for i, line in enumerate(iptables_rules):
+            logging.debug("Current rules --> line %3d : %s" % (i,line))
+
     full_names = []
 
     full_names += [ 'ROMANA-P-%s%s_' % (policy_name, p)
                         for p in [ "", "-IN", "-OUT" ] ]
 
+    logging.debug("In delete_all_rules_for_policy -> deleteing policy chains %s" % full_names)
+
     # Only transcribe those lines that don't mention any of the chains
     # related to the policy.
     clean_rules = [ r for r in iptables_rules if not
                             any([ p in r for p in full_names ]) ]
+
+    # Some dirty logs. No need to run all this loops if logging level less then DEBUG
+    if logging.getLevelName(logging.getLogger().getEffectiveLevel()) == 'DEBUG':
+        logging.debug("In delete_all_rules_for_policy")
+        for i, line in enumerate(clean_rules):
+            logging.debug("Clean rules --> line %3d : %s" % (i,line))
+
 
     return clean_rules
 
