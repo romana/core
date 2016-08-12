@@ -23,16 +23,24 @@ from mimetools import Message
 from StringIO import StringIO
 HTTP_Unprocessable_Entity = 422
 
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s %(levelname)-8s %(message)s',
-                    datefmt='%a, %d %b %Y %H:%M:%S')
-
 addr_scheme = {}
 
-parser = OptionParser(usage="%prog --port")
+parser = OptionParser(usage="%prog --port --debug")
 parser.add_option('--port', default=9630, dest="port", type="int",
                   help="Port number to listen for incoming requests")
+parser.add_option('--debug', default=False, dest="debug", action="store_true",
+                  help="Enable debug output in the log")
 (options, args) = parser.parse_args()
+
+if options.debug:
+    logging.basicConfig(level=logging.DEBUG,
+                        format='%(asctime)s %(levelname)-8s %(message)s',
+                        datefmt='%a, %d %b %Y %H:%M:%S')
+else:
+    logging.basicConfig(level=logging.INFO,
+                        format='%(asctime)s %(levelname)-8s %(message)s',
+                        datefmt='%a, %d %b %Y %H:%M:%S')
+
 
 def filter_rules_idx(rules):
     """
