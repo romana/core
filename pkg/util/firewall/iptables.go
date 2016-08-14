@@ -177,6 +177,9 @@ func (fw *IPtables) makeRules(netif FirewallEndpoint) error {
 	fw.chains = append(fw.chains, IPtablesChain{
 		BaseChain:  "FORWARD",
 		Directions: []string{"o"},
+		// Using ROMANA-FORWARD-IN second time to capture both
+		// traffic from host to endpoint and 
+		// traffic from endpoint to another endpoint.
 		ChainName:  "ROMANA-FORWARD-IN",
 	})
 
