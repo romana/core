@@ -75,9 +75,9 @@ var policyRemoveCmd = &cli.Command{
 }
 
 var policyListCmd = &cli.Command{
-	Use:          "list",
-	Short:        "List policy for a specific tenant.",
-	Long:         `List policy for a specific tenant.`,
+	Use:          "list [PolicyName][PolicyName]...",
+	Short:        "List all policies or a specific policy using name or external id.",
+	Long:         `List all policies or a specific policy using name or external id.`,
 	RunE:         policyList,
 	SilenceUsage: true,
 }
@@ -332,6 +332,11 @@ func policyRemove(cmd *cli.Command, args []string) error {
 
 // policyList lists policies in tabular or json format.
 func policyList(cmd *cli.Command, args []string) error {
+	specificPolicies := false
+	if len(args) > 0 {
+		specificPolicies = true
+	}
+
 	rootURL := config.GetString("RootURL")
 
 	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
@@ -344,10 +349,23 @@ func policyList(cmd *cli.Command, args []string) error {
 		return err
 	}
 
-	policies := []common.Policy{}
-	err = client.Get(policyURL+"/policies", &policies)
+	policy := []common.Policy{}
+	err = client.Get(policyURL+"/policies", &policy)
 	if err != nil {
 		return err
+	}
+
+	policies := []common.Policy{}
+	if specificPolicies {
+		for _, p := range policy {
+			for _, a := range args {
+				if a == p.Name || a == p.ExternalID {
+					policies = append(policies, p)
+				}
+			}
+		}
+	} else {
+		policies = policy
 	}
 
 	if config.GetString("Format") == "json" {
