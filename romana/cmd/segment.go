@@ -49,9 +49,11 @@ func init() {
 }
 
 var segmentAddCmd = &cli.Command{
-	Use:          "add [tenantName][segmentName]",
-	Short:        "Add a new segment.",
-	Long:         `Add a new segment.`,
+	Use:   "add [tenantName][segmentName]",
+	Short: "Add a new segment.",
+	Long: `Add a new segment.
+
+  --externalid <External ID>  # Create segment with a specific external ID mentioned here.`,
 	RunE:         segmentAdd,
 	SilenceUsage: true,
 }

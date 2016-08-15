@@ -56,6 +56,7 @@ func init() {
 	policyCmd.AddCommand(policyRemoveCmd)
 	policyCmd.AddCommand(policyListCmd)
 	policyRemoveCmd.Flags().Uint64VarP(&policyID, "policyid", "i", 0, "Policy ID")
+	policyListCmd.Flags().Uint64VarP(&policyID, "policyid", "i", 0, "Policy ID")
 }
 
 var policyAddCmd = &cli.Command{
@@ -67,17 +68,21 @@ var policyAddCmd = &cli.Command{
 }
 
 var policyRemoveCmd = &cli.Command{
-	Use:          "remove [policyName]",
-	Short:        "Remove a specific policy.",
-	Long:         `Remove a specific policy.`,
+	Use:   "remove [policyName]",
+	Short: "Remove a specific policy.",
+	Long: `Remove a specific policy.
+
+  --policyid <policy id>  # Remove policy using romana policy id.`,
 	RunE:         policyRemove,
 	SilenceUsage: true,
 }
 
 var policyListCmd = &cli.Command{
-	Use:          "list [PolicyName][PolicyName]...",
-	Short:        "List all policies or a specific policy using name or external id.",
-	Long:         `List all policies or a specific policy using name or external id.`,
+	Use:   "list [Policy Name|Policy External ID]...",
+	Short: "List all policies or a specific policy using name or external id.",
+	Long: `List all policies or a specific policy using name or external id.
+
+  --policyid <policy id>  # List policy using romana policy id.`,
 	RunE:         policyList,
 	SilenceUsage: true,
 }
@@ -337,6 +342,11 @@ func policyList(cmd *cli.Command, args []string) error {
 		specificPolicies = true
 	}
 
+	policyIDPresent := false
+	if policyID != 0 {
+		policyIDPresent = true
+	}
+
 	rootURL := config.GetString("RootURL")
 
 	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
@@ -356,7 +366,22 @@ func policyList(cmd *cli.Command, args []string) error {
 	}
 
 	policies := []common.Policy{}
-	if specificPolicies {
+	if specificPolicies && policyIDPresent {
+		for _, p := range allPolicies {
+			for _, a := range args {
+				if a == p.Name || a == p.ExternalID || policyID == p.ID {
+					policies = append(policies, p)
+				}
+			}
+		}
+	} else if !specificPolicies && policyIDPresent {
+		for _, p := range allPolicies {
+			if policyID == p.ID {
+				policies = append(policies, p)
+				break
+			}
+		}
+	} else if specificPolicies && !policyIDPresent {
 		for _, p := range allPolicies {
 			for _, a := range args {
 				if a == p.Name || a == p.ExternalID {
