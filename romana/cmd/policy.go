@@ -349,15 +349,15 @@ func policyList(cmd *cli.Command, args []string) error {
 		return err
 	}
 
-	policy := []common.Policy{}
-	err = client.Get(policyURL+"/policies", &policy)
+	allPolicies := []common.Policy{}
+	err = client.Get(policyURL+"/policies", &allPolicies)
 	if err != nil {
 		return err
 	}
 
 	policies := []common.Policy{}
 	if specificPolicies {
-		for _, p := range policy {
+		for _, p := range allPolicies {
 			for _, a := range args {
 				if a == p.Name || a == p.ExternalID {
 					policies = append(policies, p)
@@ -365,7 +365,7 @@ func policyList(cmd *cli.Command, args []string) error {
 			}
 		}
 	} else {
-		policies = policy
+		policies = allPolicies
 	}
 
 	if config.GetString("Format") == "json" {
