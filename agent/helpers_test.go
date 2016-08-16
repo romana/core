@@ -77,7 +77,7 @@ func TestIsLineInFile(t *testing.T) {
 
 	// expect
 	if err != nil {
-		t.Error("IsLineInFile unkown error", err)
+		t.Error("IsLineInFile unknown error", err)
 	}
 	if out != true {
 		t.Errorf("IsLineInFile failed, got %t, expect true", out)

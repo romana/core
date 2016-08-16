@@ -55,8 +55,9 @@ func init() {
 	policyCmd.AddCommand(policyAddCmd)
 	policyCmd.AddCommand(policyRemoveCmd)
 	policyCmd.AddCommand(policyListCmd)
+	policyCmd.AddCommand(policyShowCmd)
 	policyRemoveCmd.Flags().Uint64VarP(&policyID, "policyid", "i", 0, "Policy ID")
-	policyListCmd.Flags().Uint64VarP(&policyID, "policyid", "i", 0, "Policy ID")
+	policyShowCmd.Flags().Uint64VarP(&policyID, "policyid", "i", 0, "Policy ID")
 }
 
 var policyAddCmd = &cli.Command{
@@ -78,12 +79,20 @@ var policyRemoveCmd = &cli.Command{
 }
 
 var policyListCmd = &cli.Command{
-	Use:   "list [Policy Name|Policy External ID]...",
-	Short: "List all policies or a specific policy using name or external id.",
-	Long: `List all policies or a specific policy using name or external id.
-
-  --policyid <policy id>  # List policy using romana policy id.`,
+	Use:          "list",
+	Short:        "List all policies.",
+	Long:         `List all policies.`,
 	RunE:         policyList,
+	SilenceUsage: true,
+}
+
+var policyShowCmd = &cli.Command{
+	Use:   "show [Policy Name|Policy External ID]...",
+	Short: "Show details about a specific policy using name or external id.",
+	Long: `Show details about a specific policy using name or external id.
+
+  --policyid <policy id>  # Show policy using romana policy id.`,
+	RunE:         policyShow,
 	SilenceUsage: true,
 }
 
@@ -337,6 +346,21 @@ func policyRemove(cmd *cli.Command, args []string) error {
 
 // policyList lists policies in tabular or json format.
 func policyList(cmd *cli.Command, args []string) error {
+	if len(args) > 0 || policyID != 0 {
+		return util.UsageError(cmd,
+			"Policy listing takes no arguments.")
+	}
+	return policyListShow(true, nil)
+}
+
+// policyShow displays details about a specific policy
+// in tabular or json format.
+func policyShow(cmd *cli.Command, args []string) error {
+	return policyListShow(false, args)
+}
+
+// policyListShow lists/shows policies in tabular or json format.
+func policyListShow(listOnly bool, args []string) error {
 	specificPolicies := false
 	if len(args) > 0 {
 		specificPolicies = true
@@ -345,6 +369,10 @@ func policyList(cmd *cli.Command, args []string) error {
 	policyIDPresent := false
 	if policyID != 0 {
 		policyIDPresent = true
+	}
+
+	if !listOnly && !(specificPolicies || policyIDPresent) {
+		return fmt.Errorf("Policy show takes at-least one argument or policy id.")
 	}
 
 	rootURL := config.GetString("RootURL")
@@ -366,31 +394,33 @@ func policyList(cmd *cli.Command, args []string) error {
 	}
 
 	policies := []common.Policy{}
-	if specificPolicies && policyIDPresent {
-		for _, p := range allPolicies {
-			for _, a := range args {
-				if a == p.Name || a == p.ExternalID || policyID == p.ID {
-					policies = append(policies, p)
-				}
-			}
-		}
-	} else if !specificPolicies && policyIDPresent {
-		for _, p := range allPolicies {
-			if policyID == p.ID {
-				policies = append(policies, p)
-				break
-			}
-		}
-	} else if specificPolicies && !policyIDPresent {
-		for _, p := range allPolicies {
-			for _, a := range args {
-				if a == p.Name || a == p.ExternalID {
-					policies = append(policies, p)
-				}
-			}
-		}
-	} else {
+	if listOnly {
 		policies = allPolicies
+	} else {
+		if specificPolicies && policyIDPresent {
+			for _, p := range allPolicies {
+				for _, a := range args {
+					if a == p.Name || a == p.ExternalID || policyID == p.ID {
+						policies = append(policies, p)
+					}
+				}
+			}
+		} else if !specificPolicies && policyIDPresent {
+			for _, p := range allPolicies {
+				if policyID == p.ID {
+					policies = append(policies, p)
+					break
+				}
+			}
+		} else if specificPolicies && !policyIDPresent {
+			for _, p := range allPolicies {
+				for _, a := range args {
+					if a == p.Name || a == p.ExternalID {
+						policies = append(policies, p)
+					}
+				}
+			}
+		}
 	}
 
 	if config.GetString("Format") == "json" {
@@ -403,14 +433,22 @@ func policyList(cmd *cli.Command, args []string) error {
 		w := new(tabwriter.Writer)
 		w.Init(os.Stdout, 0, 8, 0, '\t', 0)
 		fmt.Println("Policy List")
-		fmt.Fprintln(w, "Id\t",
+		fmt.Fprint(w, "Id\t",
 			"Policy\t",
 			"Direction\t",
-			"Tenant ID\t",
-			"Segment ID\t",
-			"ExternalID\t",
-			"Description\t",
 		)
+		if !listOnly {
+			fmt.Fprintln(w,
+				"ExternalID\t",
+				"Tenant ID\t",
+				"Segment ID\t",
+				"No Of Rules\t",
+				"No Of Peers\t",
+				"Description\t",
+			)
+		} else {
+			fmt.Fprintln(w, "")
+		}
 		for _, p := range policies {
 			var tID uint64
 			var sID uint64
@@ -418,14 +456,22 @@ func policyList(cmd *cli.Command, args []string) error {
 				tID = p.AppliedTo[0].TenantID
 				sID = p.AppliedTo[0].SegmentID
 			}
-			fmt.Fprintln(w, p.ID, "\t",
+			fmt.Fprint(w, p.ID, "\t",
 				p.Name, "\t",
 				p.Direction, "\t",
-				tID, "\t",
-				sID, "\t",
-				p.ExternalID, "\t",
-				p.Description, "\t",
 			)
+			if !listOnly {
+				fmt.Fprintln(w,
+					p.ExternalID, "\t",
+					tID, "\t",
+					sID, "\t",
+					len(p.Rules), "\t",
+					len(p.Peers), "\t",
+					p.Description, "\t",
+				)
+			} else {
+				fmt.Fprintln(w, "")
+			}
 		}
 		w.Flush()
 	}
