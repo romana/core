@@ -432,44 +432,71 @@ func policyListShow(listOnly bool, args []string) error {
 	} else {
 		w := new(tabwriter.Writer)
 		w.Init(os.Stdout, 0, 8, 0, '\t', 0)
-		fmt.Println("Policy List")
-		fmt.Fprint(w, "Id\t",
-			"Policy\t",
-			"Direction\t",
-		)
-		if !listOnly {
-			fmt.Fprintln(w,
+		if listOnly {
+			fmt.Println("Policy List")
+			fmt.Fprintln(w, "Id\t",
+				"Policy\t",
+				"Direction\t",
 				"ExternalID\t",
-				"Tenant ID\t",
-				"Segment ID\t",
-				"No Of Rules\t",
-				"No Of Peers\t",
 				"Description\t",
 			)
 		} else {
-			fmt.Fprintln(w, "")
+			fmt.Println("Policy Details")
 		}
 		for _, p := range policies {
-			var tID uint64
-			var sID uint64
-			if len(p.AppliedTo) > 0 {
-				tID = p.AppliedTo[0].TenantID
-				sID = p.AppliedTo[0].SegmentID
-			}
-			fmt.Fprint(w, p.ID, "\t",
-				p.Name, "\t",
-				p.Direction, "\t",
-			)
-			if !listOnly {
-				fmt.Fprintln(w,
+			if listOnly {
+				fmt.Fprintln(w, p.ID, "\t",
+					p.Name, "\t",
+					p.Direction, "\t",
 					p.ExternalID, "\t",
-					tID, "\t",
-					sID, "\t",
-					len(p.Rules), "\t",
-					len(p.Peers), "\t",
 					p.Description, "\t",
 				)
 			} else {
+				fmt.Fprint(w,
+					"Id:\t", p.ID, "\n",
+					"Name:\t", p.Name, "\n",
+					"External ID:\t", p.ExternalID, "\n",
+					"Description:\t", p.Description, "\n",
+				)
+				if len(p.AppliedTo) > 0 {
+					fmt.Fprintln(w, "Applied To:")
+					for _, ato := range p.AppliedTo {
+						fmt.Fprintln(w,
+							"\tPeer:\t", ato.Peer, "\n",
+							"\tCidr:\t", ato.Cidr, "\n",
+							"\tTenantID:\t", ato.TenantID, "\n",
+							"\tTenantName:\t", ato.TenantName, "\n",
+							"\tSegmentID:\t", ato.SegmentID, "\n",
+							"\tSegmentName:\t", ato.SegmentName,
+						)
+					}
+				}
+				if len(p.Peers) > 0 {
+					fmt.Fprintln(w, "Peers:")
+					for _, peer := range p.Peers {
+						fmt.Fprintln(w,
+							"\tPeer:\t", peer.Peer, "\n",
+							"\tCidr:\t", peer.Cidr, "\n",
+							"\tTenantID:\t", peer.TenantID, "\n",
+							"\tTenantName:\t", peer.TenantName, "\n",
+							"\tSegmentID:\t", peer.SegmentID, "\n",
+							"\tSegmentName:\t", peer.SegmentName,
+						)
+					}
+				}
+				if len(p.Rules) > 0 {
+					fmt.Fprintln(w, "Rules:")
+					for _, rule := range p.Rules {
+						fmt.Fprintln(w,
+							"\tProtocol:\t", rule.Protocol, "\n",
+							"\tIsStateful:\t", rule.IsStateful, "\n",
+							"\tPorts:\t", rule.Ports, "\n",
+							"\tPortRanges:\t", rule.PortRanges, "\n",
+							"\tIcmpType:\t", rule.IcmpType, "\n",
+							"\tIcmpCode:\t", rule.IcmpCode,
+						)
+					}
+				}
 				fmt.Fprintln(w, "")
 			}
 		}
