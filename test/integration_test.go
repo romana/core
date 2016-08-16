@@ -20,6 +20,7 @@ import (
 	//	"database/sql"
 	"encoding/json"
 	"fmt"
+	"net/http"
 
 	"github.com/go-check/check"
 	"github.com/romana/core/agent"
@@ -341,6 +342,12 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	}
 	c.Assert(t1Out.Name, check.Equals, "name1")
 	c.Assert(t1Out.ExternalID, check.Equals, "t1")
+
+	// Add tenant with same external ID -- should result in a conflict
+	tConflictIn := tenant.Tenant{ExternalID: "t1"}
+	tConflictOut := tenant.Tenant{}
+	err = client.Post("/tenants", tConflictIn, &tConflictOut)
+	c.Assert(err.(common.HttpError).StatusCode, check.Equals, http.StatusConflict)
 
 	// Add tenant with same name, different external ID
 	t2In := tenant.Tenant{Name: "name1", ExternalID: "t2"}

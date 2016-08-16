@@ -102,6 +102,15 @@ func (s *mockSvc) Routes() common.Routes {
 			  			 {"type" : "sqlite3",  "database" : "/var/tmp/policy.sqlite3" }
 			  		  }	 
 			        }`
+
+			//			json = `{
+			//			          "common":{
+			//						"api":{"host":"0.0.0.0","port":0}
+			//					 },
+			//			   	      "config":{"store":
+			//			  			 {"type" : "mysql",  "database" : "policy", "host" : "127.0.0.1", "port" : "8889", "username" : "root", "password" : "root" }
+			//			  		  }
+			//			        }`
 			return common.Raw{Body: json}, nil
 		},
 	}
@@ -289,12 +298,27 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	}
 	log.Printf("Added policy result: %s", policyOut)
 	c.Assert(policyOut.Name, check.Equals, "pol1")
-	c.Assert(policyOut.ID, check.Equals, uint64(1))
+	c.Assert(*policyOut.ID, check.Equals, uint64(1))
 	c.Assert(len(policyOut.AppliedTo), check.Equals, len(policyIn.AppliedTo))
 	c.Assert(len(policyOut.Peers), check.Equals, len(policyIn.Peers))
 	c.Assert(client.GetStatusCode(), check.Equals, 200)
 
-	log.Println("2. Add policy pol2")
+	pol1ExternalID := policyIn.ExternalID
+	policyIn.ExternalID = "asdfghjkl"
+	policyIn.ID = policyOut.ID
+	log.Printf("2. Add policy again with different External ID %s but same ID %d", policyIn.ExternalID, policyIn.ID)
+	err = client.Post(polURL, policyIn, &policyOut)
+	c.Assert(err.(common.HttpError).StatusCode, check.Equals, http.StatusConflict)
+	log.Printf("2. Result: %+v", policyOut)
+
+	log.Println("3. Add policy again")
+	policyIn.ExternalID = pol1ExternalID
+	policyIn.ID = nil
+	err = client.Post(polURL, policyIn, &policyOut)
+	c.Assert(err.(common.HttpError).StatusCode, check.Equals, http.StatusConflict)
+	log.Printf("3. Result: %+v", policyOut)
+
+	log.Println("4. Add policy pol2")
 	err = json.Unmarshal([]byte(romanaPolicy2), &policyIn)
 	if err != nil {
 		c.Fatal(err)
@@ -306,9 +330,8 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	log.Printf("Added policy result: %s", policyOut)
 	c.Assert(client.GetStatusCode(), check.Equals, 200)
 	c.Assert(policyOut.Name, check.Equals, "pol2")
-	c.Assert(policyOut.ID, check.Equals, uint64(2))
 
-	log.Println("3. Add default policy")
+	log.Println("5. Add default policy")
 	one := uint64(1)
 	defPol := common.Policy{
 		Direction: common.PolicyDirectionIngress,
@@ -324,9 +347,8 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	log.Printf("Added policy result: %s", policyOut)
 	c.Assert(client.GetStatusCode(), check.Equals, 200)
 	c.Assert(policyOut.Name, check.Equals, "default")
-	c.Assert(policyOut.ID, check.Equals, uint64(3))
 
-	log.Println("4. Test list policies - should have 3.")
+	log.Println("6. Test list policies - should have 3.")
 	var policies []common.Policy
 	err = client.Get(polURL, &policies)
 	if err != nil {
@@ -338,7 +360,7 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	c.Assert(policies[1].Name, check.Equals, "pol2")
 	c.Assert(policies[2].Name, check.Equals, "default")
 
-	log.Println("5. Test get policy.")
+	log.Println("7. Test get policy.")
 	policyGet := common.Policy{}
 	err = client.Get(polURL+"/1", &policyGet)
 	if err != nil {
@@ -347,7 +369,7 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	c.Assert(policyGet.Name, check.Equals, policies[0].Name)
 	c.Assert(client.GetStatusCode(), check.Equals, 200)
 
-	log.Println("6. Test delete by ID - delete pol1")
+	log.Println("8. Test delete by ID - delete pol1")
 	policyOut = common.Policy{}
 	err = client.Delete(polURL+"/1", nil, &policyOut)
 	if err != nil {
@@ -355,10 +377,10 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	}
 	log.Printf("Deleted policy result: %s", policyOut)
 	c.Assert(policyOut.Name, check.Equals, "pol1")
-	c.Assert(policyOut.ID, check.Equals, uint64(1))
+	c.Assert(*policyOut.ID, check.Equals, uint64(1))
 	c.Assert(client.GetStatusCode(), check.Equals, 200)
 
-	log.Println("7. Test list policies - should have 2 now - pol2 and default.")
+	log.Println("9. Test list policies - should have 2 now - pol2 and default.")
 	err = client.Get(polURL, &policies)
 	if err != nil {
 		c.Fatal(err)
@@ -368,7 +390,7 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	c.Assert(policies[1].Name, check.Equals, "default")
 	c.Assert(client.GetStatusCode(), check.Equals, 200)
 
-	log.Println("8. Test delete by ExternalID - delete policy 2")
+	log.Println("10. Test delete by ExternalID - delete policy 2")
 	err = json.Unmarshal([]byte(romanaPolicy2), &policyIn)
 	if err != nil {
 		c.Fatal(err)
@@ -382,9 +404,8 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	log.Printf("Deleted policy result: %s", policyOut)
 	c.Assert(client.GetStatusCode(), check.Equals, 200)
 	c.Assert(policyOut.Name, check.Equals, policyIn.Name)
-	c.Assert(policyOut.ID, check.Equals, uint64(2))
 
-	log.Println("9. Test list policies - should have 1 now - only default")
+	log.Println("10. Test list policies - should have 1 now - only default")
 	err = client.Get(polURL, &policies)
 	if err != nil {
 		c.Fatal(err)
@@ -393,7 +414,7 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	c.Assert(len(policies), check.Equals, 1)
 	c.Assert(policies[0].Name, check.Equals, "default")
 
-	log.Println("10. Test find by name policies - should find it")
+	log.Println("11. Test find by name policies - should find it")
 	findURL := "http://" + svcInfo.Address + "/find/policies"
 	err = client.Get(findURL+"/default", &policyOut)
 	if err != nil {
@@ -401,7 +422,7 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	}
 	c.Assert(policyOut.Name, check.Equals, "default")
 
-	log.Println("11. Test find by name policies with non-existent policy - should NOT find it")
+	log.Println("12. Test find by name policies with non-existent policy - should NOT find it")
 	err = client.Get(findURL+"/blabla", &policyOut)
 	httpErr := err.(common.HttpError)
 	c.Assert(client.GetStatusCode(), check.Equals, http.StatusNotFound)
@@ -410,7 +431,7 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	c.Assert(httpErr.ResourceID, check.Equals, "blabla")
 	log.Printf("%v", err)
 
-	log.Println("12. Test delete by ExternalID - delete default policy")
+	log.Println("13. Test delete by ExternalID - delete default policy")
 	policyOut = common.Policy{}
 	err = client.Delete(polURL, defPol, &policyOut)
 
@@ -420,16 +441,15 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	log.Printf("Deleted policy result: %s", policyOut)
 	c.Assert(policyOut.Name, check.Equals, defPol.Name)
 	c.Assert(client.GetStatusCode(), check.Equals, 200)
-	c.Assert(policyOut.ID, check.Equals, uint64(3))
 
-	log.Println("13. Test list policies - should have 0 now")
+	log.Println("14. Test list policies - should have 0 now")
 	err = client.Get(polURL, &policies)
 	if err != nil {
 		c.Fatal(err)
 	}
 	c.Assert(len(policies), check.Equals, 0)
 
-	log.Println("14. Test delete by ExternalID - delete default policy - should be Not Found error now")
+	log.Println("15. Test delete by ExternalID - delete default policy - should be Not Found error now")
 	policyOut = common.Policy{}
 	err = client.Delete(polURL, defPol, &policyOut)
 	if err == nil {
@@ -447,6 +467,7 @@ func (s *MySuite) TestPolicy(c *check.C) {
 const (
 	romanaPolicy1 = `{
 	"direction":"ingress",
+	"external_id" : "pol1ExternalID",
 	"name":"pol1",
 	"datacenter":{	"id":0 },
 	"applied_to":[

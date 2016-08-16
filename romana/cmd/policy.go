@@ -264,7 +264,7 @@ func getPolicyID(policyName string) (uint64, error) {
 		return 0, err
 	}
 
-	return policy.ID, nil
+	return *policy.ID, nil
 }
 
 // policyRemove removes policy using the policy name provided

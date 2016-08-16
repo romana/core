@@ -76,11 +76,6 @@ func (s *MySuite) TestStore(c *check.C) {
 	log.Printf("Expected error %T %+v", err, err)
 
 	// OK
-	t = Tenant{Name: "xxx", ExternalID: "extid1"}
-	err = store.addTenant(&t)
-	c.Assert(err, check.IsNil)
-
-	// OK
 	t = Tenant{ExternalID: "extid2"}
 	err = store.addTenant(&t)
 	c.Assert(err, check.IsNil)
@@ -105,7 +100,7 @@ func (s *MySuite) TestStore(c *check.C) {
 	log.Printf("Expected error %T %+v", err, err)
 
 	// OK
-	seg = Segment{Name: "seg1", ExternalID: "segextid1"}
+	seg = Segment{ExternalID: "segextid1"}
 	err = store.addSegment(tenID1, &seg)
 	c.Assert(err, check.IsNil)
 	log.Printf("Created segment %+v", seg)
@@ -119,12 +114,6 @@ func (s *MySuite) TestStore(c *check.C) {
 	// OK - different tenant
 	seg = Segment{Name: "seg1"}
 	err = store.addSegment(tenID2, &seg)
-	c.Assert(err, check.IsNil)
-	log.Printf("Created segment %+v", seg)
-
-	// OK
-	seg = Segment{ExternalID: "segextid2"}
-	err = store.addSegment(tenID1, &seg)
 	c.Assert(err, check.IsNil)
 	log.Printf("Created segment %+v", seg)
 
