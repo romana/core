@@ -30,8 +30,10 @@ import (
 	"github.com/romana/core/tenant"
 	"github.com/romana/core/topology"
 	"net"
+	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -55,7 +57,7 @@ var _ = check.Suite(&MySuite{})
 func myLog(c *check.C, args ...interface{}) {
 	if len(args) == 1 {
 		fmt.Println(args[0])
-		c.Log(args[0])
+		c.Log(fmt.Sprintf("%v\n", args[0]))
 		return
 	}
 	newArgs := make([]interface{}, len(args)-1)
@@ -99,6 +101,24 @@ func (s *MySuite) SetUpTest(c *check.C) {
 	if err != nil {
 		c.Fatal(err)
 	}
+
+	tenantDb := common.DbStore{}
+	tenantDb.SetConfig(s.config.Services["tenant"].ServiceSpecific["store"].(map[string]interface{}))
+	err = tenantDb.Connect()
+	if err != nil {
+		c.Fatal(err)
+	}
+	myLog(c, "Deleting from segments")
+	tenantDb.Db.Exec("DELETE FROM segments")
+	err = common.MakeMultiError(tenantDb.Db.GetErrors())
+	if err != nil {
+		c.Fatal(err)
+	}
+	tenantDb.Db.Exec("DELETE FROM tenants")
+	err = common.MakeMultiError(tenantDb.Db.GetErrors())
+	if err != nil {
+		c.Fatal(err)
+	}
 	c.Log("OK")
 }
 
@@ -110,7 +130,7 @@ func (s *MySuite) SetUpSuite(c *check.C) {
 	if romanaConfigFile == "" {
 		romanaConfigFile = "../common/testdata/romana.sample.yaml"
 	}
-	c.Log("Will use config file", romanaConfigFile)
+	c.Log("Will use config file ", romanaConfigFile)
 	common.MockPortsInConfig(romanaConfigFile)
 	s.configFile = "/tmp/romana.yaml"
 	var err error
@@ -256,6 +276,48 @@ func (s *MySuite) TestAgentStart(c *check.C) {
 	myLog(c, "Agent service said: %s", msg)
 }
 
+func (s *MySuite) TestConcurrentReads(c *check.C) {
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(s.rootURL))
+	client.NewUrl(s.tenantURL)
+	if err != nil {
+		c.Error(err)
+	}
+	// Add tenant t1
+	t1In := tenant.Tenant{Name: "name1", ExternalID: "t1"}
+	t1Out := tenant.Tenant{}
+	err = client.Post("/tenants", t1In, &t1Out)
+	if err != nil {
+		c.Error(err)
+	}
+	t1ExtID := t1In.ExternalID
+	c.Assert(t1Out.NetworkID, check.Equals, uint64(0))
+	c.Assert(t1ExtID, check.Equals, "t1")
+	myLog(c, "Tenant 1 %s\n", t1Out)
+
+	// Find by external ID a number of times.
+	numTries := 500
+	myLog(c, "Trying to find exactly one external_id=t1 %d times\n", numTries)
+	var wg sync.WaitGroup
+
+	f := func() {
+		defer wg.Done()
+		toFind := tenant.Tenant{ExternalID: "t1"}
+		err = client.Find(&toFind, common.FindExactlyOne)
+		if err != nil {
+			c.Error(err)
+		}
+		c.Assert(toFind.Name, check.Equals, "name1")
+		c.Assert(toFind.ExternalID, check.Equals, "t1")
+		c.Assert(toFind.NetworkID, check.Equals, uint64(0))
+	}
+	wg.Add(numTries)
+	for i := 0; i < numTries; i++ {
+		go f()
+	}
+	myLog(c, "Trying to find exactly one external_id=t1 %d times: OK!!!\n", numTries)
+
+}
+
 // Test the interaction of root/topo/tenant/ipam
 func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	myLog(c, "Entering TestRootTopoTenantIpamInteraction()")
@@ -272,6 +334,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	err = client.Get("/", &topIndex)
 	if err != nil {
 		c.Error(err)
+		c.FailNow()
 	}
 	c.Assert(topIndex.ServiceName, check.Equals, "topology")
 	hostsRelURL := topIndex.Links.FindByRel("host-list")
@@ -286,7 +349,11 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	// Add host 1
 	newHostReq := common.Host{Ip: "10.10.10.10", RomanaIp: "10.0.0.0/16", AgentPort: 9999, Name: "HOST1000"}
 	host1 := common.Host{}
-	client.Post(hostsRelURL, newHostReq, &host1)
+	err = client.Post(hostsRelURL, newHostReq, &host1)
+	if err != nil {
+		c.Error(err)
+		c.FailNow()
+	}
 	myLog(c, "Response: %s", host1)
 	c.Assert(host1.Ip, check.Equals, "10.10.10.10")
 
@@ -321,24 +388,17 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	err = client.Post("/tenants", t1In, &t1Out)
 	if err != nil {
 		c.Error(err)
+		c.FailNow()
 	}
 	t1Id := t1Out.ID
-	t1ExtID := t1In.ExternalID
 	c.Assert(t1Out.NetworkID, check.Equals, uint64(0))
-	myLog(c, "Tenant 1 %s", t1Out)
+	myLog(c, "Tenant 1 %s\n", t1Out)
 
-	// Find by external ID
-	err = client.Get("/findExactlyOne/tenants/?external_id=t1", &t1Out)
-	if err != nil {
-		c.Error(err)
-	}
-	c.Assert(t1Out.Name, check.Equals, "name1")
-	c.Assert(t1Out.ExternalID, check.Equals, "t1")
-	c.Assert(t1Out.NetworkID, check.Equals, uint64(0))
 	// Find by name
 	err = client.Get("/findExactlyOne/tenants?name=name1", &t1Out)
 	if err != nil {
 		c.Error(err)
+		c.FailNow()
 	}
 	c.Assert(t1Out.Name, check.Equals, "name1")
 	c.Assert(t1Out.ExternalID, check.Equals, "t1")
@@ -355,6 +415,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	err = client.Post("/tenants", t2In, &t2Out)
 	if err != nil {
 		c.Error(err)
+		c.FailNow()
 	}
 	t2Id := t2Out.ID
 	c.Assert(t2Out.ExternalID, check.Equals, "t2")
@@ -367,8 +428,9 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	err = client.Find(&tenSingle, common.FindExactlyOne)
 	if err == nil {
 		c.Error(fmt.Sprintf("Expected error %s", err))
+		c.FailNow()
 	} else {
-		myLog(c, "Expected error %s", err)
+		myLog(c, "Expected error %s\n", err)
 	}
 
 	// FindFirst
@@ -377,6 +439,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	err = client.Find(&tenSingle, common.FindFirst)
 	if err != nil {
 		c.Error(err)
+		c.FailNow()
 	}
 	c.Assert(tenSingle.Name, check.Equals, "name1")
 	c.Assert(tenSingle.ExternalID, check.Equals, "t1")
@@ -387,6 +450,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	err = client.Find(&tenSingle, common.FindLast)
 	if err != nil {
 		c.Error(err)
+		c.FailNow()
 	}
 	c.Assert(tenSingle.Name, check.Equals, "name1")
 	c.Assert(tenSingle.ExternalID, check.Equals, "t2")
@@ -403,10 +467,10 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	// Find first tenant
 	t1OutFound := tenant.Tenant{}
 	tenant1Path := fmt.Sprintf("/tenants/%d", t1Id)
-	tenant1ExtIDPath := fmt.Sprintf("/tenants/%s", t1ExtID)
 	err = client.Get(tenant1Path, &t1OutFound)
 	if err != nil {
 		c.Error(err)
+		c.FailNow()
 	}
 	c.Assert(t1OutFound.Name, check.Equals, "name1")
 	c.Assert(t1OutFound.ExternalID, check.Equals, "t1")
@@ -418,6 +482,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	err = client.Post("/tenants", t3In, &t3Out)
 	if err != nil {
 		c.Error(err)
+		c.FailNow()
 	}
 	c.Assert(t3Out.Name, check.Equals, "name2")
 	c.Assert(t3Out.ExternalID, check.Equals, "t3")
@@ -432,12 +497,13 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 
 	// Add segment s1 to tenant t1
 	tenant1SegmentPath := tenant1Path + "/segments"
-	tenant1ExtIDSegmentPath := tenant1ExtIDPath + "/segments"
+	tenant1ExtIDSegmentPath := tenant1Path + "/segments"
 	t1s1In := tenant.Segment{Name: "s1", ExternalID: "s1", TenantID: t1Id}
 	t1s1Out := tenant.Segment{}
 	err = client.Post(tenant1SegmentPath, t1s1In, &t1s1Out)
 	if err != nil {
 		c.Error(err)
+		c.FailNow()
 	}
 	myLog(c, "Added segment s1 to t1: %s", t1s1Out)
 
@@ -446,6 +512,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	err = client.Get(tenant1SegmentPath, &segments)
 	if err != nil {
 		c.Error(err)
+		c.FailNow()
 	}
 	c.Assert(len(segments), check.Equals, 1)
 	myLog(c, "Segments list: expected 1 at  %s: %d %s", tenant1SegmentPath, len(segments), segments)
@@ -454,6 +521,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	err = client.Get(tenant1ExtIDSegmentPath, &segments)
 	if err != nil {
 		c.Error(err)
+		c.FailNow()
 	}
 	c.Assert(len(segments), check.Equals, 1)
 	myLog(c, "Segments list: expected 1 at  %s: %d %s", tenant1ExtIDSegmentPath, len(segments), segments)
@@ -464,12 +532,14 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	err = client.Post(tenant1Path+"/segments", t1s2In, &t1s2Out)
 	if err != nil {
 		c.Error(err)
+		c.FailNow()
 	}
 	myLog(c, "Added segment s2 to t1: %s", t1s2Out)
 
 	err = client.Get(tenant1SegmentPath, &segments)
 	if err != nil {
 		c.Error(err)
+		c.FailNow()
 	}
 	c.Assert(len(segments), check.Equals, 2)
 	myLog(c, "Segments list: expected 2 at %s: %d %s", tenant1SegmentPath, len(segments), segments)
@@ -481,6 +551,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	err = client.Post(tenant2Path+"/segments", t2s1In, &t2s1Out)
 	if err != nil {
 		c.Error(err)
+		c.FailNow()
 	}
 	myLog(c, "Added segment s1 to t2: %s", t2s1Out)
 
@@ -490,6 +561,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	err = client.Post(tenant2Path+"/segments", t2s2In, &t2s2Out)
 	if err != nil {
 		c.Error(err)
+		c.FailNow()
 	}
 	myLog(c, "Added segment s2 to t2: %s", t2s2Out)
 
@@ -499,6 +571,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	err = client.Post(fmt.Sprintf("/tenants/%d/segments", t3Out.ID), t3s3In, &t3s3Out)
 	if err != nil {
 		c.Error(err)
+		c.FailNow()
 	}
 	myLog(c, "Added segment s3 to t3: %s", t3s3Out)
 
@@ -513,6 +586,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	myLog(c, "Posting %v to /endpoints: %v", t1s1h1EpIn, err)
 	if err != nil {
 		c.Error(err)
+		c.FailNow()
 	}
 	myLog(c, "IPAM Test: Response from IPAM for %s is %s", t1s1h1EpIn, t1s1h1Ep1Out)
 	c.Assert(t1s1h1Ep1Out.Ip, check.Equals, "10.0.0.3")
@@ -522,6 +596,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	err = client.Post("/endpoints", t1s1h1EpIn, &t1s1h1Ep2Out)
 	if err != nil {
 		c.Error(err)
+		c.FailNow()
 	}
 	myLog(c, "IPAM Test: Response from IPAM for %s is %s", t1s1h1EpIn, t1s1h1Ep2Out)
 	c.Assert(t1s1h1Ep2Out.Ip, check.Equals, "10.0.0.4")
@@ -531,6 +606,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	err = client.Post("/endpoints", t1s1h1EpIn, &t1s1h1Ep3Out)
 	if err != nil {
 		c.Error(err)
+		c.FailNow()
 	}
 	myLog(c, "IPAM Test: Response from IPAM for %s is %s ", t1s1h1EpIn, t1s1h1Ep3Out)
 	c.Assert(t1s1h1Ep3Out.Ip, check.Equals, "10.0.0.5")
@@ -541,6 +617,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	err = client.Delete(fmt.Sprintf("/endpoints/%s", t1s1h1Ep2Out.Ip), nil, &delOut)
 	if err != nil {
 		c.Error(err)
+		c.FailNow()
 	}
 	c.Assert(delOut.Ip, check.Equals, t1s1h1Ep2Out.Ip)
 	myLog(c, "IPAM Test: Deletion returned %s", delOut)
@@ -550,6 +627,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	err = client.Post("/endpoints", t1s1h1EpIn, &t1s1h1Ep4Out)
 	if err != nil {
 		c.Error(err)
+		c.FailNow()
 	}
 	// Assert that this is the same as the deleted one.
 	c.Assert(delOut.Ip, check.Equals, t1s1h1Ep4Out.Ip)
@@ -563,6 +641,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	err = client.Post("/endpoints", t2s2h2EpIn, &t2s2h2EpOut)
 	if err != nil {
 		c.Error(err)
+		c.FailNow()
 	}
 	myLog(c, "Response from IPAM for %s is %s", t2s2h2EpIn, t2s2h2EpOut)
 	// Expecting 17 because tenant 2 and segment 2: 1 << 12 | 1 << 4
@@ -576,6 +655,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	if err != nil {
 		myLog(c, "Error %s\n", err)
 		c.Error(err)
+		c.FailNow()
 	}
 	myLog(c, "Legacy received: %s", endpointOut)
 	myLog(c, "Legacy IP: %s", endpointOut.Ip)
@@ -590,6 +670,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	if err != nil {
 		myLog(c, "Error %s\n", err)
 		c.Error(err)
+		c.FailNow()
 	}
 	myLog(c, "Legacy received: %s", endpointOut)
 	myLog(c, "Legacy IP: %s", endpointOut.Ip)

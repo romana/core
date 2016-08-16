@@ -36,7 +36,7 @@ type HttpError struct {
 	// HTTP status code
 	StatusCode int         `json:"status_code"`
 	Details    interface{} `json:"details,omitempty"`
-	// ResourceId specifies the relevant resource ID, if applicable
+	// ResourceID specifies the relevant resource ID, if applicable
 	ResourceID string `json:"resource_id,omitempty"`
 	// ResourceType specifies the relevant resource type, if applicable
 	ResourceType string `json:"resource_type,omitempty"`
