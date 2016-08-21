@@ -2,9 +2,12 @@ package iptsave
 
 import (
 	"github.com/golang/glog"
+	"bufio"
+	"io"
 	"fmt"
 )
 
+// IPtables represents iptables configuration.
 type IPtables struct {
 	Tables []*IPtable
 	currentRule *IPrule
@@ -20,6 +23,7 @@ func (i *IPtables) lastTable() *IPtable {
 	return t
 }
 
+// IPtable represents tables in iptables.
 type IPtable struct {
 	Name string
 	Chains []*IPchain
@@ -48,6 +52,7 @@ func (i *IPtable) chainByName(name string) *IPchain {
 	return nil
 }
 
+// IPchain represents a chain in iptables.
 type IPchain struct {
 	Name string
 	Policy string
@@ -63,28 +68,39 @@ func (i *IPchain) lastRule() *IPrule {
 	return r
 }
 
+// IPrule represents a rule in iptables.
 type IPrule struct {
 	Match []*Match
 	Action  IPtablesAction
 }
 
+// Match represents a match in iptables rule.
 type Match struct {
 	Negated bool
 	Body string
 }
 
+// IPtablesAction represents an action in iptables rule.
 type IPtablesAction struct {
 	Type string
 	Body string
 }
 
+// IPtablesComment represents a comment in iptables.
 type IPtablesComment string
 
-func (i *IPtables) Parse(lexer *Lexer) {
+// Parse reads iptables configuration from input.
+func (i *IPtables) Parse(input io.Reader) {
+	bufReader := bufio.NewReader(input)	
+	lexer := newLexer(bufReader)
+	i.parse(lexer)
+}
+
+func (i *IPtables) parse(lexer *Lexer) {
 	for {
 		item := lexer.NextItem()
 		// fmt.Printf("Discovered item of type %s with body %s \n", item.Type, item.Body)
-		i.ParseItem(item)
+		i.parseItem(item)
 
 		if item.Type == ItemError || item.Type == ItemEOF {
 			break
@@ -92,7 +108,7 @@ func (i *IPtables) Parse(lexer *Lexer) {
 	}
 }
 
-func (i *IPtables) ParseItem(item Item) {
+func (i *IPtables) parseItem(item Item) {
 	switch item.Type {
 	case itemComment:
 		return
@@ -144,6 +160,7 @@ func (i *IPtables) ParseItem(item Item) {
 	return
 }
 
+// Render produces iptables-restore compatible representation of current structure.
 func (i *IPtables) Render() string {
 	result := ""
 

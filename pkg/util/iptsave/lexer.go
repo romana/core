@@ -25,6 +25,15 @@ func NewLexer(input *bufio.Reader) *Lexer {
 	}
 }
 
+// newLexer creates and initializes new Lexer object.
+func newLexer(input *bufio.Reader) *Lexer {
+	return &Lexer{
+		input: input,
+		items: make(chan Item, 2),
+		state: rootState,
+	}
+}
+
 // NextItem returns next item from input stream.
 func (l *Lexer) NextItem() Item {
 	glog.V(1).Info("In NextItem()")
