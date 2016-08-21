@@ -1,4 +1,4 @@
-package main
+package iptsave
 
 import (
 	"bufio"
@@ -46,7 +46,7 @@ func (l *Lexer) NextItem() Item {
 
 func (l *Lexer) errorf(format string, args ...interface{}) stateFn {
 	l.items <- Item{
-		Type: itemError,
+		Type: ItemError,
 		Body: fmt.Sprintf(format, args...),
 	}
 
@@ -55,7 +55,7 @@ func (l *Lexer) errorf(format string, args ...interface{}) stateFn {
 
 func (l *Lexer) errorEof(message string) stateFn {
 	l.items <- Item{
-		Type: itemEOF,
+		Type: ItemEOF,
 		Body: message,
 	}
 
@@ -93,7 +93,7 @@ func (l *Lexer) expect(s string) bool {
 
 	c, err := l.input.Peek(expectLength)
 	if err != nil {
-		l.items <- Item{Type: itemError, Body: "Error: failed to read from stream"}
+		l.items <- Item{Type: ItemError, Body: "Error: failed to read from stream"}
 	}
 
 	if string(c) == s {
@@ -236,7 +236,7 @@ func stateInChainPolicy(l *Lexer) stateFn {
 			l.items <- item
 			return stateInChainCounter
 		} else {
-			l.items <- Item{Type: itemError, Body: "Unexpected deafult policy for a chain"}
+			l.items <- Item{Type: ItemError, Body: "Unexpected deafult policy for a chain"}
 			return nil
 		}
 	case "R":
@@ -245,7 +245,7 @@ func stateInChainPolicy(l *Lexer) stateFn {
 			l.items <- item
 			return stateInChainCounter
 		} else {
-			l.items <- Item{Type: itemError, Body: "Unexpected deafult policy for a chain"}
+			l.items <- Item{Type: ItemError, Body: "Unexpected deafult policy for a chain"}
 			return nil
 		}
 	case "D":
@@ -254,7 +254,7 @@ func stateInChainPolicy(l *Lexer) stateFn {
 			l.items <- item
 			return stateInChainCounter
 		} else {
-			l.items <- Item{Type: itemError, Body: "Unexpected deafult policy for a chain"}
+			l.items <- Item{Type: ItemError, Body: "Unexpected deafult policy for a chain"}
 			return nil
 		}
 	default:

@@ -1,4 +1,4 @@
-package main
+package iptsave
 
 import (
 	"fmt"
@@ -12,8 +12,8 @@ type Item struct {
 type ItemType int
 
 const (
-	itemError ItemType = iota
-	itemEOF
+	ItemError ItemType = iota
+	ItemEOF
 	itemComment
 	itemTable
 	itemChain
@@ -29,9 +29,9 @@ const (
 
 func (i ItemType) String() string {
 	switch i {
-	case itemError:
+	case ItemError:
 		return fmt.Sprintf("Error")
-	case itemEOF:
+	case ItemEOF:
 		return fmt.Sprintf("EOF")
 	case itemComment:
 		return fmt.Sprintf("Comment")

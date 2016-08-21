@@ -1,12 +1,8 @@
-package main
+package iptsave
 
 import (
-	"bufio"
-	"flag"
-	"fmt"
-	"os"
-	"encoding/json"
 	"github.com/golang/glog"
+	"fmt"
 )
 
 type IPtables struct {
@@ -84,6 +80,18 @@ type IPtablesAction struct {
 
 type IPtablesComment string
 
+func (i *IPtables) Parse(lexer *Lexer) {
+	for {
+		item := lexer.NextItem()
+		// fmt.Printf("Discovered item of type %s with body %s \n", item.Type, item.Body)
+		i.ParseItem(item)
+
+		if item.Type == ItemError || item.Type == ItemEOF {
+			break
+		}
+	}
+}
+
 func (i *IPtables) ParseItem(item Item) {
 	switch item.Type {
 	case itemComment:
@@ -136,27 +144,30 @@ func (i *IPtables) ParseItem(item Item) {
 	return
 }
 
-func main() {
-	flag.Parse()
+func (i *IPtables) Render() string {
+	result := ""
 
-	iptables := IPtables{}
+	for _, t := range i.Tables {
+		tableRules := ""
+		result += fmt.Sprintf("*%s\n", t.Name)
 
-	reader := bufio.NewReader(os.Stdin)
-	lexer := NewLexer(reader)
+		for _, c := range t.Chains {
+			result += fmt.Sprintf(":%s %s %s\n", c.Name, c.Policy, c.Counters)
 
-	for {
-		item := lexer.NextItem()
-		// fmt.Printf("Discovered item of type %s with body %s \n", item.Type, item.Body)
-		iptables.ParseItem(item)
+			for _, r := range c.Rules {
+				tableRules += fmt.Sprintf("-A %s ", c.Name)
 
-		if item.Type == itemError || item.Type == itemEOF {
-			break
+				for _, m := range r.Match {
+					tableRules += fmt.Sprintf("%s ", m.Body)
+				}
+
+				tableRules += fmt.Sprintf("-j %s\n", r.Action.Body)
+			}
 		}
+
+		result += tableRules
+		result += fmt.Sprintf("COMMIT\n")
 	}
 
-	if b, err := json.Marshal(iptables); err != nil {
-		fmt.Printf("%s", err)
-	} else {
-		fmt.Printf("%s", b)
-	}
+	return result
 }
