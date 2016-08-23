@@ -20,10 +20,11 @@ package common
 import (
 	"errors"
 	"fmt"
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/go-sql-driver/mysql"
 	"github.com/jinzhu/gorm"
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/mattn/go-sqlite3"
 	"log"
+	"net/http"
 	"net/url"
 	"os"
 	"reflect"
@@ -41,6 +42,37 @@ type StoreConfig struct {
 	// Database type, e.g., sqlite3, mysql, etc.
 	// TODO add a set of constants for it.
 	Type string
+}
+
+const (
+	MySQLUniqueConstraintErrorCode = 1062
+)
+
+// DbToHttpError produces an appropriate HttpError given an error, if it can
+// (for example, producing a 409 CONFLICT in case of a unique or primary key
+// constraint violation). If it cannot, it returns the original error.
+func DbToHttpError(err error) error {
+	switch err := err.(type) {
+	case sqlite3.Error:
+		if err.Code == sqlite3.ErrConstraint {
+			if err.ExtendedCode == sqlite3.ErrConstraintUnique || err.ExtendedCode == sqlite3.ErrConstraintPrimaryKey {
+				log.Printf("Error: %s", err)
+				return HttpError{StatusCode: http.StatusConflict}
+			}
+		}
+		log.Printf("DbToHttpError(): Unknown sqlite3 error: %d|%d|%s", err.Code, err.ExtendedCode, err.Error())
+		return err
+	case *mysql.MySQLError:
+		if err.Number == MySQLUniqueConstraintErrorCode {
+			log.Printf("Error: %s", err)
+			return HttpError{StatusCode: http.StatusConflict}
+		}
+		log.Printf("DbToHttpError(): Unknown MySQL error: %d %s", err.Number, err.Message)
+		return err
+	default:
+		log.Printf("DbToHttpError(): Unknown error: [%T] %+v", err, err)
+		return err
+	}
 }
 
 func (sc StoreConfig) String() string {
