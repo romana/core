@@ -256,6 +256,6 @@ fa:16:3e:05:0c:c3 10.0.0.3
 	// expect
 	ok, err := agent.Helper.isLineInFile(filename, lease)
 	if err != nil || ok {
-		t.Errorf("removeLineFromFile failed, line still in file = %s, error = %s", ok, err)
+		t.Errorf("removeLineFromFile failed, line still in file = %t, error = %s", ok, err)
 	}
 }
