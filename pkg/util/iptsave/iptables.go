@@ -23,10 +23,43 @@ func (i *IPtables) lastTable() *IPtable {
 	return t
 }
 
+// tableByName returns pointer to the IPtable with corresponding name
+func (i *IPtables) TableByName(name string) *IPtable {
+	for tn, t := range i.Tables {
+		if t.Name == name {
+			return i.Tables[tn]
+		}
+	}
+	return nil
+}
+
+
 // IPtable represents tables in iptables.
 type IPtable struct {
 	Name string
 	Chains []*IPchain
+}
+
+func (it IPtable) String() string {
+	return it.Name
+}
+
+func (it IPtable) RenderHeader() string {
+	res := fmt.Sprintf("*%s\n", it.String())
+	for _, chain := range it.Chains {
+		res += fmt.Sprintf("%s\n", chain.RenderHeader())
+	}
+
+	return res
+}
+
+func (it IPtable) RenderFooter () string {
+	var res string
+	for _, chain := range it.Chains {
+		res += chain.RenderFooter()
+	}
+
+	return fmt.Sprintf("%sCOMMIT\n", res)
 }
 
 // lastChain returns pointer to the last IPchain in IPtable.
@@ -60,6 +93,29 @@ type IPchain struct {
 	Rules []*IPrule
 }
 
+// RenderHeader returns string representation of chains header
+// e.g. :MYCHAIN ACCEPT [0:0]
+func (ic IPchain) RenderHeader() string {
+	return fmt.Sprintf(":%s %s %s", ic.Name, ic.Policy, ic.Counters)
+}
+
+// RenderFooter returns string representation of the rules in the chain
+// e.g.
+// -A MYCHAIN <match> -j <action>
+// -A MYCHAIN <othermatch> -j <otheraction)
+func (ic IPchain) RenderFooter() string {
+	var res string
+	for _, rule := range ic.Rules {
+		res += fmt.Sprintf("-A %s %s\n", ic.Name, rule.String())
+	}
+
+	return res
+}
+
+func (ic IPchain) String() string {
+	return fmt.Sprintf("%s\n%s", ic.RenderHeader(), ic.RenderFooter())
+}
+
 // lastRule returns pointer to the last IPchain in IPtable.
 func (i *IPchain) lastRule() *IPrule {
 	if len(i.Rules) == 0 { return nil }
@@ -74,16 +130,41 @@ type IPrule struct {
 	Action  IPtablesAction
 }
 
+func (ir IPrule) String() string {
+	var res string
+	for _, match := range ir.Match {
+		res += match.String()
+	}
+
+	res += ir.Action.String()
+	return res
+}
+
 // Match represents a match in iptables rule.
 type Match struct {
 	Negated bool
 	Body string
 }
 
+func (m Match) String() string {
+	var format string
+	if m.Negated {
+		format = "! %s"
+	} else {
+		format = "%s"
+	}
+
+	return fmt.Sprintf(format, m.Body)
+}
+
 // IPtablesAction represents an action in iptables rule.
 type IPtablesAction struct {
 	Type string
 	Body string
+}
+
+func (ia IPtablesAction) String() string {
+	return fmt.Sprintf("-j %s", ia.Body)
 }
 
 // IPtablesComment represents a comment in iptables.
@@ -162,29 +243,28 @@ func (i *IPtables) parseItem(item Item) {
 
 // Render produces iptables-restore compatible representation of current structure.
 func (i *IPtables) Render() string {
-	result := ""
+	var result string
 
-	for _, t := range i.Tables {
-		tableRules := ""
-		result += fmt.Sprintf("*%s\n", t.Name)
-
-		for _, c := range t.Chains {
-			result += fmt.Sprintf(":%s %s %s\n", c.Name, c.Policy, c.Counters)
-
-			for _, r := range c.Rules {
-				tableRules += fmt.Sprintf("-A %s ", c.Name)
-
-				for _, m := range r.Match {
-					tableRules += fmt.Sprintf("%s ", m.Body)
-				}
-
-				tableRules += fmt.Sprintf("-j %s\n", r.Action.Body)
-			}
-		}
-
-		result += tableRules
-		result += fmt.Sprintf("COMMIT\n")
+	for _, table := range i.Tables {
+		result += table.RenderHeader()
+		result += table.RenderFooter()
 	}
 
 	return result
+}
+
+// MergeTables merges source IPtable into destination IPtable
+func MergeTables (dstTable, srcTable *IPtable) {
+	for dstChainNum, dstChain := range dstTable.Chains {
+		for srcChainNum, srcChain := range srcTable.Chains {
+			if dstChain.Name == srcChain.Name {
+				MergeChains(dstTable.Chains[dstChainNum], srcTable.Chains[srcChainNum])
+			}
+		}
+	}
+}
+
+// MergeChains merges source IPchain into destination IPchain
+func MergeChains (dstChain, srcChain *IPchain) {
+	// TODO
 }
