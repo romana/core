@@ -26,18 +26,6 @@ import (
 	"strings"
 )
 
-const (
-	InputChainIndex      = 0
-	OutputChainIndex     = 1
-	ForwardInChainIndex  = 2
-	ForwardOutChainIndex = 3
-
-	targetDrop   = "DROP"
-	targetAccept = "ACCEPT"
-
-	iptablesCmd = "/sbin/iptables"
-)
-
 // IPtables implements romana Firewall using iptables.
 type IPtables struct {
 	chains        []IPtablesChain
@@ -53,7 +41,19 @@ type IPtables struct {
 }
 
 // Init implements Firewall interface
-func (fw *IPtables) Init(netif FirewallEndpoint) error {
+func (fw *IPtables) Init(exec utilexec.Executable, store FirewallStore, nc NetConfig) error {
+	fwstore := firewallStore{}
+	fwstore.DbStore = store.GetDb()
+	fwstore.mu = store.GetMutex()
+	
+	fw.Store = fwstore
+	fw.os = exec
+	fw.networkConfig = nc
+
+	return nil
+}
+
+func (fw *IPtables) SetEndpoint(netif FirewallEndpoint) error {
 	err := fw.makeRules(netif)
 	if err != nil {
 		return fmt.Errorf("In Firewall.Init() error %s", err)

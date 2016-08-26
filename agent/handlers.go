@@ -26,7 +26,12 @@ func (a *Agent) listPolicies(input interface{}, ctx common.RestContext) (interfa
 
 // statusHandler reports operational statistics.
 func (a *Agent) statusHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
-	fw, err := firewall.NewFirewall(a.Helper.Executor, a.store, a.networkConfig)
+	fw, err := firewall.NewFirewall(firewall.ShellexProvider)
+	if err != nil {
+		return nil, err
+	}
+
+	err = fw.Init(a.Helper.Executor, a.store, a.networkConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -46,7 +51,12 @@ func (a *Agent) podDownHandler(input interface{}, ctx common.RestContext) (inter
 
 	// We need new firewall instance here to use it's Cleanup()
 	// to uninstall firewall rules related to the endpoint.
-	fw, err := firewall.NewFirewall(a.Helper.Executor, a.store, a.networkConfig)
+	fw, err := firewall.NewFirewall(firewall.ShellexProvider)
+	if err != nil {
+		return nil, err
+	}
+
+	err = fw.Init(a.Helper.Executor, a.store, a.networkConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +97,12 @@ func (a *Agent) vmDownHandler(input interface{}, ctx common.RestContext) (interf
 
 	// We need new firewall instance here to use it's Cleanup()
 	// to uninstall firewall rules related to the endpoint.
-	fw, err := firewall.NewFirewall(a.Helper.Executor, a.store, a.networkConfig)
+	fw, err := firewall.NewFirewall(firewall.ShellexProvider)
+	if err != nil {
+		return nil, err
+	}
+
+	err = fw.Init(a.Helper.Executor, a.store, a.networkConfig)
 	if err != nil {
 		return nil, err
 	}
@@ -147,13 +162,17 @@ func (a *Agent) podUpHandlerAsync(netReq NetworkRequest) error {
 	}
 
 	glog.Info("Agent: provisioning firewall")
-	fw, err := firewall.NewFirewall(a.Helper.Executor, a.store, a.networkConfig)
+	fw, err := firewall.NewFirewall(firewall.ShellexProvider)
 	if err != nil {
-		glog.Error(agentError(err))
-		return agentError(err)
+		return err
 	}
 
-	if err1 := fw.Init(netif); err1 != nil {
+	err = fw.Init(a.Helper.Executor, a.store, a.networkConfig)
+	if err != nil {
+		return err
+	}
+
+	if err1 := fw.SetEndpoint(netif); err1 != nil {
 		glog.Error(agentError(err))
 		return agentError(err)
 	}
@@ -235,13 +254,17 @@ func (a *Agent) vmUpHandlerAsync(netif NetIf) error {
 	}
 
 	glog.Info("Agent: provisioning firewall")
-	fw, err := firewall.NewFirewall(a.Helper.Executor, a.store, a.networkConfig)
+	fw, err := firewall.NewFirewall(firewall.ShellexProvider)
 	if err != nil {
-		glog.Error(agentError(err))
-		return agentError(err)
+		return err
 	}
 
-	if err1 := fw.Init(netif); err1 != nil {
+	err = fw.Init(a.Helper.Executor, a.store, a.networkConfig)
+	if err != nil {
+		return err
+	}
+
+	if err1 := fw.SetEndpoint(netif); err1 != nil {
 		glog.Error(agentError(err))
 		return agentError(err)
 	}

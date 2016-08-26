@@ -25,15 +25,18 @@ import (
 // Firewall interface allows different implementation to be used with
 // romana agent.
 type Firewall interface {
-	// Init prepares firewall instance for using ProvisionEndpoint method.
-	Init(FirewallEndpoint) error
+	// Init initializes firewall.
+	Init(utilexec.Executable, FirewallStore, NetConfig) error
+
+	// SetEndpoint prepares firewall instance for using ProvisionEndpoint method.
+	SetEndpoint(FirewallEndpoint) error
 
 	// SetDefaultRules allows to inject a set of rules to be installed during
 	// ProvisionEndpoint run.
 	SetDefaultRules([]FirewallRule) error
 
 	// ProvisionEndpoint generates and applies rules for given endpoint.
-	// Make sure to run Init first.
+	// Make sure to run SetEndpoint first.
 	ProvisionEndpoint() error
 
 	// EnsureRule checks if specified rule in desired state.
@@ -68,21 +71,32 @@ type NetConfig interface {
 	RomanaGW() net.IP
 }
 
-// NewFirewall returns fully initialized firewall struct, with rules and chains
-// configured for given endpoint.
-func NewFirewall(executor utilexec.Executable, store FirewallStore, nc NetConfig) (Firewall, error) {
+// NewFirewall returns instance of Firewall backed by requested provider
+func NewFirewall(provider Provider) (Firewall, error) {
+	var fw Firewall
 
-	fwstore := firewallStore{}
-	fwstore.DbStore = store.GetDb()
-	fwstore.mu = store.GetMutex()
-
-	fw := new(IPtables)
-	fw.Store = fwstore
-	fw.os = executor
-	fw.networkConfig = nc
+	switch provider {
+	case IPTsaveProvider:
+		fw = new(IPTsaveFirewall)
+	default:
+		fw = new(IPtables)
+	}
 
 	return fw, nil
 }
+
+// Provider represents a type of firewall implementation.
+type Provider int
+
+const (
+	// shellex is a default firewall implementation
+	// based on line-by-line firewall provisioning
+	ShellexProvider Provider = iota
+
+	// iptsave is an implementation of firewall
+	// based on iptables-save/iptabels-restore
+	IPTsaveProvider
+)
 
 // RuleState is a parameter for ensureIPtablesRule function
 // which describes desired state of firewall rule.

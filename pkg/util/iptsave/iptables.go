@@ -71,9 +71,9 @@ func (i *IPtable) lastChain() *IPchain {
 	return c
 }
 
-// chainByName looks for IPchain with corresponding name and returns a pointer to it.
-func (i *IPtable) chainByName(name string) *IPchain {
-	glog.V(1).Info("In chainByName()")
+// ChainByName looks for IPchain with corresponding name and returns a pointer to it.
+func (i *IPtable) ChainByName(name string) *IPchain {
+	glog.V(1).Info("In ChainByName()")
 
 	for n, c := range i.Chains {
 		if c.Name == name {
@@ -124,6 +124,28 @@ func (i *IPchain) lastRule() *IPrule {
 	return r
 }
 
+// InsertRule inserts new rule into the chain at given index.
+// If index is larger then size of rules slice, this method will append the rule.
+func (ic *IPchain) InsertRule(index int, rule *IPrule) {
+	if index > len(ic.Rules) {
+		ic.Rules = append(ic.Rules, rule)
+	} else {
+		ic.Rules = append(ic.Rules, &IPrule{})
+		copy(ic.Rules[index+1:], ic.Rules[index:])
+		ic.Rules[index] = rule
+	}
+}
+
+// RuleInChain tests if the chain contains given rule.
+func (ic IPchain) RuleInChain(rule *IPrule) bool {
+	for _, r := range ic.Rules {
+		if r.String() == rule.String() {
+			return true
+		}
+	}
+	return false
+}
+
 // IPrule represents a rule in iptables.
 type IPrule struct {
 	Match []*Match
@@ -133,7 +155,7 @@ type IPrule struct {
 func (ir IPrule) String() string {
 	var res string
 	for _, match := range ir.Match {
-		res += match.String()
+		res += fmt.Sprintf("%s ", match.String())
 	}
 
 	res += ir.Action.String()
@@ -154,7 +176,17 @@ func (m Match) String() string {
 		format = "%s"
 	}
 
-	return fmt.Sprintf(format, m.Body)
+	// TODO lexer is grabbing extra space after each match
+	// item in iptables rule
+	// current method cuts last character off to account for this.
+	var body string
+	if len(m.Body) > 1 {
+		body = m.Body[:len(m.Body)-1]
+	} else {
+		body = m.Body
+	}
+
+	return fmt.Sprintf(format, body)
 }
 
 // IPtablesAction represents an action in iptables rule.
@@ -221,7 +253,7 @@ func (i *IPtables) parseItem(item Item) {
 		return // TODO, ignored for now, should probably be in the model
 	case itemRule:
 		table := i.lastTable()
-		chain := table.chainByName(item.Body)
+		chain := table.ChainByName(item.Body)
 		if table == nil || chain == nil { panic("Rule before table/chain") } // TODO crash here
 
 		newRule := new(IPrule)
@@ -255,16 +287,42 @@ func (i *IPtables) Render() string {
 
 // MergeTables merges source IPtable into destination IPtable
 func MergeTables (dstTable, srcTable *IPtable) {
-	for dstChainNum, dstChain := range dstTable.Chains {
-		for srcChainNum, srcChain := range srcTable.Chains {
+	var newChains []*IPchain
+	var newChainFound bool
+
+	for srcChainNum, srcChain := range srcTable.Chains {
+		newChainFound = true
+		for dstChainNum, dstChain := range dstTable.Chains {
 			if dstChain.Name == srcChain.Name {
+				glog.V(3).Infof("In MergeTables, merging chain %s into table %s", srcChain.Name, dstTable.Name)
 				MergeChains(dstTable.Chains[dstChainNum], srcTable.Chains[srcChainNum])
+				newChainFound = false
 			}
 		}
+
+		if newChainFound {
+			glog.V(3).Infof("In MergeTables, adding chain %s into table %s", srcChain.Name, dstTable.Name)
+			newChains = append(newChains, srcTable.Chains[srcChainNum])
+		}
 	}
+
+	dstTable.Chains = append(dstTable.Chains, newChains...)
 }
 
 // MergeChains merges source IPchain into destination IPchain
 func MergeChains (dstChain, srcChain *IPchain) {
-	// TODO
+	// Merging strategy here is to walk through
+	// source rules in reverse order and insert them
+	// on top of the destination chain if they are not already
+	// in there.
+
+	var currentRule *IPrule
+	srcLength := len(srcChain.Rules)
+
+	for sn, _ := range srcChain.Rules {
+		currentRule = srcChain.Rules[srcLength - sn -1]
+		if !dstChain.RuleInChain(currentRule) {
+			dstChain.InsertRule(0, currentRule)
+		}
+	}
 }
