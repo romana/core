@@ -238,6 +238,7 @@ func stateInChainPolicy(l *Lexer) stateFn {
 	case "-":
 		item.Body = "-"
 		l.items <- item
+		_ = l.nextByte() // Discard next space to prevent it from getting captured as counter
 		return stateInChainCounter
 	case "A":
 		if l.accept("CCEPT ") {
