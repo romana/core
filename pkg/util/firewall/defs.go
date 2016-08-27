@@ -40,7 +40,7 @@ type Firewall interface {
 	ProvisionEndpoint() error
 
 	// EnsureRule checks if specified rule in desired state.
-	EnsureRule(*IPtablesRule, RuleState) error
+	EnsureRule(FirewallRule, RuleState) error
 
 	// Metadata provides access to the metadata associated with current instance of firewall.
 	// Access method, does not require Init.

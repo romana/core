@@ -69,12 +69,12 @@ type IPtablesRule struct {
 }
 
 // GetBody implements FirewallRule interface.
-func (r IPtablesRule) GetBody() string {
+func (r *IPtablesRule) GetBody() string {
 	return r.Body
 }
 
 // GetType implements FirewallRule interface.
-func (r IPtablesRule) GetType() string {
+func (r *IPtablesRule) GetType() string {
 	return "iptables"
 }
 

@@ -269,7 +269,7 @@ func (i *IPTsaveFirewall) ProvisionEndpoint() error {
 	return nil
 }
 
-func (i *IPTsaveFirewall) EnsureRule(*IPtablesRule, RuleState) error {
+func (i *IPTsaveFirewall) EnsureRule(FirewallRule, RuleState) error {
 	return nil
 }
 

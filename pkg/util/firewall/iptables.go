@@ -200,8 +200,8 @@ func (fw *IPtables) isChainExist(chain int) bool {
 
 // isRuleExist verifies if given iptables rule exists.
 // Returns true rule exists.
-func (fw *IPtables) isRuleExist(rule *IPtablesRule) bool {
-	body := strings.Split(rule.Body, " ")
+func (fw *IPtables) isRuleExist(rule FirewallRule) bool {
+	body := strings.Split(rule.GetBody(), " ")
 	args := append([]string{"-C"}, body...)
 	_, err := fw.os.Exec(iptablesCmd, args)
 	if err != nil {
@@ -602,7 +602,7 @@ func (fw *IPtables) deleteIPtablesRule(rule *IPtablesRule) error {
 }
 
 // EnsureRule verifies if given iptables rule exists and creates if it's not.
-func (fw IPtables) EnsureRule(rule *IPtablesRule, opType RuleState) error {
+func (fw IPtables) EnsureRule(rule FirewallRule, opType RuleState) error {
 	ruleExists := fw.isRuleExist(rule)
 
 	args := []string{}
@@ -618,16 +618,16 @@ func (fw IPtables) EnsureRule(rule *IPtablesRule, opType RuleState) error {
 			args = append(args, []string{"-I"}...)
 		}
 	} else {
-		glog.Infoln("In EnsureRule - nothing to do ", rule.Body)
+		glog.Infoln("In EnsureRule - nothing to do ", rule.GetBody())
 		return nil
 	}
 
-	args = append(args, strings.Split(rule.Body, " ")...)
+	args = append(args, strings.Split(rule.GetBody(), " ")...)
 	_, err := fw.os.Exec(iptablesCmd, args)
 	if err != nil {
-		glog.Errorf("%s failed %s", opType, rule.Body)
+		glog.Errorf("%s failed %s", opType, rule.GetBody())
 	} else {
-		glog.Infof("%s success %s", opType, rule.Body)
+		glog.Infof("%s success %s", opType, rule.GetBody())
 	}
 
 	return err
