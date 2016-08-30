@@ -556,7 +556,6 @@ func (fw IPtables) Cleanup(netif FirewallEndpoint) error {
 		glog.Errorf("In Cleanup() failed to clean firewall for %s", netif.GetName())
 		return err
 	}
-
 	return nil
 }
 

@@ -125,13 +125,13 @@ func (h Helper) ensureRouteToEndpoint(netif *NetIf) error {
 	}()
 	glog.V(1).Info("Acquired mutex ensureRouteToEndpoint")
 	// If route not exist
-	if err := h.isRouteExist(netif.IP, mask); err != nil {
+	if err := h.isRouteExist(netif.IP.IP, mask); err != nil {
 
 		// Create route
 		via := "dev"
 		dest := netif.Name
 
-		err := h.createRoute(netif.IP, mask, via, dest, "src", h.Agent.networkConfig.romanaGW.String())
+		err := h.createRoute(netif.IP.IP, mask, via, dest, "src", h.Agent.networkConfig.romanaGW.String())
 		if err != nil {
 			return netIfRouteCreateError(err, *netif)
 		}
@@ -247,6 +247,7 @@ func (h Helper) waitForIface(expectedIface string) bool {
 	for i := 0; i <= h.Agent.waitForIfaceTry; i++ {
 		glog.Infof("Helper: Waiting for interface %s, %d attempt", expectedIface, i)
 		ifaceList, err := net.Interfaces()
+		glog.V(1).Info("Agent: Entering podUpHandlerAsync()")
 		if err != nil {
 			glog.Warningln("Warning:Helper: failed to read net.Interfaces()")
 		}
