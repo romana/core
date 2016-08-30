@@ -400,14 +400,14 @@ func policyListShow(listOnly bool, args []string) error {
 		if specificPolicies && policyIDPresent {
 			for _, p := range allPolicies {
 				for _, a := range args {
-					if a == p.Name || a == p.ExternalID || policyID == p.ID {
+					if a == p.Name || a == p.ExternalID || policyID == *p.ID {
 						policies = append(policies, p)
 					}
 				}
 			}
 		} else if !specificPolicies && policyIDPresent {
 			for _, p := range allPolicies {
-				if policyID == p.ID {
+				if policyID == *p.ID {
 					policies = append(policies, p)
 					break
 				}
