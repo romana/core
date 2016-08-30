@@ -20,8 +20,6 @@ import (
 	//	"database/sql"
 	"encoding/json"
 	"fmt"
-	"net/http"
-
 	"github.com/go-check/check"
 	"github.com/romana/core/agent"
 	"github.com/romana/core/common"
