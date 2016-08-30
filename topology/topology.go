@@ -17,12 +17,12 @@ package topology
 
 import (
 	"fmt"
-	//	"github.com/mitchellh/mapstructure"
-	"github.com/romana/core/common"
 	"log"
 	"net"
 	"strconv"
 	"strings"
+
+	"github.com/romana/core/common"
 )
 
 // TopologySvc service
@@ -79,6 +79,13 @@ func (topology *TopologySvc) Routes() common.Routes {
 			Method:          "GET",
 			Pattern:         dcPath,
 			Handler:         topology.handleDc,
+			MakeMessage:     nil,
+			UseRequestToken: false,
+		},
+		common.Route{
+			Method:          "DELETE",
+			Pattern:         hostListPath + "/{hostID}",
+			Handler:         topology.handleDeleteHost,
 			MakeMessage:     nil,
 			UseRequestToken: false,
 		},
@@ -237,4 +244,22 @@ func (topology *TopologySvc) Initialize(client *common.RestClient) error {
 
 func (topology *TopologySvc) CreateSchema(overwrite bool) error {
 	return topology.store.CreateSchema(overwrite)
+}
+
+// handleDeleteHost handles deletion of a host.
+func (topology *TopologySvc) handleDeleteHost(input interface{}, ctx common.RestContext) (interface{}, error) {
+	log.Println("In handleDeleteHost()")
+	idStr := strings.TrimSpace(ctx.PathVariables["hostID"])
+	if idStr == "" {
+		return nil, common.NewError400("Request must be to /hosts/{hostID}.")
+	}
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		return nil, err
+	}
+	err = topology.store.deleteHost(id)
+	if err != nil {
+		return nil, err
+	}
+	return nil, nil
 }

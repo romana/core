@@ -26,6 +26,7 @@ import (
 	"strings"
 
 	"github.com/romana/core/common"
+	"github.com/romana/core/common/kvstore"
 
 	_ "github.com/go-sql-driver/mysql"
 )
@@ -213,5 +214,15 @@ func (topoStore *topoStore) addHost(dc *common.Datacenter, host *common.Host) er
 			return err
 		}
 	}
+	err := kvstore.AddHost(host)
+	if err != nil {
+		return err
+	}
+	log.Println("Sucessfully added host(", host, ").")
 	return nil
+}
+
+func (topoStore *topoStore) deleteHost(hostID uint64) error {
+	log.Println("In deleteHost()")
+	return kvstore.DeleteHost(hostID)
 }
