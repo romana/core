@@ -17,20 +17,16 @@
 package topology
 
 import (
+	"bytes"
+	"encoding/binary"
 	"fmt"
 	"log"
 	"net"
-	"strconv"
 	"strings"
 
 	"github.com/romana/core/common"
 
 	_ "github.com/go-sql-driver/mysql"
-)
-
-var (
-	MaxHostID  uint   = 1 << 8
-	RomanaCIDR string = "10.0.0.0/8"
 )
 
 type Tor struct {
@@ -92,40 +88,58 @@ func findFirstAvaiableID(arr []uint64) uint64 {
 
 // getNetworkFromID calculates a subnet equivalent to id
 // specified, from the avaiable romana cidr.
-func getNetworkFromID(id uint64) (string, error) {
-	// Currently only IPv4 is supported with romana host bits as 8.
-	if id == 0 || id > uint64(MaxHostID) {
+// Currently only IPv4 is supported.
+func getNetworkFromID(id uint64, hostBits uint) (string, error) {
+	if id == 0 || id > uint64(1<<hostBits) {
 		return "", fmt.Errorf("error: invalid id passed or max subnets already allocated.")
 	}
-	_, net, err := net.ParseCIDR(RomanaCIDR)
-	if err != nil {
-		return "", err
+	if hostBits >= 24 {
+		return "", fmt.Errorf("error: invalid number of bits alloacted for hosts.")
 	}
-	net.IP[1] = byte(id - 1)
-	net.Mask[1] = 0xff
-	return net.String(), nil
+
+	var hostIP uint32 = 0x0A << hostBits
+	hostIP += uint32(id) - 1
+	hostIP <<= 24 - hostBits
+
+	bufHostIP := new(bytes.Buffer)
+	err := binary.Write(bufHostIP, binary.BigEndian, hostIP)
+	if err != nil {
+		return "", fmt.Errorf("error: subnet ip calculation (%s) failed.", err)
+	}
+	var hostIPNet net.IPNet
+	for i := range hostIPNet.IP {
+		hostIPNet.IP[i] = bufHostIP.Bytes()[i]
+	}
+
+	var hostMask uint32
+	for i := uint(0); i < hostBits+8; i++ {
+		hostMask |= 1 << i
+	}
+	hostMask <<= 24 - hostBits
+	bufHostMask := new(bytes.Buffer)
+	err = binary.Write(bufHostMask, binary.BigEndian, hostMask)
+	if err != nil {
+		return "", fmt.Errorf("error: subnet mask calculation (%s) failed.", err)
+	}
+	for i := range hostIPNet.Mask {
+		hostIPNet.Mask[i] = bufHostMask.Bytes()[i]
+	}
+
+	return hostIPNet.String(), nil
 }
 
-func (topoStore *topoStore) addHost(host *common.Host) (string, error) {
-	var err error
-
-	// TODO: add support for testing datacenter host bits
-	//       for overflow here, currently it can't be
-	//       done because on k8s we don't support dc
-	//       host bits yet, so check for 8 bits for
-	//       now (i.e 255 max hosts).
+func (topoStore *topoStore) addHost(dc *common.Datacenter, host *common.Host) error {
 	var count uint
 	db := topoStore.DbStore.Db.Count(&count)
 	if db.Error != nil {
-		return "", db.Error
+		return db.Error
 	}
-	err = common.MakeMultiError(topoStore.DbStore.Db.GetErrors())
+	err := common.MakeMultiError(topoStore.DbStore.Db.GetErrors())
 	if err != nil {
-		log.Printf("topology.store.addHost(%v): %v", host, err)
-		return "", err
+		return err
 	}
-	if count >= MaxHostID {
-		return "", fmt.Errorf("error: max number (%d) host exceeded.", count)
+	if count >= 1<<dc.PortBits {
+		return fmt.Errorf("error: max number (%d) of hosts exceeded.", count)
 	}
 
 	romanaIP := strings.TrimSpace(host.RomanaIp)
@@ -135,19 +149,19 @@ func (topoStore *topoStore) addHost(host *common.Host) (string, error) {
 		var allHostsID []uint64
 		if err := tx.Select("id").Find(&allHostsID).Error; err != nil {
 			tx.Rollback()
-			return "", err
+			return err
 		}
 
 		id := findFirstAvaiableID(allHostsID)
-		host.RomanaIp, err = getNetworkFromID(id)
+		host.RomanaIp, err = getNetworkFromID(id, dc.PortBits)
 		if err != nil {
 			tx.Rollback()
-			return "", err
+			return err
 		}
 
 		if err := tx.Create(host).Error; err != nil {
 			tx.Rollback()
-			return "", err
+			return err
 		}
 		tx.Commit()
 	} else {
@@ -159,5 +173,5 @@ func (topoStore *topoStore) addHost(host *common.Host) (string, error) {
 			return "", err
 		}
 	}
-	return strconv.FormatUint(host.ID, 10), nil
+	return nil
 }
