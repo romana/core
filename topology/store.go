@@ -22,11 +22,16 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"strconv"
 	"strings"
 
 	"github.com/romana/core/common"
 
 	_ "github.com/go-sql-driver/mysql"
+)
+
+var (
+	BITS_IN_BYTE uint = 8
 )
 
 type Tor struct {
@@ -73,8 +78,8 @@ func (topoStore *topoStore) listHosts() ([]common.Host, error) {
 }
 
 // findFirstAvaiableID finds the first available ID
-// for the given list of hostID's. This is mainly to
-// reuse the hostID if the host gets deletes and use
+// for the given list of hostIDs. This is mainly to
+// reuse the hostID if the host gets deleted and
 // use the same subnet in process, since subnet is
 // generated based on id as shown in getNetworkFromID.
 func findFirstAvaiableID(arr []uint64) uint64 {
@@ -87,35 +92,66 @@ func findFirstAvaiableID(arr []uint64) uint64 {
 }
 
 // getNetworkFromID calculates a subnet equivalent to id
-// specified, from the avaiable romana cidr.
-// Currently only IPv4 is supported.
-func getNetworkFromID(id uint64, hostBits uint) (string, error) {
+// specified, from the avaiable romana cidr. Currently
+// only IPv4 is supported.
+func getNetworkFromID(id uint64, hostBits uint, cidr string) (string, error) {
 	if id == 0 || id > uint64(1<<hostBits) {
 		return "", fmt.Errorf("error: invalid id passed or max subnets already allocated.")
 	}
-	if hostBits >= 24 {
-		return "", fmt.Errorf("error: invalid number of bits alloacted for hosts.")
+
+	networkBits := strings.Split(cidr, "/")
+	if len(networkBits) != 2 {
+		return "", fmt.Errorf("error: parsing romana cidr (%s) failed.", cidr)
 	}
 
-	var hostIP uint32 = 0x0A << hostBits
+	networkBits[0] = strings.TrimSpace(networkBits[0])
+	romanaPrefix := net.ParseIP(networkBits[0])
+	if romanaPrefix == nil {
+		return "", fmt.Errorf("error: parsing romana cidr (%s) failed.", networkBits[0])
+	}
+
+	networkBits[1] = strings.TrimSpace(networkBits[1])
+	romanaPrefixBits, err := strconv.ParseUint(networkBits[1], 10, 64)
+	if err != nil {
+		return "", fmt.Errorf("error: parsing romana cidr (%s) failed.", networkBits[1])
+	}
+
+	var romanaPrefixUint32 uint32
+	byteRomanaPrefix := romanaPrefix.To4()
+	bufRomanaPrefix := bytes.NewReader(byteRomanaPrefix)
+	err = binary.Read(bufRomanaPrefix, binary.BigEndian, &romanaPrefixUint32)
+	if err != nil {
+		return "", fmt.Errorf("error: parsing romana cidr (%s) failed.", romanaPrefix)
+	}
+
+	// since this function is limited to IPv4, handle romanaPrefixBits accordingly.
+	if hostBits >= (net.IPv4len*BITS_IN_BYTE - uint(romanaPrefixBits)) {
+		return "", fmt.Errorf("error: invalid number of bits allocated for hosts.")
+	}
+
+	var hostIP uint32
+	hostIP = (romanaPrefixUint32 >> (net.IPv4len*BITS_IN_BYTE - uint(romanaPrefixBits))) << hostBits
 	hostIP += uint32(id) - 1
-	hostIP <<= 24 - hostBits
+	hostIP <<= (net.IPv4len*BITS_IN_BYTE - uint(romanaPrefixBits)) - hostBits
 
 	bufHostIP := new(bytes.Buffer)
-	err := binary.Write(bufHostIP, binary.BigEndian, hostIP)
+	err = binary.Write(bufHostIP, binary.BigEndian, hostIP)
 	if err != nil {
 		return "", fmt.Errorf("error: subnet ip calculation (%s) failed.", err)
 	}
+
 	var hostIPNet net.IPNet
+	hostIPNet.IP = make(net.IP, net.IPv4len)
+	hostIPNet.Mask = make(net.IPMask, net.IPv4len)
 	for i := range hostIPNet.IP {
 		hostIPNet.IP[i] = bufHostIP.Bytes()[i]
 	}
 
 	var hostMask uint32
-	for i := uint(0); i < hostBits+8; i++ {
+	for i := uint(0); i < hostBits+uint(romanaPrefixBits); i++ {
 		hostMask |= 1 << i
 	}
-	hostMask <<= 24 - hostBits
+	hostMask <<= (net.IPv4len*BITS_IN_BYTE - uint(romanaPrefixBits)) - hostBits
 	bufHostMask := new(bytes.Buffer)
 	err = binary.Write(bufHostMask, binary.BigEndian, hostMask)
 	if err != nil {
@@ -128,22 +164,14 @@ func getNetworkFromID(id uint64, hostBits uint) (string, error) {
 	return hostIPNet.String(), nil
 }
 
+// addHost adds a new host to a specific datacenter, it also makes sure
+// that if a romana cidr is not assigned, then to create and assign a new
+// romana cidr using help of helper functions like findFirstAvaiableID
+// and getNetworkFromID.
 func (topoStore *topoStore) addHost(dc *common.Datacenter, host *common.Host) error {
-	var count uint
-	db := topoStore.DbStore.Db.Count(&count)
-	if db.Error != nil {
-		return db.Error
-	}
-	err := common.MakeMultiError(topoStore.DbStore.Db.GetErrors())
-	if err != nil {
-		return err
-	}
-	if count >= 1<<dc.PortBits {
-		return fmt.Errorf("error: max number (%d) of hosts exceeded.", count)
-	}
-
 	romanaIP := strings.TrimSpace(host.RomanaIp)
 	if romanaIP == "" {
+		var err error
 		tx := topoStore.DbStore.Db.Begin()
 
 		var allHostsID []uint64
@@ -153,7 +181,7 @@ func (topoStore *topoStore) addHost(dc *common.Datacenter, host *common.Host) er
 		}
 
 		id := findFirstAvaiableID(allHostsID)
-		host.RomanaIp, err = getNetworkFromID(id, dc.PortBits)
+		host.RomanaIp, err = getNetworkFromID(id, dc.PortBits, dc.Cidr)
 		if err != nil {
 			tx.Rollback()
 			return err
@@ -167,10 +195,9 @@ func (topoStore *topoStore) addHost(dc *common.Datacenter, host *common.Host) er
 	} else {
 		topoStore.DbStore.Db.NewRecord(*host)
 		db := topoStore.DbStore.Db.Create(host)
-		err := common.GetDbErrors(db)
-		if err != nil {
+		if err := common.GetDbErrors(db); err != nil {
 			log.Printf("topology.store.addHost(%v): %v", host, err)
-			return "", err
+			return err
 		}
 	}
 	return nil
