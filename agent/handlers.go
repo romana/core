@@ -105,6 +105,12 @@ func (a *Agent) vmDownHandler(input interface{}, ctx common.RestContext) (interf
 	}
 	glog.Infof("In vmDownHandler() with Name %s, IP %s Mac %s\n", netif.Name, netif.IP, netif.Mac)
 
+	glog.Info("Agent: provisioning DHCP")
+	if err := a.leaseFile.provisionLease(netif, leaseRemove); err != nil {
+		glog.Error(agentError(err))
+		return "Error removing DHCP lease", agentError(err)
+	}
+
 	// We need new firewall instance here to use it's Cleanup()
 	// to uninstall firewall rules related to the endpoint.
 	fw, err := firewall.NewFirewall(a.Helper.Executor, a.store, a.networkConfig)
@@ -256,7 +262,7 @@ func (a *Agent) vmUpHandlerAsync(netif NetIf) error {
 		return agentError(err)
 	}
 	glog.Info("Agent: provisioning DHCP")
-	if err := a.leaseFile.provisionLease(&netif); err != nil {
+	if err := a.leaseFile.provisionLease(&netif, leaseAdd); err != nil {
 		glog.Error(agentError(err))
 		return agentError(err)
 	}

@@ -18,7 +18,9 @@ package os
 import (
 	"fmt"
 	"io"
+	"os"
 	"strings"
+	"time"
 )
 
 // FakeFile implements OSFile.
@@ -30,6 +32,28 @@ type FakeFile struct {
 // Close is a no op to satisfy OSFile.
 func (f FakeFile) Close() error {
 	return nil
+}
+
+func (f FakeFile) Seek(int64, int) (int64, error) {
+	return 0, nil
+}
+
+func (f *FakeFile) Stat() (os.FileInfo, error) {
+	fi := FakeFileInfo{size: f.Size()}
+	return fi, nil
+}
+
+
+func (f FakeFile) Truncate(size int64) error {
+	return nil
+}
+
+func (f FakeFile) Sync() error {
+	return nil
+}
+
+func (f *FakeFile) Size() int64 {
+	return int64(len(f.Content))
 }
 
 // Write is a method of FakeFile that records all data it receives.
@@ -63,3 +87,33 @@ func (o *FakeOS) AppendFile(name string) (OSFile, error) {
 func (o *FakeOS) CreateIfMissing(name string) error {
 	return nil
 }
+
+type FakeFileInfo struct {
+	size int64
+}
+
+func (f FakeFileInfo) Name() string {
+	return "Fake file"
+}
+
+
+func (f FakeFileInfo) Size() int64 {
+	return f.size
+}
+
+func (f FakeFileInfo) Mode() os.FileMode  {
+	return os.ModeTemporary
+}
+
+func (f FakeFileInfo) ModTime() time.Time {
+	return time.Now()
+}
+
+func (f FakeFileInfo) IsDir() bool {
+	return false
+}
+
+func (f FakeFileInfo) Sys() interface{} {
+	return nil
+}
+
