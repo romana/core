@@ -167,6 +167,13 @@ func (root *Root) handleConfig(input interface{}, ctx common.RestContext) (inter
 
 // Routes provided by root service.
 func (root *Root) Routes() common.Routes {
+	authRoute := common.Route{
+		Method:          "POST",
+		Pattern:         common.AuthPath,
+		Handler:         root.handleAuth,
+		MakeMessage:     func() interface{} { return &common.Credential{} },
+		UseRequestToken: false,
+	}
 	routes := common.Routes{
 		common.Route{
 			Method:          "GET",
@@ -175,13 +182,7 @@ func (root *Root) Routes() common.Routes {
 			MakeMessage:     nil,
 			UseRequestToken: false,
 		},
-		common.Route{
-			Method:          "POST",
-			Pattern:         common.AuthPath,
-			Handler:         root.handleAuth,
-			MakeMessage:     func() interface{} { return &common.Credential{} },
-			UseRequestToken: false,
-		},
+		authRoute,
 		common.Route{
 			Method:          "GET",
 			Pattern:         "/config/{serviceName}",

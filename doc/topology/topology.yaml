@@ -1,0 +1,234 @@
+swagger: "2.0"
+info:
+  title: Romana topology API
+  description: |
+    TopologySvc service
+  contact:
+    url: http://romana.io
+    email: info@romana.io
+  license:
+    name: Apache License 2.0
+    url: https://github.com/romana/core/blob/master/LICENSE
+  version: 0.9.0
+basePath: /
+schemes:
+- http
+- https
+consumes:
+- text/plain
+- application/vnd.romana.v1+json
+- application/vnd.romana+json
+- application/json
+- application/x-www-form-urlencoded
+produces:
+- text/plain
+- application/vnd.romana.v1+json
+- application/vnd.romana+json
+- application/json
+- application/x-www-form-urlencoded
+paths:
+  /:
+    get:
+      summary: handleIndex
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+  /datacenter:
+    get:
+      summary: handleDc
+      description: |
+        handleHost handles request for a specific host's info
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+  /findAll/hosts:
+    get:
+      summary: func1
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+  /findExactlyOne/hosts:
+    get:
+      summary: func2
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+  /findFirst/hosts:
+    get:
+      summary: func3
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+  /findLast/hosts:
+    get:
+      summary: func4
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+  /hosts:
+    get:
+      summary: handleHostListGet
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+    post:
+      summary: handleHostListPost
+      description: |
+        handleHostListPost handles addition of a host to the current datacenter.
+        If the Host.AgentPort is not specified, root service is queried for
+        the default Agent port.
+      parameters:
+      - name: common.Host
+        in: body
+        description: |
+          Host is a structure representing information
+          about the host.
+        required: true
+        schema:
+          $ref: '#/definitions/common.Host'
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+  /hosts/{hostId}:
+    get:
+      summary: handleGetHost
+      description: |
+        handleGetHost handles request for a specific host's info
+      parameters:
+      - name: hostId
+        in: path
+        required: true
+        type: string
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+definitions:
+  common.Host:
+    description: |
+      Host is a structure representing information
+      about the host.
+    type: object
+    properties:
+      agent_port:
+        type: integer
+        format: uint64
+      id:
+        type: integer
+        format: uint64
+      ip:
+        type: string
+      links:
+        type: array
+        items: {}
+      name:
+        type: string
+      romana_ip:
+        type: string
+  common.HttpError:
+    description: |
+      HttpError is a structure that represents, well, an HTTP error.
+    type: object
+    required:
+    - status_code
+    - see_also
+    properties:
+      details:
+        type: object
+      resource_id:
+        type: string
+      resource_type:
+        type: string
+      see_also:
+        type: string
+      status_code:
+        type: integer

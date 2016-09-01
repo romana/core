@@ -1,0 +1,149 @@
+swagger: "2.0"
+info:
+  title: Romana ipam API
+  description: |
+    IPAM provides ipam service.
+  contact:
+    url: http://romana.io
+    email: info@romana.io
+  license:
+    name: Apache License 2.0
+    url: https://github.com/romana/core/blob/master/LICENSE
+  version: 0.9.0
+basePath: /
+schemes:
+- http
+- https
+consumes:
+- text/plain
+- application/vnd.romana.v1+json
+- application/vnd.romana+json
+- application/json
+- application/x-www-form-urlencoded
+produces:
+- text/plain
+- application/vnd.romana.v1+json
+- application/vnd.romana+json
+- application/json
+- application/x-www-form-urlencoded
+paths:
+  /allocateIP:
+    get:
+      summary: allocateIP
+      description: |
+        allocateIP finds internal Romana information based on tenantID/tenantName and other provided parameters, then adds
+        that endpoint to IPAM, and passes through the allocated IP
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+  /endpoints:
+    post:
+      summary: addEndpoint
+      description: |
+        addEndpoint handles request to add an endpoint and
+        allocate an IP address.
+      parameters:
+      - name: ipam.Endpoint
+        in: body
+        description: |
+          Endpoint represents an endpoint (a VM, a Kubernetes Pod, etc.)
+          that is to get an IP address.
+        required: true
+        schema:
+          $ref: '#/definitions/ipam.Endpoint'
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+  /endpoints/{ip}:
+    delete:
+      summary: deleteEndpoint
+      description: |
+        deleteEndpoint releases the IP(s) owned by the endpoint into assignable
+        pool.
+      parameters:
+      - name: ip
+        in: path
+        required: true
+        type: string
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+definitions:
+  common.HttpError:
+    description: |
+      HttpError is a structure that represents, well, an HTTP error.
+    type: object
+    required:
+    - status_code
+    - see_also
+    properties:
+      details:
+        type: object
+      resource_id:
+        type: string
+      resource_type:
+        type: string
+      see_also:
+        type: string
+      status_code:
+        type: integer
+  ipam.Endpoint:
+    description: |
+      Endpoint represents an endpoint (a VM, a Kubernetes Pod, etc.)
+      that is to get an IP address.
+    type: object
+    required:
+    - request_token
+    properties:
+      Id:
+        type: integer
+        format: uint64
+      host_id:
+        type: string
+      ip:
+        type: string
+      name:
+        type: string
+      request_token:
+        $ref: '#/definitions/sql.NullString'
+      segment_id:
+        type: string
+      tenant_id:
+        type: string
+  sql.NullString:
+    type: object
+    properties:
+      String:
+        type: string
+      Valid:
+        type: boolean

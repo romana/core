@@ -310,7 +310,7 @@ func (policy *PolicySvc) deletePolicy(id uint64) (interface{}, error) {
 	return policyDoc, nil
 }
 
-// deletePolicy deletes policy...
+// listPolicies lists all policices.
 func (policy *PolicySvc) listPolicies(input interface{}, ctx common.RestContext) (interface{}, error) {
 	policies, err := policy.store.listPolicies()
 	if err != nil {
