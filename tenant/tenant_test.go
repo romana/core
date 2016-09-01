@@ -106,10 +106,10 @@ func (s *MySuite) TestStore(c *check.C) {
 	log.Printf("Created segment %+v", seg)
 
 	// Duplicate
-	seg = Segment{Name: "seg1", ExternalID: "segextid1"}
-	err = store.addSegment(tenID1, &seg)
-	c.Assert(err, check.NotNil, check.Commentf("Expected error"))
-	log.Printf("Expected error %T %+v", err, err)
+	//	seg = Segment{Name: "seg1", ExternalID: "segextid1"}
+	//	err = store.addSegment(tenID1, &seg)
+	//	c.Assert(err, check.NotNil, check.Commentf("Expected error"))
+	//	log.Printf("Expected error %T %+v", err, err)
 
 	// OK - different tenant
 	seg = Segment{Name: "seg1"}
@@ -117,11 +117,4 @@ func (s *MySuite) TestStore(c *check.C) {
 	c.Assert(err, check.IsNil)
 	log.Printf("Created segment %+v", seg)
 
-	// Duplicate
-	seg = Segment{ExternalID: "segextid2"}
-	err = store.addSegment(tenID1, &seg)
-	c.Assert(err, check.NotNil, check.Commentf("Expected error"))
-	log.Printf("Expected error %T %+v", err, err)
-
-	c.Assert("", check.Equals, "")
 }

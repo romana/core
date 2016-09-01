@@ -21,7 +21,6 @@ import (
 	"net"
 	"strings"
 	"testing"
-
 	utilexec "github.com/romana/core/pkg/util/exec"
 	utilos "github.com/romana/core/pkg/util/os"
 )
@@ -48,7 +47,7 @@ func TestAppendLineToFile(t *testing.T) {
 	agent := Agent{Helper: &helper}
 
 	// when
-	netif := NetIf{"eth0", "A", net.ParseIP("127.0.0.1")}
+	netif := NewNetIf("eth0", "A", "127.0.0.1")
 	lease := fmt.Sprintf("%s %s", netif.Mac, netif.IP)
 	_ = agent.Helper.appendLineToFile("stub", lease)
 
@@ -67,8 +66,8 @@ func TestIsLineInFile(t *testing.T) {
 	agent := Agent{Helper: &Helper{OS: fOS}}
 
 	// NetIf to make a lease from
-	ip := net.ParseIP("127.0.0.1")
-	netif := NetIf{"eth0", "A", ip}
+	ip := "127.0.0.1"
+	netif := NewNetIf("eth0", "A", ip)
 
 	lease := fmt.Sprintf("%s %s", netif.Mac, netif.IP)
 
@@ -86,7 +85,7 @@ func TestIsLineInFile(t *testing.T) {
 	// when
 
 	// NetIf to make a lease from
-	netif = NetIf{"eth0", "A", ip}
+	netif = NewNetIf("eth0", "A", ip)
 
 	// Returning wrong lease via utilos.FakeOS
 	fOS = &utilos.FakeOS{FakeData: "C 127.0.0.1"}

@@ -106,6 +106,6 @@ func combinedError(s string, err error) error {
 	return fmt.Errorf("%s %s", s, err)
 }
 
-func failedToParseNetif() error {
-	return NewError(EcodeRequestParsingFailed, fmt.Sprintf("ERROR: Failed to parse netif"))
+func failedToParseNetif(details string) error {
+	return NewError(EcodeRequestParsingFailed, fmt.Sprintf("ERROR: Failed to parse netif: %s", details))
 }
