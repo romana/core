@@ -21,7 +21,6 @@ import (
 	"net"
 	"strings"
 	"testing"
-
 	utilexec "github.com/romana/core/pkg/util/exec"
 	utilos "github.com/romana/core/pkg/util/os"
 )
@@ -48,7 +47,7 @@ func TestAppendLineToFile(t *testing.T) {
 	agent := Agent{Helper: &helper}
 
 	// when
-	netif := NetIf{"eth0", "A", net.ParseIP("127.0.0.1")}
+	netif := NewNetIf("eth0", "A", "127.0.0.1")
 	lease := fmt.Sprintf("%s %s", netif.Mac, netif.IP)
 	_ = agent.Helper.appendLineToFile("stub", lease)
 
@@ -67,8 +66,8 @@ func TestIsLineInFile(t *testing.T) {
 	agent := Agent{Helper: &Helper{OS: fOS}}
 
 	// NetIf to make a lease from
-	ip := net.ParseIP("127.0.0.1")
-	netif := NetIf{"eth0", "A", ip}
+	ip := "127.0.0.1"
+	netif := NewNetIf("eth0", "A", ip)
 
 	lease := fmt.Sprintf("%s %s", netif.Mac, netif.IP)
 
@@ -77,7 +76,7 @@ func TestIsLineInFile(t *testing.T) {
 
 	// expect
 	if err != nil {
-		t.Error("IsLineInFile unkown error", err)
+		t.Error("IsLineInFile unknown error", err)
 	}
 	if out != true {
 		t.Errorf("IsLineInFile failed, got %t, expect true", out)
@@ -86,7 +85,7 @@ func TestIsLineInFile(t *testing.T) {
 	// when
 
 	// NetIf to make a lease from
-	netif = NetIf{"eth0", "A", ip}
+	netif = NewNetIf("eth0", "A", ip)
 
 	// Returning wrong lease via utilos.FakeOS
 	fOS = &utilos.FakeOS{FakeData: "C 127.0.0.1"}
@@ -208,5 +207,54 @@ func TestCreateInterhostRoutes(t *testing.T) {
 	got := *E.Commands
 	if expect != got {
 		t.Errorf("TestCreateInterhostRoutes returned unexpected command, expect %s, got %s", expect, got)
+	}
+}
+
+// TODO this test uses real file which might not work in many cases.
+// Need to improve test framework to support proper read/write calls.
+func TestRemoveLineFromFile(t *testing.T) {
+	const (
+		data = `fa:16:3e:05:0c:c1 10.0.0.1
+fa:16:3e:05:0c:c2 10.0.0.2
+fa:16:3e:05:0c:c3 10.0.0.3
+`
+		filename = "/tmp/testfile_1234afasdf"
+	)
+
+	fOS := &utilos.DefaultOS{}
+	helper := Helper{OS: fOS}
+	agent := Agent{Helper: &helper}
+
+	err := agent.Helper.OS.CreateIfMissing(filename)
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+
+	file, err := agent.Helper.OS.AppendFile(filename)
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+
+	defer file.Close()
+	d := []byte(data)
+	_, err = file.Write(d)
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+
+	err = file.Sync()
+	if err != nil {
+		t.Errorf("%s", err)
+	}
+
+	// when
+	netif := NetIf{"eth0", "fa:16:3e:05:0c:c2", net.ParseIP("10.0.0.2")}
+	lease := fmt.Sprintf("%s %s", netif.Mac, netif.IP)
+	_ = agent.Helper.removeLineFromFile(filename, lease)
+
+	// expect
+	ok, err := agent.Helper.isLineInFile(filename, lease)
+	if err != nil || ok {
+		t.Errorf("removeLineFromFile failed, line still in file = %t, error = %s", ok, err)
 	}
 }

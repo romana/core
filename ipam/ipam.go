@@ -193,7 +193,7 @@ func (ipam *IPAM) addEndpoint(input interface{}, ctx common.RestContext) (interf
 		log.Printf("IPAM encountered an error querying tenant service for tenant %s: %v", endpoint.TenantID, err)
 		return nil, err
 	}
-	log.Printf("IPAM: received tenant %s ID %d, sequence %d\n", t.Name, t.ID, t.Seq)
+	log.Printf("IPAM: received tenant %s ID %d, network ID %d\n", t.Name, t.ID, t.NetworkID)
 
 	segmentUrl := fmt.Sprintf("/tenants/%s/segments/%s", endpoint.TenantID, endpoint.SegmentID)
 	log.Printf("IPAM: calling %s\n", segmentUrl)
@@ -204,7 +204,7 @@ func (ipam *IPAM) addEndpoint(input interface{}, ctx common.RestContext) (interf
 		return nil, err
 	}
 
-	log.Printf("Constructing IP from Host IP %s, Tenant %d, Segment %d", host.RomanaIp, t.Seq, segment.Seq)
+	log.Printf("Constructing IP from Host IP %s, Tenant %d, Segment %d", host.RomanaIp, t.NetworkID, segment.NetworkID)
 
 	endpointBits := 32 - ipam.dc.PrefixBits - ipam.dc.PortBits - ipam.dc.TenantBits - ipam.dc.SegmentBits - ipam.dc.EndpointSpaceBits
 	segmentBitShift := endpointBits
@@ -217,8 +217,8 @@ func (ipam *IPAM) addEndpoint(input interface{}, ctx common.RestContext) (interf
 		return nil, err
 	}
 	hostIpInt := common.IPv4ToInt(network.IP)
-	upToEndpointIpInt := hostIpInt | (t.Seq << tenantBitShift) | (segment.Seq << segmentBitShift)
-	log.Printf("IPAM: before calling addEndpoint:  %v | (%v << %v) | (%v << %v): %v ", network.IP.String(), t.Seq, tenantBitShift, segment.Seq, segmentBitShift, common.IntToIPv4(upToEndpointIpInt))
+	upToEndpointIpInt := hostIpInt | (t.NetworkID << tenantBitShift) | (segment.NetworkID << segmentBitShift)
+	log.Printf("IPAM: before calling addEndpoint:  %v | (%v << %v) | (%v << %v): %v ", network.IP.String(), t.NetworkID, tenantBitShift, segment.NetworkID, segmentBitShift, common.IntToIPv4(upToEndpointIpInt))
 	err = ipam.store.addEndpoint(endpoint, upToEndpointIpInt, ipam.dc.EndpointSpaceBits)
 	if err != nil {
 		log.Printf("IPAM encountered an error adding endpoint to db: %v", err)

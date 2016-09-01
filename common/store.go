@@ -20,10 +20,11 @@ package common
 import (
 	"errors"
 	"fmt"
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/go-sql-driver/mysql"
 	"github.com/jinzhu/gorm"
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/mattn/go-sqlite3"
 	"log"
+	"net/http"
 	"net/url"
 	"os"
 	"reflect"
@@ -43,24 +44,70 @@ type StoreConfig struct {
 	Type string
 }
 
+const (
+	MySQLUniqueConstraintErrorCode = 1062
+)
+
+// DbToHttpError produces an appropriate HttpError given an error, if it can
+// (for example, producing a 409 CONFLICT in case of a unique or primary key
+// constraint violation). If it cannot, it returns the original error.
+func DbToHttpError(err error) error {
+	switch err := err.(type) {
+	case sqlite3.Error:
+		if err.Code == sqlite3.ErrConstraint {
+			if err.ExtendedCode == sqlite3.ErrConstraintUnique || err.ExtendedCode == sqlite3.ErrConstraintPrimaryKey {
+				log.Printf("Error: %s", err)
+				return HttpError{StatusCode: http.StatusConflict}
+			}
+		} else if err.Code == sqlite3.ErrCantOpen {
+			log.Printf("Cannot open database file.")
+			return NewError500("Database error.")
+		}
+		log.Printf("DbToHttpError(): Unknown sqlite3 error: %d|%d|%s", err.Code, err.ExtendedCode, err.Error())
+		return err
+	case *mysql.MySQLError:
+		if err.Number == MySQLUniqueConstraintErrorCode {
+			log.Printf("Error: %s", err)
+			return HttpError{StatusCode: http.StatusConflict}
+		}
+		log.Printf("DbToHttpError(): Unknown MySQL error: %d %s", err.Number, err.Message)
+		return err
+	default:
+		log.Printf("DbToHttpError(): Unknown error: [%T] %+v", err, err)
+		return err
+	}
+}
+
 func (sc StoreConfig) String() string {
 	return fmt.Sprintf("Host: %s, Port: %d, Username: ****, Password: ****, Database: %s, Type: %s",
 		sc.Host, sc.Port, sc.Database, sc.Type)
 }
 
 // MakeStoreConfig creates StoreConfig object from a map.
-func makeStoreConfig(configMap map[string]interface{}) StoreConfig {
+func makeStoreConfig(configMap map[string]interface{}) (StoreConfig, error) {
 	storeConfig := StoreConfig{}
 	storeConfig.Type = configMap["type"].(string)
 	if configMap["host"] != nil {
 		storeConfig.Host = configMap["host"].(string)
 	}
+	var err error
 	if configMap["port"] != nil {
-		portStr := configMap["port"].(string)
-		port, err := strconv.ParseUint(portStr, 10, 64)
-		if err != nil {
-			log.Printf("Error parsing %s", portStr)
-		} else {
+		var port uint64
+		portObj := configMap["port"]
+		switch portObj := portObj.(type) {
+		case string:
+			port, err = strconv.ParseUint(portObj, 10, 64)
+			if err != nil {
+				return storeConfig, errors.New(fmt.Sprintf("Error parsing port %s", portObj))
+			}
+		case float64:
+			port = uint64(portObj)
+		case int:
+			port = uint64(portObj)
+		default:
+			return storeConfig, errors.New(fmt.Sprintf("Error parsing port %v (of type %T)", portObj, portObj))
+		}
+		if port != 0 {
 			storeConfig.Port = port
 		}
 	}
@@ -71,7 +118,7 @@ func makeStoreConfig(configMap map[string]interface{}) StoreConfig {
 		storeConfig.Password = configMap["password"].(string)
 	}
 	storeConfig.Database = configMap["database"].(string)
-	return storeConfig
+	return storeConfig, nil
 }
 
 type FindFlag string
@@ -128,11 +175,17 @@ type DbStore struct {
 	createSchemaFuncs map[string]createSchema
 }
 
-// Find generically implements Find() of store interface.
+// Find generically implements Find() of Store interface.
 func (dbStore *DbStore) Find(query url.Values, entities interface{}, flag FindFlag) (interface{}, error) {
 	queryStringFieldToDbField := make(map[string]string)
-
-	t := reflect.TypeOf(entities).Elem().Elem()
+	// Since entities array exists for reflection purposes
+	// we need to create a new array to put found data into.
+	// Otherwise we'd be reusing the same object and race conditions
+	// will result.
+	ptrToArrayType := reflect.TypeOf(entities)
+	arrayType := ptrToArrayType.Elem()
+	newEntities := reflect.New(arrayType).Interface()
+	t := reflect.TypeOf(newEntities).Elem().Elem()
 	for i := 0; i < t.NumField(); i++ {
 		structField := t.Field(i)
 		fieldTag := structField.Tag
@@ -197,13 +250,13 @@ func (dbStore *DbStore) Find(query url.Values, entities interface{}, flag FindFl
 		whereMap[dbFieldName] = v[0]
 	}
 
-	log.Printf("Querying with %+v - %T", whereMap, entities)
+	log.Printf("Querying with %+v - %T", whereMap, newEntities)
 
 	var db *gorm.DB
 
 	if flag == FindFirst || flag == FindLast {
 		var count int
-		entityPtrVal := reflect.New(reflect.TypeOf(entities).Elem().Elem())
+		entityPtrVal := reflect.New(reflect.TypeOf(newEntities).Elem().Elem())
 		entityPtr := entityPtrVal.Interface()
 		if flag == FindFirst {
 			db = dbStore.Db.Where(whereMap).First(entityPtr).Count(&count)
@@ -220,12 +273,12 @@ func (dbStore *DbStore) Find(query url.Values, entities interface{}, flag FindFl
 		return entityPtr, nil
 	}
 
-	db = dbStore.Db.Where(whereMap).Find(entities)
+	db = dbStore.Db.Where(whereMap).Find(newEntities)
 	err := GetDbErrors(db)
 	if err != nil {
 		return nil, err
 	}
-	rowCount := reflect.ValueOf(entities).Elem().Len()
+	rowCount := reflect.ValueOf(newEntities).Elem().Len()
 
 	if rowCount == 0 {
 		return nil, NewError404(t.String(), fmt.Sprintf("%+v", whereMap))
@@ -233,18 +286,21 @@ func (dbStore *DbStore) Find(query url.Values, entities interface{}, flag FindFl
 
 	if flag == FindExactlyOne {
 		if rowCount == 1 {
-			return reflect.ValueOf(entities).Elem().Index(0).Interface(), nil
+			return reflect.ValueOf(newEntities).Elem().Index(0).Interface(), nil
 		} else {
-			return nil, NewError500(fmt.Sprintf("Multiple results found for %+v", query))
+			return nil, NewError500(fmt.Sprintf("Multiple results found for %+v: %+v", query, reflect.ValueOf(newEntities).Elem().Interface()))
 		}
 	}
 
-	return entities, nil
+	return newEntities, nil
 }
 
 // SetConfig sets the config object from a map.
 func (dbStore *DbStore) SetConfig(configMap map[string]interface{}) error {
-	config := makeStoreConfig(configMap)
+	config, err := makeStoreConfig(configMap)
+	if err != nil {
+		return err
+	}
 	dbStore.Config = &config
 	dbStore.createSchemaFuncs = make(map[string]createSchema)
 	dbStore.createSchemaFuncs["mysql"] = createSchemaMysql

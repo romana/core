@@ -31,16 +31,16 @@ import (
 // Route handler execution.
 type Hook struct {
 	// Executable to run
-	Executable string
+	Executable string `json:"executable"`
 	// Pattern to match in common.Route
-	Pattern string
+	Pattern string `json:"pattern"`
 	// HTTP method to match
-	Method string
+	Method string `json:"method"`
 	// Whether to run before or after the handler for the pattern/method
 	// pair is invoked
-	When string
+	When string `json:"when"`
 	// Where to write output (if omitted, will be just logged)
-	Output string
+	Output string `json:"output"`
 }
 
 // Api part of service configuration (host/port).
@@ -55,7 +55,7 @@ type Api struct {
 	RestTimeoutMillis int64 `yaml:"rest_timeout_millis,omitempty" json:"rest_timeout_millis,omitempty"`
 	RestRetries       int   `yaml:"rest_retries,omitempty" json:"rest_retries,omitempty"`
 	// Location of the public key.
-	AuthPublic   string `yaml:"auth_public"`
+	AuthPublic   string `yaml:"auth_public" json:"auth_public"`
 	RestTestMode bool   `yaml:"rest_test_mode,omitempty" json:"rest_test_mode,omitempty"`
 	Hooks        []Hook
 }

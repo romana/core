@@ -24,18 +24,30 @@ func (a *Agent) listPolicies(input interface{}, ctx common.RestContext) (interfa
 	return nil, nil
 }
 
+// Status is a structure containing statistics returned by statusHandler
+type Status struct {
+     Rules []firewall.IPtablesRule `json:"rules"`
+     Interfaces []NetIf `json:"interfaces"`
+}
+
 // statusHandler reports operational statistics.
 func (a *Agent) statusHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
+       	glog.V(1).Infoln("Agent: Entering statusHandler()")
 	fw, err := firewall.NewFirewall(a.Helper.Executor, a.store, a.networkConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	iptablesRules, err := fw.ListRules()
+	rules, err := fw.ListRules()
 	if err != nil {
 		return nil, err
 	}
-	return iptablesRules, nil
+	ifaces, err := a.store.listNetIfs()
+	if err != nil {
+		return nil, err
+	}
+	status := Status{Rules: rules, Interfaces: ifaces}
+	return status, nil
 }
 
 // podDownHandler cleans up after pod deleted.
@@ -82,8 +94,22 @@ func (a *Agent) podUpHandler(input interface{}, ctx common.RestContext) (interfa
 
 // vmDownHandler handles HTTP requests for endpoints teardown.
 func (a *Agent) vmDownHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
+	glog.Infof("In vmDownHandler() with %T %v", input, input)
 	netif := input.(*NetIf)
-	glog.V(1).Infof("In vmDownHandler() with Name %s, IP %s Mac %s\n", netif.Name, netif.IP, netif.Mac)
+	if netif.Name == "" {
+		// This is a request from OpenStack Mech driver who does not have a name, let's find it.
+		err := a.store.findNetIf(netif)
+		if err != nil {
+			return nil, err
+		}
+	}
+	glog.Infof("In vmDownHandler() with Name %s, IP %s Mac %s\n", netif.Name, netif.IP, netif.Mac)
+
+	glog.Info("Agent: provisioning DHCP")
+	if err := a.leaseFile.provisionLease(netif, leaseRemove); err != nil {
+		glog.Error(agentError(err))
+		return "Error removing DHCP lease", agentError(err)
+	}
 
 	// We need new firewall instance here to use it's Cleanup()
 	// to uninstall firewall rules related to the endpoint.
@@ -96,7 +122,10 @@ func (a *Agent) vmDownHandler(input interface{}, ctx common.RestContext) (interf
 	if err != nil {
 		return nil, err
 	}
-
+	err = a.store.deleteNetIf(netif)
+	if err != nil {
+		return nil, err
+	}
 	return "OK", nil
 }
 
@@ -107,6 +136,7 @@ func (a *Agent) vmUpHandler(input interface{}, ctx common.RestContext) (interfac
 	netif := input.(*NetIf)
 
 	glog.Infof("Got interface: Name %s, IP %s Mac %s\n", netif.Name, netif.IP, netif.Mac)
+
 	// Spawn new thread to process the request
 
 	// TODO don't know if fork-bombs are possible in go but if they are this
@@ -139,7 +169,6 @@ func (a *Agent) podUpHandlerAsync(netReq NetworkRequest) error {
 		glog.Infoln("Agent: ", msg)
 		return agentErrorString(msg)
 	}
-
 	glog.Info("Agent: creating endpoint routes")
 	if err := a.Helper.ensureRouteToEndpoint(&netif); err != nil {
 		glog.Error(agentError(err))
@@ -223,13 +252,17 @@ func (a *Agent) vmUpHandlerAsync(netif NetIf) error {
 		glog.Error(agentError(err))
 		return agentError(err)
 	}
+	err = a.store.addNetIf(&netif)
+	if err != nil {
+		return agentError(err)
+	}
 	glog.Info("Agent: creating endpoint routes")
 	if err := a.Helper.ensureRouteToEndpoint(&netif); err != nil {
 		glog.Error(agentError(err))
 		return agentError(err)
 	}
 	glog.Info("Agent: provisioning DHCP")
-	if err := a.leaseFile.provisionLease(&netif); err != nil {
+	if err := a.leaseFile.provisionLease(&netif, leaseAdd); err != nil {
 		glog.Error(agentError(err))
 		return agentError(err)
 	}

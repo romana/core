@@ -43,9 +43,9 @@ type Tenant struct {
 	// ExternalID is an ID of this tenant in a system that is integrated
 	// with Romana: e.g., OpenStack.
 	ExternalID string    `sql:"not null" json:"external_id,omitempty" gorm:"COLUMN:external_id"`
-	Name       string    `json:"name,omitempty" romana:"desc=Name is a human-readable name for this tenant."`
+	Name       string    `json:"name,omitempty"`
 	Segments   []Segment `json:"segments,omitempty"`
-	Seq        uint64    `json:"seq,omitempty"`
+	NetworkID  uint64    `json:"network_id,omitempty"`
 }
 
 // Segment is a subdivision of tenant.
@@ -54,7 +54,7 @@ type Segment struct {
 	ExternalID string `sql:"not null" json:"external_id,omitempty" gorm:"COLUMN:external_id"`
 	TenantID   uint64 `gorm:"COLUMN:tenant_id" json:"tenant_id,omitempty"`
 	Name       string `json:"name,omitempty"`
-	Seq        uint64 `json:"seq,omitempty"`
+	NetworkID  uint64 `json:"network_id,omitempty"`
 }
 
 func (tenantStore *tenantStore) listTenants() ([]Tenant, error) {
@@ -92,14 +92,18 @@ func (tenantStore *tenantStore) addTenant(tenant *Tenant) error {
 
 	var tenants []Tenant
 	tx := tenantStore.DbStore.Db.Begin()
-
-	tx = tx.Find(&tenants)
 	err := common.GetDbErrors(tx)
 	if err != nil {
 		tx.Rollback()
 		return err
 	}
-	tenant.Seq = uint64(len(tenants))
+	tx = tx.Find(&tenants)
+	err = common.GetDbErrors(tx)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	tenant.NetworkID = uint64(len(tenants))
 
 	tx = tx.Create(tenant)
 	err = common.GetDbErrors(tx)
@@ -123,7 +127,7 @@ func (tenantStore *tenantStore) addSegment(tenantId uint64, segment *Segment) er
 		return err
 	}
 
-	segment.Seq = uint64(len(segments))
+	segment.NetworkID = uint64(len(segments))
 	segment.TenantID = tenantId
 	tx = tx.Create(segment)
 	err = common.GetDbErrors(tx)
@@ -168,13 +172,14 @@ func (tenantStore *tenantStore) getSegment(tenantId string, segmentId string) (S
 }
 
 // CreateSchemaPostProcess implements CreateSchemaPostProcess method of
-// Service interface.
+// ServiceStore interface.
 func (tenantStore *tenantStore) CreateSchemaPostProcess() error {
 	db := tenantStore.Db
 	log.Printf("tenantStore.CreateSchemaPostProcess(), DB is %v", db)
-	db.Model(&Tenant{}).AddUniqueIndex("idx_name_extid", "name", "external_id")
+	db.Model(&Tenant{}).AddUniqueIndex("idx_extid", "external_id")
+	// This should be changed...
 	db.Model(&Segment{}).AddUniqueIndex("idx_tenant_name_extid", "tenant_id", "name", "external_id")
-	err := common.MakeMultiError(db.GetErrors())
+	err := common.GetDbErrors(db)
 	if err != nil {
 		return err
 	}

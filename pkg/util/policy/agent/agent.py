@@ -23,16 +23,24 @@ from mimetools import Message
 from StringIO import StringIO
 HTTP_Unprocessable_Entity = 422
 
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s %(levelname)-8s %(message)s',
-                    datefmt='%a, %d %b %Y %H:%M:%S')
-
 addr_scheme = {}
 
-parser = OptionParser(usage="%prog --port")
+parser = OptionParser(usage="%prog --port --debug")
 parser.add_option('--port', default=9630, dest="port", type="int",
                   help="Port number to listen for incoming requests")
+parser.add_option('--debug', default=False, dest="debug", action="store_true",
+                  help="Enable debug output in the log")
 (options, args) = parser.parse_args()
+
+if options.debug:
+    logging.basicConfig(level=logging.DEBUG,
+                        format='%(asctime)s %(levelname)-8s %(message)s',
+                        datefmt='%a, %d %b %Y %H:%M:%S')
+else:
+    logging.basicConfig(level=logging.INFO,
+                        format='%(asctime)s %(levelname)-8s %(message)s',
+                        datefmt='%a, %d %b %Y %H:%M:%S')
+
 
 def filter_rules_idx(rules):
     """
@@ -382,6 +390,15 @@ def make_rules(addr_scheme, policy_def, policy_id):
     return rules
 
 
+def _validated_port_range(port_range):
+    if len(port_range) != 2:
+        raise Exception("Port Range must be a list of 2 elements, received %s" % port_range)
+    for p in port_range:
+        if not 0 < p < 65535:
+            raise Exception("Malformed port list, port out of range, received %s" % port_range)
+    return tuple(port_range)
+
+
 def _make_rules(policy_rules):
     """
     For each rule in policy_rules creates in/out rules in iptables_rules.
@@ -400,15 +417,9 @@ def _make_rules(policy_rules):
                 for port in r.get("ports"):
                     in_rules += [ '-p tcp --dport %s -j ACCEPT' % port ]
 
-            if r.get('port_ranges') and (len(r.get('port_ranges')) > 0):
-                # TODO: Multiple port ranges should be supported here
-                #       as policy service does, temporarily use the first
-                #       in the range provided.
-                port_range = r.get('port_ranges')[0]
-                if len(port_range) == 2:
-                    in_rules += [ '-p tcp --dport %s:%s -j ACCEPT' % (port_range[0], port_range[1]) ]
-                else:
-                    raise Exception("Protocol option port_range must be a list of 2 elements - got %s" % port_range)
+            if r.get('port_ranges'):
+                dports = ",".join([ "%s:%s" % _validated_port_range(p) for p in r.get('port_ranges') ])
+                in_rules += [ '-p tcp -m multiport --dports %s -j ACCEPT' % (dports) ]
 
             if not(r.get('ports') or r.get('port_ranges')):
                 in_rules += [ '-p tcp -j ACCEPT' ]
@@ -418,15 +429,9 @@ def _make_rules(policy_rules):
                 for port in r.get("ports"):
                     in_rules += [ '-p udp --dport %s -j ACCEPT' % port ]
 
-            if r.get('port_ranges') and (len(r.get('port_ranges')) > 0):
-                # TODO: Multiple port ranges should be supported here
-                #       as policy service does, temporarily use the first
-                #       in the range provided.
-                port_range = r.get('port_ranges')[0]
-                if len(port_range) == 2:
-                    in_rules += [ '-p udp --dport %s:%s -j ACCEPT' % (port_range[0], port_range[1]) ]
-                else:
-                    raise Exception("Protocol option port_range must be a list of 2 elements - got %s" % port_range)
+            if r.get('port_ranges'):
+                dports = ",".join([ "%s:%s" % _validated_port_range(p) for p in r.get('port_ranges') ])
+                in_rules += [ '-p udp -m multiport --dports %s -j ACCEPT' % (dports) ]
 
             if not(r.get('ports') or r.get('port_ranges')):
                 in_rules += [ '-p udp -j ACCEPT' ]

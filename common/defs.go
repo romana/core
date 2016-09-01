@@ -193,10 +193,10 @@ type Policy struct {
 	Name string `json:"name" romana:"desc:Name is human-readable name for this policy."`
 	// ID is Romana-generated unique (within Romana deployment) ID of this policy,
 	// to be used in REST requests. It will be ignored when set by user.
-	ID uint64 `json:"id,omitempty" sql:"AUTO_INCREMENT"`
+	ID *uint64 `json:"id,omitempty" sql:"AUTO_INCREMENT"`
 	// ExternalID is an optional identifier of this policy in an external system working
 	// with Romana in this deployment (e.g., Open Stack).
-	ExternalID string `json:"external_id,omitempty",sql:"not null;unique"`
+	ExternalID string `json:"external_id,omitempty",sql:"unique"`
 	// Datacenter describes a Romana deployment.
 	Datacenter *Datacenter `json:"datacenter,omitempty"`
 	AppliedTo  []Endpoint  `json:"applied_to,omitempty"`
@@ -394,22 +394,22 @@ type RestServiceInfo struct {
 
 // Response to /
 type IndexResponse struct {
-	ServiceName string `json:"serviceName"`
-	Links       Links
+	ServiceName string `json:"service_name"`
+	Links       Links  `json:"links"`
 }
 
 // RootIndexResponse represents a response from the / path
 // specific for root service only.
 type RootIndexResponse struct {
-	ServiceName string `json:"serviceName"`
-	Links       Links
-	Services    []ServiceResponse
+	ServiceName string            `json:"service_name"`
+	Links       Links             `json:"links"`
+	Services    []ServiceResponse `json:"services"`
 }
 
 // Service information
 type ServiceResponse struct {
-	Name  string
-	Links Links
+	Name  string `json:"name"`
+	Links Links  `json:"links"`
 }
 
 // Datacenter represents the configuration of a datacenter.

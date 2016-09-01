@@ -34,12 +34,31 @@ func NewLeaseFile(path string, agent *Agent) LeaseFile {
 	return *lf
 }
 
+type leaseOp int
+
+const (
+	leaseAdd leaseOp = iota
+	leaseRemove
+)
+
+func (l leaseOp) String() string {
+	var res string
+	switch l {
+	case leaseAdd:
+		res = fmt.Sprintf("Add DHCP lease to a leasefile")
+	case leaseRemove:
+		res = fmt.Sprintf("Remove DHCP lease to a leasefile")
+	}
+
+	return res
+}
+
 // provisionLease adds a lease to leasefile
 // and notifies DHCP server if file has changed.
-func (l LeaseFile) provisionLease(netif *NetIf) error {
+func (l LeaseFile) provisionLease(netif *NetIf, op leaseOp) error {
 	lease := fmt.Sprintf("%s %s", netif.Mac, netif.IP)
 	// thread safety is responsibility of underlaying ensureLine method
-	if err := l.Agent.Helper.ensureLine(l.Path, lease); err != nil {
+	if err := l.Agent.Helper.ensureLine(l.Path, lease, op); err != nil {
 		return err
 	}
 
