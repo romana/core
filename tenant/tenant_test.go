@@ -17,7 +17,9 @@ package tenant
 
 import (
 	"github.com/go-check/check"
+	"github.com/romana/core/common"
 	"log"
+	"net/url"
 	"testing"
 )
 
@@ -42,6 +44,13 @@ func (s *MySuite) TestStore(c *check.C) {
 	storeConfig := make(map[string]interface{})
 	storeConfig["type"] = "sqlite3"
 	storeConfig["database"] = "/var/tmp/tenantTest.sqlite3"
+	//
+	//	storeConfig["database"] = "tenant"
+	//	storeConfig["port"] = 8889
+	//	storeConfig["username"] = "root"
+	//	storeConfig["password"] = "root"
+	//	storeConfig["type"] = "mysql"
+
 	err = store.SetConfig(storeConfig)
 	c.Assert(err, check.IsNil)
 	err = store.CreateSchema(true)
@@ -117,4 +126,23 @@ func (s *MySuite) TestStore(c *check.C) {
 	c.Assert(err, check.IsNil)
 	log.Printf("Created segment %+v", seg)
 
+	// Duplicate
+	seg = Segment{ExternalID: "segextid2"}
+	err = store.addSegment(tenID1, &seg)
+	c.Assert(err, check.NotNil, check.Commentf("Expected error"))
+	log.Printf("Expected error %T %+v", err, err)
+
+	c.Assert("", check.Equals, "")
+
+	for i := 0; i < 500; i++ {
+		toFind := []Tenant{}
+		query := url.Values{}
+		query["external_id"] = []string{"extid2"}
+		found, err := store.Find(query, &toFind, common.FindExactlyOne)
+		c.Assert(err, check.IsNil, check.Commentf("Unexpected error"))
+		if err != nil {
+			panic(err)
+		}
+		c.Assert(found.(Tenant).ExternalID, check.Equals, "extid2")
+	}
 }

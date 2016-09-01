@@ -102,7 +102,13 @@ func MockPortsInConfig(fname string) error {
 	services := []string{"root", "topology", "ipam", "agent", "tenant", "policy"}
 	for i := range services {
 		svc := services[i]
-		config.Services[svc].Common.Api.Port = 0
+		if svc == "" {
+			log.Printf("No service %s specified, nothing to mock", svc)
+			continue
+		}
+		svcConfig := config.Services[svc]
+		log.Printf("Mocking for %s: %+v", svc, svcConfig)
+		svcConfig.Common.Api.Port = 0
 		log.Printf("Set port for %s: %d\n", svc, config.Services[svc].Common.Api.Port)
 	}
 
