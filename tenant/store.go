@@ -173,8 +173,8 @@ func (tenantStore *tenantStore) CreateSchemaPostProcess() error {
 	db := tenantStore.Db
 	log.Printf("tenantStore.CreateSchemaPostProcess(), DB is %v", db)
 	db.Model(&Tenant{}).AddUniqueIndex("idx_extid", "external_id")
-	db.Model(&Segment{}).AddUniqueIndex("idx_tenant_name", "tenant_id", "name")
-	db.Model(&Segment{}).AddUniqueIndex("idx_tenant_extid", "tenant_id", "external_id")
+	// This should be changed...
+	db.Model(&Segment{}).AddUniqueIndex("idx_tenant_name_extid", "tenant_id", "name", "external_id")
 	err := common.GetDbErrors(db)
 	if err != nil {
 		return err

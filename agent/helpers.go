@@ -19,8 +19,10 @@ package agent
 
 import (
 	"bufio"
+	"bytes"
 	"fmt"
 	"github.com/golang/glog"
+	"io"
 	"net"
 	"os"
 	"strconv"
@@ -125,13 +127,13 @@ func (h Helper) ensureRouteToEndpoint(netif *NetIf) error {
 	}()
 	glog.V(1).Info("Acquired mutex ensureRouteToEndpoint")
 	// If route not exist
-	if err := h.isRouteExist(netif.IP, mask); err != nil {
+	if err := h.isRouteExist(netif.IP.IP, mask); err != nil {
 
 		// Create route
 		via := "dev"
 		dest := netif.Name
 
-		err := h.createRoute(netif.IP, mask, via, dest, "src", h.Agent.networkConfig.romanaGW.String())
+		err := h.createRoute(netif.IP.IP, mask, via, dest, "src", h.Agent.networkConfig.romanaGW.String())
 		if err != nil {
 			return netIfRouteCreateError(err, *netif)
 		}
@@ -176,8 +178,60 @@ func (h *Helper) appendLineToFile(path string, token string) error {
 	return nil
 }
 
+func (h *Helper) removeLineFromFile(path string, token string) error {
+	file, err := h.OS.Open(path)
+	if err != nil {
+		return err
+	}
+
+	defer file.Close()
+
+	fi, err := file.Stat()
+	if err != nil {
+		return err
+	}
+
+	_, err = file.Seek(0, os.SEEK_SET)
+	if err != nil {
+		return err
+	}
+
+	buf := bytes.NewBuffer(make([]byte, 0, fi.Size()))
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		if line != token {
+			_, err = buf.Write([]byte(line))
+			_, err = buf.Write([]byte("\n"))
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	_, err = file.Seek(0, os.SEEK_SET)
+	if err != nil {
+		return err
+	}
+	nw, err := io.Copy(file, buf)
+	if err != nil {
+		return err
+	}
+	err = file.Truncate(nw)
+	if err != nil {
+		return err
+	}
+	err = file.Sync()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // ensureLine ensures that line is present in a file.
-func (h Helper) ensureLine(path string, token string) error {
+func (h Helper) ensureLine(path string, token string, op leaseOp) error {
 	// if file exist
 	if err := h.OS.CreateIfMissing(path); err != nil {
 		return ensureLineError(err)
@@ -196,11 +250,22 @@ func (h Helper) ensureLine(path string, token string) error {
 		return ensureLineError(err)
 	}
 
-	// if line not in file yet
-	if !lineInFile {
-		// add line
-		if err := h.appendLineToFile(path, token); err != nil {
-			return ensureLineError(err)
+	switch op {
+	case leaseAdd:
+		if !lineInFile {
+			if err := h.appendLineToFile(path, token); err != nil {
+				return ensureLineError(err)
+			}
+		} else {
+			// nothing to do
+		}
+	case leaseRemove:
+		if lineInFile {
+			if err := h.removeLineFromFile(path, token); err != nil {
+				return ensureLineError(err)
+			}
+		} else {
+			// nothing to do
 		}
 	}
 	return nil
@@ -247,6 +312,7 @@ func (h Helper) waitForIface(expectedIface string) bool {
 	for i := 0; i <= h.Agent.waitForIfaceTry; i++ {
 		glog.Infof("Helper: Waiting for interface %s, %d attempt", expectedIface, i)
 		ifaceList, err := net.Interfaces()
+		glog.V(1).Info("Agent: Entering podUpHandlerAsync()")
 		if err != nil {
 			glog.Warningln("Warning:Helper: failed to read net.Interfaces()")
 		}
