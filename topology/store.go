@@ -175,13 +175,18 @@ func (topoStore *topoStore) addHost(dc *common.Datacenter, host *common.Host) er
 		tx := topoStore.DbStore.Db.Begin()
 
 		var allHostsID []uint64
-		if err := tx.Select("id").Find(&allHostsID).Error; err != nil {
+		if err := tx.Table("hosts").Pluck("id", &allHostsID).Error; err != nil {
 			tx.Rollback()
 			return err
 		}
 
 		id := findFirstAvaiableID(allHostsID)
 		host.RomanaIp, err = getNetworkFromID(id, dc.PortBits, dc.Cidr)
+		// TODO: auto generation of romana cidr doesn't handle previously
+		//       allocated cidrs currently, thus it needs to be handled
+		//       here so that no 2 hosts get same or overlapping cidrs.
+		//       here check needs to be in place to detect all manually
+		//       inserted romana cidrs for overlap.
 		if err != nil {
 			tx.Rollback()
 			return err
@@ -193,6 +198,11 @@ func (topoStore *topoStore) addHost(dc *common.Datacenter, host *common.Host) er
 		}
 		tx.Commit()
 	} else {
+		// TODO: auto generation of romana cidr doesn't handle previously
+		//       allocated cidrs currently, thus it needs to be handled
+		//       here so that no 2 hosts get same or overlapping cidrs.
+		//       here check needs to be in place that auto generated cidrs
+		//       overlap with this manually assigned one or not.
 		topoStore.DbStore.Db.NewRecord(*host)
 		db := topoStore.DbStore.Db.Create(host)
 		if err := common.GetDbErrors(db); err != nil {

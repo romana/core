@@ -170,9 +170,30 @@ func (s *MySuite) TestTopology(c *check.C) {
 	c.Assert(newHostResp.Ip, check.Equals, "10.10.10.11")
 	c.Assert(newHostResp.ID, check.Equals, uint64(2))
 
+	newHostReqWithoutRomanaIP := common.Host{Ip: "10.10.10.12", AgentPort: 9999, Name: "host12"}
+	newHostRespWithoutRomanaIP := common.Host{}
+	client.Post(hostsRelURL, newHostReqWithoutRomanaIP, &newHostRespWithoutRomanaIP)
+	myLog(c, "Response: ", newHostRespWithoutRomanaIP)
+
+	c.Assert(newHostRespWithoutRomanaIP.Ip, check.Equals, "10.10.10.12")
+	c.Assert(newHostRespWithoutRomanaIP.RomanaIp, check.Equals, "10.2.0.0/16")
+	c.Assert(newHostRespWithoutRomanaIP.ID, check.Equals, uint64(3))
+
+	newHostReqWithoutRomanaIP = common.Host{Ip: "10.10.10.13", AgentPort: 9999, Name: "host13"}
+	newHostRespWithoutRomanaIP = common.Host{}
+	client.Post(hostsRelURL, newHostReqWithoutRomanaIP, &newHostRespWithoutRomanaIP)
+	myLog(c, "Response: ", newHostRespWithoutRomanaIP)
+
+	c.Assert(newHostRespWithoutRomanaIP.Ip, check.Equals, "10.10.10.13")
+	c.Assert(newHostRespWithoutRomanaIP.RomanaIp, check.Equals, "10.3.0.0/16")
+	c.Assert(newHostRespWithoutRomanaIP.ID, check.Equals, uint64(4))
+
+	// TODO: auto generation of romana cidr currently don't
+	//       handle manually assigned one gracefully, thus tests
+	//       to be added here once that support is added.
+
 	var hostList2 []common.Host
 	client.Get(hostsRelURL, &hostList2)
 	myLog(c, "Host list: ", hostList2)
-	c.Assert(len(hostList2), check.Equals, 2)
-
+	c.Assert(len(hostList2), check.Equals, 4)
 }
