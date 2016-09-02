@@ -44,7 +44,7 @@ type NetworkRequest struct {
 // together with basic methods operating on this structure.
 type NetIf struct {
 	Name string `form:"interface_name" sql:"unique"`
-	Mac  string `form:"mac_address" sql:"primary_key"`
+	Mac  string `form:"mac_address" gorm:"primary_key"`
 	IP   IP     `form:"ip_address" sql:"TYPE:varchar"`
 }
 

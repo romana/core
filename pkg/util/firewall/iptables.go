@@ -622,11 +622,16 @@ func (fw IPtables) EnsureRule(rule *IPtablesRule, opType RuleState) error {
 	}
 
 	args = append(args, strings.Split(rule.Body, " ")...)
-	_, err := fw.os.Exec(iptablesCmd, args)
+	cmdStr := iptablesCmd + " " + strings.Join(args, " ")
+	out, err := fw.os.Exec(iptablesCmd, args)
 	if err != nil {
-		glog.Errorf("%s failed %s", opType, rule.Body)
+		glog.Errorf("[%s]: %s failed for rule %s with error %v, saying [%s]", cmdStr, opType, rule.Body, err, string(out))
 	} else {
+	     if out !=nil && len(out) > 0 {
+		glog.Infof("%s success %s: [%s]", opType, rule.Body, string(out))
+	     } else{
 		glog.Infof("%s success %s", opType, rule.Body)
+	    }
 	}
 
 	return err
