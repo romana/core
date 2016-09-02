@@ -16,6 +16,7 @@
 package exec
 
 import (
+	"io"
 	"log"
 	"os/exec"
 	"strings"
@@ -24,6 +25,15 @@ import (
 // Executable is a facade to exec.Command().Output()
 type Executable interface {
 	Exec(cmd string, args []string) ([]byte, error)
+	Cmd(cmd string, args []string) Cmd
+}
+
+// Cmd is a facade to exec.Cmd
+type Cmd interface {
+	StdinPipe() (io.WriteCloser, error)
+	CombinedOutput() ([]byte, error)
+	Start() error
+	Wait() error
 }
 
 // DefaultExecutor is a default implementation of Executable that passes
@@ -37,4 +47,8 @@ func (DefaultExecutor) Exec(cmd string, args []string) ([]byte, error) {
 	cmdObj := exec.Command(cmd, args...)
 	out, err := cmdObj.CombinedOutput()
 	return out, err
+}
+
+func (DefaultExecutor) Cmd(cmd string, args []string) Cmd {
+	return exec.Command(cmd, args...)
 }
