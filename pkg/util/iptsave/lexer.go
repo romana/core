@@ -395,7 +395,11 @@ func stateInRuleAction(l *Lexer) stateFn {
 
 		switch c {
 		case string(endOfText):
-			return l.errorf("Error: unexpected EOF in rule action section")
+			// Rule action is one of the places where
+			// we can accept EOF. This is only legal when
+			// single rule is being parsed.
+			l.items <- item
+			return l.errorEof("EOF reached in rule action section")
 		case "\n":
 			l.items <- item
 			return rootState

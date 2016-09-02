@@ -105,11 +105,11 @@ func (ic IPchain) RenderHeader() string {
 // RenderFooter returns string representation of the rules in the chain
 // e.g.
 // -A MYCHAIN <match> -j <action>
-// -A MYCHAIN <othermatch> -j <otheraction)
+// -D MYCHAIN <othermatch> -j <otheraction)
 func (ic IPchain) RenderFooter() string {
 	var res string
 	for _, rule := range ic.Rules {
-		res += fmt.Sprintf("-A %s %s\n", ic.Name, rule.String())
+		res += fmt.Sprintf("%s %s %s\n", rule.RenderState, ic.Name, rule)
 	}
 
 	return res
@@ -141,6 +141,17 @@ func (ic *IPchain) InsertRule(index int, rule *IPrule) {
 	}
 }
 
+// AppendRule appends new rule to the chain.
+func (ic *IPchain) AppendRule(rule *IPrule) {
+	ic.Rules = append(ic.Rules, rule)
+}
+
+// DeleteRule appends new rule to the chain and sets rule render state to Delete.
+func (ic *IPchain) DeleteRule(rule *IPrule) {
+	rule.RenderState = RenderDeleteRule
+	ic.Rules = append(ic.Rules, rule)
+}
+
 // RuleInChain tests if the chain contains given rule.
 func (ic IPchain) RuleInChain(rule *IPrule) bool {
 	for _, r := range ic.Rules {
@@ -153,8 +164,29 @@ func (ic IPchain) RuleInChain(rule *IPrule) bool {
 
 // IPrule represents a rule in iptables.
 type IPrule struct {
-	Match []*Match
-	Action  IPtablesAction
+	RenderState RenderState
+	Match  []*Match
+	Action IPtablesAction
+}
+
+type RenderState int
+const (
+	RenderAppendRule RenderState = 0
+	RenderDeleteRule RenderState = 1
+)
+	
+func (r RenderState) String() string {
+	var res string
+	switch r {
+	case RenderAppendRule:
+		res = "-A"
+	case RenderDeleteRule:
+		res = "-D"
+	default:
+		res = "Unkown rule render state"
+	}
+
+	return res
 }
 
 func (ir IPrule) String() string {
@@ -185,7 +217,7 @@ func (m Match) String() string {
 	// item in iptables rule
 	// current method cuts last character off to account for this.
 	var body string
-	if len(m.Body) > 1 {
+	if ( len(m.Body) > 1 ) && ( m.Body[len(m.Body)-1] == byte(' ') ) {
 		body = m.Body[:len(m.Body)-1]
 	} else {
 		body = m.Body
@@ -196,7 +228,7 @@ func (m Match) String() string {
 
 // IPtablesAction represents an action in iptables rule.
 type IPtablesAction struct {
-	Type string
+	Type ActionType
 	Body string
 }
 
@@ -302,18 +334,29 @@ func (i *IPtables) Render() string {
 	return result
 }
 
-// MergeTables merges source IPtable into destination IPtable
-func MergeTables (dstTable, srcTable *IPtable) {
+// MergeTables merges source IPtable into destination IPtable,
+// returns a list of chains with only rules from source table
+// that were propagated into destination table.
+func MergeTables(dstTable, srcTable *IPtable) []*IPchain {
+	var returnChains []*IPchain
 	var newChains []*IPchain
 	var newChainFound bool
 
+	// Walk through source and look for corresponding
+	// dest chain. If dest chain exists, merge them,
+	// otherwise add whole source chain to the dest table.
 	for srcChainNum, srcChain := range srcTable.Chains {
 		newChainFound = true
 		for dstChainNum, dstChain := range dstTable.Chains {
 			if dstChain.Name == srcChain.Name {
-				glog.V(3).Infof("In MergeTables, merging chain %s into table %s", srcChain.Name, dstTable.Name)
-				MergeChains(dstTable.Chains[dstChainNum], srcTable.Chains[srcChainNum])
 				newChainFound = false
+
+				glog.V(3).Infof("In MergeTables, merging chain %s into table %s", srcChain.Name, dstTable.Name)
+				newRules := MergeChains(dstTable.Chains[dstChainNum], srcTable.Chains[srcChainNum])
+
+				// Make new chain similar to current source but with
+				// rules returned by mergeChain, use it for return.
+				returnChains = append(returnChains, &IPchain{Name: srcChain.Name, Policy: srcChain.Policy, Rules: newRules})
 			}
 		}
 
@@ -322,24 +365,159 @@ func MergeTables (dstTable, srcTable *IPtable) {
 			newChains = append(newChains, srcTable.Chains[srcChainNum])
 		}
 	}
-
 	dstTable.Chains = append(dstTable.Chains, newChains...)
+
+	// Making sure that we are returning new IPchain structs
+	// and not pointers to the original source chains.
+	for _, c := range newChains {
+		returnChains = append(returnChains, &IPchain{Name: c.Name, Policy: c.Policy, Rules: c.Rules})
+	}
+	return returnChains
 }
 
-// MergeChains merges source IPchain into destination IPchain
-func MergeChains (dstChain, srcChain *IPchain) {
+// MergeChains merges source IPchain into destination IPchain,
+// returns a list of rules that were added.
+func MergeChains(dstChain, srcChain *IPchain) []*IPrule {
 	// Merging strategy here is to walk through
-	// source rules in reverse order and insert them
-	// on top of the destination chain if they are not already
-	// in there.
+	// unique source rules in reverse order and insert them
+	// on top of the destination.
+
+	_, uniqSrc, _ := DiffRules(dstChain.Rules, srcChain.Rules)
 
 	var currentRule *IPrule
-	srcLength := len(srcChain.Rules)
+	srcLength := len(uniqSrc)
 
-	for sn, _ := range srcChain.Rules {
-		currentRule = srcChain.Rules[srcLength - sn -1]
-		if !dstChain.RuleInChain(currentRule) {
-			dstChain.InsertRule(0, currentRule)
+	for sn, _ := range uniqSrc {
+		currentRule = uniqSrc[srcLength-sn-1]
+		dstChain.InsertRule(0, currentRule)
+	}
+
+	return uniqSrc
+}
+
+// removeRuleFromList removes IPrule from the list of IPrules
+// by it's id, returns new list.
+func removeRuleFromList(i int, dst []*IPrule) []*IPrule {
+	copy(dst[i:], dst[i+1:])
+	dst[len(dst)-1] = nil
+	dst = dst[:len(dst)-1]
+
+	return dst
+}
+
+// DiffRules compares 2 lists of iptables rules and returns 3 new lists,
+// 1 return argument, rules that only found in first list
+// 2 return argument, rules that only found in second list
+// 3 return argumant, rules that found in bouth input lists
+func DiffRules(dstRules, srcRules []*IPrule) (uniqDest, uniqSrc, common []*IPrule) {
+	var unique bool
+
+	for sn, srcRule := range srcRules {
+		unique = true
+
+		for dn, dstRule := range dstRules {
+			if dstRule.String() == srcRule.String() {
+				common = append(common, dstRules[dn])
+				unique = false
+				break
+			}
+		}
+
+		if unique {
+			uniqSrc = append(uniqSrc, srcRules[sn])
+		}
+	}
+
+	for dn, dstRule := range dstRules {
+		unique = true
+
+		for _, commonRule := range common {
+			if dstRule.String() == commonRule.String() {
+				unique = false
+				break
+			}
+		}
+
+		if unique {
+			uniqDest = append(uniqDest, dstRules[dn])
+		}
+	}
+
+	return
+}
+
+// ParseRule takes single iptables rule and
+// returns new IPchain with single IPrule.
+func ParseRule(input io.Reader) *IPchain {
+	chain := &IPchain{}
+
+	lexer := newLexer(bufio.NewReader(input))
+	lexer.state = stateInRule
+	for {
+		item := lexer.NextItem()	
+
+                if item.Type == ItemError || item.Type == ItemEOF {
+                        break
+                }
+		
+		chain.parseRule(item)
+	}
+
+	return chain
+}
+
+func (c *IPchain) parseRule(item Item) error {
+	switch item.Type {
+	case itemRule:
+		c.Name = item.Body
+	case itemRuleMatch:
+		if c.Name == "" {
+			panic("Rule match before chain name")
+		}
+
+		if len(c.Rules) == 0 {
+			c.Rules = append(c.Rules, &IPrule{})
+		}
+
+		currentRule := c.Rules[0]
+		
+		currentRule.Match = append(currentRule.Match, &Match{Body: item.Body})
+	case itemAction:
+		if c.Name == "" {
+			panic("Rule match before chain name")
+		}
+
+		if len(c.Rules) == 0 {
+			c.Rules = append(c.Rules, &IPrule{})
+		}
+
+		currentRule := c.Rules[0]
+		
+		action := IPtablesAction{Body: item.Body}
+		action.detectActionType()
+		currentRule.Action = action
+	default:
+		panic("Unexpected item type during rule parsing")
+	}
+	return nil
+	
+}
+
+type ActionType int
+
+const (
+	ActionDefault ActionType = iota
+	ActionOther
+)
+
+func (ia *IPtablesAction) detectActionType() {
+	defaultActions := []string{"DROP", "ACCEPT", "RETURN", "QUEUE", "NFQUEUE", "REJECT", "LOG", "MARK", "MASQUERADE"}
+	ia.Type = ActionOther
+
+	for _, action := range defaultActions {
+		if action == ia.Body {
+			ia.Type = ActionDefault
+			return
 		}
 	}
 }
