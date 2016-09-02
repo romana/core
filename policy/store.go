@@ -33,8 +33,8 @@ func (policyStore *policyStore) addPolicy(policyDoc *common.Policy) error {
 	json, err := json.Marshal(policyDoc)
 	policyDb := &PolicyDb{}
 	policyDb.Policy = string(json)
-	if policyDoc.ID != nil {
-		policyDb.ID = *policyDoc.ID
+	if policyDoc.ID != 0 {
+		policyDb.ID = policyDoc.ID
 	}
 	policyDb.ExternalID = policyDoc.ExternalID
 	tx := policyStore.DbStore.Db.Begin()
@@ -50,7 +50,7 @@ func (policyStore *policyStore) addPolicy(policyDoc *common.Policy) error {
 		return err
 	}
 	tx.Commit()
-	policyDoc.ID = &policyDb.ID
+	policyDoc.ID = policyDb.ID
 	log.Printf("addPolicy(): Stored %s with ID %d", policyDoc.Name, policyDb.ID)
 	return nil
 }
@@ -66,7 +66,7 @@ func (policyStore *policyStore) listPolicies() ([]common.Policy, error) {
 	policies = make([]common.Policy, len(policyDb))
 	for i, p := range policyDb {
 		json.Unmarshal([]byte(p.Policy), &policies[i])
-		policies[i].ID = &p.ID
+		policies[i].ID = p.ID
 	}
 	return policies, err
 }
@@ -113,7 +113,7 @@ func (policyStore *policyStore) getPolicy(id uint64, markedDeleted bool) (common
 	if err != nil {
 		return policyDoc, err
 	}
-	policyDoc.ID = &policyDbEntry.ID
+	policyDoc.ID = policyDbEntry.ID
 	return policyDoc, err
 }
 
@@ -153,7 +153,7 @@ func (policyStore *policyStore) findPolicyByName(name string) (common.Policy, er
 			return common.Policy{}, err
 		}
 		if policies[i].Name == name {
-			policies[i].ID = &p.ID
+			policies[i].ID = p.ID
 			return policies[i], nil
 		}
 	}

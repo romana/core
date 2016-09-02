@@ -26,13 +26,13 @@ func (a *Agent) listPolicies(input interface{}, ctx common.RestContext) (interfa
 
 // Status is a structure containing statistics returned by statusHandler
 type Status struct {
-     Rules []firewall.IPtablesRule `json:"rules"`
-     Interfaces []NetIf `json:"interfaces"`
+	Rules      []firewall.IPtablesRule `json:"rules"`
+	Interfaces []NetIf                 `json:"interfaces"`
 }
 
 // statusHandler reports operational statistics.
 func (a *Agent) statusHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
-       	glog.V(1).Infoln("Agent: Entering statusHandler()")
+	glog.V(1).Infoln("Agent: Entering statusHandler()")
 	fw, err := firewall.NewFirewall(a.Helper.Executor, a.store, a.networkConfig)
 	if err != nil {
 		return nil, err

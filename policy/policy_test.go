@@ -298,7 +298,7 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	}
 	log.Printf("Added policy result: %s", policyOut)
 	c.Assert(policyOut.Name, check.Equals, "pol1")
-	c.Assert(*policyOut.ID, check.Equals, uint64(1))
+	c.Assert(policyOut.ID, check.Equals, uint64(1))
 	c.Assert(len(policyOut.AppliedTo), check.Equals, len(policyIn.AppliedTo))
 	c.Assert(len(policyOut.Peers), check.Equals, len(policyIn.Peers))
 	c.Assert(client.GetStatusCode(), check.Equals, 200)
@@ -313,7 +313,7 @@ func (s *MySuite) TestPolicy(c *check.C) {
 
 	log.Println("3. Add policy again")
 	policyIn.ExternalID = pol1ExternalID
-	policyIn.ID = nil
+	policyIn.ID = 0
 	err = client.Post(polURL, policyIn, &policyOut)
 	c.Assert(err.(common.HttpError).StatusCode, check.Equals, http.StatusConflict)
 	log.Printf("3. Result: %+v", policyOut)
@@ -377,7 +377,7 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	}
 	log.Printf("Deleted policy result: %s", policyOut)
 	c.Assert(policyOut.Name, check.Equals, "pol1")
-	c.Assert(*policyOut.ID, check.Equals, uint64(1))
+	c.Assert(policyOut.ID, check.Equals, uint64(1))
 	c.Assert(client.GetStatusCode(), check.Equals, 200)
 
 	log.Println("9. Test list policies - should have 2 now - pol2 and default.")

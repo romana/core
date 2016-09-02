@@ -193,7 +193,7 @@ type Policy struct {
 	Name string `json:"name" romana:"desc:Name is human-readable name for this policy."`
 	// ID is Romana-generated unique (within Romana deployment) ID of this policy,
 	// to be used in REST requests. It will be ignored when set by user.
-	ID *uint64 `json:"id,omitempty" sql:"AUTO_INCREMENT"`
+	ID uint64 `json:"id,omitempty" sql:"AUTO_INCREMENT"`
 	// ExternalID is an optional identifier of this policy in an external system working
 	// with Romana in this deployment (e.g., Open Stack).
 	ExternalID string `json:"external_id,omitempty",sql:"unique"`

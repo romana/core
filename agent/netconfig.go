@@ -18,9 +18,9 @@ package agent
 import (
 	"database/sql/driver"
 	"encoding/json"
-	"net"
 	"fmt"
 	"github.com/romana/core/common"
+	"net"
 )
 
 const (
@@ -50,11 +50,11 @@ type NetIf struct {
 
 // MarshalJSON properly marshals NetIf structure.
 func (n NetIf) MarshalJSON() ([]byte, error) {
-     m := make(map[string]string)
-     m["interface_name"] = n.Name
-     m["mac_address"] = n.Mac
-     m["ip_address"] = n.IP.String()
-     return json.Marshal(m)
+	m := make(map[string]string)
+	m["interface_name"] = n.Name
+	m["mac_address"] = n.Mac
+	m["ip_address"] = n.IP.String()
+	return json.Marshal(m)
 }
 
 // IP structure is basically net.IP, but we redefine it so we
@@ -70,7 +70,7 @@ func (i IP) Value() (driver.Value, error) {
 
 // NewNetIf is a simple constructor for NetIf
 func NewNetIf(ifname string, mac string, ip string) NetIf {
-  return NetIf{Name: ifname, Mac: mac, IP:IP{net.ParseIP(ip)}}
+	return NetIf{Name: ifname, Mac: mac, IP: IP{net.ParseIP(ip)}}
 }
 
 // Scan implements driver.Scanner interface on IP
@@ -84,8 +84,8 @@ func (i *IP) Scan(src interface{}) error {
 		i.IP = ip
 		return nil
 	case []uint8:
-	      i.IP = net.ParseIP(string(src))
-	      return nil
+		i.IP = net.ParseIP(string(src))
+		return nil
 	default:
 		return common.NewError("Incompatible type for IP")
 	}
