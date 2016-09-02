@@ -3,9 +3,9 @@ package iptsave
 // Some comments on use of mocking framework in helpers_test.go.
 
 import (
-	"testing"
 	"bufio"
 	"bytes"
+	"testing"
 )
 
 func makeChains() (srcChain, dstChain IPchain) {

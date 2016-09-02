@@ -165,16 +165,17 @@ func (ic IPchain) RuleInChain(rule *IPrule) bool {
 // IPrule represents a rule in iptables.
 type IPrule struct {
 	RenderState RenderState
-	Match  []*Match
-	Action IPtablesAction
+	Match       []*Match
+	Action      IPtablesAction
 }
 
 type RenderState int
+
 const (
 	RenderAppendRule RenderState = 0
 	RenderDeleteRule RenderState = 1
 )
-	
+
 func (r RenderState) String() string {
 	var res string
 	switch r {
@@ -217,7 +218,7 @@ func (m Match) String() string {
 	// item in iptables rule
 	// current method cuts last character off to account for this.
 	var body string
-	if ( len(m.Body) > 1 ) && ( m.Body[len(m.Body)-1] == byte(' ') ) {
+	if (len(m.Body) > 1) && (m.Body[len(m.Body)-1] == byte(' ')) {
 		body = m.Body[:len(m.Body)-1]
 	} else {
 		body = m.Body
@@ -454,12 +455,12 @@ func ParseRule(input io.Reader) *IPchain {
 	lexer := newLexer(bufio.NewReader(input))
 	lexer.state = stateInRule
 	for {
-		item := lexer.NextItem()	
+		item := lexer.NextItem()
 
-                if item.Type == ItemError || item.Type == ItemEOF {
-                        break
-                }
-		
+		if item.Type == ItemError || item.Type == ItemEOF {
+			break
+		}
+
 		chain.parseRule(item)
 	}
 
@@ -480,7 +481,7 @@ func (c *IPchain) parseRule(item Item) error {
 		}
 
 		currentRule := c.Rules[0]
-		
+
 		currentRule.Match = append(currentRule.Match, &Match{Body: item.Body})
 	case itemAction:
 		if c.Name == "" {
@@ -492,7 +493,7 @@ func (c *IPchain) parseRule(item Item) error {
 		}
 
 		currentRule := c.Rules[0]
-		
+
 		action := IPtablesAction{Body: item.Body}
 		action.detectActionType()
 		currentRule.Action = action
@@ -500,7 +501,7 @@ func (c *IPchain) parseRule(item Item) error {
 		panic("Unexpected item type during rule parsing")
 	}
 	return nil
-	
+
 }
 
 type ActionType int
