@@ -45,7 +45,7 @@ func (fw *IPtables) Init(exec utilexec.Executable, store FirewallStore, nc NetCo
 	fwstore := firewallStore{}
 	fwstore.DbStore = store.GetDb()
 	fwstore.mu = store.GetMutex()
-	
+
 	fw.Store = fwstore
 	fw.os = exec
 	fw.networkConfig = nc
