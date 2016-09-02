@@ -36,18 +36,18 @@ func newLexer(input *bufio.Reader) *Lexer {
 
 // NextItem returns next item from input stream.
 func (l *Lexer) NextItem() Item {
-	glog.V(1).Info("In NextItem()")
+	glog.V(3).Info("In NextItem()")
 	for {
 		select {
 		case item := <-l.items:
-			glog.V(1).Info("In NextItem() returning item ", item)
+			glog.V(4).Info("In NextItem() returning item ", item)
 			return item
 		default:
 			if l.state == nil {
 				panic("Lexer failed to process input stream")
 			}
 
-			glog.V(1).Info("In NextItem(), next state")
+			glog.V(4).Info("In NextItem(), next state")
 			l.state = l.state(l)
 		}
 	}
@@ -71,11 +71,8 @@ func (l *Lexer) errorEof(message string) stateFn {
 	return nil
 }
 
-
-
-
 const (
-	nullByte byte = 00
+	nullByte  byte = 00
 	endOfText byte = 03 // Represents EOF
 )
 
@@ -124,7 +121,7 @@ func (l *Lexer) accept(s string) bool {
 
 // rootState is a state at the beginning of the input and outside of any other state.
 func rootState(l *Lexer) stateFn {
-	glog.V(1).Info("In root state")
+	glog.V(3).Info("In root state")
 	for {
 		b := l.nextByte()
 
@@ -133,18 +130,18 @@ func rootState(l *Lexer) stateFn {
 		case string(endOfText):
 			return l.errorEof("EOF reached in root section")
 		case "#":
-			glog.V(1).Info("In root state, switching into the comment state")
+			glog.V(4).Info("In root state, switching into the comment state")
 			return stateInComment
 		case "*":
-			glog.V(1).Info("In root state, switching into the table state")
+			glog.V(4).Info("In root state, switching into the table state")
 			return stateInTable
 		case ":":
-			glog.V(1).Info("In root state, switching into the chain state")
+			glog.V(4).Info("In root state, switching into the chain state")
 			return stateInChain
 		case "-":
 			// Checking one byte ahead of reader to detect "-A"
 			if l.accept("A ") {
-				glog.V(1).Info("In root state, switching into the rule state")
+				glog.V(4).Info("In root state, switching into the rule state")
 				return stateInRule
 			}
 		case "C":
@@ -159,7 +156,7 @@ func rootState(l *Lexer) stateFn {
 
 // stateInComment consumes entire line.
 func stateInComment(l *Lexer) stateFn {
-	glog.V(1).Info("In comment state")
+	glog.V(3).Info("In comment state")
 
 	item := Item{Type: itemComment}
 	for {
@@ -171,7 +168,7 @@ func stateInComment(l *Lexer) stateFn {
 			return l.errorf("Error: unexpected EOF in comment section")
 		case "\n":
 			l.items <- item
-			glog.V(1).Info("In comment state, switching into the root state")
+			glog.V(4).Info("In comment state, switching into the root state")
 			return rootState
 		default:
 			item.Body += c
@@ -181,7 +178,7 @@ func stateInComment(l *Lexer) stateFn {
 
 // stateInTable consumes entire line.
 func stateInTable(l *Lexer) stateFn {
-	glog.V(1).Info("In table state")
+	glog.V(3).Info("In table state")
 
 	item := Item{Type: itemTable}
 	for {
@@ -202,7 +199,7 @@ func stateInTable(l *Lexer) stateFn {
 
 // stateInChain consumes chain name and checks for default policy token.
 func stateInChain(l *Lexer) stateFn {
-	glog.V(1).Info("In chain state")
+	glog.V(3).Info("In chain state")
 
 	item := Item{Type: itemChain}
 	for {
@@ -225,7 +222,7 @@ func stateInChain(l *Lexer) stateFn {
 
 // stateInChainPolicy consumes chain deafult policy if any.
 func stateInChainPolicy(l *Lexer) stateFn {
-	glog.V(1).Info("In chain policy state")
+	glog.V(3).Info("In chain policy state")
 
 	item := Item{Type: itemChainPolicy}
 
@@ -273,7 +270,7 @@ func stateInChainPolicy(l *Lexer) stateFn {
 }
 
 func stateInChainCounter(l *Lexer) stateFn {
-	glog.V(1).Info("In chain counter state")
+	glog.V(3).Info("In chain counter state")
 
 	item := Item{Type: itemChainCounter}
 	for {
@@ -293,7 +290,7 @@ func stateInChainCounter(l *Lexer) stateFn {
 }
 
 func stateInRule(l *Lexer) stateFn {
-	glog.V(1).Info("In rule state")
+	glog.V(3).Info("In rule state")
 
 	item := Item{Type: itemRule}
 	for {
@@ -313,7 +310,7 @@ func stateInRule(l *Lexer) stateFn {
 }
 
 func stateRuleMatch(l *Lexer) stateFn {
-	glog.V(1).Info("In rule match state")
+	glog.V(3).Info("In rule match state")
 	var exMarkConsumed, matchLiteralConsumed bool
 
 	item := Item{Type: itemRuleMatch}
@@ -321,7 +318,7 @@ func stateRuleMatch(l *Lexer) stateFn {
 		b := l.nextByte()
 		c := string(b)
 
-		glog.V(2).Info("In rule match with char ", c)
+		glog.V(4).Info("In rule match with char ", c)
 
 		switch c {
 		case string(endOfText):
@@ -331,7 +328,7 @@ func stateRuleMatch(l *Lexer) stateFn {
 			// and only before match literal
 			if exMarkConsumed == true {
 				return l.errorf("Unexpected ! in rules spec")
-			} 
+			}
 
 			if matchLiteralConsumed {
 				l.items <- item
@@ -380,7 +377,7 @@ func stateRuleMatch(l *Lexer) stateFn {
 			}
 
 			item.Body += c
-			
+
 		default:
 			item.Body += c
 		}
@@ -388,7 +385,7 @@ func stateRuleMatch(l *Lexer) stateFn {
 }
 
 func stateInRuleAction(l *Lexer) stateFn {
-	glog.V(1).Info("In rule action state")
+	glog.V(3).Info("In rule action state")
 
 	item := Item{Type: itemAction}
 	for {

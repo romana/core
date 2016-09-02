@@ -28,19 +28,19 @@ import (
 
 
 const (
-//	InputChainIndex      = 0
-//	OutputChainIndex     = 1
-//	ForwardInChainIndex  = 2
-//	ForwardOutChainIndex = 3
+	//	InputChainIndex      = 0
+	//	OutputChainIndex     = 1
+	//	ForwardInChainIndex  = 2
+	//	ForwardOutChainIndex = 3
 
-	iptablesSaveBin = `/sbin/iptables-save`
+	iptablesSaveBin    = `/sbin/iptables-save`
 	iptablesRestoreBin = `/sbin/iptables-restore`
 
 )
 
 // IPtables implements romana Firewall using iptables.
 type IPTsaveFirewall struct {
-//	chains        []IPtablesChain
+	//	chains        []IPtablesChain
 	u32filter     string
 	chainPrefix   string
 	interfaceName string
@@ -48,8 +48,8 @@ type IPTsaveFirewall struct {
 	Backend *iptsave.IPtables
 	Store         firewallStore
 
-	os            utilexec.Executable
-	initialized   bool
+	os          utilexec.Executable
+	initialized bool
 
 	// Discovered run-time configuration.
 	networkConfig NetConfig
@@ -117,7 +117,7 @@ func makeDivertRules(netif FirewallEndpoint) *iptsave.IPtable {
 						Match: []*iptsave.Match{
 							&iptsave.Match{
 								Negated: false,
-								Body: "-i " + netif.GetName(),
+								Body:    "-i " + netif.GetName(),
 							},
 						},
 					},
@@ -133,7 +133,7 @@ func makeDivertRules(netif FirewallEndpoint) *iptsave.IPtable {
 						Match: []*iptsave.Match{
 							&iptsave.Match{
 								Negated: false,
-								Body: "-o " + netif.GetName(),
+								Body:    "-o " + netif.GetName(),
 							},
 						},
 					},
@@ -149,7 +149,7 @@ func makeDivertRules(netif FirewallEndpoint) *iptsave.IPtable {
 						Match: []*iptsave.Match{
 							&iptsave.Match{
 								Negated: false,
-								Body: "-i " + netif.GetName(),
+								Body:    "-i " + netif.GetName(),
 							},
 						},
 					},
@@ -160,7 +160,7 @@ func makeDivertRules(netif FirewallEndpoint) *iptsave.IPtable {
 						Match: []*iptsave.Match{
 							&iptsave.Match{
 								Negated: false,
-								Body: "-o " + netif.GetName(),
+								Body:    "-o " + netif.GetName(),
 							},
 						},
 					},

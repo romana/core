@@ -1,22 +1,24 @@
 package iptsave
 
 import (
-	"github.com/golang/glog"
 	"bufio"
-	"io"
 	"fmt"
+	"github.com/golang/glog"
+	"io"
 )
 
 // IPtables represents iptables configuration.
 type IPtables struct {
-	Tables []*IPtable
+	Tables      []*IPtable
 	currentRule *IPrule
 }
 
 // lastTable return pointer to the last IPtable in IPtables.
 func (i *IPtables) lastTable() *IPtable {
 	glog.V(1).Info("In lastTable()")
-	if len(i.Tables) == 0 { return nil }
+	if len(i.Tables) == 0 {
+		return nil
+	}
 
 	t := i.Tables[len(i.Tables)-1]
 	glog.V(2).Info("In lastTable returning with ", t.Name)
@@ -33,10 +35,9 @@ func (i *IPtables) TableByName(name string) *IPtable {
 	return nil
 }
 
-
 // IPtable represents tables in iptables.
 type IPtable struct {
-	Name string
+	Name   string
 	Chains []*IPchain
 }
 
@@ -53,7 +54,7 @@ func (it IPtable) RenderHeader() string {
 	return res
 }
 
-func (it IPtable) RenderFooter () string {
+func (it IPtable) RenderFooter() string {
 	var res string
 	for _, chain := range it.Chains {
 		res += chain.RenderFooter()
@@ -65,7 +66,9 @@ func (it IPtable) RenderFooter () string {
 // lastChain returns pointer to the last IPchain in IPtable.
 func (i *IPtable) lastChain() *IPchain {
 	glog.V(1).Info("In lastChain()")
-	if len(i.Chains) == 0 { return nil }
+	if len(i.Chains) == 0 {
+		return nil
+	}
 
 	c := i.Chains[len(i.Chains)-1]
 	return c
@@ -87,10 +90,10 @@ func (i *IPtable) ChainByName(name string) *IPchain {
 
 // IPchain represents a chain in iptables.
 type IPchain struct {
-	Name string
-	Policy string
+	Name     string
+	Policy   string
 	Counters string
-	Rules []*IPrule
+	Rules    []*IPrule
 }
 
 // RenderHeader returns string representation of chains header
@@ -118,7 +121,9 @@ func (ic IPchain) String() string {
 
 // lastRule returns pointer to the last IPchain in IPtable.
 func (i *IPchain) lastRule() *IPrule {
-	if len(i.Rules) == 0 { return nil }
+	if len(i.Rules) == 0 {
+		return nil
+	}
 
 	r := i.Rules[len(i.Rules)-1]
 	return r
@@ -165,7 +170,7 @@ func (ir IPrule) String() string {
 // Match represents a match in iptables rule.
 type Match struct {
 	Negated bool
-	Body string
+	Body    string
 }
 
 func (m Match) String() string {
@@ -204,7 +209,7 @@ type IPtablesComment string
 
 // Parse reads iptables configuration from input.
 func (i *IPtables) Parse(input io.Reader) {
-	bufReader := bufio.NewReader(input)	
+	bufReader := bufio.NewReader(input)
 	lexer := newLexer(bufReader)
 	i.parse(lexer)
 }
@@ -229,24 +234,30 @@ func (i *IPtables) parseItem(item Item) {
 		i.Tables = append(i.Tables, &IPtable{Name: item.Body})
 	case itemChain:
 		table := i.lastTable()
-		if table == nil { panic("Chain before table") } // TODO crash here
+		if table == nil {
+			panic("Chain before table")
+		} // TODO crash here
 
-		glog.V(1).Infof("In ParseItem adding chain %s to the table %s", item.Body, table.Name)
+		glog.V(5).Infof("In ParseItem adding chain %s to the table %s", item.Body, table.Name)
 
 		table.Chains = append(table.Chains, &IPchain{Name: item.Body})
 	case itemChainPolicy:
 		table := i.lastTable()
 
-		glog.V(2).Infof("In ParseItem table %s has %d chains", table.Name, len(table.Chains))
+		glog.V(5).Infof("In ParseItem table %s has %d chains", table.Name, len(table.Chains))
 
 		chain := table.lastChain()
-		if table == nil || chain == nil { panic("Chain policy before table/chain") } // TODO crash here
+		if table == nil || chain == nil {
+			panic("Chain policy before table/chain")
+		} // TODO crash here
 
 		chain.Policy = item.Body
 	case itemChainCounter:
 		table := i.lastTable()
 		chain := table.lastChain()
-		if table == nil || chain == nil { panic("Chain policy before table/chain") } // TODO crash here
+		if table == nil || chain == nil {
+			panic("Chain policy before table/chain")
+		} // TODO crash here
 
 		chain.Counters = item.Body
 	case itemCommit:
@@ -254,20 +265,26 @@ func (i *IPtables) parseItem(item Item) {
 	case itemRule:
 		table := i.lastTable()
 		chain := table.ChainByName(item.Body)
-		if table == nil || chain == nil { panic("Rule before table/chain") } // TODO crash here
+		if table == nil || chain == nil {
+			panic("Rule before table/chain")
+		} // TODO crash here
 
 		newRule := new(IPrule)
 		chain.Rules = append(chain.Rules, newRule)
 
 		i.currentRule = newRule
 	case itemRuleMatch:
-		if i.currentRule == nil { panic("RuleMatch before table/chain/rule") } // TODO crash here
+		if i.currentRule == nil {
+			panic("RuleMatch before table/chain/rule")
+		} // TODO crash here
 
 		i.currentRule.Match = append(i.currentRule.Match, &Match{Body: item.Body})
 	case itemAction:
-		if i.currentRule == nil { panic("RuleMatch before table/chain/rule") } // TODO crash here
+		if i.currentRule == nil {
+			panic("RuleMatch before table/chain/rule")
+		} // TODO crash here
 		i.currentRule.Action = IPtablesAction{Body: item.Body}
-		
+
 	}
 
 	return
