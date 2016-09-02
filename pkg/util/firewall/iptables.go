@@ -605,20 +605,26 @@ func (fw IPtables) EnsureRule(rule *IPtablesRule, opType RuleState) error {
 	ruleExists := fw.isRuleExist(rule)
 
 	args := []string{}
-	if ruleExists && opType == ensureAbsent {
-		args = append(args, []string{"-D"}...)
+	if ruleExists {
 
-	} else if !ruleExists {
+		switch opType {
+		case ensureAbsent:
+			args = append(args, []string{"-D"}...)
+		default:
+			glog.Infoln("In EnsureRule - nothing to do ", rule.Body)
+			return nil
+		}
+	} else {
 
 		switch opType {
 		case ensureLast:
 			args = append(args, []string{"-A"}...)
 		case ensureFirst:
 			args = append(args, []string{"-I"}...)
+		default:
+			glog.Infoln("In EnsureRule - nothing to do ", rule.Body)
+			return nil
 		}
-	} else {
-		glog.Infoln("In EnsureRule - nothing to do ", rule.Body)
-		return nil
 	}
 
 	args = append(args, strings.Split(rule.Body, " ")...)
