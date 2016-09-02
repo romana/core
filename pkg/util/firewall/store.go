@@ -29,13 +29,13 @@ type FirewallStore interface {
 	GetDb() common.DbStore
 
 	// GetMutex return instance of mutex used guard firewall database.
-	GetMutex() *sync.Mutex
+	GetMutex() *sync.RWMutex
 }
 
 // firewallStore implement FirewallStore
 type firewallStore struct {
 	common.DbStore
-	mu *sync.Mutex
+	mu *sync.RWMutex
 }
 
 // Entities implements Entities method of
@@ -57,7 +57,7 @@ func (fs firewallStore) GetDb() common.DbStore {
 }
 
 // GetMutex implements firewall.FirewallStore
-func (fs firewallStore) GetMutex() *sync.Mutex {
+func (fs firewallStore) GetMutex() *sync.RWMutex {
 	return fs.mu
 }
 

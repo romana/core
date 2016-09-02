@@ -12,7 +12,7 @@ import (
 // so we are going to guard access with mutex.
 type agentStore struct {
 	common.DbStore
-	mu *sync.Mutex
+	mu *sync.RWMutex
 }
 
 // GetDb implements firewall.FirewallStore
@@ -21,7 +21,7 @@ func (agentStore agentStore) GetDb() common.DbStore {
 }
 
 // GetMutex implements firewall.FirewallStore
-func (agentStore agentStore) GetMutex() *sync.Mutex {
+func (agentStore agentStore) GetMutex() *sync.RWMutex {
 	return agentStore.mu
 }
 
@@ -38,7 +38,7 @@ func (agentStore *agentStore) Entities() []interface{} {
 func NewStore(config common.ServiceConfig) *agentStore {
 	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
 	store := agentStore{
-		mu: &sync.Mutex{},
+		mu: &sync.RWMutex{},
 	}
 	store.ServiceStore = &store
 	store.SetConfig(storeConfig)
