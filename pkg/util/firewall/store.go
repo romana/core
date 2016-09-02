@@ -96,6 +96,13 @@ func (firewallStore *firewallStore) addIPtablesRule(rule *IPtablesRule) error {
 	}()
 	glog.Info("Acquired store mutex for addIPtablesRule")
 
+	err := firewallStore.addIPtablesRuleUnsafe(rule)
+	return err
+}
+
+// addIPtablesRuleUnsafe is a non thread safe implementation of addIPtablesRule
+func (firewallStore *firewallStore) addIPtablesRuleUnsafe(rule *IPtablesRule) error {
+
 	db := firewallStore.DbStore.Db
 	// db := firewallStore.GetDb()
 	glog.Info("In addIPtablesRule() after GetDb")
@@ -117,6 +124,7 @@ func (firewallStore *firewallStore) addIPtablesRule(rule *IPtablesRule) error {
 		return db.Error
 	}
 	return nil
+
 }
 
 func (firewallStore *firewallStore) listIPtablesRules() ([]IPtablesRule, error) {
@@ -135,6 +143,29 @@ func (firewallStore *firewallStore) listIPtablesRules() ([]IPtablesRule, error) 
 		return nil, err
 	}
 	return iPtablesRule, nil
+}
+
+func (firewallStore *firewallStore) ensureIPtablesRule(rule *IPtablesRule) error {
+	glog.Info("Acquiring store mutex for listIPtablesRules")
+	firewallStore.mu.Lock()
+	defer func() {
+		glog.Info("Releasing store mutex for listIPtablesRules")
+		firewallStore.mu.Unlock()
+	}()
+	glog.Info("Acquired store mutex for listIPtablesRules")
+
+	if firewallStore.DbStore.Db.Where("body = ?", rule.Body).First(rule).RecordNotFound() {
+		glog.V(2).Infof("In ensureIPtablesRule(), rule %s not found in db - creating", rule.Body)
+		err0 := firewallStore.addIPtablesRuleUnsafe(rule)
+		if err0 != nil {
+			glog.Errorf("In ensureIPtablesRule() failed to store rule %s", rule)
+			return err0
+		}
+	} else {
+		glog.V(2).Infof("In ensureIPtablesRule(), rule %s already in db - nothing to do", rule.Body)
+	}
+
+	return nil
 }
 
 func (firewallStore *firewallStore) deleteIPtablesRule(rule *IPtablesRule) error {
