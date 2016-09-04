@@ -43,7 +43,6 @@ func (f *FakeFile) Stat() (os.FileInfo, error) {
 	return fi, nil
 }
 
-
 func (f FakeFile) Truncate(size int64) error {
 	return nil
 }
@@ -96,12 +95,11 @@ func (f FakeFileInfo) Name() string {
 	return "Fake file"
 }
 
-
 func (f FakeFileInfo) Size() int64 {
 	return f.size
 }
 
-func (f FakeFileInfo) Mode() os.FileMode  {
+func (f FakeFileInfo) Mode() os.FileMode {
 	return os.ModeTemporary
 }
 
@@ -116,4 +114,3 @@ func (f FakeFileInfo) IsDir() bool {
 func (f FakeFileInfo) Sys() interface{} {
 	return nil
 }
-

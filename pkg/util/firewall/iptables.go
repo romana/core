@@ -633,11 +633,11 @@ func (fw IPtables) EnsureRule(rule *IPtablesRule, opType RuleState) error {
 	if err != nil {
 		glog.Errorf("[%s]: %s failed for rule %s with error %v, saying [%s]", cmdStr, opType, rule.Body, err, string(out))
 	} else {
-	     if out !=nil && len(out) > 0 {
-		glog.Infof("%s success %s: [%s]", opType, rule.Body, string(out))
-	     } else{
-		glog.Infof("%s success %s", opType, rule.Body)
-	    }
+		if out != nil && len(out) > 0 {
+			glog.Infof("%s success %s: [%s]", opType, rule.Body, string(out))
+		} else {
+			glog.Infof("%s success %s", opType, rule.Body)
+		}
 	}
 
 	return err

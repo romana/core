@@ -18,11 +18,11 @@ package agent
 
 import (
 	"fmt"
+	utilexec "github.com/romana/core/pkg/util/exec"
+	utilos "github.com/romana/core/pkg/util/os"
 	"net"
 	"strings"
 	"testing"
-	utilexec "github.com/romana/core/pkg/util/exec"
-	utilos "github.com/romana/core/pkg/util/os"
 )
 
 // TestAppendLineToFile writes data to fake file and ensures it's got written.
@@ -248,7 +248,7 @@ fa:16:3e:05:0c:c3 10.0.0.3
 	}
 
 	// when
-	netif := NetIf{"eth0", "fa:16:3e:05:0c:c2", net.ParseIP("10.0.0.2")}
+	netif := NewNetIf("eth0", "fa:16:3e:05:0c:c2", "10.0.0.2")
 	lease := fmt.Sprintf("%s %s", netif.Mac, netif.IP)
 	_ = agent.Helper.removeLineFromFile(filename, lease)
 
