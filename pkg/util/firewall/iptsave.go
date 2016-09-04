@@ -198,11 +198,14 @@ func (i *IPTsaveFirewall) ListRules() ([]IPtablesRule, error) {
 // Cleanup implements Firewall interface.
 func (i *IPTsaveFirewall) Cleanup(netif FirewallEndpoint) error {
 
+	// Delete netif related rules from ifirewall store and schedule
+	// them for deletion from current state.
 	err := i.deleteIPtablesRulesBySubstring(netif.GetName())
 	if err != nil {
 		return err
 	}
 
+	// Delete  netif related rules from current state.
 	err = i.applyRules(i.DesiredState)
 	if err != nil {
 		return err
@@ -216,21 +219,25 @@ func (i *IPTsaveFirewall) Cleanup(netif FirewallEndpoint) error {
 func (i *IPTsaveFirewall) ProvisionEndpoint() error {
 	glog.V(4).Infof("In ProvisionEndpoint\n%s", i.DesiredState.Render())
 
-	ruleList, err := getDbRules(i.DesiredState)
+	// Generate a list of rules for firewall store.
+	ruleList, err := makeDbRules(i.DesiredState)
 	if err != nil {
 		return err
 	}
 
+	// Create rules in firewall store.
 	err = i.createNewDbRules(ruleList)
 	if err != nil {
 		return err
 	}
 
+	// Install iptables rules from desired state.
 	err = i.applyRules(i.DesiredState)
 	if err != nil {
 		return err
 	}
 
+	// Activate rules in firewall store.
 	err = i.enableNewDbRules(ruleList)
 	if err != nil {
 		return err
@@ -515,9 +522,9 @@ func chain2rules(chain iptsave.IPchain) []*IPtablesRule {
 	return rules
 }
 
-// getDbRules aggregates all rules from given iptables table and converts them
+// makeDbRules aggregates all rules from given iptables table and converts them
 // in format acceptible by firewall store.
-func getDbRules(iptables *iptsave.IPtables) ([]*IPtablesRule, error) {
+func makeDbRules(iptables *iptsave.IPtables) ([]*IPtablesRule, error) {
 
 	var res []*IPtablesRule
 
