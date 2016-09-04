@@ -16,7 +16,10 @@
 package agent
 
 import (
+	"database/sql/driver"
 	"encoding/json"
+	"fmt"
+	"github.com/romana/core/common"
 	"net"
 )
 
@@ -40,9 +43,52 @@ type NetworkRequest struct {
 // network interface and its IP configuration
 // together with basic methods operating on this structure.
 type NetIf struct {
-	Name string `form:"interface_name" json:"interface_name"`
-	Mac  string `form:"mac_address" json:"interface_name,omitempty"`
-	IP   net.IP `form:"ip_address" json:"ip_address,omitempty"`
+	Name string `form:"interface_name" sql:"unique"`
+	Mac  string `form:"mac_address" gorm:"primary_key"`
+	IP   IP     `form:"ip_address" sql:"TYPE:varchar"`
+}
+
+// MarshalJSON properly marshals NetIf structure.
+func (n NetIf) MarshalJSON() ([]byte, error) {
+	m := make(map[string]string)
+	m["interface_name"] = n.Name
+	m["mac_address"] = n.Mac
+	m["ip_address"] = n.IP.String()
+	return json.Marshal(m)
+}
+
+// IP structure is basically net.IP, but we redefine it so we
+// can implement Valuer and Scanner interfaces on it for storage.
+type IP struct {
+	net.IP
+}
+
+// Value implements driver.Valuer interface on IP
+func (i IP) Value() (driver.Value, error) {
+	return driver.Value(i.String()), nil
+}
+
+// NewNetIf is a simple constructor for NetIf
+func NewNetIf(ifname string, mac string, ip string) NetIf {
+	return NetIf{Name: ifname, Mac: mac, IP: IP{net.ParseIP(ip)}}
+}
+
+// Scan implements driver.Scanner interface on IP
+func (i *IP) Scan(src interface{}) error {
+	switch src := src.(type) {
+	case string:
+		ip := net.ParseIP(src)
+		if ip == nil {
+			return common.NewError("Cannot parse IP %s", src)
+		}
+		i.IP = ip
+		return nil
+	case []uint8:
+		i.IP = net.ParseIP(string(src))
+		return nil
+	default:
+		return common.NewError("Incompatible type for IP")
+	}
 }
 
 // GetName implements firewall.FirewallEndpoint
@@ -57,15 +103,16 @@ func (i NetIf) GetMac() string {
 
 // GetIP implements firewall.FirewallEndpoint
 func (i NetIf) GetIP() net.IP {
-	return i.IP
+	return i.IP.IP
 }
 
 // SetIP parses and sets the IP address of the interface.
 func (netif *NetIf) SetIP(ip string) error {
-	netif.IP = net.ParseIP(ip)
-	if netif.IP == nil {
-		return failedToParseNetif()
+	netif.IP.IP = net.ParseIP(ip)
+	if netif.IP.IP == nil && ip != "" {
+		return failedToParseNetif(fmt.Sprintf("Bad IP: %s", ip))
 	}
+
 	return nil
 }
 
@@ -76,10 +123,10 @@ func (netif *NetIf) SetIP(ip string) error {
 func (netif *NetIf) UnmarshalJSON(data []byte) error {
 	m := make(map[string]string)
 	json.Unmarshal(data, &m)
-
-	netif.IP = net.ParseIP(m["ip_address"])
-	if netif.IP == nil {
-		return failedToParseNetif()
+	ip := m["ip_address"]
+	netif.IP.IP = net.ParseIP(ip)
+	if netif.IP.IP == nil && ip != "" {
+		return failedToParseNetif(fmt.Sprintf("Bad IP: %s", ip))
 	}
 
 	netif.Name = m["interface_name"]

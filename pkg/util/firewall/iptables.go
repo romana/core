@@ -585,7 +585,6 @@ func (fw IPtables) Cleanup(netif FirewallEndpoint) error {
 		glog.Errorf("In Cleanup() failed to clean firewall for %s", netif.GetName())
 		return err
 	}
-
 	return nil
 }
 
@@ -635,28 +634,39 @@ func (fw IPtables) EnsureRule(rule *IPtablesRule, opType RuleState) error {
 	ruleExists := fw.isRuleExist(rule)
 
 	args := []string{}
-	if ruleExists && opType == ensureAbsent {
-		args = append(args, []string{"-D"}...)
+	if ruleExists {
 
-	} else if !ruleExists {
+		switch opType {
+		case ensureAbsent:
+			args = append(args, []string{"-D"}...)
+		default:
+			glog.Infoln("In EnsureRule - nothing to do ", rule.Body)
+			return nil
+		}
+	} else {
 
 		switch opType {
 		case ensureLast:
 			args = append(args, []string{"-A"}...)
 		case ensureFirst:
 			args = append(args, []string{"-I"}...)
+		default:
+			glog.Infoln("In EnsureRule - nothing to do ", rule.Body)
+			return nil
 		}
-	} else {
-		glog.Infoln("In EnsureRule - nothing to do ", rule.Body)
-		return nil
 	}
 
 	args = append(args, strings.Split(rule.Body, " ")...)
-	_, err := fw.os.Exec(iptablesCmd, args)
+	cmdStr := iptablesCmd + " " + strings.Join(args, " ")
+	out, err := fw.os.Exec(iptablesCmd, args)
 	if err != nil {
-		glog.Errorf("%s failed %s", opType, rule.Body)
+		glog.Errorf("[%s]: %s failed for rule %s with error %v, saying [%s]", cmdStr, opType, rule.Body, err, string(out))
 	} else {
-		glog.Infof("%s success %s", opType, rule.Body)
+		if out != nil && len(out) > 0 {
+			glog.Infof("%s success %s: [%s]", opType, rule.Body, string(out))
+		} else {
+			glog.Infof("%s success %s", opType, rule.Body)
+		}
 	}
 
 	return err

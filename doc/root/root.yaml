@@ -1,0 +1,170 @@
+swagger: "2.0"
+info:
+  title: Romana root API
+  contact:
+    url: http://romana.io
+    email: info@romana.io
+  license:
+    name: Apache License 2.0
+    url: https://github.com/romana/core/blob/master/LICENSE
+  version: 0.9.0
+basePath: /
+schemes:
+- http
+- https
+consumes:
+- text/plain
+- application/vnd.romana.v1+json
+- application/vnd.romana+json
+- application/json
+- application/x-www-form-urlencoded
+produces:
+- text/plain
+- application/vnd.romana.v1+json
+- application/vnd.romana+json
+- application/json
+- application/x-www-form-urlencoded
+paths:
+  /:
+    get:
+      summary: handleIndex
+      description: |
+        Handler for the / URL
+        See https://github.com/romanaproject/romana/wiki/Root-service-API
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+  /auth:
+    post:
+      summary: handleAuth
+      description: |
+        Handler for the /auth URL
+      parameters:
+      - name: common.Credential
+        in: body
+        description: |
+          Container for various credentials. Currently containing Username/Password
+          but keys, certificates, etc. can be used in the future.
+        required: true
+        schema:
+          $ref: '#/definitions/common.Credential'
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+  /config/{serviceName}:
+    get:
+      summary: handleConfig
+      description: |
+        Handler for the /config
+      parameters:
+      - name: serviceName
+        in: path
+        required: true
+        type: string
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+  /config/{serviceName}/port:
+    post:
+      summary: handlePortUpdate
+      description: |
+        Handler for the / URL
+        See https://github.com/romanaproject/romana/wiki/Root-service-API
+      parameters:
+      - name: common.PortUpdateMessage
+        in: body
+        description: |
+          Message to register with the root service the actual
+          port a service is listening on.
+        required: true
+        schema:
+          $ref: '#/definitions/common.PortUpdateMessage'
+      - name: serviceName
+        in: path
+        required: true
+        type: string
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+definitions:
+  common.Credential:
+    description: |
+      Container for various credentials. Currently containing Username/Password
+      but keys, certificates, etc. can be used in the future.
+    type: object
+    properties:
+      Password:
+        type: string
+      Type:
+        type: string
+      Username:
+        type: string
+  common.HttpError:
+    description: |
+      HttpError is a structure that represents, well, an HTTP error.
+    type: object
+    required:
+    - status_code
+    - see_also
+    properties:
+      details:
+        type: object
+      resource_id:
+        type: string
+      resource_type:
+        type: string
+      see_also:
+        type: string
+      status_code:
+        type: integer
+  common.PortUpdateMessage:
+    description: |
+      Message to register with the root service the actual
+      port a service is listening on.
+    type: object
+    required:
+    - port
+    properties:
+      port:
+        type: integer
+        format: uint64

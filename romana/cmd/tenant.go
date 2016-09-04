@@ -61,9 +61,11 @@ func init() {
 }
 
 var tenantCreateCmd = &cli.Command{
-	Use:          "create [tenantname]",
-	Short:        "Create a new tenant.",
-	Long:         `Create a new tenant.`,
+	Use:   "create [tenantname]",
+	Short: "Create a new tenant.",
+	Long: `Create a new tenant.
+
+  --externalid <External ID>  # Create tenant with a specific external ID mentioned here.`,
 	RunE:         tenantCreate,
 	SilenceUsage: true,
 }

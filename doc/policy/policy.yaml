@@ -1,0 +1,265 @@
+swagger: "2.0"
+info:
+  title: Romana policy API
+  description: |
+    Policy provides Policy service.
+  contact:
+    url: http://romana.io
+    email: info@romana.io
+  license:
+    name: Apache License 2.0
+    url: https://github.com/romana/core/blob/master/LICENSE
+  version: 0.9.0
+basePath: /
+schemes:
+- http
+- https
+consumes:
+- text/plain
+- application/vnd.romana.v1+json
+- application/vnd.romana+json
+- application/json
+- application/x-www-form-urlencoded
+produces:
+- text/plain
+- application/vnd.romana.v1+json
+- application/vnd.romana+json
+- application/json
+- application/x-www-form-urlencoded
+paths:
+  /find/policies/{policyName}:
+    get:
+      summary: findPolicyByName
+      description: |
+        findPolicyByName returns the first policy found corresponding
+        to the given policy name. Policy names are not unique unlike
+        policy ID's.
+      parameters:
+      - name: policyName
+        in: path
+        required: true
+        type: string
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+  /policies:
+    get:
+      summary: listPolicies
+      description: |
+        listPolicies lists all policices.
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+    post:
+      summary: addPolicy
+      description: |
+        addPolicy stores the new policy and sends it to all agents.
+      parameters:
+      - name: common.Policy
+        in: body
+        description: |
+          Policy describes Romana network security policy.
+          For examples, see:
+          1. https://github.com/romana/core/blob/master/policy/policy.sample.json
+          2. https://github.com/romana/core/blob/master/policy/policy.example.agent.json
+        required: true
+        schema:
+          $ref: '#/definitions/common.Policy'
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+    delete:
+      summary: deletePolicyHandler
+      parameters:
+      - name: common.Policy
+        in: body
+        description: |
+          Policy describes Romana network security policy.
+          For examples, see:
+          1. https://github.com/romana/core/blob/master/policy/policy.sample.json
+          2. https://github.com/romana/core/blob/master/policy/policy.example.agent.json
+        required: true
+        schema:
+          $ref: '#/definitions/common.Policy'
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+  /policies/{policyID}:
+    get:
+      summary: getPolicy
+      parameters:
+      - name: policyID
+        in: path
+        required: true
+        type: string
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+    delete:
+      summary: deletePolicyHandler
+      parameters:
+      - name: common.Policy
+        in: body
+        description: |
+          Policy describes Romana network security policy.
+          For examples, see:
+          1. https://github.com/romana/core/blob/master/policy/policy.sample.json
+          2. https://github.com/romana/core/blob/master/policy/policy.example.agent.json
+        required: true
+        schema:
+          $ref: '#/definitions/common.Policy'
+      - name: policyID
+        in: path
+        required: true
+        type: string
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+definitions:
+  common.Datacenter:
+    description: |
+      Datacenter represents the configuration of a datacenter.
+    type: object
+    required:
+    - id
+    - prefix_bits
+    - port_bits
+    - tenant_bits
+    - segment_bits
+    - endpoint_bits
+    - endpoint_space_bits
+    properties:
+      cidr:
+        type: string
+      endpoint_bits:
+        type: integer
+      endpoint_space_bits:
+        type: integer
+      id:
+        type: integer
+        format: uint64
+      ip_version:
+        type: integer
+      name:
+        type: string
+      port_bits:
+        type: integer
+      prefix:
+        type: integer
+        format: uint64
+      prefix_bits:
+        type: integer
+      segment_bits:
+        type: integer
+      tenant_bits:
+        type: integer
+  common.HttpError:
+    description: |
+      HttpError is a structure that represents, well, an HTTP error.
+    type: object
+    required:
+    - status_code
+    - see_also
+    properties:
+      details:
+        type: object
+      resource_id:
+        type: string
+      resource_type:
+        type: string
+      see_also:
+        type: string
+      status_code:
+        type: integer
+  common.Policy:
+    description: |
+      Policy describes Romana network security policy.
+      For examples, see:
+      1. https://github.com/romana/core/blob/master/policy/policy.sample.json
+      2. https://github.com/romana/core/blob/master/policy/policy.example.agent.json
+    type: object
+    required:
+    - name
+    properties:
+      applied_to:
+        type: array
+        items: {}
+      datacenter:
+        $ref: '#/definitions/common.Datacenter'
+      description:
+        type: string
+      direction:
+        type: string
+      external_id:
+        type: string
+      id:
+        type: integer
+        format: uint64
+      name:
+        type: string
+      peers:
+        type: array
+        items: {}
+      rules:
+        type: array
+        items: {}

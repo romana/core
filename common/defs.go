@@ -187,17 +187,17 @@ type Tag struct {
 type Policy struct {
 	// Direction is one of common.PolicyDirectionIngress or common.PolicyDirectionIngress,
 	// otherwise common.Validate will return an error.
-	Direction string `json:"direction,omitempty"`
+	Direction string `json:"direction,omitempty" romana:"desc:Direction is one of 'ingress' or egress'."`
 	// Description is human-redable description of the policy.
 	Description string `json:"description,omitempty"`
 	// Name is human-readable name for this policy.
-	Name string `json:"name"`
+	Name string `json:"name" romana:"desc:Name is human-readable name for this policy."`
 	// ID is Romana-generated unique (within Romana deployment) ID of this policy,
 	// to be used in REST requests. It will be ignored when set by user.
 	ID uint64 `json:"id,omitempty" sql:"AUTO_INCREMENT"`
 	// ExternalID is an optional identifier of this policy in an external system working
 	// with Romana in this deployment (e.g., Open Stack).
-	ExternalID string `json:"external_id,omitempty",sql:"not null;unique"`
+	ExternalID string `json:"external_id,omitempty",sql:"unique"`
 	// Datacenter describes a Romana deployment.
 	Datacenter *Datacenter `json:"datacenter,omitempty"`
 	AppliedTo  []Endpoint  `json:"applied_to,omitempty"`

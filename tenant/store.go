@@ -37,14 +37,18 @@ func (tenantStore *tenantStore) Entities() []interface{} {
 	return retval
 }
 
+// Tenant represents a tenant, a top-level entity.
 type Tenant struct {
-	ID         uint64    `sql:"AUTO_INCREMENT" json:"id,omitempty"`
+	ID uint64 `sql:"AUTO_INCREMENT" json:"id,omitempty"`
+	// ExternalID is an ID of this tenant in a system that is integrated
+	// with Romana: e.g., OpenStack.
 	ExternalID string    `sql:"not null" json:"external_id,omitempty" gorm:"COLUMN:external_id"`
 	Name       string    `json:"name,omitempty"`
 	Segments   []Segment `json:"segments,omitempty"`
 	NetworkID  uint64    `json:"network_id,omitempty"`
 }
 
+// Segment is a subdivision of tenant.
 type Segment struct {
 	ID         uint64 `sql:"AUTO_INCREMENT" json:"id,omitempty"`
 	ExternalID string `sql:"not null" json:"external_id,omitempty" gorm:"COLUMN:external_id"`
@@ -88,9 +92,13 @@ func (tenantStore *tenantStore) addTenant(tenant *Tenant) error {
 
 	var tenants []Tenant
 	tx := tenantStore.DbStore.Db.Begin()
-
-	tx = tx.Find(&tenants)
 	err := common.GetDbErrors(tx)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	tx = tx.Find(&tenants)
+	err = common.GetDbErrors(tx)
 	if err != nil {
 		tx.Rollback()
 		return err
@@ -164,13 +172,14 @@ func (tenantStore *tenantStore) getSegment(tenantId string, segmentId string) (S
 }
 
 // CreateSchemaPostProcess implements CreateSchemaPostProcess method of
-// Service interface.
+// ServiceStore interface.
 func (tenantStore *tenantStore) CreateSchemaPostProcess() error {
 	db := tenantStore.Db
 	log.Printf("tenantStore.CreateSchemaPostProcess(), DB is %v", db)
-	db.Model(&Tenant{}).AddUniqueIndex("idx_name_extid", "name", "external_id")
+	db.Model(&Tenant{}).AddUniqueIndex("idx_extid", "external_id")
+	// This should be changed...
 	db.Model(&Segment{}).AddUniqueIndex("idx_tenant_name_extid", "tenant_id", "name", "external_id")
-	err := common.MakeMultiError(db.GetErrors())
+	err := common.GetDbErrors(db)
 	if err != nil {
 		return err
 	}

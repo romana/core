@@ -8,8 +8,9 @@ services:
         type: mysql
         database: root
         username: root
-        password: password
-        host:     localhost
+        password: root
+        host:     127.0.0.1
+        port:     8889
   - service: ipam
     api:
       host: localhost
@@ -19,8 +20,9 @@ services:
         type: mysql
         database: ipam
         username: root
-        password: password
-        host:     localhost
+        password: root
+        host:     127.0.0.1
+        port:     8889
   - service: tenant
     api:
       host: localhost
@@ -30,8 +32,9 @@ services:
         type: mysql
         database: tenant
         username: root
-        password: password
-        host:     localhost
+        password: root
+        host:     127.0.0.1
+        port:     8889
   - service: topology
     api:
       host: localhost
@@ -41,8 +44,29 @@ services:
         type: mysql
         database: topology
         username: root
-        password: password
-        host:     localhost
+        password: root
+        host:     127.0.0.1
+        port:     8889
+      datacenter: 
+        ip_version: 4
+        cidr: 10.0.0.0/8
+        host_bits: 8
+        tenant_bits: 4
+        segment_bits: 4
+        endpoint_space_bits: 0
+        endpoint_bits: 8 
+  - service: policy
+    api:
+      host: localhost
+      port: 9605
+    config:
+      store: 
+        type: mysql
+        database: topology
+        username: root
+        password: root
+        host:     127.0.0.1
+        port:     8889
       datacenter: 
         ip_version: 4
         cidr: 10.0.0.0/8

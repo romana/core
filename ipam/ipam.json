@@ -1,0 +1,74 @@
+swagger: "2.0"
+info:
+  title: Romana ipam API
+  description: |
+    IPAM provides ipam service.
+  contact:
+    url: http://romana.io
+    email: info@romana.io
+  license:
+    name: Apache License 2.0
+    url: https://github.com/romana/core/blob/master/LICENSE
+  version: 0.9.0
+basePath: /
+schemes:
+- http
+- https
+consumes:
+- text/plain
+- application/vnd.romana.v1+json
+- application/vnd.romana+json
+- application/json
+- application/x-www-form-urlencoded
+produces:
+- text/plain
+- application/vnd.romana.v1+json
+- application/vnd.romana+json
+- application/json
+- application/x-www-form-urlencoded
+paths:
+  /allocateIP: {}
+  /endpoints: {}
+  /endpoints/{ip}: {}
+definitions:
+  common.HttpError:
+    type: object
+    properties:
+      details:
+        type: object
+      resource_id:
+        type: string
+      resource_type:
+        type: string
+      see_also:
+        type: string
+        required: true
+      status_code:
+        type: integer
+        required: true
+  ipam.Endpoint:
+    type: object
+    properties:
+      Id:
+        type: long
+        format: uint64
+      host_id:
+        type: string
+      ip:
+        type: string
+      name:
+        type: string
+      request_token:
+        required: true
+        $ref: '#/definitions/sql.NullString'
+      segment_id:
+        type: string
+      tenant_id:
+        type: string
+  sql.NullString:
+    type: object
+    properties:
+      String:
+        type: string
+      Valid:
+        type: boolean

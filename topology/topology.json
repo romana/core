@@ -1,0 +1,71 @@
+swagger: "2.0"
+info:
+  title: Romana topology API
+  description: |
+    TopologySvc service
+  contact:
+    url: http://romana.io
+    email: info@romana.io
+  license:
+    name: Apache License 2.0
+    url: https://github.com/romana/core/blob/master/LICENSE
+  version: 0.9.0
+basePath: /
+schemes:
+- http
+- https
+consumes:
+- text/plain
+- application/vnd.romana.v1+json
+- application/vnd.romana+json
+- application/json
+- application/x-www-form-urlencoded
+produces:
+- text/plain
+- application/vnd.romana.v1+json
+- application/vnd.romana+json
+- application/json
+- application/x-www-form-urlencoded
+paths:
+  /: {}
+  /datacenter: {}
+  /findAll/hosts: {}
+  /findExactlyOne/hosts: {}
+  /findFirst/hosts: {}
+  /findLast/hosts: {}
+  /hosts: {}
+  /hosts/{hostId}: {}
+definitions:
+  common.Host:
+    type: object
+    properties:
+      agent_port:
+        type: long
+        format: uint64
+      id:
+        type: long
+        format: uint64
+      ip:
+        type: string
+      links:
+        type: array
+        items: {}
+      name:
+        type: string
+      romana_ip:
+        type: string
+  common.HttpError:
+    type: object
+    properties:
+      details:
+        type: object
+      resource_id:
+        type: string
+      resource_type:
+        type: string
+      see_also:
+        type: string
+        required: true
+      status_code:
+        type: integer
+        required: true
