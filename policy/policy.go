@@ -270,7 +270,20 @@ func (policy *PolicySvc) deletePolicyHandler(input interface{}, ctx common.RestC
 		if err != nil {
 			return nil, err
 		}
+		log.Printf("IN deletePolicyHandler with %v", policyDoc)
 		id, err := policy.store.lookupPolicy(policyDoc.ExternalID)
+
+		if err != nil {
+			// TODO
+			// Important! This should really be done in policy agent.
+			// Only done here as temporary measure.
+			externalId := makeId(policyDoc.AppliedTo, policyDoc.Name)
+			log.Printf("Constructing internal policy name = %s", externalId)
+			policyDoc.ExternalID = externalId
+
+			id, err = policy.store.lookupPolicy(policyDoc.ExternalID)
+		}
+
 		log.Printf("Found %d / %v (%T) from external ID %s", id, err, err, policyDoc.ExternalID)
 		if err != nil {
 			return nil, err
@@ -306,12 +319,14 @@ func (policy *PolicySvc) deletePolicy(id uint64) (interface{}, error) {
 		return nil, err
 	}
 
-	// TODO
-	// Important! This should really be done in policy agent.
-	// Only done here as temporary measure.
-	externalId := makeId(policyDoc.AppliedTo, policyDoc.Name)
-	log.Printf("Constructing internal policy name = %s", externalId)
-	policyDoc.ExternalID = externalId
+	if policyDoc.ExternalID == "" {
+		// TODO
+		// Important! This should really be done in policy agent.
+		// Only done here as temporary measure.
+		externalId := makeId(policyDoc.AppliedTo, policyDoc.Name)
+		log.Printf("Constructing internal policy name = %s", externalId)
+		policyDoc.ExternalID = externalId
+	}
 
 	errStr := make([]string, 0)
 	for _, host := range hosts {
