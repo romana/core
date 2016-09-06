@@ -49,13 +49,12 @@ def get_romana_gw_ip ():
 
 def filter_rules_idx(rules):
     """
-    Returns 'sweet spot' in iptables rules, index in *filter table where chain
-    definition ends and rules definition begins.
+    Returns index of the commit rule in *filter table
     """
     filter_idx = rules.index('*filter')
-    for rule in rules[filter_idx + 1:]:
-        if not rule.startswith(":"):
-            return rules.index(rule) + 1
+    for rule_num in range(filter_idx, rules.__len__()):
+        if rules[rule_num] == "COMMIT":
+            return rule_num
 
 # We want to receive json object as a POST.
 class AgentHandler(BaseHTTPRequestHandler):
@@ -284,8 +283,7 @@ def make_new_full_ruleset(current_rules, new_rules):
     existing_chains = [ k.split(" ")[0][1:] for k in current_rules if k.startswith(":") ]
     logging.debug("Existing chains %s "  %existing_chains)
 
-    # In current rules find position in *filter table where chain
-    # definition ends and rule definition begins.
+    # In current rules find position in *filter table ends.
     filter_idx = filter_rules_idx(current_rules)-1
 
     rules = []
