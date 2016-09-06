@@ -138,8 +138,8 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *Endpoint, upToEndpointIpInt ui
 	// See if there is a formerly allocated IP already that has been released
 	// (marked "in_use")
 	sel = "MIN(network_id), ip"
-	log.Printf("IpamStore: Calling SELECT %s FROM endpoints WHERE %s;", sel, fmt.Sprintf(strings.Replace(filter + "AND in_use = 0", "?", "%s", 3), hostId, tenantId, segId))
-	row = tx.Model(Endpoint{}).Where(filter + "AND in_use = 0", hostId, tenantId, segId).Select(sel).Row()
+	log.Printf("IpamStore: Calling SELECT %s FROM endpoints WHERE %s;", sel, fmt.Sprintf(strings.Replace(filter+"AND in_use = 0", "?", "%s", 3), hostId, tenantId, segId))
+	row = tx.Model(Endpoint{}).Where(filter+"AND in_use = 0", hostId, tenantId, segId).Select(sel).Row()
 	err = common.GetDbErrors(tx)
 	if err != nil {
 		log.Printf("Errors: %v", err)
