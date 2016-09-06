@@ -53,7 +53,7 @@ def filter_rules_idx(rules):
     """
     filter_idx = rules.index('*filter')
     for rule_num in range(filter_idx, rules.__len__()):
-        if rules[rule_num] == "COMMIT":
+        if rules[rule_num].startswith("-A") or rules[rule_num] == "COMMIT":
             return rule_num
 
 # We want to receive json object as a POST.
