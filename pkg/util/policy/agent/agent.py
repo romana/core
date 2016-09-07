@@ -284,7 +284,7 @@ def make_new_full_ruleset(current_rules, new_rules):
     logging.debug("Existing chains %s "  %existing_chains)
 
     # In current rules find position in *filter table ends.
-    filter_idx = filter_rules_idx(current_rules)-1
+    filter_idx = filter_rules_idx(current_rules)
 
     rules = []
     backlog_rules = []
