@@ -425,11 +425,10 @@ def make_rules(addr_scheme, policy_def, policy_id):
                 _make_rule(ingress_chain, "-m comment --comment DefaultDrop -j %s" % "DROP")
             ]
 
-            # Jump from per-tenant chain into per-segment chains and default DROP.
+            # Jump from per-tenant chain into per-segment chains.
             rules[tenant_policy_vector_chain] = [
                 _make_rule(tenant_policy_vector_chain, "-j %s" % target_segment_forward_chain),
                 _make_rule(tenant_policy_vector_chain, "-j %s" % tenant_wide_policy_vector_chain),
-                _make_rule(tenant_policy_vector_chain, "-m comment --comment DefaultDrop -j DROP")
             ]
         else:
             # Jump from ingress chain into operator chain.
