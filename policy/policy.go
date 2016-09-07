@@ -22,6 +22,8 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"crypto/sha1"
+	"encoding/hex"
 )
 
 // Policy provides Policy service.
@@ -96,6 +98,9 @@ func (policy *PolicySvc) augmentEndpoint(endpoint *common.Endpoint) error {
 		return nil
 	}
 	log.Printf("Policy: Augmenting  %#v", endpoint)
+
+	// Code below tries to resolve tenant name into tenant_network_id if possible.
+	//
 	// TODO this will have to be changed once we implement
 	// https://paninetworks.kanbanize.com/ctrl_board/3/cards/319/details
 	ten := &tenant.Tenant{}
@@ -108,6 +113,9 @@ func (policy *PolicySvc) augmentEndpoint(endpoint *common.Endpoint) error {
 			if err != nil {
 				return err
 			}
+
+			endpoint.TenantNetworkID = &ten.NetworkID
+
 		} else if endpoint.TenantExternalID != "" || endpoint.TenantName != "" {
 			if endpoint.TenantExternalID != "" {
 				ten.ExternalID = endpoint.TenantExternalID
@@ -119,8 +127,9 @@ func (policy *PolicySvc) augmentEndpoint(endpoint *common.Endpoint) error {
 			if err != nil {
 				return err
 			}
+
+			endpoint.TenantNetworkID = &ten.NetworkID
 		}
-		endpoint.TenantNetworkID = &ten.NetworkID
 	}
 
 	if endpoint.SegmentNetworkID == nil {
@@ -161,6 +170,14 @@ func (policy *PolicySvc) augmentEndpoint(endpoint *common.Endpoint) error {
 func (policy *PolicySvc) augmentPolicy(policyDoc *common.Policy) error {
 	// Get info from topology service
 	log.Printf("Augmenting policy %s", policyDoc.Name)
+
+	// TODO
+	// Important! This should really be done in policy agent.
+	// Only done here as temporary measure.
+	externalId := makeId(policyDoc.AppliedTo, policyDoc.Name)
+	log.Printf("Constructing internal policy name = %s", externalId)
+	policyDoc.ExternalID = externalId
+
 	topoUrl, err := policy.client.GetServiceUrl("topology")
 	if err != nil {
 		return err
@@ -253,7 +270,20 @@ func (policy *PolicySvc) deletePolicyHandler(input interface{}, ctx common.RestC
 		if err != nil {
 			return nil, err
 		}
+		log.Printf("IN deletePolicyHandler with %v", policyDoc)
 		id, err := policy.store.lookupPolicy(policyDoc.ExternalID)
+
+		if err != nil {
+			// TODO
+			// Important! This should really be done in policy agent.
+			// Only done here as temporary measure.
+			externalId := makeId(policyDoc.AppliedTo, policyDoc.Name)
+			log.Printf("Constructing internal policy name = %s", externalId)
+			policyDoc.ExternalID = externalId
+
+			id, err = policy.store.lookupPolicy(policyDoc.ExternalID)
+		}
+
 		log.Printf("Found %d / %v (%T) from external ID %s", id, err, err, policyDoc.ExternalID)
 		if err != nil {
 			return nil, err
@@ -288,6 +318,16 @@ func (policy *PolicySvc) deletePolicy(id uint64) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	if policyDoc.ExternalID == "" {
+		// TODO
+		// Important! This should really be done in policy agent.
+		// Only done here as temporary measure.
+		externalId := makeId(policyDoc.AppliedTo, policyDoc.Name)
+		log.Printf("Constructing internal policy name = %s", externalId)
+		policyDoc.ExternalID = externalId
+	}
+
 	errStr := make([]string, 0)
 	for _, host := range hosts {
 		// TODO make schema configurable
@@ -349,6 +389,8 @@ func (policy *PolicySvc) addPolicy(input interface{}, ctx common.RestContext) (i
 		return nil, err
 	}
 
+	log.Printf("addPolicy(): Request for a new policy to be added: %v", policyDoc)
+
 	err = policy.augmentPolicy(policyDoc)
 	if err != nil {
 		log.Printf("addPolicy(): Error augmenting: %v", err)
@@ -379,6 +421,7 @@ func (policy *PolicySvc) Name() string {
 // Returns an error if cannot connect to the data store
 func (policy *PolicySvc) SetConfig(config common.ServiceConfig) error {
 	// TODO this is a copy-paste of topology service, to refactor
+	log.Println(config)
 	policy.config = config
 	//	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
 	log.Printf("Policy port: %d", config.Common.Api.Port)
@@ -418,6 +461,28 @@ func (policy *PolicySvc) Initialize() error {
 	}
 	return nil
 }
+
+// makeId generates uniq id from applied to field.
+func  makeId (allowedTo []common.Endpoint, name string) string {
+	var data string
+	data = name
+
+	for _, e := range allowedTo {
+		if data == "" {
+			data = fmt.Sprintf("%s", e)
+		} else {
+			data = fmt.Sprintf("%s\n%s", data, e)
+		}
+	}
+
+	hasher := sha1.New()
+	hasher.Write([]byte(data))
+	sum := hasher.Sum(nil)
+
+	// Taking 6 bytes of a hash which is 12 chars length
+	return fmt.Sprint(hex.EncodeToString(sum[:6]))
+}
+
 
 // CreateSchema creates schema for Policy service.
 func CreateSchema(rootServiceURL string, overwrite bool) error {
