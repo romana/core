@@ -178,9 +178,9 @@ func (fw *IPtables) makeRules(netif FirewallEndpoint) error {
 		BaseChain:  "FORWARD",
 		Directions: []string{"o"},
 		// Using ROMANA-FORWARD-IN second time to capture both
-		// traffic from host to endpoint and 
+		// traffic from host to endpoint and
 		// traffic from endpoint to another endpoint.
-		ChainName:  "ROMANA-FORWARD-IN",
+		ChainName: "ROMANA-FORWARD-IN",
 	})
 
 	glog.V(1).Infof("In makeRules() created chains %v", fw.chains)
@@ -231,7 +231,7 @@ func (fw *IPtables) ensureIPtablesChain(chainName string, opType chainState) err
 	glog.V(1).Infof("In ensureIPtablesChain(): %s %s", opType.String(), chainName)
 
 	glog.V(2).Infof("In ensureIPtablesChain(): Testing chain ", chainName)
-	exists := fw.isChainExistByName(chainName); 
+	exists := fw.isChainExistByName(chainName)
 	glog.V(2).Infof("In ensureIPtablesChain(): Test for chain %s returned %b", chainName, exists)
 
 	var iptablesAction string
@@ -252,7 +252,6 @@ func (fw *IPtables) ensureIPtablesChain(chainName string, opType chainState) err
 			return nil
 		}
 	}
-
 
 	args := []string{iptablesAction, chainName}
 	_, err := fw.os.Exec(iptablesCmd, args)
