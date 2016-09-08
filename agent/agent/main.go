@@ -48,7 +48,7 @@ func main() {
 		fmt.Println(common.BuildInfo())
 		return
 	}
-	if rootURL == nil {
+	if *rootURL == "" {
 		fmt.Println("Must specify rootURL.")
 		return
 	}

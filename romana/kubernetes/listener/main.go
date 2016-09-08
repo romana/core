@@ -35,6 +35,10 @@ func main() {
 		fmt.Println(common.BuildInfo())
 		return
 	}
+	if *rootURL == "" {
+		fmt.Println("Must specify rootURL.")
+		return
+	}
 	cred := common.MakeCredentialFromCliArgs(*username, *password)
 	svcInfo, err := kubernetes.Run(*rootURL, cred)
 	if err != nil {
