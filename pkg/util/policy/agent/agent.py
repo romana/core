@@ -284,7 +284,7 @@ def make_new_full_ruleset(current_rules, new_rules):
     logging.debug("Existing chains %s "  %existing_chains)
 
     # In current rules find position in *filter table ends.
-    filter_idx = filter_rules_idx(current_rules)-1
+    filter_idx = filter_rules_idx(current_rules)
 
     rules = []
     backlog_rules = []
@@ -420,8 +420,9 @@ def make_rules(addr_scheme, policy_def, policy_id):
         # there will be only one jump - from ingress chain into operator chain.
         if tenant:
             # Jump from ingress VM chain into per-tenant chain
+            u32_tenant_match = _make_u32_match(addr_scheme, tenant)
             rules[ingress_chain] = [
-                _make_rule(ingress_chain, "-j %s" % tenant_policy_vector_chain),
+                _make_rule(ingress_chain, '-m u32 --u32 "%s" -j %s' % (u32_tenant_match, tenant_policy_vector_chain)),
                 _make_rule(ingress_chain, "-m comment --comment DefaultDrop -j %s" % "DROP")
             ]
 
@@ -589,7 +590,7 @@ def _make_rule(chain_name, text):
 
 
 def _make_u32_match(addr_scheme,
-                    from_tenant, from_segment, to_tenant=None, to_segment=None):
+                    from_tenant, from_segment=None, to_tenant=None, to_segment=None):
     """
     Creates the obscure u32 match string with bitmasks and all that's needed.
 
@@ -628,11 +629,12 @@ def _make_u32_match(addr_scheme,
         dst  |= to_tenant << shift_by
 
     # Adding the mask and values for segment
-    shift_by = addr_scheme['endpoint_bits']
-    mask |= ((1<<addr_scheme['segment_bits'])-1) << shift_by
-    src  |= from_segment << shift_by
-    if to_segment:
-        dst  |= to_segment << shift_by
+    if from_segment:
+        shift_by = addr_scheme['endpoint_bits']
+        mask |= ((1<<addr_scheme['segment_bits'])-1) << shift_by
+        src  |= from_segment << shift_by
+        if to_segment:
+            dst  |= to_segment << shift_by
 
     res = "0xc&0x%(mask)x=0x%(src)x" % { "mask" : mask, "src" : src }
 
