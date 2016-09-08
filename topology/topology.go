@@ -133,7 +133,6 @@ func (topology *TopologySvc) handleHostListGet(input interface{}, ctx common.Res
 // the default Agent port.
 func (topology *TopologySvc) handleHostListPost(input interface{}, ctx common.RestContext) (interface{}, error) {
 	host := input.(*common.Host)
-	var port uint64
 	// If no agent port is specfied in the creation of new host,
 	// get the agent port from root service.
 	log.Printf("Host requested with agent port %d", host.AgentPort)
@@ -144,7 +143,7 @@ func (topology *TopologySvc) handleHostListPost(input interface{}, ctx common.Re
 			return nil, err
 		}
 		host.AgentPort = agentConfig.Common.Api.Port
-		if port == 0 {
+		if host.AgentPort == 0 {
 			return nil, common.NewError500("Cannot determine port for agent")
 		}
 	}
