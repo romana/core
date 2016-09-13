@@ -28,9 +28,10 @@ func (agentStore agentStore) GetMutex() *sync.RWMutex {
 // Entities implements Entities method of
 // Service interface.
 func (agentStore *agentStore) Entities() []interface{} {
-	retval := make([]interface{}, 2)
+	retval := make([]interface{}, 3)
 	retval[0] = new(Route)
 	retval[1] = new(firewall.IPtablesRule)
+	retval[2] = new(NetIf)
 	return retval
 }
 
@@ -112,6 +113,47 @@ func (agentStore *agentStore) findRouteByIface(routeIface string) (*Route, error
 		return nil, db.Error
 	}
 	return &route, nil
+}
+
+func (agentStore *agentStore) addNetIf(netif *NetIf) error {
+	db := agentStore.DbStore.Db
+	agentStore.DbStore.Db.Create(netif)
+	err := common.GetDbErrors(db)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (agentStore *agentStore) findNetIf(netif *NetIf) error {
+	db := agentStore.DbStore.Db
+	agentStore.DbStore.Db.Where(netif).First(netif)
+	err := common.GetDbErrors(db)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (agentStore *agentStore) listNetIfs() ([]NetIf, error) {
+	db := agentStore.DbStore.Db
+	var netifs []NetIf
+	agentStore.DbStore.Db.Find(&netifs)
+	err := common.GetDbErrors(db)
+	if err != nil {
+		return nil, err
+	}
+	return netifs, nil
+}
+
+func (agentStore *agentStore) deleteNetIf(netif *NetIf) error {
+	db := agentStore.DbStore.Db
+	agentStore.DbStore.Db.Delete(netif)
+	err := common.GetDbErrors(db)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (agentStore *agentStore) addRoute(route *Route) error {

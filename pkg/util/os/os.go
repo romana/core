@@ -32,6 +32,10 @@ type OSFile interface {
 	io.Reader
 	io.Writer
 	io.Closer
+	io.Seeker
+	Stat() (os.FileInfo, error)
+	Truncate(size int64) error
+	Sync() error
 }
 
 // DefaultOS is a default implementation of OS interface
@@ -41,7 +45,7 @@ type DefaultOS struct {
 
 // open is a direct proxy to os.Open
 func (DefaultOS) Open(name string) (OSFile, error) {
-	f, err := os.Open(name)
+	f, err := os.OpenFile(name, os.O_RDWR, os.ModeAppend)
 	return f, err
 }
 

@@ -102,7 +102,13 @@ func MockPortsInConfig(fname string) error {
 	services := []string{"root", "topology", "ipam", "agent", "tenant", "policy"}
 	for i := range services {
 		svc := services[i]
-		config.Services[svc].Common.Api.Port = 0
+		if svc == "" {
+			log.Printf("No service %s specified, nothing to mock", svc)
+			continue
+		}
+		svcConfig := config.Services[svc]
+		log.Printf("Mocking for %s: %+v", svc, svcConfig)
+		svcConfig.Common.Api.Port = 0
 		log.Printf("Set port for %s: %d\n", svc, config.Services[svc].Common.Api.Port)
 	}
 
@@ -147,4 +153,42 @@ func ToBool(val string) (bool, error) {
 		return false, nil
 	}
 	return false, errors.New(fmt.Sprintf("Cannot convert %s to boolean", val))
+}
+
+func MkMap() map[string]interface{} {
+	return make(map[string]interface{})
+}
+
+func MkMapStr() map[string]string {
+	return make(map[string]string)
+}
+
+// KeyValue represents a key-value pair (similar to Java's Map.Entry)
+type KeyValue struct {
+	Key   string
+	Value interface{}
+}
+
+// KV is a convenience function to create a KeyValue
+// value.
+func KV(key string, value interface{}) KeyValue {
+	return KeyValue{Key: key, Value: value}
+}
+
+func InitMap(keyValuePairs ...KeyValue) map[string]interface{} {
+	m := MkMap()
+	for _, entry := range keyValuePairs {
+		m[entry.Key] = entry.Value
+	}
+	return m
+}
+
+// In returns true if needle is found in haystack.
+func In(needle string, haystack []string) bool {
+	for _, s := range haystack {
+		if s == needle {
+			return true
+		}
+	}
+	return false
 }

@@ -124,6 +124,7 @@ type PortUpdateMessage struct {
 type Endpoint struct {
 	Peer              string  `json:"peer,omitempty"`
 	Cidr              string  `json:"cidr,omitempty"`
+	Dest              string  `json:"dest,omitempty"`
 	TenantID          uint64  `json:"tenant_id,omitempty"`
 	TenantName        string  `json:"tenant,omitempty"`
 	TenantExternalID  string  `json:"tenant_external_id,omitempty"`
@@ -186,17 +187,17 @@ type Tag struct {
 type Policy struct {
 	// Direction is one of common.PolicyDirectionIngress or common.PolicyDirectionIngress,
 	// otherwise common.Validate will return an error.
-	Direction string `json:"direction,omitempty"`
+	Direction string `json:"direction,omitempty" romana:"desc:Direction is one of 'ingress' or egress'."`
 	// Description is human-redable description of the policy.
 	Description string `json:"description,omitempty"`
 	// Name is human-readable name for this policy.
-	Name string `json:"name"`
+	Name string `json:"name" romana:"desc:Name is human-readable name for this policy."`
 	// ID is Romana-generated unique (within Romana deployment) ID of this policy,
 	// to be used in REST requests. It will be ignored when set by user.
 	ID uint64 `json:"id,omitempty" sql:"AUTO_INCREMENT"`
 	// ExternalID is an optional identifier of this policy in an external system working
 	// with Romana in this deployment (e.g., Open Stack).
-	ExternalID string `json:"external_id,omitempty",sql:"not null;unique"`
+	ExternalID string `json:"external_id,omitempty",sql:"unique"`
 	// Datacenter describes a Romana deployment.
 	Datacenter *Datacenter `json:"datacenter,omitempty"`
 	AppliedTo  []Endpoint  `json:"applied_to,omitempty"`
@@ -339,10 +340,11 @@ func (p *Policy) Validate() error {
 			if endpoint.TenantExternalID == "" &&
 				endpoint.TenantID == 0 &&
 				endpoint.TenantName == "" &&
+				endpoint.Dest == "" &&
 				endpoint.TenantNetworkID == nil {
 				errMsg = append(errMsg,
 					fmt.Sprintf("applied_to entry #%d: at least one of: "+
-						"tenant, tenant_id, tenant_external_id or tenant_network_id "+
+						"dest, tenant, tenant_id, tenant_external_id or tenant_network_id "+
 						"must be specified.", epNo))
 			}
 		}
@@ -350,7 +352,7 @@ func (p *Policy) Validate() error {
 	// 4. Validate peers
 	for i, endpoint := range p.Peers {
 		epNo := i + 1
-		if endpoint.Peer != "" && endpoint.Peer != Wildcard {
+		if endpoint.Peer != "" && endpoint.Peer != Wildcard && endpoint.Peer != "host" && endpoint.Peer != "local" {
 			errMsg = append(errMsg, fmt.Sprintf("peers entry #%d: Invalid value for Any: '%s', only '' and %s allowed.", epNo, endpoint.Peer, Wildcard))
 		}
 		if endpoint.SegmentID != 0 || endpoint.SegmentExternalID != "" {

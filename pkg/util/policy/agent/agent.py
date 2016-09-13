@@ -23,26 +23,38 @@ from mimetools import Message
 from StringIO import StringIO
 HTTP_Unprocessable_Entity = 422
 
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s %(levelname)-8s %(message)s',
-                    datefmt='%a, %d %b %Y %H:%M:%S')
-
 addr_scheme = {}
 
-parser = OptionParser(usage="%prog --port")
+parser = OptionParser(usage="%prog --port --debug")
 parser.add_option('--port', default=9630, dest="port", type="int",
                   help="Port number to listen for incoming requests")
+parser.add_option('--debug', default=False, dest="debug", action="store_true",
+                  help="Enable debug output in the log")
 (options, args) = parser.parse_args()
+
+if options.debug:
+    logging.basicConfig(level=logging.DEBUG,
+                        format='%(asctime)s %(levelname)-8s %(message)s',
+                        datefmt='%a, %d %b %Y %H:%M:%S')
+else:
+    logging.basicConfig(level=logging.INFO,
+                        format='%(asctime)s %(levelname)-8s %(message)s',
+                        datefmt='%a, %d %b %Y %H:%M:%S')
+
+
+# TODO errors check
+def get_romana_gw_ip ():
+    res = subprocess.check_output(["ip", "a", "show", "romana-gw"])
+    return res.split("\n")[2].split(" ")[5]
 
 def filter_rules_idx(rules):
     """
-    Returns 'sweet spot' in iptables rules, index in *filter table where chain
-    definition ends and rules definition begins.
+    Returns index of the commit rule in *filter table
     """
     filter_idx = rules.index('*filter')
-    for rule in rules[filter_idx + 1:]:
-        if not rule.startswith(":"):
-            return rules.index(rule) + 1
+    for rule_num in range(filter_idx, rules.__len__()):
+        if rules[rule_num].startswith("-A") or rules[rule_num] == "COMMIT":
+            return rule_num
 
 # We want to receive json object as a POST.
 class AgentHandler(BaseHTTPRequestHandler):
@@ -125,6 +137,56 @@ class AgentHandler(BaseHTTPRequestHandler):
         if not all([ policy_def.get(k) for k in expected_fields ]):
             logging.warning("In validate_policy, policy is invalid - some of expected fields are missing, %s" % expected_fields)
             return False
+
+        
+        # Validating compatibility across applied_to and peers list.
+        valid = {
+                "full_tenant" : [ "peer_any", "full_tenant", "cidr" ],
+                "only_tenant" : [ "peer_any", "full_tenant", "cidr" ],
+                "dest_host"        : [ "peer_local", "peer_any" ],
+                "dest_local"       : [ "peer_host", "peer_any"  ],
+                }
+
+        target_types = []
+        peer_types = []
+        for target in policy_def['applied_to']:
+            tenant         = target.get('tenant_network_id')
+            target_segment = target.get('segment_network_id')
+            dest           = target.get('dest')
+
+            if not None in [ tenant, target_segment ]:
+                target_type = "full_tenant"
+            elif tenant != None:
+                target_type = "only_tenant"
+            elif dest != None:
+                target_type = "dest_%s" % dest
+            else:
+                raise Exception("Unsupported value of applied_to %s" % target)
+
+            target_types.append(target_type)
+
+        for peer in policy_def['peers']:
+            tenant         = peer.get('tenant_network_id')
+            segment = peer.get('segment_network_id')
+            peer           = peer.get('peer')
+
+            if not None in [ tenant, segment ]:
+                peer_type = "full_tenant"
+            elif tenant != None:
+                peer_type = "only_tenant"
+            elif peer != None:
+                peer_type = "peer_%s" % peer
+            else:
+                raise Exception("Unsupported value of peers %s" % target)
+            
+            peer_types.append(peer_type)
+            
+        logging.info("In validate_policy with applied_to %s and peers %s" % (target_types, peer_types))
+        for target in target_types:
+            for peer in peer_types:
+                if peer not in valid[target]:
+                    raise Exception("Unsupported value of peer type %s with applied_to type %s" % (peer, target))
+
         return True
 
 
@@ -156,7 +218,7 @@ def policy_update(romana_address_scheme, policy_definition, delete_policy=False)
     """
 
     # PolicyId is a uniq tag that we are going to use to check if rule is applied already
-    policy_id      = policy_definition['name']
+    policy_id      = policy_definition['external_id']
 
     # Create the new rules, based on the Romana addressing scheme and the
     # policy definition.
@@ -179,7 +241,7 @@ def policy_update(romana_address_scheme, policy_definition, delete_policy=False)
     # Remove ALL rules relating in any way to a policy of the specified name.
     clean_rules = \
         delete_all_rules_for_policy(iptables_rules,
-                                policy_definition['name'],
+                                policy_id,
                                 policy_definition['applied_to'])
 
     if delete_policy:
@@ -221,11 +283,11 @@ def make_new_full_ruleset(current_rules, new_rules):
     existing_chains = [ k.split(" ")[0][1:] for k in current_rules if k.startswith(":") ]
     logging.debug("Existing chains %s "  %existing_chains)
 
-    # In current rules find position in *filter table where chain
-    # definition ends and rule definition begins.
-    filter_idx = filter_rules_idx(current_rules)-1
+    # In current rules find position in *filter table ends.
+    filter_idx = filter_rules_idx(current_rules)
 
     rules = []
+    backlog_rules = []
 
     # We only care about *filter table, copy everything before it.
     for rule in current_rules[:filter_idx]:
@@ -239,12 +301,27 @@ def make_new_full_ruleset(current_rules, new_rules):
     # Insert all the rules from all new chains, if they don't exist already.
     for chain in new_rules.keys():
         for rule in new_rules[chain]:
+            # Special handling for DefaultDrop rules
+            if 'DefaultDrop' in rule:
+                backlog_rules.append(rule)
+                continue
+
             if rule not in current_rules:
                 rules.append(rule)
 
     # Copy the rest of original *filter table.
     for rule in current_rules[filter_idx:]:
+        # Special handling for DefaultDrop rules
+        if 'DefaultDrop' in rule:
+            backlog_rules.append(rule)
+            continue
+
         rules.append(rule)
+
+    # Add 'DefaultDrop' rules to the end of the list to ensure they go last.
+    filter_commit_index = -3
+    for rule in set(backlog_rules):
+        rules.insert(filter_commit_index, rule)
 
     # Skip the loop if logging less then DEBUG
     if logging.getLevelName(logging.getLogger().getEffectiveLevel()) == 'DEBUG':
@@ -269,10 +346,11 @@ def make_rules(addr_scheme, policy_def, policy_id):
     policy_chains = {}
 
     # Create chain names for each target and stuff them with default rules
-    name = policy_def['name']
+    name = policy_def['external_id']
     for target in policy_def['applied_to']:
-        tenant         = target['tenant_network_id']
+        tenant         = target.get('tenant_network_id')
         target_segment = target.get('segment_network_id')
+        dest           = target.get('dest')
 
         logging.warning("In make_rules with tenant = %s, target_segment_id = %s, name = %s" %
                 (tenant, target_segment, name))
@@ -282,21 +360,35 @@ def make_rules(addr_scheme, policy_def, policy_id):
         # Unless one of policy chains will ACCEPT the packet it will RETURN
         # to the per-tenant chain and will reach DROP at the end of the chain.
 
-        # Per tenant policy chain name.
-        tenant_policy_vector_chain = "ROMANA-T%s" % tenant
 
-        # Tenant wide policy vector chain hosts jumps to the policies
-        # applied to a tenant traffic as well as default rules.
-        tenant_wide_policy_vector_chain = "ROMANA-T%s-W" % tenant
+        if tenant:
+            # Per tenant policy chain name.
+            tenant_policy_vector_chain = "ROMANA-FW-T%s" % tenant
 
-        # The name for the new policy's chain(s). Need to include the tenant ID to
-        # avoid name conflicts.
-        policy_chain_name = "ROMANA-T%dP-%s_" % \
-            (tenant, name)
+            # Tenant wide policy vector chain hosts jumps to the policies
+            # applied to a tenant traffic as well as default rules.
+            tenant_wide_policy_vector_chain = "ROMANA-T%s-W" % tenant
 
-        # Policy chain only hosts match conditions, rules themselves are
-        # applied in this auxiliary chain
-        in_chain_name  = policy_chain_name[:-1] + "-IN_"
+            # Ingress chain for traffic between VMs
+            ingress_chain = "ROMANA-FORWARD-IN"
+
+        elif dest == 'local':
+            # Top level chain for ingress traffic between VMs, applied to all tenants.
+            tenant_wide_policy_vector_chain = "ROMANA-OP"
+
+            # Ingress chain for traffic between VMs
+            ingress_chain = "ROMANA-FORWARD-IN"
+
+        elif dest == 'host':
+            # Top level chain for ingress traffic between host and VMs
+            tenant_wide_policy_vector_chain = "ROMANA-OP-IN"
+
+            # Ingress chain for traffic between VMs
+            ingress_chain = "ROMANA-INPUT"
+
+        else:
+            raise Exception("Unsupported value of applied_to %s" % target)
+
 
         # Per segment policy chain to host jumps to the actual policy chains.
         if target_segment:
@@ -307,15 +399,45 @@ def make_rules(addr_scheme, policy_def, policy_id):
             # consider policy to be tenant wide.
             target_segment_forward_chain = tenant_wide_policy_vector_chain
 
+
+
+        # The name for the new policy's chain(s).
+        policy_chain_name = "ROMANA-P-%s_" % \
+            name
+
+        # Policy chain only hosts match conditions, rules themselves are
+        # applied in this auxiliary chain
+        in_chain_name  = policy_chain_name[:-1] + "-IN_"
+
         # Chain names are going to be used later to fill in the rules. Store them.
         policy_chains[in_chain_name] = True
 
-        # Jump from per-tenant chain into per-segment chains and default DROP.
-        rules[tenant_policy_vector_chain] = [
-            _make_rule(tenant_policy_vector_chain, "-j %s" % target_segment_forward_chain),
-            _make_rule(tenant_policy_vector_chain, "-j %s" % tenant_wide_policy_vector_chain),
-            _make_rule(tenant_policy_vector_chain, "-j DROP")
-        ]
+        # There could be either 1 or 2 jumps.
+        # When crating a policy for tenant there will be a jump from ingress chain
+        # into tenant chains followed by jump from tenant chain into the segment chains
+        # or into tenant-wide chain if policy is applied to all the segments.
+        # However, when creating a policy for host-VM traffic (aka operator policy)
+        # there will be only one jump - from ingress chain into operator chain.
+        if tenant:
+            # Jump from ingress VM chain into per-tenant chain
+            u32_tenant_match = _make_u32_match(addr_scheme, tenant)
+            rules[ingress_chain] = [
+                _make_rule(ingress_chain, '-m u32 --u32 "%s" -j %s' % (u32_tenant_match, tenant_policy_vector_chain)),
+                _make_rule(ingress_chain, "-m comment --comment DefaultDrop -j %s" % "DROP")
+            ]
+
+            # Jump from per-tenant chain into per-segment chains.
+            rules[tenant_policy_vector_chain] = [
+                _make_rule(tenant_policy_vector_chain, "-j %s" % target_segment_forward_chain),
+                _make_rule(tenant_policy_vector_chain, "-j %s" % tenant_wide_policy_vector_chain),
+            ]
+        else:
+            # Jump from ingress chain into operator chain.
+            rules[ingress_chain] = [
+                _make_rule(ingress_chain, "-j %s" % target_segment_forward_chain),
+                _make_rule(ingress_chain, "-m comment --comment DefaultDrop -j %s" % "DROP")
+            ]
+
 
         # Jump from per-segment chain into policy chain
         if target_segment_forward_chain not in rules:
@@ -347,6 +469,13 @@ def make_rules(addr_scheme, policy_def, policy_id):
             if pr:
                 if pr == "any":
                     jump_rules = [ _make_rule(policy_chain_name, "-j %s") % in_chain_name ]
+
+                elif pr == "host":
+                    jump_rules = [ _make_rule(policy_chain_name, "-s %s -j %s") % (get_romana_gw_ip().split('/')[0], in_chain_name) ]
+
+                elif pr == "local":
+                    jump_rules = [ _make_rule(policy_chain_name, "-j %s") % (in_chain_name) ]
+
                 else:
                     raise Exception("Unsupported value of peer %s" % pr)
 
@@ -382,15 +511,6 @@ def make_rules(addr_scheme, policy_def, policy_id):
     return rules
 
 
-def _validated_port_range(port_range):
-    if len(port_range) != 2:
-        raise Exception("Port Range must be a list of 2 elements, received %s" % port_range)
-    for p in port_range:
-        if not 0 < p < 65535:
-            raise Exception("Malformed port list, port out of range, received %s" % port_range)
-    return tuple(port_range)
-
-
 def _make_rules(policy_rules):
     """
     For each rule in policy_rules creates in/out rules in iptables_rules.
@@ -409,9 +529,15 @@ def _make_rules(policy_rules):
                 for port in r.get("ports"):
                     in_rules += [ '-p tcp --dport %s -j ACCEPT' % port ]
 
-            if r.get('port_ranges'):
-                dports = ",".join([ "%s:%s" % _validated_port_range(p) for p in r.get('port_ranges') ])
-                in_rules += [ '-p tcp -m multiport --dports %s -j ACCEPT' % (dports) ]
+            if r.get('port_ranges') and (len(r.get('port_ranges')) > 0):
+                # TODO: Multiple port ranges should be supported here
+                #       as policy service does, temporarily use the first
+                #       in the range provided.
+                port_range = r.get('port_ranges')[0]
+                if len(port_range) == 2:
+                    in_rules += [ '-p tcp --dport %s:%s -j ACCEPT' % (port_range[0], port_range[1]) ]
+                else:
+                    raise Exception("Protocol option port_range must be a list of 2 elements - got %s" % port_range)
 
             if not(r.get('ports') or r.get('port_ranges')):
                 in_rules += [ '-p tcp -j ACCEPT' ]
@@ -421,9 +547,15 @@ def _make_rules(policy_rules):
                 for port in r.get("ports"):
                     in_rules += [ '-p udp --dport %s -j ACCEPT' % port ]
 
-            if r.get('port_ranges'):
-                dports = ",".join([ "%s:%s" % _validated_port_range(p) for p in r.get('port_ranges') ])
-                in_rules += [ '-p udp -m multiport --dports %s -j ACCEPT' % (dports) ]
+            if r.get('port_ranges') and (len(r.get('port_ranges')) > 0):
+                # TODO: Multiple port ranges should be supported here
+                #       as policy service does, temporarily use the first
+                #       in the range provided.
+                port_range = r.get('port_ranges')[0]
+                if len(port_range) == 2:
+                    in_rules += [ '-p udp --dport %s:%s -j ACCEPT' % (port_range[0], port_range[1]) ]
+                else:
+                    raise Exception("Protocol option port_range must be a list of 2 elements - got %s" % port_range)
 
             if not(r.get('ports') or r.get('port_ranges')):
                 in_rules += [ '-p udp -j ACCEPT' ]
@@ -458,7 +590,7 @@ def _make_rule(chain_name, text):
 
 
 def _make_u32_match(addr_scheme,
-                    from_tenant, from_segment, to_tenant=None, to_segment=None):
+                    from_tenant, from_segment=None, to_tenant=None, to_segment=None):
     """
     Creates the obscure u32 match string with bitmasks and all that's needed.
 
@@ -497,11 +629,12 @@ def _make_u32_match(addr_scheme,
         dst  |= to_tenant << shift_by
 
     # Adding the mask and values for segment
-    shift_by = addr_scheme['endpoint_bits']
-    mask |= ((1<<addr_scheme['segment_bits'])-1) << shift_by
-    src  |= from_segment << shift_by
-    if to_segment:
-        dst  |= to_segment << shift_by
+    if from_segment:
+        shift_by = addr_scheme['endpoint_bits']
+        mask |= ((1<<addr_scheme['segment_bits'])-1) << shift_by
+        src  |= from_segment << shift_by
+        if to_segment:
+            dst  |= to_segment << shift_by
 
     res = "0xc&0x%(mask)x=0x%(src)x" % { "mask" : mask, "src" : src }
 
@@ -525,17 +658,31 @@ def delete_all_rules_for_policy(iptables_rules, policy_name, tenants):
     to this rule, such as 'ROMANA-P-foo_', 'ROMANA-P-foo-IN_' for each tenant.
 
     """
+
+    # Some dirty logs. No need to run all this loops if logging level less then DEBUG
+    if logging.getLevelName(logging.getLogger().getEffectiveLevel()) == 'DEBUG':
+        logging.debug("In delete_all_rules_for_policy")
+        for i, line in enumerate(iptables_rules):
+            logging.debug("Current rules --> line %3d : %s" % (i,line))
+
     full_names = []
 
-    for tenant in tenants:
-        tenant_id = tenant.get('tenant_network_id')
-        full_names += [ 'ROMANA-T%dP-%s%s_' % (tenant_id, policy_name, p)
-                            for p in [ "", "-IN", "-OUT" ] ]
+    full_names += [ 'ROMANA-P-%s%s_' % (policy_name, p)
+                        for p in [ "", "-IN", "-OUT" ] ]
+
+    logging.debug("In delete_all_rules_for_policy -> deleteing policy chains %s" % full_names)
 
     # Only transcribe those lines that don't mention any of the chains
     # related to the policy.
     clean_rules = [ r for r in iptables_rules if not
                             any([ p in r for p in full_names ]) ]
+
+    # Some dirty logs. No need to run all this loops if logging level less then DEBUG
+    if logging.getLevelName(logging.getLogger().getEffectiveLevel()) == 'DEBUG':
+        logging.debug("In delete_all_rules_for_policy")
+        for i, line in enumerate(clean_rules):
+            logging.debug("Clean rules --> line %3d : %s" % (i,line))
+
 
     return clean_rules
 

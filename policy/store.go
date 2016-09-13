@@ -30,23 +30,26 @@ type policyStore struct {
 
 func (policyStore *policyStore) addPolicy(policyDoc *common.Policy) error {
 	// TODO ensure uniqueness of datacenter/external ID combination.
-	// TODO assume that external ID is taken from name if not specified.
-	// At least one must be specified.
 	json, err := json.Marshal(policyDoc)
 	policyDb := &PolicyDb{}
 	policyDb.Policy = string(json)
+	if policyDoc.ID != 0 {
+		policyDb.ID = policyDoc.ID
+	}
 	policyDb.ExternalID = policyDoc.ExternalID
-	db := policyStore.DbStore.Db
-	db.Create(policyDb)
-	err = common.GetDbErrors(db)
+	tx := policyStore.DbStore.Db.Begin()
+	err = common.GetDbErrors(tx)
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
-	db.NewRecord(*policyDb)
-	err = common.GetDbErrors(db)
+	tx = tx.Create(policyDb)
+	err = common.GetDbErrors(tx)
 	if err != nil {
+		tx.Rollback()
 		return err
 	}
+	tx.Commit()
 	policyDoc.ID = policyDb.ID
 	log.Printf("addPolicy(): Stored %s with ID %d", policyDoc.Name, policyDb.ID)
 	return nil
@@ -172,8 +175,15 @@ func (policyStore *policyStore) deletePolicy(id uint64) error {
 }
 
 // CreateSchemaPostProcess implements CreateSchemaPostProcess method of
-// Service interface.
+// ServiceStore interface.
 func (policyStore *policyStore) CreateSchemaPostProcess() error {
+	db := policyStore.Db
+	log.Printf("policyStore.CreateSchemaPostProcess(), DB is %v", db)
+	db.Model(&PolicyDb{}).AddUniqueIndex("idx_extid", "external_id")
+	err := common.GetDbErrors(db)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 

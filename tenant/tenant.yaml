@@ -1,0 +1,268 @@
+swagger: "2.0"
+info:
+  title: Romana tenant API
+  description: |
+    TenantSvc provides tenant service.
+  contact:
+    url: http://romana.io
+    email: info@romana.io
+  license:
+    name: Apache License 2.0
+    url: https://github.com/romana/core/blob/master/LICENSE
+  version: 0.9.0
+basePath: /
+schemes:
+- http
+- https
+consumes:
+- text/plain
+- application/vnd.romana.v1+json
+- application/vnd.romana+json
+- application/json
+- application/x-www-form-urlencoded
+produces:
+- text/plain
+- application/vnd.romana.v1+json
+- application/vnd.romana+json
+- application/json
+- application/x-www-form-urlencoded
+paths:
+  /findAll/segments:
+    get:
+      summary: func1
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/Error'
+  /findAll/tenants:
+    get:
+      summary: func1
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/Error'
+  /findExactlyOne/segments:
+    get:
+      summary: func2
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/Error'
+  /findExactlyOne/tenants:
+    get:
+      summary: func2
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/Error'
+  /findFirst/segments:
+    get:
+      summary: func3
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/Error'
+  /findFirst/tenants:
+    get:
+      summary: func3
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/Error'
+  /findLast/segments:
+    get:
+      summary: func4
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/Error'
+  /findLast/tenants:
+    get:
+      summary: func4
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/Error'
+  /tenants:
+    get:
+      summary: listTenants
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/Error'
+  /tenants/{tenantId}:
+    get:
+      summary: getTenant
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/Error'
+  /tenants/{tenantId}/segments:
+    get:
+      summary: listSegments
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/Error'
+  /tenants/{tenantId}/segments/{segmentId}:
+    get:
+      summary: getSegment
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/Error'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/Error'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/Error'
+definitions:
+  common.HttpError:
+    type: object
+    properties:
+      details:
+        type: object
+      resource_id:
+        type: string
+      resource_type:
+        type: string
+      see_also:
+        type: string
+      status_code:
+        type: integer
+  tenant.Segment:
+    type: object
+    properties:
+      external_id:
+        type: string
+      id:
+        type: long
+        format: uint64
+      name:
+        type: string
+      seq:
+        type: long
+        format: uint64
+      tenant_id:
+        type: long
+        format: uint64
+  tenant.Tenant:
+    type: object
+    properties:
+      '-':
+        type: array
+        items: {}
+      external_id:
+        type: string
+      id:
+        type: long
+        format: uint64
+      name:
+        description: desc
+        type: string
+      seq:
+        type: long
+        format: uint64

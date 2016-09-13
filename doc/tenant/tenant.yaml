@@ -1,0 +1,347 @@
+swagger: "2.0"
+info:
+  title: Romana tenant API
+  description: |
+    TenantSvc provides tenant service.
+  contact:
+    url: http://romana.io
+    email: info@romana.io
+  license:
+    name: Apache License 2.0
+    url: https://github.com/romana/core/blob/master/LICENSE
+  version: 0.9.0
+basePath: /
+schemes:
+- http
+- https
+consumes:
+- text/plain
+- application/vnd.romana.v1+json
+- application/vnd.romana+json
+- application/json
+- application/x-www-form-urlencoded
+produces:
+- text/plain
+- application/vnd.romana.v1+json
+- application/vnd.romana+json
+- application/json
+- application/x-www-form-urlencoded
+paths:
+  /findAll/segments:
+    get:
+      summary: func1
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+  /findAll/tenants:
+    get:
+      summary: func1
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+  /findExactlyOne/segments:
+    get:
+      summary: func2
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+  /findExactlyOne/tenants:
+    get:
+      summary: func2
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+  /findFirst/segments:
+    get:
+      summary: func3
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+  /findFirst/tenants:
+    get:
+      summary: func3
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+  /findLast/segments:
+    get:
+      summary: func4
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+  /findLast/tenants:
+    get:
+      summary: func4
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+  /tenants:
+    get:
+      summary: listTenants
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+    post:
+      summary: addTenant
+      description: |
+        addTenant calls Tenant Service to create a tenant with the
+        specific details provided as input. It returns full details
+        about the created tenant or HTTP Error.
+      parameters:
+      - name: tenant.Tenant
+        in: body
+        description: |
+          Tenant represents a tenant, a top-level entity.
+        required: true
+        schema:
+          $ref: '#/definitions/tenant.Tenant'
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+  /tenants/{tenantId}:
+    get:
+      summary: getTenant
+      parameters:
+      - name: tenantId
+        in: path
+        required: true
+        type: string
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+  /tenants/{tenantId}/segments:
+    get:
+      summary: listSegments
+      parameters:
+      - name: tenantId
+        in: path
+        required: true
+        type: string
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+    post:
+      summary: addSegment
+      parameters:
+      - name: tenant.Segment
+        in: body
+        description: |
+          Segment is a subdivision of tenant.
+        required: true
+        schema:
+          $ref: '#/definitions/tenant.Segment'
+      - name: tenantId
+        in: path
+        required: true
+        type: string
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+  /tenants/{tenantId}/segments/{segmentId}:
+    get:
+      summary: getSegment
+      parameters:
+      - name: tenantId
+        in: path
+        required: true
+        type: string
+      - name: segmentId
+        in: path
+        required: true
+        type: string
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+definitions:
+  common.HttpError:
+    description: |
+      HttpError is a structure that represents, well, an HTTP error.
+    type: object
+    required:
+    - status_code
+    - see_also
+    properties:
+      details:
+        type: object
+      resource_id:
+        type: string
+      resource_type:
+        type: string
+      see_also:
+        type: string
+      status_code:
+        type: integer
+  tenant.Segment:
+    description: |
+      Segment is a subdivision of tenant.
+    type: object
+    properties:
+      external_id:
+        type: string
+      id:
+        type: integer
+        format: uint64
+      name:
+        type: string
+      seq:
+        type: integer
+        format: uint64
+      tenant_id:
+        type: integer
+        format: uint64
+  tenant.Tenant:
+    description: |
+      Tenant represents a tenant, a top-level entity.
+    type: object
+    properties:
+      external_id:
+        type: string
+      id:
+        type: integer
+        format: uint64
+      name:
+        description: desc
+        type: string
+      seq:
+        type: integer
+        format: uint64

@@ -277,7 +277,7 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 			// This should never happen... Just in case...
 			log.Printf("No marshaler for [%s] found in %s, %s\n", contentType, ContentTypeMarshallers, ContentTypeMarshallers["application/json"])
 			writer.WriteHeader(http.StatusUnsupportedMediaType)
-			sct := supportedContentTypesMessage
+			sct := SupportedContentTypesMessage
 			dataOut, _ := defaultMarshaller.Marshal(sct)
 			writer.Write(dataOut)
 			return
@@ -308,7 +308,7 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 					}
 				} else {
 					// Cannot unmarshal
-					dataOut, _ := marshaller.Marshal(supportedContentTypesMessage)
+					dataOut, _ := marshaller.Marshal(SupportedContentTypesMessage)
 					writer.WriteHeader(http.StatusNotAcceptable)
 					writer.Write(dataOut)
 					return
@@ -418,14 +418,14 @@ func newRouter(routes []Route) *mux.Router {
 
 // List of supported content types to return in a
 // 406 response.
-var supportedContentTypes = []string{"text/plain", "application/vnd.romana.v1+json", "application/vnd.romana+json", "application/json", "application/x-www-form-urlencoded"}
+var SupportedContentTypes = []string{"text/plain", "application/vnd.romana.v1+json", "application/vnd.romana+json", "application/json", "application/x-www-form-urlencoded"}
 
 // Above list of supported content types wrapped in a
 // struct for converion to JSON.
-var supportedContentTypesMessage = struct {
+var SupportedContentTypesMessage = struct {
 	SupportedContentTypes []string `json:"supported_content_types"`
 }{
-	supportedContentTypes,
+	SupportedContentTypes,
 }
 
 // Marshaller is capable of marshalling and unmarshalling data to/from the wire.
@@ -686,7 +686,7 @@ func (m UnmarshallerMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request
 		// Call the next middleware handler
 		next(w, r)
 	} else {
-		sct := supportedContentTypesMessage
+		sct := SupportedContentTypesMessage
 		marshaller := ContentTypeMarshallers["application/json"]
 		dataOut, _ := marshaller.Marshal(sct)
 		w.WriteHeader(http.StatusNotAcceptable)
@@ -709,7 +709,7 @@ func (negotiator NegotiatorMiddleware) ServeHTTP(writer http.ResponseWriter, req
 		// Force json if it can take anything.
 		accept = "application/json"
 	}
-	format, err := negotiation.NegotiateAccept(accept, supportedContentTypes)
+	format, err := negotiation.NegotiateAccept(accept, SupportedContentTypes)
 	if err == nil {
 		writer.Header().Set("Content-Type", format.Value)
 	}

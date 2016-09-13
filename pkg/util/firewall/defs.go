@@ -20,6 +20,7 @@ package firewall
 import (
 	utilexec "github.com/romana/core/pkg/util/exec"
 	"net"
+	"fmt"
 )
 
 // Firewall interface allows different implementation to be used with
@@ -97,6 +98,29 @@ const (
 	// based on iptables-save/iptabels-restore
 	IPTsaveProvider
 )
+
+// ChainState is a parameter for ensureIPtablesChain function
+// which describes desired state of firewall rule.
+type chainState int
+
+const (
+	ensureChainExists chainState = iota
+	ensureChainAbsent
+)
+
+func (i chainState) String() string {
+	var result string
+	switch i {
+	case ensureChainExists:
+		result = "Ensuring iptables chain exists"
+	case ensureChainAbsent:
+		result = "Ensuring iptables chain is absent"
+	default:
+		result = fmt.Sprintf("Unknown desired state code=%d for the iptables chain", i)
+	}
+
+	return result
+}
 
 // RuleState is a parameter for ensureIPtablesRule function
 // which describes desired state of firewall rule.

@@ -20,7 +20,6 @@ package common
 import (
 	"errors"
 	"fmt"
-	//	"log"
 	"github.com/jinzhu/gorm"
 	"net/http"
 	"os/exec"
@@ -34,15 +33,18 @@ func NewError(text string, args ...interface{}) error {
 
 // HttpError is a structure that represents, well, an HTTP error.
 type HttpError struct {
+	// HTTP status code
 	StatusCode int         `json:"status_code"`
 	Details    interface{} `json:"details,omitempty"`
-	// ResourceId specifies the relevant resource ID, if applicable
+	// ResourceID specifies the relevant resource ID, if applicable
 	ResourceID string `json:"resource_id,omitempty"`
-	// ResourceId specifies the relevant resource type, if applicable
+	// ResourceType specifies the relevant resource type, if applicable
 	ResourceType string `json:"resource_type,omitempty"`
 	SeeAlso      string `json:"see_also, omitempty"`
 }
 
+// StatusText returns the string value of the HttpError corresponding
+// to the StatusCode.
 func (err HttpError) StatusText() string {
 	switch err.StatusCode {
 	case StatusUnprocessableEntity:
@@ -64,6 +66,7 @@ type ExecErrorDetails struct {
 	//	Stderr string
 }
 
+// NewError500 creates an HttpError with 500 (http.StatusInternalServerError) status code.
 func NewError500(details interface{}) HttpError {
 	retval := HttpError{StatusCode: http.StatusInternalServerError}
 	switch details := details.(type) {
@@ -86,14 +89,18 @@ func NewError500(details interface{}) HttpError {
 	return retval
 }
 
+// NewError400 creates an HttpError with 400 (http.StatusBadRequest) status code.
 func NewError400(details interface{}) HttpError {
 	return HttpError{StatusCode: http.StatusBadRequest, Details: details}
 }
 
+// NewErrorConflict creates an HttpError with 409 (http.StatusConflict) status code.
 func NewErrorConflict(details interface{}) HttpError {
 	return HttpError{StatusCode: http.StatusConflict, Details: details}
 }
 
+// NewUnprocessableEntityError creates an HttpError with 423
+// (StatusUnprocessableEntity) status code.
 func NewUnprocessableEntityError(details interface{}) HttpError {
 	return HttpError{StatusCode: StatusUnprocessableEntity, Details: details}
 }
@@ -136,6 +143,7 @@ type MultiError struct {
 	errors []error
 }
 
+// Add adds an error to the MultiError object.
 func (me MultiError) Add(err error) {
 	if me.errors == nil {
 		me.errors = make([]error, 1)
@@ -151,6 +159,7 @@ func NewMultiError() *MultiError {
 	return &MultiError{}
 }
 
+// GetErrors returns all errors in this MultiError object.
 func (m *MultiError) GetErrors() []error {
 	return m.errors
 }
@@ -172,8 +181,11 @@ func (m *MultiError) GetError() error {
 	return m
 }
 
-// MakeMultiError creates a single MultiError (or nil!) out of an array of
-// error objects.
+// MakeMultiError creates a single error object out of an array of
+// errors as follows:
+// 1. If the array is empty or nil, nil is returned
+// 2. If the array has exactly 1 element, that element is returned
+// 3. Otherwise, a MultiError is returned.
 func MakeMultiError(errors []error) error {
 	if errors == nil {
 		return nil
@@ -181,19 +193,28 @@ func MakeMultiError(errors []error) error {
 	if len(errors) == 0 {
 		return nil
 	}
+	if len(errors) == 1 {
+		return errors[0]
+	}
 	return &MultiError{errors}
 }
 
-// GetDbErrors creates MultiError or error from DB.
+// GetDbErrors creates MultiError on error from DB.
 func GetDbErrors(db *gorm.DB) error {
 	errors := db.GetErrors()
 	if errors == nil {
 		if db.Error != nil {
-			return db.Error
+			return DbToHttpError(db.Error)
 		}
 		return nil
 	}
-	return MakeMultiError(errors)
+	// If errors array is present, it already includes the db.Error value,
+	// so we do not need to include it.
+	specificErrors := make([]error, len(errors))
+	for i, err := range errors {
+		specificErrors[i] = DbToHttpError(err)
+	}
+	return MakeMultiError(specificErrors)
 }
 
 // Error satisfies Error method on error interface and returns
