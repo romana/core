@@ -358,7 +358,7 @@ func (dbStore *DbStore) Connect() error {
 	if err != nil {
 		return err
 	}
-	dbStore.Db = &db
+	dbStore.Db = db
 	return nil
 }
 
