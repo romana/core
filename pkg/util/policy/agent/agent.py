@@ -56,6 +56,15 @@ def filter_rules_idx(rules):
         if rules[rule_num].startswith("-A") or rules[rule_num] == "COMMIT":
             return rule_num
 
+def filter_commit_idx(rules):
+    """
+    Returns index of the COMMIT statement in the *filter table
+    """
+    filter_idx = rules.index('*filter')
+    for rule_num in range(filter_idx, rules.__len__()):
+        if rules[rule_num] == "COMMIT":
+            return rule_num
+
 # We want to receive json object as a POST.
 class AgentHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -344,9 +353,8 @@ def make_new_full_ruleset(current_rules, new_rules):
         rules.insert(filter_idx + sweet_spot_offset, rule)
 
     # Add 'DefaultDrop' rules to the end of the list to ensure they go last.
-    filter_commit_index = -3
     for rule in set(backlog_rules):
-        rules.insert(filter_commit_index, rule)
+        rules.insert(filter_commit_idx(rules), rule)
 
     # Skip the loop if logging less then DEBUG
     if logging.getLevelName(logging.getLogger().getEffectiveLevel()) == 'DEBUG':
