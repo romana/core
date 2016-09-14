@@ -386,18 +386,20 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 	var body []byte
 	// We allow also file scheme, for testing purposes.
 	var resp *http.Response
+	log.Printf("RestClient.execMethod(): TODO")
 	if rc.url.Scheme == "http" || rc.url.Scheme == "https" {
 		var req *http.Request
 		if reqBodyReader == nil {
 			req, err = http.NewRequest(method, rc.url.String(), nil)
 		} else {
+			log.Printf("RestClient.execMethod(): Calling %s %s with %d bytes\n", method, rc.url.String(), reqBodyReader.Len())
 			req, err = http.NewRequest(method, rc.url.String(), reqBodyReader)
-		}
-		if reqBodyReader != nil {
-			req.Header.Set("content-type", "application/json")
 		}
 		if err != nil {
 			return err
+		}
+		if reqBodyReader != nil {
+			req.Header.Set("content-type", "application/json")
 		}
 		req.Header.Set("accept", "application/json")
 		if rc.token != "" {
