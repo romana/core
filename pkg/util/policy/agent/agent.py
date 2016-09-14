@@ -283,11 +283,14 @@ def make_new_full_ruleset(current_rules, new_rules):
     existing_chains = [ k.split(" ")[0][1:] for k in current_rules if k.startswith(":") ]
     logging.debug("Existing chains %s "  %existing_chains)
 
-    # In current rules find position in *filter table ends.
+    # In current rules find "sweet spot" position in *filter table
+    # where chain definition ends.
     filter_idx = filter_rules_idx(current_rules)
+    sweet_spot_offset = 0
 
     rules = []
     backlog_rules = []
+    top_rules = []
 
     # We only care about *filter table, copy everything before it.
     for rule in current_rules[:filter_idx]:
@@ -298,6 +301,12 @@ def make_new_full_ruleset(current_rules, new_rules):
         if chain not in existing_chains:
             rules.append(":%s - [0:0]" % chain)
 
+            # Maintain filter_idx to be pointing
+            # at the sweet spot as it moves with
+            # new chains added
+            sweet_spot_offset += 1
+
+    
     # Insert all the rules from all new chains, if they don't exist already.
     for chain in new_rules.keys():
         for rule in new_rules[chain]:
@@ -306,17 +315,33 @@ def make_new_full_ruleset(current_rules, new_rules):
                 backlog_rules.append(rule)
                 continue
 
+            # Special handling for the rules that
+            # must go on top of the chains
+            if 'ESTABLISHED' in rule:
+                top_rules.append(rule)
+                continue
+
             if rule not in current_rules:
                 rules.append(rule)
 
     # Copy the rest of original *filter table.
     for rule in current_rules[filter_idx:]:
-        # Special handling for DefaultDrop rules
+        # Special handling for DefaultDrop rules.
         if 'DefaultDrop' in rule:
             backlog_rules.append(rule)
             continue
 
+        # Special handling for the rules that
+        # must go on top of the chains.
+        if 'ESTABLISHED' in rule:
+            top_rules.append(rule)
+            continue
+
         rules.append(rule)
+
+    # Insert top_rules in to the sweet spot.
+    for rule in set(top_rules):
+        rules.insert(filter_idx + sweet_spot_offset, rule)
 
     # Add 'DefaultDrop' rules to the end of the list to ensure they go last.
     filter_commit_index = -3
