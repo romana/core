@@ -339,10 +339,12 @@ func (dbStore *DbStore) getConnString() string {
 		if info.Port == 0 {
 			portStr = ":3306"
 		}
-		connStr = fmt.Sprintf("%s:%s@tcp(%s%s)/%s?parseTime=true", info.Username,
-			info.Password, info.Host, portStr, info.Database)
-		log.Printf("DB: Connection string: ****:****@tcp(%s%s)/%s?parseTime=true",
-			info.Host, portStr, info.Database)
+		// First construct the network part, to log it 
+		connStr = fmt.Sprintf("@tcp(%s%s)/%s?parseTime=true", info.Host, portStr, info.Database)
+		log.Printf("DB: Connection string: ****:****%s", connStr)
+		// Now add credentials to connection string
+		connStr = fmt.Sprintf("%s:%s%s", info.Username, info.Password, connStr)
+
 	}
 	return connStr
 }
@@ -421,7 +423,7 @@ func createSchemaMysql(dbStore *DbStore, force bool) error {
 	schemaName := dbStore.Config.Database
 	dbStore.Config.Database = "mysql"
 	connStr := dbStore.getConnString()
-	log.Printf("DB: Connecting to %s", connStr)
+	// log.Printf("DB: Connecting to %s", connStr)
 	db, err := gorm.Open("mysql", connStr)
 
 	if err != nil {
@@ -434,7 +436,7 @@ func createSchemaMysql(dbStore *DbStore, force bool) error {
 		db.Exec(sql)
 	}
 
-	sql = fmt.Sprintf("CREATE DATABASE %s", schemaName)
+	sql = fmt.Sprintf("CREATE DATABASE %s CHARACTER SET ascii COLLATE ascii_general_ci", schemaName)
 	db.Exec(sql)
 	err = MakeMultiError(db.GetErrors())
 	if err != nil {
