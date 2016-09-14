@@ -386,7 +386,6 @@ func createSchemaSqlite3(dbStore *DbStore, force bool) error {
 			if err != nil {
 				return err
 			}
-
 		}
 	}
 	err = dbStore.Connect()

@@ -97,7 +97,8 @@ func (a *Agent) vmDownHandler(input interface{}, ctx common.RestContext) (interf
 	glog.Infof("In vmDownHandler() with %T %v", input, input)
 	netif := input.(*NetIf)
 	if netif.Name == "" {
-		// This is a request from OpenStack Mech driver who does not have a name, let's find it.
+		// This is a request from OpenStack Mech driver who does not have a name,
+		// let's find it by mac.
 		err := a.store.findNetIf(netif)
 		if err != nil {
 			return nil, err
