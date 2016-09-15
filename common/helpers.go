@@ -91,13 +91,24 @@ func PressEnterToContinue() {
 	scanner.Scan()
 }
 
-// MockPortsInConfig will take the config file specified
-// and replace the ports with 0 to use arbitrary ports
-// and write it out to /tmp/romana.yaml
-func MockPortsInConfig(fname string) error {
+// GetMockDbName creates a DB name tied to the process ID
+func GetMockDbName(svc string) string {
+	return fmt.Sprintf("%s_%d", svc, os.Getpid())
+}
+
+func GetMockSqliteFile(svc string) string {
+	return fmt.Sprintf("/var/tmp/%s.sqlite3", GetMockDbName(svc))
+}
+
+// MockConfig will take the config file specified
+// and mock things up, by:
+// 1. Replacing all ports with 0 (making the services use ephemeral ports)
+// 2. Replacing all database instance names with the result of GetMockDbName
+//    and write it out to /tmp/romana.yaml
+func MockConfig(fname string) (string, error) {
 	config, err := ReadConfig(fname)
 	if err != nil {
-		return err
+		return "", err
 	}
 	services := []string{"root", "topology", "ipam", "agent", "tenant", "policy"}
 	for i := range services {
@@ -107,15 +118,27 @@ func MockPortsInConfig(fname string) error {
 			continue
 		}
 		svcConfig := config.Services[svc]
-		log.Printf("Mocking for %s: %+v", svc, svcConfig)
+		//		log.Printf("MockConfig: Mocking for %s: %+v", svc, svcConfig)
 		svcConfig.Common.Api.Port = 0
-		log.Printf("Set port for %s: %d\n", svc, config.Services[svc].Common.Api.Port)
+		//		log.Printf("MockConfig: Set port for %s: %d\n", svc, config.Services[svc].Common.Api.Port)
+		storeConfig := svcConfig.ServiceSpecific["store"].(map[string]interface{})
+		dbName := GetMockDbName(svc)
+		if storeConfig["type"] == "sqlite3" {
+			storeConfig["database"] = "/var/tmp/" + dbName + ".sqlite3"
+		} else {
+			// For now it's just mysql
+			storeConfig["database"] = dbName
+		}
+		//		log.Printf("MockConfig: Set database for %s: %s\n", svc, svcConfig.ServiceSpecific["store"].(map[string]interface{})["database"])
 	}
 
-	outFile := "/tmp/romana.yaml"
+	outFile := fmt.Sprintf("/tmp/romana_%d.yaml", os.Getpid())
 	err = WriteConfig(config, outFile)
+	if err != nil {
+		return "", err
+	}
 	log.Printf("Read %s, wrote %s: %v", fname, outFile, err)
-	return err
+	return outFile, nil
 }
 
 // toBool is a convenience function that's like ParseBool

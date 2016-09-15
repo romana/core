@@ -211,7 +211,7 @@ func (dbStore *DbStore) Find(query url.Values, entities interface{}, flag FindFl
 				}
 			}
 			gormTag := fieldTag.Get("gorm")
-			log.Printf("Gorm tag for %s: %s (%v)", fieldName, gormTag, fieldTag)
+			//			log.Printf("Gorm tag for %s: %s (%v)", fieldName, gormTag, fieldTag)
 			if gormTag != "" {
 				// See model_struct.go:parseTagSetting
 				gormVals := strings.Split(gormTag, ";")
@@ -232,7 +232,7 @@ func (dbStore *DbStore) Find(query url.Values, entities interface{}, flag FindFl
 				}
 			}
 		}
-		log.Printf("For %s, query string field %s, struct field %s, DB field %s", t, queryStringField, fieldName, dbField)
+		//		log.Printf("For %s, query string field %s, struct field %s, DB field %s", t, queryStringField, fieldName, dbField)
 		queryStringFieldToDbField[queryStringField] = dbField
 	}
 	log.Printf("%+v", queryStringFieldToDbField)
@@ -250,7 +250,7 @@ func (dbStore *DbStore) Find(query url.Values, entities interface{}, flag FindFl
 		whereMap[dbFieldName] = v[0]
 	}
 
-	log.Printf("Querying with %+v - %T", whereMap, newEntities)
+	//	log.Printf("Store: Querying with %+v - %T", whereMap, newEntities)
 
 	var db *gorm.DB
 
@@ -357,6 +357,9 @@ func (dbStore *DbStore) Connect() error {
 	db, err := gorm.Open(dbStore.Config.Type, connStr)
 	if err != nil {
 		return err
+	}
+	if dbStore.Config.Type == "sqlite3" {
+		db.DB().SetMaxOpenConns(1)
 	}
 	dbStore.Db = &db
 	return nil

@@ -107,11 +107,15 @@ func TestAuth(t *testing.T) {
 	fmt.Println("In", dir)
 
 	yamlFileName := "../common/testdata/romana.auth.yaml"
-	common.MockPortsInConfig(yamlFileName)
-	fmt.Println("Calling Run()")
-	svcInfo, err := Run("/tmp/romana.yaml")
+	configFile, err := common.MockConfig(yamlFileName)
 	if err != nil {
-		fmt.Println(err.Error())
+		t.Error(err)
+		t.FailNow()
+	}
+	fmt.Println("Calling Run(%s)", configFile)
+	svcInfo, err := Run(configFile)
+	if err != nil {
+		t.Error(err)
 		t.FailNow()
 	}
 
@@ -150,11 +154,15 @@ func TestServiceList(t *testing.T) {
 	fmt.Println("In", dir)
 
 	yamlFileName := "../common/testdata/romana.sample.yaml"
-	common.MockPortsInConfig(yamlFileName)
-	fmt.Println("Calling Run()")
-	svcInfo, err := Run("/tmp/romana.yaml")
+	configFile, err := common.MockConfig(yamlFileName)
 	if err != nil {
-		fmt.Println(err.Error())
+		t.Error(err)
+		t.FailNow()
+	}
+	fmt.Printf("Calling Run(%s)", configFile)
+	svcInfo, err := Run(configFile)
+	if err != nil {
+		t.Error(err)
 		t.FailNow()
 	}
 

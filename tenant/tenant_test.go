@@ -43,7 +43,7 @@ func (s *MySuite) TestStore(c *check.C) {
 
 	storeConfig := make(map[string]interface{})
 	storeConfig["type"] = "sqlite3"
-	storeConfig["database"] = "/var/tmp/tenantTest.sqlite3"
+	storeConfig["database"] = common.GetMockSqliteFile("tenant")
 	//
 	//	storeConfig["database"] = "tenant"
 	//	storeConfig["port"] = 8889

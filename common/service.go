@@ -358,14 +358,12 @@ func ListenAndServe(svr *http.Server) (*RestServiceInfo, error) {
 		return nil, err
 	}
 	realAddr := ln.Addr().String()
-	log.Printf("ListenAndServe(%p): Hmm 1", svr)
 	channel := make(chan ServiceMessage)
 	l := svr.ErrorLog
 	if l == nil {
 		l = log.New(os.Stdout, "", 0)
 	}
 	go func() {
-		l.Printf("ListenAndServe(%p): Hmm 2", svr)
 		channel <- Starting
 		l.Printf("ListenAndServe(%p): listening on %s (asked for %s) with configuration %v, handler %v\n", svr, realAddr, svr.Addr, svr, svr.Handler)
 		err := svr.Serve(tcpKeepAliveListener{ln.(*net.TCPListener)})
