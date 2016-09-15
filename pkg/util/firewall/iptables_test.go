@@ -28,31 +28,6 @@ import (
 	utilexec "github.com/romana/core/pkg/util/exec"
 )
 
-// TestNewChains is checking that detectMissingChains correctly detects which
-// Romana chains must be created for given NetIf.
-func TestNewChains(t *testing.T) {
-	// detectMissingChains calls isChainExist which is reading utilexec.FakeExecutor
-	// isChainExist doesn't care for output but must receive not nil error
-	// otherwise it would decide that chain exist already and skip
-	mockExec := &utilexec.FakeExecutor{Output: nil, Error: errors.New("bla"), Commands: nil}
-
-	fw := IPtables{
-		os:            mockExec,
-		Store:         firewallStore{},
-		networkConfig: mockNetworkConfig{},
-	}
-
-	fw.Init(mockFirewallEndpoint{"eth0", "A", net.ParseIP("127.0.0.1")})
-	newChains := fw.detectMissingChains()
-
-	if len(newChains) != 4 {
-		t.Error("TestNewChains failed")
-	}
-
-	// TODO test case with some chains already exist requires support for
-	// stack of output in utilexec.FakeExecutor
-}
-
 // TestCreateChains is checking that CreateChains generates correct OS commands
 // for iptables to create firewall chains.
 func TestCreateChains(t *testing.T) {
@@ -66,11 +41,12 @@ func TestCreateChains(t *testing.T) {
 		networkConfig: mockNetworkConfig{},
 	}
 	fw.Init(mockFirewallEndpoint{"eth0", "A", net.ParseIP("127.0.0.1")})
-	_ = fw.CreateChains([]int{0, 1, 2})
+	_ = fw.CreateChains(fw.chains)
 
-	expect := strings.Join([]string{"/sbin/iptables -N ROMANA-T0S0-INPUT",
-		"/sbin/iptables -N ROMANA-T0S0-OUTPUT",
-		"/sbin/iptables -N ROMANA-T0S0-FORWARD"}, "\n")
+	expect := strings.Join([]string{"/sbin/iptables -L ROMANA-INPUT",
+		"/sbin/iptables -L ROMANA-FORWARD-IN",
+		"/sbin/iptables -L ROMANA-FORWARD-OUT",
+		"/sbin/iptables -L ROMANA-FORWARD-IN"}, "\n")
 
 	if *mockExec.Commands != expect {
 		t.Errorf("Unexpected input from TestCreateChains, expect\n%s, got\n%s", expect, *mockExec.Commands)
@@ -98,7 +74,7 @@ func TestDivertTraffic(t *testing.T) {
 	fw.Init(mockFirewallEndpoint{"eth0", "A", net.ParseIP("127.0.0.1")})
 	fw.DivertTrafficToRomanaIPtablesChain(fw.chains[InputChainIndex], installDivertRules)
 
-	expect := "/sbin/iptables -C INPUT -i eth0 -j ROMANA-T0S0-INPUT\n/sbin/iptables -A INPUT -i eth0 -j ROMANA-T0S0-INPUT"
+	expect := "/sbin/iptables -C INPUT -i eth0 -j ROMANA-INPUT\n/sbin/iptables -A INPUT -i eth0 -j ROMANA-INPUT"
 
 	if *mockExec.Commands != expect {
 		t.Errorf("Unexpected input from TestDivertTraffic, expect\n%s, got\n%s", expect, *mockExec.Commands)
@@ -125,7 +101,7 @@ func TestCreateDefaultRules(t *testing.T) {
 	fw.CreateDefaultRule(InputChainIndex, targetDrop)
 
 	// expect
-	expect := strings.Join([]string{"/sbin/iptables -C ROMANA-T0S0-INPUT -j DROP"},
+	expect := strings.Join([]string{"/sbin/iptables -C ROMANA-INPUT -j DROP"},
 		"\n")
 
 	if *mockExec.Commands != expect {
@@ -149,7 +125,7 @@ func TestCreateDefaultRules(t *testing.T) {
 	fw.CreateDefaultRule(InputChainIndex, targetAccept)
 
 	// expect
-	expect = strings.Join([]string{"/sbin/iptables -C ROMANA-T0S0-INPUT -j ACCEPT"}, "\n")
+	expect = strings.Join([]string{"/sbin/iptables -C ROMANA-INPUT -j ACCEPT"}, "\n")
 
 	if *mockExec.Commands != expect {
 		t.Errorf("Unexpected input from TestCreateRules, expect\n%s, got\n%s", expect, *mockExec.Commands)
@@ -174,14 +150,17 @@ func TestCreateRules(t *testing.T) {
 	fw.Init(mockFirewallEndpoint{"eth0", "A", net.ParseIP("127.0.0.1")})
 
 	rule := NewFirewallRule()
-	rule.SetBody("ROMANA-T0S0-INPUT -d 255.255.255.255/32 -p udp -m udp --sport 68 --dport 67 -j ACCEPT")
+	rule.SetBody("ROMANA-INPUT -d 255.255.255.255/32 -p udp -m udp --sport 68 --dport 67 -j ACCEPT")
 	rules := []FirewallRule{rule}
 
 	fw.SetDefaultRules(rules)
-	fw.CreateRules(InputChainIndex)
+	err := fw.CreateRules(InputChainIndex)
+	if err != nil {
+		t.Errorf("Error calling CreateRules - %s", err)
+	}
 
 	expect := strings.Join([]string{
-		"/sbin/iptables -C ROMANA-T0S0-INPUT -d 255.255.255.255/32 -p udp -m udp --sport 68 --dport 67 -j ACCEPT",
+		"/sbin/iptables -C ROMANA-INPUT -d 255.255.255.255/32 -p udp -m udp --sport 68 --dport 67 -j ACCEPT",
 	}, "\n")
 
 	if *mockExec.Commands != expect {
@@ -207,7 +186,7 @@ func TestCreateU32Rules(t *testing.T) {
 	fw.Init(mockFirewallEndpoint{"eth0", "A", net.ParseIP("127.0.0.1")})
 	fw.CreateU32Rules(InputChainIndex)
 
-	expect := strings.Join([]string{"/sbin/iptables -A ROMANA-T0S0-INPUT -m u32 --u32 12&0xFF00FF00=0x7F000000&&16&0xFF00FF00=0x7F000000 -j ACCEPT"}, "\n")
+	expect := strings.Join([]string{"/sbin/iptables -A ROMANA-INPUT -m u32 --u32 12&0xFF00FF00=0x7F000000&&16&0xFF00FF00=0x7F000000 -j ACCEPT"}, "\n")
 
 	if *mockExec.Commands != expect {
 		t.Errorf("Unexpected input from TestCreateU32Rules, expect\n%s, got\n%s", expect, *mockExec.Commands)
