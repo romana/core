@@ -165,9 +165,9 @@ class AgentHandler(BaseHTTPRequestHandler):
 
             if not None in [ tenant, target_segment ]:
                 target_type = "full_tenant"
-            elif tenant != None:
+            elif tenant is not None:
                 target_type = "only_tenant"
-            elif dest != None:
+            elif dest is not None:
                 target_type = "dest_%s" % dest
             else:
                 raise Exception("Unsupported value of applied_to %s" % target)
@@ -181,9 +181,9 @@ class AgentHandler(BaseHTTPRequestHandler):
 
             if not None in [ tenant, segment ]:
                 peer_type = "full_tenant"
-            elif tenant != None:
+            elif tenant is not None:
                 peer_type = "only_tenant"
-            elif peer != None:
+            elif peer is not None:
                 peer_type = "peer_%s" % peer
             else:
                 raise Exception("Unsupported value of peers %s" % target)
@@ -394,7 +394,7 @@ def make_rules(addr_scheme, policy_def, policy_id):
         # to the per-tenant chain and will reach DROP at the end of the chain.
 
 
-        if tenant != None:
+        if tenant is not None:
             # Per tenant policy chain name.
             tenant_policy_vector_chain = "ROMANA-FW-T%s" % tenant
 
@@ -424,7 +424,7 @@ def make_rules(addr_scheme, policy_def, policy_id):
 
 
         # Per segment policy chain to host jumps to the actual policy chains.
-        if target_segment != None:
+        if target_segment is not None:
             target_segment_forward_chain = "ROMANA-T%s-S%s" % \
                 (tenant, target_segment)
         else:
@@ -451,7 +451,7 @@ def make_rules(addr_scheme, policy_def, policy_id):
         # or into tenant-wide chain if policy is applied to all the segments.
         # However, when creating a policy for host-VM traffic (aka operator policy)
         # there will be only one jump - from ingress chain into operator chain.
-        if tenant != None:
+        if tenant is not None:
             # Jump from ingress VM chain into per-tenant chain
             u32_tenant_match = _make_u32_match(addr_scheme, tenant)
             rules[ingress_chain] = [
@@ -662,11 +662,11 @@ def _make_u32_match(addr_scheme,
         dst  |= to_tenant << shift_by
 
     # Adding the mask and values for segment
-    if from_segment != None:
+    if from_segment is not None:
         shift_by = addr_scheme['endpoint_bits']
         mask |= ((1<<addr_scheme['segment_bits'])-1) << shift_by
         src  |= from_segment << shift_by
-        if to_segment != None:
+        if to_segment is not None:
             dst  |= to_segment << shift_by
 
     res = "0xc&0x%(mask)x=0x%(src)x" % { "mask" : mask, "src" : src }
