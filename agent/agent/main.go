@@ -20,6 +20,7 @@ package main
 import (
 	"flag"
 	"fmt"
+
 	"github.com/romana/core/agent"
 	"github.com/romana/core/common"
 )
@@ -35,6 +36,15 @@ func main() {
 
 	flag.Parse()
 
+	if *version {
+		fmt.Println(common.BuildInfo())
+		return
+	}
+	if *rootURL == "" {
+		fmt.Println("Must specify rootURL.")
+		return
+	}
+
 	if *createSchema || *overwriteSchema {
 		err := agent.CreateSchema(*rootURL, *overwriteSchema)
 		if err != nil {
@@ -44,14 +54,6 @@ func main() {
 		return
 	}
 
-	if *version {
-		fmt.Println(common.BuildInfo())
-		return
-	}
-	if rootURL == nil {
-		fmt.Println("Must specify rootURL.")
-		return
-	}
 	cred := common.MakeCredentialFromCliArgs(*username, *password)
 	svcInfo, err := agent.Run(*rootURL, cred, false)
 	if err != nil {

@@ -98,9 +98,6 @@ func hostAdd(cmd *cli.Command, args []string) error {
 				fmt.Sprintf("Agent Port number error, saw %s", args[3]))
 		}
 		agentport = uint64(agentPortInt)
-	} else {
-		agentPortInt, _ := strconv.Atoi("9606")
-		agentport = uint64(agentPortInt)
 	}
 
 	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))

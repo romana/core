@@ -33,6 +33,10 @@ func main() {
 		fmt.Println(common.BuildInfo())
 		return
 	}
+	if *configFileName == "" {
+		fmt.Println("Must specify configFileName.")
+		return
+	}
 	svcInfo, err := root.Run(*configFileName)
 	if err != nil {
 		panic(err)

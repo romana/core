@@ -40,6 +40,10 @@ func main() {
 		fmt.Println(common.BuildInfo())
 		return
 	}
+	if *rootURL == "" {
+		fmt.Println("Must specify rootURL.")
+		return
+	}
 	if *createSchema || *overwriteSchema {
 		err := tenant.CreateSchema(*rootURL, *overwriteSchema)
 		if err != nil {

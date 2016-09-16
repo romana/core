@@ -18,9 +18,10 @@
 package firewall
 
 import (
-	utilexec "github.com/romana/core/pkg/util/exec"
-	"net"
 	"fmt"
+	"net"
+
+	utilexec "github.com/romana/core/pkg/util/exec"
 )
 
 // Firewall interface allows different implementation to be used with
@@ -107,7 +108,6 @@ func (i chainState) String() string {
 
 	return result
 }
-
 
 // RuleState is a parameter for ensureIPtablesRule function
 // which describes desired state of firewall rule.
