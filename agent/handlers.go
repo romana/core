@@ -206,6 +206,7 @@ func (a *Agent) podUpHandlerAsync(netReq NetworkRequest) error {
 		return agentError(err)
 	}
 
+/*
 	metadata := fw.Metadata()
 	chainNames := metadata["chains"].([]string)
 
@@ -235,6 +236,8 @@ func (a *Agent) podUpHandlerAsync(netReq NetworkRequest) error {
 	defaultRules = append(defaultRules, forwardInRule)
 
 	fw.SetDefaultRules(defaultRules)
+*/
+	prepareFirewallRules(fw, KubeShellRules, firewall.ShellexProvider)
 
 	if err := fw.ProvisionEndpoint(); err != nil {
 		glog.Error(agentError(err))
@@ -242,6 +245,58 @@ func (a *Agent) podUpHandlerAsync(netReq NetworkRequest) error {
 	}
 
 	glog.Info("Agent: All good", netif)
+	return nil
+}
+
+func prepareFirewallRules(fw firewall.Firewall, rules RuleSet, firewallProvider firewall.Provider) error {
+	var defaultRules []firewall.FirewallRule
+//	var u32filter string
+	var chainNames []string
+	var formatBody string
+
+	switch firewallProvider {
+	case firewall.ShellexProvider:
+		metadata := fw.Metadata()
+		chainNames = metadata["chains"].([]string)
+//		u32filter = metadata["u32filter"].(string)
+
+		for _, rule := range rules {
+			glog.V(2).Infof("In prepareFirewallRules(), with %v", rule)
+
+			var currentChain string
+			switch rule.Direction {
+			case EgressLocalDirection:
+				currentChain = chainNames[firewall.InputChainIndex]
+			case EgressGlobalDirection:
+				currentChain = chainNames[firewall.ForwardOutChainIndex]
+			case IngressGlobalDirection:
+				currentChain = chainNames[firewall.ForwardInChainIndex]
+			default:
+				return fmt.Errorf("Error, unsupported rule direction type with firewall provider %s", firewallProvider)	
+			}
+
+			switch rule.Format {
+			case FormatChain:
+				formatBody = fmt.Sprintf(rule.Body, currentChain)
+			default:
+				return fmt.Errorf("Error, unsupported rule format type with firewall provider %s", firewallProvider)	
+			}
+
+			r := firewall.NewFirewallRule()
+			r.SetBody(formatBody)
+
+			switch rule.Position {
+			case DefaultPosition:
+				defaultRules = append(defaultRules, r)
+			default:
+				return fmt.Errorf("Error, unsupported rule position with firewall provider %s", firewallProvider)	
+			}
+		}
+
+	default:
+		return fmt.Errorf("Error, unsupported firewall provider type when preparing firewall rules")	
+	}
+
 	return nil
 }
 
