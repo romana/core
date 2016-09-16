@@ -56,6 +56,15 @@ def filter_rules_idx(rules):
         if rules[rule_num].startswith("-A") or rules[rule_num] == "COMMIT":
             return rule_num
 
+def filter_commit_idx(rules):
+    """
+    Returns index of the COMMIT statement in the *filter table
+    """
+    filter_idx = rules.index('*filter')
+    for rule_num in range(filter_idx, rules.__len__()):
+        if rules[rule_num] == "COMMIT":
+            return rule_num
+
 # We want to receive json object as a POST.
 class AgentHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -156,9 +165,9 @@ class AgentHandler(BaseHTTPRequestHandler):
 
             if not None in [ tenant, target_segment ]:
                 target_type = "full_tenant"
-            elif tenant != None:
+            elif tenant is not None:
                 target_type = "only_tenant"
-            elif dest != None:
+            elif dest is not None:
                 target_type = "dest_%s" % dest
             else:
                 raise Exception("Unsupported value of applied_to %s" % target)
@@ -172,9 +181,9 @@ class AgentHandler(BaseHTTPRequestHandler):
 
             if not None in [ tenant, segment ]:
                 peer_type = "full_tenant"
-            elif tenant != None:
+            elif tenant is not None:
                 peer_type = "only_tenant"
-            elif peer != None:
+            elif peer is not None:
                 peer_type = "peer_%s" % peer
             else:
                 raise Exception("Unsupported value of peers %s" % target)
@@ -283,11 +292,14 @@ def make_new_full_ruleset(current_rules, new_rules):
     existing_chains = [ k.split(" ")[0][1:] for k in current_rules if k.startswith(":") ]
     logging.debug("Existing chains %s "  %existing_chains)
 
-    # In current rules find position in *filter table ends.
+    # In current rules find "sweet spot" position in *filter table
+    # where chain definition ends.
     filter_idx = filter_rules_idx(current_rules)
+    sweet_spot_offset = 0
 
     rules = []
     backlog_rules = []
+    top_rules = []
 
     # We only care about *filter table, copy everything before it.
     for rule in current_rules[:filter_idx]:
@@ -298,6 +310,12 @@ def make_new_full_ruleset(current_rules, new_rules):
         if chain not in existing_chains:
             rules.append(":%s - [0:0]" % chain)
 
+            # Maintain filter_idx to be pointing
+            # at the sweet spot as it moves with
+            # new chains added
+            sweet_spot_offset += 1
+
+    
     # Insert all the rules from all new chains, if they don't exist already.
     for chain in new_rules.keys():
         for rule in new_rules[chain]:
@@ -306,22 +324,37 @@ def make_new_full_ruleset(current_rules, new_rules):
                 backlog_rules.append(rule)
                 continue
 
+            # Special handling for the rules that
+            # must go on top of the chains
+            if 'ESTABLISHED' in rule:
+                top_rules.append(rule)
+                continue
+
             if rule not in current_rules:
                 rules.append(rule)
 
     # Copy the rest of original *filter table.
     for rule in current_rules[filter_idx:]:
-        # Special handling for DefaultDrop rules
+        # Special handling for DefaultDrop rules.
         if 'DefaultDrop' in rule:
             backlog_rules.append(rule)
             continue
 
+        # Special handling for the rules that
+        # must go on top of the chains.
+        if 'ESTABLISHED' in rule:
+            top_rules.append(rule)
+            continue
+
         rules.append(rule)
 
+    # Insert top_rules in to the sweet spot.
+    for rule in set(top_rules):
+        rules.insert(filter_idx + sweet_spot_offset, rule)
+
     # Add 'DefaultDrop' rules to the end of the list to ensure they go last.
-    filter_commit_index = -3
     for rule in set(backlog_rules):
-        rules.insert(filter_commit_index, rule)
+        rules.insert(filter_commit_idx(rules), rule)
 
     # Skip the loop if logging less then DEBUG
     if logging.getLevelName(logging.getLogger().getEffectiveLevel()) == 'DEBUG':
@@ -361,7 +394,7 @@ def make_rules(addr_scheme, policy_def, policy_id):
         # to the per-tenant chain and will reach DROP at the end of the chain.
 
 
-        if tenant:
+        if tenant is not None:
             # Per tenant policy chain name.
             tenant_policy_vector_chain = "ROMANA-FW-T%s" % tenant
 
@@ -391,7 +424,7 @@ def make_rules(addr_scheme, policy_def, policy_id):
 
 
         # Per segment policy chain to host jumps to the actual policy chains.
-        if target_segment:
+        if target_segment is not None:
             target_segment_forward_chain = "ROMANA-T%s-S%s" % \
                 (tenant, target_segment)
         else:
@@ -418,7 +451,7 @@ def make_rules(addr_scheme, policy_def, policy_id):
         # or into tenant-wide chain if policy is applied to all the segments.
         # However, when creating a policy for host-VM traffic (aka operator policy)
         # there will be only one jump - from ingress chain into operator chain.
-        if tenant:
+        if tenant is not None:
             # Jump from ingress VM chain into per-tenant chain
             u32_tenant_match = _make_u32_match(addr_scheme, tenant)
             rules[ingress_chain] = [
@@ -629,16 +662,16 @@ def _make_u32_match(addr_scheme,
         dst  |= to_tenant << shift_by
 
     # Adding the mask and values for segment
-    if from_segment:
+    if from_segment is not None:
         shift_by = addr_scheme['endpoint_bits']
         mask |= ((1<<addr_scheme['segment_bits'])-1) << shift_by
         src  |= from_segment << shift_by
-        if to_segment:
+        if to_segment is not None:
             dst  |= to_segment << shift_by
 
     res = "0xc&0x%(mask)x=0x%(src)x" % { "mask" : mask, "src" : src }
 
-    if to_tenant and to_segment:
+    if not None in [ to_tenant, to_segment ]:
         res += "&&0x10&0x%(mask)x=0x%(dst)x" % { "mask" : mask, "dst" : dst }
 
     return res
