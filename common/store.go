@@ -325,26 +325,65 @@ func (dbStore *DbStore) DbStore() DbStore {
 	return *dbStore
 }
 
-// getConnString returns the appropriate GORM connection string for
+// connectDB gets multiple connection strings and
+// tries to connect to them till it is successful.
+func (dbStore *DbStore) connectDB() error {
+	var errs []error
+	if dbStore.Config == nil {
+		return errors.New("No configuration specified.")
+	}
+	connStrs := dbStore.getConnStrings()
+	for _, str := range connStrs {
+		fmt.Println("dbStore.Config.Type: ", dbStore.Config.Type)
+		fmt.Println("str: ", str)
+		db, err := gorm.Open(dbStore.Config.Type, str)
+		if err == nil {
+			if dbStore.Config.Type == "sqlite3" {
+				db.DB().SetMaxOpenConns(1)
+			}
+			dbStore.Db = db
+			return nil
+		}
+		errs = append(errs, err)
+	}
+
+	var errsStr string
+	for i, e := range errs {
+		if i == 0 {
+			errsStr = fmt.Sprintf("%s", e)
+		} else {
+			errsStr = fmt.Sprintf("%s\n%s", errsStr, e)
+		}
+	}
+	return fmt.Errorf(errsStr)
+}
+
+// getConnStrings returns the appropriate GORM connection string for
 // the given DB.
-func (dbStore *DbStore) getConnString() string {
-	var connStr string
+func (dbStore *DbStore) getConnStrings() []string {
+	var connStr []string
 	info := dbStore.Config
 	switch info.Type {
 	case "sqlite3":
-		connStr = info.Database
-		log.Printf("DB: Connection string: %s", connStr)
+		connStr = append(connStr, info.Database)
+		log.Printf("DB: Connection string: %s", info.Database)
 	default:
 		portStr := fmt.Sprintf(":%d", info.Port)
 		if info.Port == 0 {
 			portStr = ":3306"
 		}
-		// First construct the network part, to log it
-		connStr = fmt.Sprintf("@tcp(%s%s)/%s?parseTime=true", info.Host, portStr, info.Database)
-		log.Printf("DB: Connection string: ****:****%s", connStr)
-		// Now add credentials to connection string
-		connStr = fmt.Sprintf("%s:%s%s", info.Username, info.Password, connStr)
-
+		connStr = append(connStr, fmt.Sprintf("%s:%s@tcp(%s%s)/%s?parseTime=true",
+			info.Username, info.Password, info.Host, portStr, info.Database))
+		log.Printf("DB: Connection string: ****:****@tcp(%s%s)/%s?parseTime=true",
+			info.Host, portStr, info.Database)
+		connStr = append(connStr, fmt.Sprintf("%s:%s@unix(/var/run/mysqld/mysqld.sock)/%s?parseTime=true",
+			info.Username, info.Password, info.Database))
+		log.Printf("DB: Connection string: ****:****@unix(/var/run/mysqld/mysqld.sock))/%s?parseTime=true",
+			info.Database)
+		connStr = append(connStr, fmt.Sprintf("%s:%s@unix(/tmp/mysqld.sock)/%s?parseTime=true",
+			info.Username, info.Password, info.Database))
+		log.Printf("DB: Connection string: ****:****@unix(/tmp/mysqld.sock))/%s?parseTime=true",
+			info.Database)
 	}
 	return connStr
 }
@@ -352,19 +391,7 @@ func (dbStore *DbStore) getConnString() string {
 // Connect connects to the appropriate DB (mutating dbStore's state with
 // the connection information), or returns an error.
 func (dbStore *DbStore) Connect() error {
-	if dbStore.Config == nil {
-		return errors.New("No configuration specified.")
-	}
-	connStr := dbStore.getConnString()
-	db, err := gorm.Open(dbStore.Config.Type, connStr)
-	if err != nil {
-		return err
-	}
-	if dbStore.Config.Type == "sqlite3" {
-		db.DB().SetMaxOpenConns(1)
-	}
-	dbStore.Db = db
-	return nil
+	return dbStore.connectDB()
 }
 
 // CreateSchema creates the schema in this DB. If force flag
@@ -424,15 +451,13 @@ func createSchemaMysql(dbStore *DbStore, force bool) error {
 
 	schemaName := dbStore.Config.Database
 	dbStore.Config.Database = "mysql"
-	connStr := dbStore.getConnString()
-	// log.Printf("DB: Connecting to %s", connStr)
-	db, err := gorm.Open("mysql", connStr)
-
+	err := dbStore.Connect()
 	if err != nil {
 		return err
 	}
-	var sql string
 
+	db := dbStore.Db
+	var sql string
 	if force {
 		sql = fmt.Sprintf("DROP DATABASE IF EXISTS %s", schemaName)
 		db.Exec(sql)
