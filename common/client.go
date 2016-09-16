@@ -391,6 +391,7 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 		if err != nil {
 			return err
 		}
+		reqBodyReader = bytes.NewReader(reqBody)
 	}
 	var body []byte
 	// We allow also file scheme, for testing purposes.
