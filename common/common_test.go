@@ -496,5 +496,4 @@ func TestFormMarshaling(t *testing.T) {
 	if formStr != "interface_name=eth0&mac_address=aa:bb:cc:dd:ee:ff&ip_address=10.0.1.4" {
 		t.Fail()
 	}
-
 }

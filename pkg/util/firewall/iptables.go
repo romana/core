@@ -20,6 +20,7 @@ package firewall
 import (
 	"fmt"
 	"github.com/golang/glog"
+	"github.com/romana/core/common"
 	utilexec "github.com/romana/core/pkg/util/exec"
 	"net"
 	"strconv"
@@ -591,6 +592,9 @@ func (fw IPtables) Cleanup(netif FirewallEndpoint) error {
 // deleteIPtablesRulesBySubstring uninstalls iptables Rules matching given
 // substring and deletes them from database. Has no effect on 'inactive' Rules.
 func (fw *IPtables) deleteIPtablesRulesBySubstring(substring string) error {
+	if substring == "" {
+		return common.NewError("Empty substring specified to deleteIPtablesRulesBySubstring")
+	}
 	rules, err := fw.Store.findIPtablesRules(substring)
 	if err != nil {
 		return err

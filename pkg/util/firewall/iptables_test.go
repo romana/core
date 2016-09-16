@@ -189,6 +189,18 @@ func TestCreateRules(t *testing.T) {
 	}
 }
 
+// TestDisallowEmptySubstringInCleanup checks that calling
+// deleteIPtablesRulesBySubstring() with empty argument is an error.
+func TestDisallowEmptySubstring(t *testing.T) {
+	fw := IPtables{}
+	err := fw.deleteIPtablesRulesBySubstring("")
+	if err == nil {
+		t.Error("Expected an error when calling deleteIPtablesRulesBySubstring(\"\")")
+	} else {
+		t.Logf("Received %s", err)
+	}
+}
+
 // TestCreateU32Rule is checking that CreateU32Rules generates correct commands to
 // create firewall rules.
 func TestCreateU32Rules(t *testing.T) {
