@@ -363,7 +363,7 @@ func (dbStore *DbStore) Connect() error {
 	if dbStore.Config.Type == "sqlite3" {
 		db.DB().SetMaxOpenConns(1)
 	}
-	dbStore.Db = &db
+	dbStore.Db = db
 	return nil
 }
 
