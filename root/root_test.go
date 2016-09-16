@@ -112,7 +112,7 @@ func TestAuth(t *testing.T) {
 		t.Error(err)
 		t.FailNow()
 	}
-	fmt.Println("Calling Run(%s)", configFile)
+	fmt.Printf("Calling Run(%s)", configFile)
 	svcInfo, err := Run(configFile)
 	if err != nil {
 		t.Error(err)
