@@ -76,7 +76,8 @@ func (ipamStore *ipamStore) deleteEndpoint(ip string) (Endpoint, error) {
 
 // addEndpoint allocates an IP address and stores it in the
 // database.
-func (ipamStore *ipamStore) addEndpoint(endpoint *Endpoint, upToEndpointIpInt uint64, stride uint) error {
+func (ipamStore *ipamStore) addEndpoint(endpoint *Endpoint, upToEndpointIpInt uint64, dc common.Datacenter) error {
+
 	var err error
 	tx := ipamStore.DbStore.Db.Begin()
 
@@ -85,19 +86,82 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *Endpoint, upToEndpointIpInt ui
 	tenantId := endpoint.TenantID
 	segId := endpoint.SegmentID
 	filter := "host_id = ? AND tenant_id = ? AND segment_id = ? "
-	// First, see if there is a formerly allocated IP already that has been released
-	// (marked "in_use")
-	where := filter + "AND in_use = 0"
-	sel := "min(network_id), ip"
+
+	var where string
+	var sel string
+
+	// First, find the MAX network ID available for this host/segment combination.
+	sel = "IFNULL(MAX(network_id),-1)+1"
+	where = filter + "AND in_use = 1"
 	log.Printf("IpamStore: Calling SELECT %s FROM endpoints WHERE %s;", sel, fmt.Sprintf(strings.Replace(where, "?", "%s", 3), hostId, tenantId, segId))
 	row := tx.Model(Endpoint{}).Where(where, hostId, tenantId, segId).Select(sel).Row()
+	err = common.GetDbErrors(tx)
+	if err != nil {
+		log.Printf("Errors: %v", err)
+		tx.Rollback()
+		return err
+	}
+
 	netID := sql.NullInt64{}
+	row.Scan(&netID)
+	err = common.GetDbErrors(tx)
+	if err != nil {
+		log.Printf("Errors: %v", err)
+		tx.Rollback()
+		return err
+	}
+
+	log.Printf("IpamStore: max net ID: %v", netID)
+
+	maxEffNetID := uint64(1<<(dc.EndpointSpaceBits+dc.EndpointBits) - 1)
+
+	// Does this exceed max bits?
+	endpoint.NetworkID = uint64(netID.Int64)
+	endpoint.EffectiveNetworkID = getEffectiveNetworkID(endpoint.NetworkID, dc.EndpointSpaceBits)
+	if endpoint.EffectiveNetworkID <= maxEffNetID {
+		// Does not exceed max bits, all good.
+		//		log.Printf("IpamStore: Effective network ID for network ID %d (stride %d): %d\n", endpoint.NetworkID, dc.EndpointSpaceBits, endpoint.EffectiveNetworkID)
+		ipInt := upToEndpointIpInt | endpoint.EffectiveNetworkID
+		//		log.Printf("IpamStore: %d | %d = %d", upToEndpointIpInt, endpoint.EffectiveNetworkID, ipInt)
+		endpoint.Ip = common.IntToIPv4(ipInt).String()
+		tx = tx.Create(endpoint)
+		err = common.GetDbErrors(tx)
+		if err != nil {
+			log.Printf("Errors: %v", err)
+			tx.Rollback()
+			return err
+		}
+		tx.Commit()
+		return nil
+	}
+
+	// Out of bits, see if we can reuse an earlier allocated address...
+	log.Printf("IpamStore: New effective network ID is %d, exceeds maximum %d\n", endpoint.EffectiveNetworkID, maxEffNetID)
+	// See if there is a formerly allocated IP already that has been released
+	// (marked "in_use")
+	where = filter + "AND in_use = 0"
+	sel = "MIN(network_id), ip"
+	log.Printf("IpamStore: Calling SELECT %s FROM endpoints WHERE %s;", sel, fmt.Sprintf(strings.Replace(where, "?", "%s", 3), hostId, tenantId, segId))
+	row = tx.Model(Endpoint{}).Where(where, hostId, tenantId, segId).Select(sel).Row()
+	err = common.GetDbErrors(tx)
+	if err != nil {
+		log.Printf("Errors: %v", err)
+		tx.Rollback()
+		return err
+	}
+	netID = sql.NullInt64{}
 	var ip string
 	row.Scan(&netID, &ip)
+	err = common.GetDbErrors(tx)
+	if err != nil {
+		log.Printf("Errors: %v", err)
+		tx.Rollback()
+		return err
+	}
 	if netID.Valid {
 		endpoint.Ip = ip
 		tx = tx.Model(Endpoint{}).Where("ip = ?", ip).Update("in_use", true)
-		err = common.MakeMultiError(tx.GetErrors())
+		err = common.GetDbErrors(tx)
 		if err != nil {
 			tx.Rollback()
 			return err
@@ -105,35 +169,9 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *Endpoint, upToEndpointIpInt ui
 		tx.Commit()
 		return nil
 	}
-	// Otherwise, find the MAX network ID available for this host/segment combination.
-	// TODO can this be done in a single query?
-	where = filter + "AND in_use = 1"
-	sel = "ifnull(max(network_id),-1)+1"
-	log.Printf("IpamStore: Calling SELECT %s FROM endpoints WHERE %s;", sel, fmt.Sprintf(strings.Replace(where, "?", "%s", 3), hostId, tenantId, segId))
-	row = tx.Model(Endpoint{}).Where(where, hostId, tenantId, segId).Select(sel).Row()
-	netID = sql.NullInt64{}
-	row.Scan(&netID)
-	log.Printf("IpamStore: max net ID: %v", netID)
+	tx.Rollback()
+	return common.NewError("Out of IP addresses.")
 
-	endpoint.NetworkID = uint64(netID.Int64)
-
-	log.Printf("IpamStore: New network ID is %d\n", endpoint.NetworkID)
-
-	endpoint.EffectiveNetworkID = getEffectiveNetworkID(endpoint.NetworkID, stride)
-	log.Printf("IpamStore: Effective network ID for network ID %d (stride %d): %d\n", endpoint.NetworkID, stride, endpoint.EffectiveNetworkID)
-	ipInt := upToEndpointIpInt | endpoint.EffectiveNetworkID
-	log.Printf("IpamStore: %d | %d = %d", upToEndpointIpInt, endpoint.EffectiveNetworkID, ipInt)
-	endpoint.Ip = common.IntToIPv4(ipInt).String()
-	tx = tx.Create(endpoint)
-	log.Printf("IpamStore: Creating %v", endpoint)
-	err = common.MakeMultiError(tx.GetErrors())
-	if err != nil {
-		log.Printf("Errors: %v", err)
-		tx.Rollback()
-		return err
-	}
-	tx.Commit()
-	return nil
 }
 
 // getEffectiveNetworkID gets effective number of an Endpoint
@@ -159,6 +197,7 @@ func (ipamStore *ipamStore) CreateSchemaPostProcess() error {
 	db := ipamStore.Db
 	log.Printf("ipamStore.CreateSchemaPostProcess(), DB is %v", db)
 	db.Model(&Endpoint{}).AddUniqueIndex("idx_tenant_segment_host_network_id", "tenant_id", "segment_id", "host_id", "network_id")
+	db.Model(&Endpoint{}).AddUniqueIndex("idx_ip", "ip")
 	err := common.MakeMultiError(db.GetErrors())
 	if err != nil {
 		return err
