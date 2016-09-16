@@ -36,6 +36,7 @@ import (
 // Rest Client for the Romana services. Incorporates facilities to deal with
 // various REST requests.
 type RestClient struct {
+	callNum        uint64
 	url            *url.URL
 	client         *http.Client
 	token          string
@@ -76,16 +77,16 @@ func NewRestClient(config RestClientConfig) (*RestClient, error) {
 	timeoutMillis := config.TimeoutMillis
 
 	if timeoutMillis <= 0 {
-		log.Printf("Invalid timeout %d, defaulting to %d\n", timeoutMillis, DefaultRestTimeout)
+		rc.logf("Invalid timeout %d, defaulting to %d\n", timeoutMillis, DefaultRestTimeout)
 		rc.client.Timeout = DefaultRestTimeout * time.Millisecond
 	} else {
 		timeoutStr := fmt.Sprintf("%dms", timeoutMillis)
 		dur, _ := time.ParseDuration(timeoutStr)
-		log.Printf("Setting timeout to %v\n", dur)
+		rc.logf("Setting timeout to %v\n", dur)
 		rc.client.Timeout = dur
 	}
 	if config.Retries < 1 {
-		log.Printf("Invalid retries %d, defaulting to %d\n", config.Retries, DefaultRestRetries)
+		rc.logf("Invalid retries %d, defaulting to %d\n", config.Retries, DefaultRestRetries)
 		config.Retries = DefaultRestRetries
 	}
 	var myUrl string
@@ -111,6 +112,18 @@ func NewRestClient(config RestClientConfig) (*RestClient, error) {
 		return nil, err
 	}
 	return rc, nil
+}
+
+func (rc *RestClient) log(arg interface{}) {
+	rc.logf("%+v", arg)
+}
+
+// logf is same as log.Printf but adds a prefix to the line
+// with the ID of this RestClient instance and the number
+// of the call.
+func (rc *RestClient) logf(s string, args ...interface{}) {
+	s1 := fmt.Sprintf("RestClient.%p.%d: %s\n", rc, rc.callNum, s)
+	log.Printf(s1, args...)
 }
 
 // NewUrl sets the client's new URL (yes, it mutates) to dest.
@@ -183,7 +196,7 @@ func (rc *RestClient) Find(entity interface{}, flag FindFlag) error {
 		return NewError("Do not know where to find entity '%s'", entityName)
 	}
 	svcURL, err := rc.GetServiceUrl(serviceName)
-	log.Printf("Attempting to get URL for service %s: %s (%+v)", serviceName, svcURL, err)
+	rc.logf("Attempting to get URL for service %s: %s (%+v)", serviceName, svcURL, err)
 	if err != nil {
 		return err
 	}
@@ -224,7 +237,7 @@ func (rc *RestClient) Find(entity interface{}, flag FindFlag) error {
 		} // if fieldTag
 		fieldValue := structValue.Field(i).Interface()
 		if omitEmpty && IsZeroValue(fieldValue) {
-			log.Printf("Skipping field %s: %v - empty", fieldName, fieldValue)
+			rc.logf("Skipping field %s: %v - empty", fieldName, fieldValue)
 			continue
 		}
 
@@ -235,14 +248,14 @@ func (rc *RestClient) Find(entity interface{}, flag FindFlag) error {
 		queryString += fmt.Sprintf("%s=%v", queryStringFieldName, fieldValue)
 	}
 	url := svcURL + queryString
-	log.Printf("Trying to find one %s at %s, results go into %+v", entityName, url, entity)
+	rc.logf("Trying to find one %s at %s, results go into %+v", entityName, url, entity)
 	return rc.Get(url, entity)
 } // func
 
 // GetServiceUrl is a convenience function, which, given the root
 // service URL and name of desired service, returns the URL of that service.
 func (rc *RestClient) GetServiceUrl(name string) (string, error) {
-	log.Printf("Entering GetServiceUrl(%s, %s)", rc.config.RootURL, name)
+	rc.logf("Entering GetServiceUrl(%s, %s)", rc.config.RootURL, name)
 	// Save the current state of things, so we can restore after call to root.
 	savedUrl := rc.url
 	// Restore this after we're done so we don't lose this
@@ -257,7 +270,6 @@ func (rc *RestClient) GetServiceUrl(name string) (string, error) {
 	}
 	for i := range resp.Services {
 		service := resp.Services[i]
-		//		log.Println("Checking", service.Name, "against", name, "links:", service.Links)
 		if service.Name == name {
 			href := service.Links.FindByRel("service")
 			if href != "" {
@@ -292,7 +304,7 @@ func (rc *RestClient) modifyUrl(dest string, queryMod url.Values) error {
 		rc.url = u
 	} else {
 		newUrl := rc.url.ResolveReference(u)
-		log.Printf("Getting %s, resolved reference from %s to %s: %s\n", dest, rc.url, u, newUrl)
+		rc.logf("Getting %s, resolved reference from %s to %s: %s\n", dest, rc.url, u, newUrl)
 		rc.url = newUrl
 	}
 
@@ -316,7 +328,7 @@ func (rc *RestClient) modifyUrl(dest string, queryMod url.Values) error {
 		}
 		dest = rc.url.Scheme + "://" + rc.url.Host + rc.url.Path + "?" + dest
 		rc.url, _ = url.Parse(dest)
-		log.Printf("Modified URL %s to %s (%v)\n", origUrl, rc.url, err)
+		rc.logf("Modified URL %s to %s (%v)\n", origUrl, rc.url, err)
 	}
 
 	return nil
@@ -337,6 +349,7 @@ func (rc *RestClient) modifyUrl(dest string, queryMod url.Values) error {
 func (rc *RestClient) execMethod(method string, dest string, data interface{}, result interface{}) error {
 	// TODO check if token expired, if yes, reauthenticate... But this needs
 	// more state here (knowledge of Root service by Rest client...)
+	rc.callNum += 1
 	rc.lastStatusCode = 0
 	var queryMod url.Values
 	queryMod = nil
@@ -351,7 +364,7 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 				if queryParam == "" {
 					queryMod = make(url.Values)
 					token = uuid.New()
-					log.Printf("Adding token to POST request: %s\n", token)
+					rc.logf("Adding token to POST request: %s\n", token)
 					queryMod[RequestTokenQueryParameter] = []string{token}
 				}
 			}
@@ -359,14 +372,14 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 	}
 	err := rc.modifyUrl(dest, queryMod)
 
-	//	log.Printf("RestClient: Set rc.url to %s\n", rc.url)
+	//	rc.logf("RestClient: Set rc.url to %s\n", rc.url)
 	if err != nil {
 		return err
 	}
 
-	log.Printf("Scheme is %s, method is %s, test mode: %t", rc.url.Scheme, method, rc.config.TestMode)
+	rc.logf("Scheme is %s, method is %s, test mode: %t", rc.url.Scheme, method, rc.config.TestMode)
 	if rc.url.Scheme == "file" && method == "POST" && rc.config.TestMode {
-		log.Printf("Attempt to POST to a file URL %s, in test mode will just return OK", rc.url)
+		rc.logf("Attempt to POST to a file URL %s, in test mode will just return OK", rc.url)
 		return nil
 	}
 
@@ -374,15 +387,11 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 	var reqBody []byte
 	if data != nil {
 		reqBody, err = json.Marshal(data)
-		log.Printf("RestClient.execMethod(): Marshaled %T %v to %s", data, data, string(reqBody))
+		rc.logf("RestClient.execMethod(): Marshaled %T %v to %s", data, data, string(reqBody))
 		if err != nil {
 			return err
 		}
-		reqBodyReader = bytes.NewReader(reqBody)
-	} else {
-		reqBodyReader = nil
 	}
-
 	var body []byte
 	// We allow also file scheme, for testing purposes.
 	var resp *http.Response
@@ -406,18 +415,22 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 			req.Header.Set("authorization", rc.token)
 		}
 		for i := 0; i < rc.config.Retries; i++ {
-			log.Printf("Try %d for %s", (i + 1), rc.url)
+			rc.logf("Try %d for %s", (i + 1), rc.url)
 			if i > 0 {
 				sleepTime, _ := time.ParseDuration(fmt.Sprintf("%ds", int(math.Pow(2, (float64(i-1))))))
-				log.Printf("Sleeping for %v before retrying %d time\n", sleepTime, i)
+				rc.logf("Sleeping for %v before retrying %d time\n", sleepTime, i)
 				time.Sleep(sleepTime)
+			}
+			if data != nil {
+				reqBodyReader = bytes.NewReader(reqBody)
+				rc.logf("RestClient: Attempting %s %s with content length %d: %s", method, rc.url.String(), reqBodyReader.Len(), string(reqBody))
 			}
 			resp, err = rc.client.Do(req)
 			if err != nil {
 				if i == rc.config.Retries-1 {
 					return err
 				}
-				log.Println(err)
+				rc.logf("Error on try %d: %v", i, err)
 				continue
 			} else {
 				// If service unavailable we may still retry...
@@ -436,10 +449,10 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 	} else if rc.url.Scheme == "file" {
 		resp = &http.Response{}
 		resp.StatusCode = http.StatusOK
-		log.Printf("RestClient: Loading file %s, %s", rc.url.String(), rc.url.Path)
+		rc.logf("RestClient: Loading file %s, %s", rc.url.String(), rc.url.Path)
 		body, err = ioutil.ReadFile(rc.url.Path)
 		if err != nil {
-			log.Printf("RestClient: Error loading file %s: %v", rc.url.Path, err)
+			rc.logf("RestClient: Error loading file %s: %v", rc.url.Path, err)
 			return err
 		}
 	} else {
@@ -454,7 +467,7 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 	if err != nil {
 		errStr = fmt.Sprintf("ERROR: <%v>", err)
 	}
-	log.Printf("%s %s: %d\n%s", method, rc.url, resp.StatusCode, errStr)
+	rc.logf("%s %s: %d\n%s", method, rc.url, resp.StatusCode, errStr)
 
 	if err != nil {
 		return err
@@ -464,7 +477,7 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 
 	//	TODO deal properly with 3xx
 	//	if resp.StatusCode >= 300 && resp.StatusCode < 400 {
-	//		log.Printf("3xx: %d %v", resp.StatusCode, resp.Header)
+	//		rc.logf("3xx: %d %v", resp.StatusCode, resp.Header)
 	//	}
 	//
 	if result != nil {
@@ -552,7 +565,7 @@ func (rc *RestClient) GetServiceConfig(name string) (*ServiceConfig, error) {
 	if rc.config.Credential != nil && rc.config.Credential.Type != CredentialNone {
 		// First things first - authenticate
 		authUrl := rootIndexResponse.Links.FindByRel("auth")
-		log.Printf("Authenticating to %s", authUrl)
+		rc.logf("Authenticating to %s", authUrl)
 		tokenMsg := &TokenMessage{}
 		err = rc.Post(authUrl, rc.config.Credential, tokenMsg)
 		if err != nil {
@@ -568,7 +581,7 @@ func (rc *RestClient) GetServiceConfig(name string) (*ServiceConfig, error) {
 	if configUrl == "" {
 		return nil, errors.New(fmt.Sprintf("Could not find %s at %s", relName, rc.config.RootURL))
 	}
-	log.Printf("GetServiceConfig(): Found config url %s in %s from %s", configUrl, rootIndexResponse, relName)
+	rc.logf("GetServiceConfig(): Found config url %s in %s from %s", configUrl, rootIndexResponse, relName)
 	err = rc.Get(configUrl, config)
 	if err != nil {
 		return nil, err
@@ -577,6 +590,6 @@ func (rc *RestClient) GetServiceConfig(name string) (*ServiceConfig, error) {
 	// if the resulting config is to be used in InitializeService(), it's useful;
 	// otherwise, it will be ignored.
 	config.Common.Credential = rc.config.Credential
-	log.Printf("Saved from %v to %v", rc.config.Credential, config.Common.Credential)
+	rc.logf("Saved from %v to %v", rc.config.Credential, config.Common.Credential)
 	return config, nil
 }

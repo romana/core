@@ -129,9 +129,11 @@ func (s *MySuite) SetUpSuite(c *check.C) {
 		romanaConfigFile = "../common/testdata/romana.sample.yaml"
 	}
 	c.Log("Will use config file ", romanaConfigFile)
-	common.MockPortsInConfig(romanaConfigFile)
-	s.configFile = "/tmp/romana.yaml"
 	var err error
+	s.configFile, err = common.MockConfig(romanaConfigFile)
+	if err != nil {
+		c.Fatal(err)
+	}
 	s.config, err = common.ReadConfig(s.configFile)
 	if err != nil {
 		c.Fatal(err)
@@ -340,7 +342,11 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 
 	// Get list of hosts - should be empty for now.
 	var hostList []common.Host
-	client.Get(hostsRelURL, &hostList)
+	err = client.Get(hostsRelURL, &hostList)
+	if err != nil {
+		c.Error(err)
+		c.FailNow()
+	}
 	myLog(c, "Host list (expecting empty): %d %v", len(hostList), hostList)
 	c.Assert(len(hostList), check.Equals, 0)
 
@@ -357,20 +363,32 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 
 	// Get list of hosts - should have 1 now
 	var hostList1 []common.Host
-	client.Get(hostsRelURL, &hostList1)
+	err = client.Get(hostsRelURL, &hostList1)
+	if err != nil {
+		c.Error(err)
+		c.FailNow()
+	}
 	myLog(c, "Host list (expecting 1): %d %v", len(hostList1), hostList1)
 	c.Assert(len(hostList1), check.Equals, 1)
 
 	// Add host 2
 	newHostReq = common.Host{Ip: "10.10.10.11", RomanaIp: "10.1.0.0/16", AgentPort: 9999, Name: "HOST2000"}
 	host2 := common.Host{}
-	client.Post(hostsRelURL, newHostReq, &host2)
+	err = client.Post(hostsRelURL, newHostReq, &host2)
+	if err != nil {
+		c.Error(err)
+		c.FailNow()
+	}
 	myLog(c, "Response: %s", host2)
 	c.Assert(host2.Ip, check.Equals, "10.10.10.11")
 
 	// Get list of hosts - should have 2 now
 	var hostList2 []common.Host
-	client.Get(hostsRelURL, &hostList2)
+	err = client.Get(hostsRelURL, &hostList2)
+	if err != nil {
+		c.Error(err)
+		c.FailNow()
+	}
 	myLog(c, "Host list (expecting 2): %d %v", len(hostList2), hostList2)
 	c.Assert(len(hostList2), check.Equals, 2)
 

@@ -91,6 +91,9 @@ func (root *Root) Initialize() error {
 // Handler for the / URL
 // See https://github.com/romanaproject/romana/wiki/Root-service-API
 func (root *Root) handlePortUpdate(input interface{}, ctx common.RestContext) (interface{}, error) {
+	if input == nil {
+		return nil, common.NewError400("Port update message expected, received nothing")
+	}
 	portUpdateMsg := input.(*common.PortUpdateMessage)
 	pathVars := ctx.PathVariables
 	serviceName := pathVars["serviceName"]

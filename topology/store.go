@@ -65,18 +65,16 @@ func (topoStore *topoStore) listHosts() ([]common.Host, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Println("MySQL found hosts:", hosts)
+	log.Println("listHosts(): found hosts:", hosts)
 	return hosts, nil
 }
 
 func (topoStore *topoStore) addHost(host *common.Host) (string, error) {
 	topoStore.DbStore.Db.NewRecord(*host)
 	db := topoStore.DbStore.Db.Create(host)
-	if db.Error != nil {
-		return "", db.Error
-	}
-	err := common.MakeMultiError(topoStore.DbStore.Db.GetErrors())
+	err := common.GetDbErrors(db)
 	if err != nil {
+		log.Printf("topology.store.addHost(%v): %v", host, err)
 		return "", err
 	}
 	return strconv.FormatUint(host.ID, 10), nil

@@ -47,9 +47,11 @@ func (s *MySuite) SetUpTest(c *check.C) {
 	if !s.servicesStarted {
 		dir, _ := os.Getwd()
 		myLog(c, "Entering setup in directory", dir)
-		common.MockPortsInConfig("../common/testdata/romana.sample.yaml")
-		s.configFile = "/tmp/romana.yaml"
 		var err error
+		s.configFile, err = common.MockConfig("../common/testdata/romana.sample.yaml")
+		if err != nil {
+			panic(err)
+		}
 		s.config, err = common.ReadConfig(s.configFile)
 		if err != nil {
 			panic(err)

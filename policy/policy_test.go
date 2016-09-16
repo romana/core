@@ -23,6 +23,7 @@ import (
 	"github.com/romana/core/tenant"
 	"log"
 	"net/http"
+
 	"strconv"
 	"strings"
 	"testing"
@@ -94,14 +95,15 @@ func (s *mockSvc) Routes() common.Routes {
 		Method:  "GET",
 		Pattern: "/config/policy",
 		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
-			json := `{
+
+			json := fmt.Sprintf(`{
 			          "common":{
 						"api":{"host":"0.0.0.0","port":0}
 					 },
 			   	      "config":{"store":
-			  			 {"type" : "sqlite3",  "database" : "/var/tmp/policy.sqlite3" }
+			  			 {"type" : "sqlite3",  "database" : "%s" }
 			  		  }	 
-			        }`
+			        }`, common.GetMockSqliteFile("topology"))
 
 			//			json = `{
 			//			          "common":{
