@@ -299,9 +299,9 @@ func (fw *IPtables) DivertTrafficToRomanaIPtablesChain(chain IPtablesChain, opTy
 	var state RuleState
 	switch opType {
 	case installDivertRules:
-		state = ensureLast
+		state = EnsureLast
 	case removeDivertRules:
-		state = ensureAbsent
+		state = EnsureAbsent
 	}
 
 	// baseChain := fw.chains[chain].BaseChain
@@ -359,7 +359,7 @@ func (fw *IPtables) CreateRules(chain int) error {
 			return err0
 		}
 
-		err1 := fw.EnsureRule(rule, ensureFirst)
+		err1 := fw.EnsureRule(rule, EnsureFirst)
 		if err1 != nil {
 			glog.Error("In CreateRules() failed to create install firewall rule ", rule.GetBody())
 			return err1
@@ -415,7 +415,7 @@ func (fw *IPtables) CreateDefaultRule(chain int, target string) error {
 		return err0
 	}
 
-	err1 := fw.EnsureRule(rule, ensureLast)
+	err1 := fw.EnsureRule(rule, EnsureLast)
 	if err1 != nil {
 		glog.Errorf("In CreateDefaultRule() %s rules failed", target)
 		return err1
@@ -617,7 +617,7 @@ func (fw *IPtables) deleteIPtablesRule(rule *IPtablesRule) error {
 		return err
 	}
 
-	if err1 := fw.EnsureRule(rule, ensureAbsent); err1 != nil {
+	if err1 := fw.EnsureRule(rule, EnsureAbsent); err1 != nil {
 		glog.Errorf("In deleteIPtablesRule() rule %s set inactive but failed to uninstall", rule.GetBody())
 		return err1
 	}
@@ -637,7 +637,7 @@ func (fw IPtables) EnsureRule(rule FirewallRule, opType RuleState) error {
 	if ruleExists {
 
 		switch opType {
-		case ensureAbsent:
+		case EnsureAbsent:
 			args = append(args, []string{"-D"}...)
 		default:
 			glog.Infoln("In EnsureRule - nothing to do ", rule.GetBody())
@@ -646,9 +646,9 @@ func (fw IPtables) EnsureRule(rule FirewallRule, opType RuleState) error {
 	} else {
 
 		switch opType {
-		case ensureLast:
+		case EnsureLast:
 			args = append(args, []string{"-A"}...)
-		case ensureFirst:
+		case EnsureFirst:
 			args = append(args, []string{"-I"}...)
 		default:
 			glog.Infoln("In EnsureRule - nothing to do ", rule.GetBody())

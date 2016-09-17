@@ -127,19 +127,19 @@ func (i chainState) String() string {
 type RuleState int
 
 const (
-	ensureLast RuleState = iota
-	ensureFirst
-	ensureAbsent
+	EnsureLast RuleState = iota
+	EnsureFirst
+	EnsureAbsent
 )
 
 func (i RuleState) String() string {
 	var result string
 	switch i {
-	case ensureLast:
+	case EnsureLast:
 		result = "Ensuring rule at the bottom"
-	case ensureFirst:
+	case EnsureFirst:
 		result = "Ensuring rule at the top"
-	case ensureAbsent:
+	case EnsureAbsent:
 		result = "Ensuring rule is absent"
 	}
 

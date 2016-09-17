@@ -139,7 +139,7 @@ func (i *IPTsaveFirewall) EnsureRule(rule FirewallRule, opType RuleState) error 
 
 	if ruleExists {
 		switch opType {
-		case ensureAbsent:
+		case EnsureAbsent:
 			glog.Infof("In EnsureRule - rule %s exists in current state, removing", rule.GetBody())
 			chain.DeleteRule(ipRule)
 		default:
@@ -149,9 +149,9 @@ func (i *IPTsaveFirewall) EnsureRule(rule FirewallRule, opType RuleState) error 
 	} else {
 		glog.Infof("In EnsureRule - rule %s doesn't exist is current state, %s", rule.GetBody(), opType.String())
 		switch opType {
-		case ensureLast:
+		case EnsureLast:
 			chain.AppendRule(ipRule)
-		case ensureFirst:
+		case EnsureFirst:
 			chain.InsertRule(0, ipRule)
 		default:
 			glog.Infof("In EnsureRule - nothing to do %s", rule.GetBody())
@@ -168,7 +168,7 @@ func (i *IPTsaveFirewall) SetDefaultRules(rules []FirewallRule) error {
 	// Walking backwards to preserve original order
 	length := len(rules)
 	for ruleNum, _ := range rules {
-		if err := i.EnsureRule(rules[length-ruleNum-1], ensureFirst); err != nil {
+		if err := i.EnsureRule(rules[length-ruleNum-1], EnsureFirst); err != nil {
 			return err
 		}
 	}
