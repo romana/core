@@ -235,7 +235,7 @@ func (a *Agent) podUpHandlerAsync(netReq NetworkRequest) error {
 
 func prepareFirewallRules(fw firewall.Firewall, rules RuleSet, firewallProvider firewall.Provider) error {
 	var defaultRules []firewall.FirewallRule
-//	var u32filter string
+	//	var u32filter string
 	var chainNames []string
 	var formatBody string
 
@@ -243,7 +243,7 @@ func prepareFirewallRules(fw firewall.Firewall, rules RuleSet, firewallProvider 
 	case firewall.ShellexProvider:
 		metadata := fw.Metadata()
 		chainNames = metadata["chains"].([]string)
-//		u32filter = metadata["u32filter"].(string)
+		//		u32filter = metadata["u32filter"].(string)
 
 		for _, rule := range rules {
 			glog.V(2).Infof("In prepareFirewallRules(), with %v", rule)
@@ -257,14 +257,14 @@ func prepareFirewallRules(fw firewall.Firewall, rules RuleSet, firewallProvider 
 			case IngressGlobalDirection:
 				currentChain = chainNames[firewall.ForwardInChainIndex]
 			default:
-				return fmt.Errorf("Error, unsupported rule direction type with firewall provider %s", firewallProvider)	
+				return fmt.Errorf("Error, unsupported rule direction type with firewall provider %s", firewallProvider)
 			}
 
 			switch rule.Format {
 			case FormatChain:
 				formatBody = fmt.Sprintf(rule.Body, currentChain)
 			default:
-				return fmt.Errorf("Error, unsupported rule format type with firewall provider %s", firewallProvider)	
+				return fmt.Errorf("Error, unsupported rule format type with firewall provider %s", firewallProvider)
 			}
 
 			r := firewall.NewFirewallRule()
@@ -274,7 +274,7 @@ func prepareFirewallRules(fw firewall.Firewall, rules RuleSet, firewallProvider 
 			case DefaultPosition:
 				defaultRules = append(defaultRules, r)
 			default:
-				return fmt.Errorf("Error, unsupported rule position with firewall provider %s", firewallProvider)	
+				return fmt.Errorf("Error, unsupported rule position with firewall provider %s", firewallProvider)
 			}
 		}
 	case firewall.IPTsaveProvider:
@@ -290,14 +290,14 @@ func prepareFirewallRules(fw firewall.Firewall, rules RuleSet, firewallProvider 
 			case IngressGlobalDirection:
 				currentChain = firewall.ChainNameEndpointIngress
 			default:
-				return fmt.Errorf("Error, unsupported rule direction type with firewall provider %s", firewallProvider)	
+				return fmt.Errorf("Error, unsupported rule direction type with firewall provider %s", firewallProvider)
 			}
 
 			switch rule.Format {
 			case FormatChain:
 				formatBody = fmt.Sprintf(rule.Body, currentChain)
 			default:
-				return fmt.Errorf("Error, unsupported rule format type with firewall provider %s", firewallProvider)	
+				return fmt.Errorf("Error, unsupported rule format type with firewall provider %s", firewallProvider)
 			}
 
 			r := firewall.NewFirewallRule()
@@ -309,11 +309,11 @@ func prepareFirewallRules(fw firewall.Firewall, rules RuleSet, firewallProvider 
 			case BottomPosition:
 				fw.EnsureRule(r, firewall.EnsureLast)
 			default:
-				return fmt.Errorf("Error, unsupported rule position with firewall provider %s", firewallProvider)	
+				return fmt.Errorf("Error, unsupported rule position with firewall provider %s", firewallProvider)
 			}
 		}
 	default:
-		return fmt.Errorf("Error, unsupported firewall provider type when preparing firewall rules")	
+		return fmt.Errorf("Error, unsupported firewall provider type when preparing firewall rules")
 	}
 
 	return nil
