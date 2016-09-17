@@ -16,14 +16,14 @@
 package policy
 
 import (
+	"crypto/sha1"
+	"encoding/hex"
 	"fmt"
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
 	"log"
 	"strconv"
 	"strings"
-	"crypto/sha1"
-	"encoding/hex"
 )
 
 // Policy provides Policy service.
@@ -463,7 +463,7 @@ func (policy *PolicySvc) Initialize() error {
 }
 
 // makeId generates uniq id from applied to field.
-func  makeId (allowedTo []common.Endpoint, name string) string {
+func makeId(allowedTo []common.Endpoint, name string) string {
 	var data string
 	data = name
 
@@ -482,7 +482,6 @@ func  makeId (allowedTo []common.Endpoint, name string) string {
 	// Taking 6 bytes of a hash which is 12 chars length
 	return fmt.Sprint(hex.EncodeToString(sum[:6]))
 }
-
 
 // CreateSchema creates schema for Policy service.
 func CreateSchema(rootServiceURL string, overwrite bool) error {
