@@ -391,31 +391,32 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 		if err != nil {
 			return err
 		}
-		reqBodyReader = bytes.NewReader(reqBody)
+
 	}
 	var body []byte
 	// We allow also file scheme, for testing purposes.
 	var resp *http.Response
 	log.Printf("RestClient.execMethod(): TODO")
 	if rc.url.Scheme == "http" || rc.url.Scheme == "https" {
-		var req *http.Request
-		if reqBodyReader == nil {
-			req, err = http.NewRequest(method, rc.url.String(), nil)
-		} else {
-			log.Printf("RestClient.execMethod(): Calling %s %s with %d bytes\n", method, rc.url.String(), reqBodyReader.Len())
-			req, err = http.NewRequest(method, rc.url.String(), reqBodyReader)
-		}
-		if err != nil {
-			return err
-		}
-		if reqBodyReader != nil {
-			req.Header.Set("content-type", "application/json")
-		}
-		req.Header.Set("accept", "application/json")
-		if rc.token != "" {
-			req.Header.Set("authorization", rc.token)
-		}
 		for i := 0; i < rc.config.Retries; i++ {
+			var req *http.Request
+			if data == nil {
+				req, err = http.NewRequest(method, rc.url.String(), nil)
+			} else {
+				reqBodyReader = bytes.NewReader(reqBody)
+				req, err = http.NewRequest(method, rc.url.String(), reqBodyReader)
+				log.Printf("RestClient.execMethod(): Calling %s %s with %d bytes\n", method, rc.url.String(), reqBodyReader.Len())
+			}
+			if err != nil {
+				return err
+			}
+			if reqBodyReader != nil {
+				req.Header.Set("content-type", "application/json")
+			}
+			req.Header.Set("accept", "application/json")
+			if rc.token != "" {
+				req.Header.Set("authorization", rc.token)
+			}
 			rc.logf("Try %d for %s", (i + 1), rc.url)
 			if i > 0 {
 				sleepTime, _ := time.ParseDuration(fmt.Sprintf("%ds", int(math.Pow(2, (float64(i-1))))))
