@@ -7,7 +7,7 @@ import (
 	"io"
 )
 
-var BuiltinChains = []string{ "INPUT", "OUTPUT", "FORWARD", "PREROUTING", "POSTROUTING" }
+var BuiltinChains = []string{"INPUT", "OUTPUT", "FORWARD", "PREROUTING", "POSTROUTING"}
 
 // IPtables represents iptables configuration.
 type IPtables struct {
@@ -434,9 +434,9 @@ func MergeUserChains(dstChain, srcChain *IPchain) []*IPrule {
 
 			}
 		} else if i <= dstLen {
-				retRules = append(retRules, dstChain.Rules[i])
+			retRules = append(retRules, dstChain.Rules[i])
 		} else if i <= srcLen {
-				retRules = append(retRules, srcChain.Rules[i])
+			retRules = append(retRules, srcChain.Rules[i])
 		} else {
 			// Should never get here.
 			panic(fmt.Sprintf("Unexpected state in MergeUserChains, counter=%d, source len=%d, dst len=%d", i, srcLen, dstLen))
