@@ -7,6 +7,8 @@ import (
 	"io"
 )
 
+var BuiltinChains = []string{ "INPUT", "OUTPUT", "FORWARD", "PREROUTING", "POSTROUTING" }
+
 // IPtables represents iptables configuration.
 type IPtables struct {
 	Tables      []*IPtable
@@ -156,6 +158,16 @@ func (ic *IPchain) DeleteRule(rule *IPrule) {
 func (ic IPchain) RuleInChain(rule *IPrule) bool {
 	for _, r := range ic.Rules {
 		if r.String() == rule.String() {
+			return true
+		}
+	}
+	return false
+}
+
+// IsBuiltin returns true if chain is one of builtin chains.
+func (ic IPchain) IsBuiltin() bool {
+	for _, builtin := range BuiltinChains {
+		if ic.Name == builtin {
 			return true
 		}
 	}
@@ -351,9 +363,19 @@ func MergeTables(dstTable, srcTable *IPtable) []*IPchain {
 		for dstChainNum, dstChain := range dstTable.Chains {
 			if dstChain.Name == srcChain.Name {
 				newChainFound = false
+				var newRules []*IPrule
 
 				glog.V(3).Infof("In MergeTables, merging chain %s into table %s", srcChain.Name, dstTable.Name)
-				newRules := MergeChains(dstTable.Chains[dstChainNum], srcTable.Chains[srcChainNum])
+
+				// iptables-restore with --noflush flag works differently with
+				// default builtin chains and user-defined chains.
+				// When builtin chains with --noflush will not be flushed, user defined chains will, regardles
+				// of the flag (at least in v1.4.21), so different merge strategies are needed.
+				if dstChain.IsBuiltin() {
+					newRules = MergeChains(dstTable.Chains[dstChainNum], srcTable.Chains[srcChainNum])
+				} else {
+					newRules = MergeUserChains(dstTable.Chains[dstChainNum], srcTable.Chains[srcChainNum])
+				}
 
 				// Make new chain similar to current source but with
 				// rules returned by mergeChain, use it for return.
@@ -374,6 +396,54 @@ func MergeTables(dstTable, srcTable *IPtable) []*IPchain {
 		returnChains = append(returnChains, &IPchain{Name: c.Name, Policy: c.Policy, Rules: c.Rules})
 	}
 	return returnChains
+}
+
+// MergeUserChains merges rules of source and destination chains,
+// produces list of rules that combines rules from both chains with order
+// preserved as much as possible.
+func MergeUserChains(dstChain, srcChain *IPchain) []*IPrule {
+	var retRules []*IPrule
+	dstLen := len(dstChain.Rules)
+	srcLen := len(srcChain.Rules)
+
+	// if one chain is empty then other chain is a result of the merge
+	if srcLen == 0 {
+		return dstChain.Rules
+	}
+	if dstLen == 0 {
+		return srcChain.Rules
+	}
+
+	maxLen := 0
+	if dstLen <= srcLen {
+		maxLen = srcLen
+	} else {
+		maxLen = dstLen
+	}
+
+	// Merge strategy is to walk both rule lists at same time and compare the rules at same position
+	// if rules match then one of them added to the result, otherwise both are.
+	for i := 0; i < maxLen; i++ {
+		if i <= dstLen && i <= srcLen {
+			glog.V(3).Infof("In MergeUserTables, counter=%d, src table len=%d, dst table len=%d", i, srcLen, dstLen)
+			if dstChain.Rules[i].String() == srcChain.Rules[i].String() {
+				retRules = append(retRules, dstChain.Rules[i])
+			} else {
+				retRules = append(retRules, dstChain.Rules[i])
+				retRules = append(retRules, srcChain.Rules[i])
+
+			}
+		} else if i <= dstLen {
+				retRules = append(retRules, dstChain.Rules[i])
+		} else if i <= srcLen {
+				retRules = append(retRules, srcChain.Rules[i])
+		} else {
+			// Should never get here.
+			panic(fmt.Sprintf("Unexpected state in MergeUserChains, counter=%d, source len=%d, dst len=%d", i, srcLen, dstLen))
+		}
+	}
+
+	return retRules
 }
 
 // MergeChains merges source IPchain into destination IPchain,

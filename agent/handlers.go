@@ -171,6 +171,7 @@ func (a *Agent) vmUpHandler(input interface{}, ctx common.RestContext) (interfac
 // 3. Provisions firewall rules
 func (a *Agent) podUpHandlerAsync(netReq NetworkRequest) error {
 	glog.V(1).Info("Agent: Entering podUpHandlerAsync()")
+	currentProvider := firewall.IPTsaveProvider
 
 	netif := netReq.NetIf
 	if netif.Name == "" {
@@ -191,7 +192,7 @@ func (a *Agent) podUpHandlerAsync(netReq NetworkRequest) error {
 	}
 
 	glog.Info("Agent: provisioning firewall")
-	fw, err := firewall.NewFirewall(firewall.ShellexProvider)
+	fw, err := firewall.NewFirewall(currentProvider)
 	if err != nil {
 		return err
 	}
@@ -206,38 +207,22 @@ func (a *Agent) podUpHandlerAsync(netReq NetworkRequest) error {
 		return agentError(err)
 	}
 
-/*
-	metadata := fw.Metadata()
-	chainNames := metadata["chains"].([]string)
+	var rules RuleSet
+	switch currentProvider {
+	case firewall.ShellexProvider:
+		rules = KubeShellRules
+	case firewall.IPTsaveProvider:
+		rules = KubeSaveRestoreRules
+	default:
+		err := fmt.Errorf("Unkown firewall provider in podUpHandler")
+		glog.Error(agentError(err))
+		return agentError(err)
+	}
 
-	// Default firewall rules for Kubernetes
-	var defaultRules []firewall.FirewallRule
-
-	// ProvisionEndpoint applies default rules in reverse order
-	// so DROP goes first
-	inboundChain := chainNames[firewall.InputChainIndex]
-
-	inboundRule := firewall.NewFirewallRule()
-	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-m comment --comment DefaultDrop -j DROP"))
-	defaultRules = append(defaultRules, inboundRule)
-
-	inboundRule = firewall.NewFirewallRule()
-	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-m state --state ESTABLISHED -j ACCEPT"))
-	defaultRules = append(defaultRules, inboundRule)
-
-	forwardOutChain := chainNames[firewall.ForwardOutChainIndex]
-	forwardOutRule := firewall.NewFirewallRule()
-	forwardOutRule.SetBody(fmt.Sprintf("%s %s", forwardOutChain, "-m comment --comment Outgoing -j RETURN"))
-	defaultRules = append(defaultRules, forwardOutRule)
-
-	forwardInChain := chainNames[firewall.ForwardInChainIndex]
-	forwardInRule := firewall.NewFirewallRule()
-	forwardInRule.SetBody(fmt.Sprintf("%s %s", forwardInChain, "-m state --state RELATED,ESTABLISHED -j ACCEPT"))
-	defaultRules = append(defaultRules, forwardInRule)
-
-	fw.SetDefaultRules(defaultRules)
-*/
-	prepareFirewallRules(fw, KubeShellRules, firewall.ShellexProvider)
+	if err := prepareFirewallRules(fw, rules, currentProvider); err != nil {
+		glog.Error(agentError(err))
+		return agentError(err)
+	}
 
 	if err := fw.ProvisionEndpoint(); err != nil {
 		glog.Error(agentError(err))
@@ -292,7 +277,41 @@ func prepareFirewallRules(fw firewall.Firewall, rules RuleSet, firewallProvider 
 				return fmt.Errorf("Error, unsupported rule position with firewall provider %s", firewallProvider)	
 			}
 		}
+	case firewall.IPTsaveProvider:
+		for _, rule := range rules {
+			glog.V(2).Infof("In prepareFirewallRules(), with %v", rule)
 
+			var currentChain string
+			switch rule.Direction {
+			case EgressLocalDirection:
+				currentChain = firewall.ChainNameEndpointToHost
+			case EgressGlobalDirection:
+				currentChain = firewall.ChainNameEndpointEgress
+			case IngressGlobalDirection:
+				currentChain = firewall.ChainNameEndpointIngress
+			default:
+				return fmt.Errorf("Error, unsupported rule direction type with firewall provider %s", firewallProvider)	
+			}
+
+			switch rule.Format {
+			case FormatChain:
+				formatBody = fmt.Sprintf(rule.Body, currentChain)
+			default:
+				return fmt.Errorf("Error, unsupported rule format type with firewall provider %s", firewallProvider)	
+			}
+
+			r := firewall.NewFirewallRule()
+			r.SetBody(formatBody)
+
+			switch rule.Position {
+			case TopPosition:
+				fw.EnsureRule(r, firewall.EnsureFirst)
+			case BottomPosition:
+				fw.EnsureRule(r, firewall.EnsureLast)
+			default:
+				return fmt.Errorf("Error, unsupported rule position with firewall provider %s", firewallProvider)	
+			}
+		}
 	default:
 		return fmt.Errorf("Error, unsupported firewall provider type when preparing firewall rules")	
 	}

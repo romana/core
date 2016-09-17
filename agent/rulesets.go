@@ -104,3 +104,30 @@ var KubeShellRules = RuleSet{
 			Direction: IngressGlobalDirection,
 		},
 }
+
+var KubeSaveRestoreRules = RuleSet{
+		Rule{
+			Format: FormatChain,
+			Body: "%s -m comment --comment DefaultDrop -j DROP",
+			Position: BottomPosition,
+			Direction: EgressLocalDirection,
+		},
+		Rule{
+			Format: FormatChain,
+			Body: "%s -m state --state ESTABLISHED -j ACCEPT",
+			Position: TopPosition,
+			Direction: EgressLocalDirection,
+		},
+		Rule{
+			Format: FormatChain,
+			Body: "%s -m comment --comment Outgoing -j RETURN",
+			Position: TopPosition,
+			Direction: EgressGlobalDirection,
+		},
+		Rule{
+			Format: FormatChain,
+			Body: "%s -m state --state RELATED,ESTABLISHED -j ACCEPT",
+			Position: TopPosition,
+			Direction: IngressGlobalDirection,
+		},
+}
