@@ -48,7 +48,7 @@ type RuleFormat int
 const (
 	NoFormatNeeded RuleFormat = iota
 	FormatChain
-	FormatChainU32TenantSegment
+	FormatChainHostU32TenantSegment
 )
 
 type RulePosition int
@@ -122,6 +122,72 @@ var KubeSaveRestoreRules = RuleSet{
 		Body:      "%s -m comment --comment Outgoing -j RETURN",
 		Position:  TopPosition,
 		Direction: EgressGlobalDirection,
+	},
+	Rule{
+		Format:    FormatChain,
+		Body:      "%s -m state --state RELATED,ESTABLISHED -j ACCEPT",
+		Position:  TopPosition,
+		Direction: IngressGlobalDirection,
+	},
+}
+
+var OpenStackShellRules = RuleSet{
+	Rule{
+		Format:    FormatChain,
+		Body:      "%s -m comment --comment DefaultDrop -j DROP",
+		Position:  DefaultPosition,
+		Direction: EgressLocalDirection,
+	},
+	Rule{
+		Format:    FormatChain,
+		Body:      "%s -m state --state ESTABLISHED -j ACCEPT",
+		Position:  DefaultPosition,
+		Direction: EgressLocalDirection,
+	},
+	Rule{
+		Format:    FormatChain,
+		Body:      "%s -m comment --comment Outgoing -j RETURN",
+		Position:  DefaultPosition,
+		Direction: EgressGlobalDirection,
+	},
+	Rule{
+		Format:    FormatChainHostU32TenantSegment,
+		Body:      "%s ! -s %s -m u32 --u32 %s -j ACCEPT",
+		Position:  DefaultPosition,
+		Direction: IngressGlobalDirection,
+	},
+	Rule{
+		Format:    FormatChain,
+		Body:      "%s -m state --state RELATED,ESTABLISHED -j ACCEPT",
+		Position:  DefaultPosition,
+		Direction: IngressGlobalDirection,
+	},
+}
+
+var OpenStackSaveRestoreRules = RuleSet{
+	Rule{
+		Format:    FormatChain,
+		Body:      "%s -m comment --comment DefaultDrop -j DROP",
+		Position:  BottomPosition,
+		Direction: EgressLocalDirection,
+	},
+	Rule{
+		Format:    FormatChain,
+		Body:      "%s -m state --state ESTABLISHED -j ACCEPT",
+		Position:  TopPosition,
+		Direction: EgressLocalDirection,
+	},
+	Rule{
+		Format:    FormatChain,
+		Body:      "%s -m comment --comment Outgoing -j RETURN",
+		Position:  BottomPosition,
+		Direction: EgressGlobalDirection,
+	},
+	Rule{
+		Format:    FormatChainHostU32TenantSegment,
+		Body:      "%s ! -s %s -m u32 --u32 %s -j ACCEPT",
+		Position:  TopPosition,
+		Direction: IngressGlobalDirection,
 	},
 	Rule{
 		Format:    FormatChain,

@@ -219,7 +219,7 @@ func (a *Agent) podUpHandlerAsync(netReq NetworkRequest) error {
 		return agentError(err)
 	}
 
-	if err := prepareFirewallRules(fw, rules, currentProvider); err != nil {
+	if err := prepareFirewallRules(fw, a.networkConfig, rules, currentProvider); err != nil {
 		glog.Error(agentError(err))
 		return agentError(err)
 	}
@@ -233,18 +233,17 @@ func (a *Agent) podUpHandlerAsync(netReq NetworkRequest) error {
 	return nil
 }
 
-func prepareFirewallRules(fw firewall.Firewall, rules RuleSet, firewallProvider firewall.Provider) error {
+func prepareFirewallRules(fw firewall.Firewall, nc *NetworkConfig, rules RuleSet, firewallProvider firewall.Provider) error {
+	metadata := fw.Metadata()
+
 	var defaultRules []firewall.FirewallRule
-	//	var u32filter string
-	var chainNames []string
+	var u32filter string = metadata["u32filter"].(string)
+	var chainNames []string = metadata["chains"].([]string)
+	var hostAddr = nc.RomanaGW()
 	var formatBody string
 
 	switch firewallProvider {
 	case firewall.ShellexProvider:
-		metadata := fw.Metadata()
-		chainNames = metadata["chains"].([]string)
-		//		u32filter = metadata["u32filter"].(string)
-
 		for _, rule := range rules {
 			glog.V(2).Infof("In prepareFirewallRules(), with %v", rule)
 
@@ -263,6 +262,8 @@ func prepareFirewallRules(fw firewall.Firewall, rules RuleSet, firewallProvider 
 			switch rule.Format {
 			case FormatChain:
 				formatBody = fmt.Sprintf(rule.Body, currentChain)
+			case FormatChainHostU32TenantSegment:
+				formatBody = fmt.Sprintf(rule.Body, currentChain, hostAddr, u32filter)
 			default:
 				return fmt.Errorf("Error, unsupported rule format type with firewall provider %s", firewallProvider)
 			}
@@ -296,6 +297,8 @@ func prepareFirewallRules(fw firewall.Firewall, rules RuleSet, firewallProvider 
 			switch rule.Format {
 			case FormatChain:
 				formatBody = fmt.Sprintf(rule.Body, currentChain)
+			case FormatChainHostU32TenantSegment:
+				formatBody = fmt.Sprintf(rule.Body, currentChain, hostAddr, u32filter)
 			default:
 				return fmt.Errorf("Error, unsupported rule format type with firewall provider %s", firewallProvider)
 			}
@@ -328,6 +331,8 @@ func prepareFirewallRules(fw firewall.Firewall, rules RuleSet, firewallProvider 
 // 5. Provisions firewall rules
 func (a *Agent) vmUpHandlerAsync(netif NetIf) error {
 	glog.V(1).Info("Agent: Entering interfaceHandle()")
+	currentProvider := a.getFirewallType()
+
 	if !a.Helper.waitForIface(netif.Name) {
 		// TODO should we resubmit failed interface in queue for later
 		// retry ? ... considering oenstack will give up as well after
@@ -374,38 +379,57 @@ func (a *Agent) vmUpHandlerAsync(netif NetIf) error {
 		return agentError(err)
 	}
 
-	metadata := fw.Metadata()
-	chainNames := metadata["chains"].([]string)
-	u32filter := metadata["u32filter"]
-	hostAddr := a.networkConfig.RomanaGW()
+	/*
+		metadata := fw.Metadata()
+		chainNames := metadata["chains"].([]string)
+		u32filter := metadata["u32filter"]
+		hostAddr := a.networkConfig.RomanaGW()
 
-	// Default firewall rules for OpenStack
-	inboundChain := chainNames[firewall.InputChainIndex]
-	var defaultRules []firewall.FirewallRule
+		// Default firewall rules for OpenStack
+		inboundChain := chainNames[firewall.InputChainIndex]
+		var defaultRules []firewall.FirewallRule
 
-	inboundRule := firewall.NewFirewallRule()
-	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-m comment --comment DefaultDrop -j DROP"))
-	defaultRules = append(defaultRules, inboundRule)
+		inboundRule := firewall.NewFirewallRule()
+		inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-m comment --comment DefaultDrop -j DROP"))
+		defaultRules = append(defaultRules, inboundRule)
 
-	inboundRule = firewall.NewFirewallRule()
-	inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-m state --state ESTABLISHED -j ACCEPT"))
-	defaultRules = append(defaultRules, inboundRule)
+		inboundRule = firewall.NewFirewallRule()
+		inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-m state --state ESTABLISHED -j ACCEPT"))
+		defaultRules = append(defaultRules, inboundRule)
 
-	forwardOutChain := chainNames[firewall.ForwardOutChainIndex]
-	forwardOutRule := firewall.NewFirewallRule()
-	forwardOutRule.SetBody(fmt.Sprintf("%s %s", forwardOutChain, "-m comment --comment Outgoing -j RETURN"))
-	defaultRules = append(defaultRules, forwardOutRule)
+		forwardOutChain := chainNames[firewall.ForwardOutChainIndex]
+		forwardOutRule := firewall.NewFirewallRule()
+		forwardOutRule.SetBody(fmt.Sprintf("%s %s", forwardOutChain, "-m comment --comment Outgoing -j RETURN"))
+		defaultRules = append(defaultRules, forwardOutRule)
 
-	forwardInChain := chainNames[firewall.ForwardInChainIndex]
-	forwardInRule := firewall.NewFirewallRule()
-	forwardInRule.SetBody(fmt.Sprintf("%s %s", forwardInChain, "-m state --state ESTABLISHED -j ACCEPT"))
-	defaultRules = append(defaultRules, forwardInRule)
+		forwardInChain := chainNames[firewall.ForwardInChainIndex]
+		forwardInRule := firewall.NewFirewallRule()
+		forwardInRule.SetBody(fmt.Sprintf("%s %s", forwardInChain, "-m state --state ESTABLISHED -j ACCEPT"))
+		defaultRules = append(defaultRules, forwardInRule)
 
-	forwardInRule = firewall.NewFirewallRule()
-	forwardInRule.SetBody(fmt.Sprintf("%s ! -s %s -m u32 --u32 %s %s", forwardInChain, hostAddr, u32filter, "-j ACCEPT"))
-	defaultRules = append(defaultRules, forwardInRule)
+		forwardInRule = firewall.NewFirewallRule()
+		forwardInRule.SetBody(fmt.Sprintf("%s ! -s %s -m u32 --u32 %s %s", forwardInChain, hostAddr, u32filter, "-j ACCEPT"))
+		defaultRules = append(defaultRules, forwardInRule)
 
-	fw.SetDefaultRules(defaultRules)
+		fw.SetDefaultRules(defaultRules)
+	*/
+
+	var rules RuleSet
+	switch currentProvider {
+	case firewall.ShellexProvider:
+		rules = OpenStackShellRules
+	case firewall.IPTsaveProvider:
+		rules = OpenStackSaveRestoreRules
+	default:
+		err := fmt.Errorf("Unkown firewall provider in vmUpHandler")
+		glog.Error(agentError(err))
+		return agentError(err)
+	}
+
+	if err := prepareFirewallRules(fw, a.networkConfig, rules, currentProvider); err != nil {
+		glog.Error(agentError(err))
+		return agentError(err)
+	}
 
 	if err := fw.ProvisionEndpoint(); err != nil {
 		glog.Error(agentError(err))
@@ -432,5 +456,5 @@ func (a Agent) getFirewallType() firewall.Provider {
 	default:
 		panic(fmt.Sprintf("Unsupported firewall type value %s, supported values are 'shellex' and 'save-restore'", provider))
 	}
-		
+
 }
