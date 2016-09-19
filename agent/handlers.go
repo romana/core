@@ -33,7 +33,7 @@ type Status struct {
 // statusHandler reports operational statistics.
 func (a *Agent) statusHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
 	glog.V(1).Infoln("Agent: Entering statusHandler()")
-	fw, err := firewall.NewFirewall(firewall.ShellexProvider)
+	fw, err := firewall.NewFirewall(a.getFirewallType())
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +63,7 @@ func (a *Agent) podDownHandler(input interface{}, ctx common.RestContext) (inter
 
 	// We need new firewall instance here to use it's Cleanup()
 	// to uninstall firewall rules related to the endpoint.
-	fw, err := firewall.NewFirewall(firewall.ShellexProvider)
+	fw, err := firewall.NewFirewall(a.getFirewallType())
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +123,7 @@ func (a *Agent) vmDownHandler(input interface{}, ctx common.RestContext) (interf
 
 	// We need new firewall instance here to use it's Cleanup()
 	// to uninstall firewall rules related to the endpoint.
-	fw, err := firewall.NewFirewall(firewall.ShellexProvider)
+	fw, err := firewall.NewFirewall(a.getFirewallType())
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +171,7 @@ func (a *Agent) vmUpHandler(input interface{}, ctx common.RestContext) (interfac
 // 3. Provisions firewall rules
 func (a *Agent) podUpHandlerAsync(netReq NetworkRequest) error {
 	glog.V(1).Info("Agent: Entering podUpHandlerAsync()")
-	currentProvider := firewall.IPTsaveProvider
+	currentProvider := a.getFirewallType()
 
 	netif := netReq.NetIf
 	if netif.Name == "" {
@@ -414,4 +414,23 @@ func (a *Agent) vmUpHandlerAsync(netif NetIf) error {
 
 	glog.Info("All good", netif)
 	return nil
+}
+
+func (a Agent) getFirewallType() firewall.Provider {
+	provider, ok := a.config.ServiceSpecific["firewall_provider"].(string)
+	if !ok {
+		panic("Unable to read firewall_provider from config")
+	}
+
+	switch provider {
+	case "shellex":
+		glog.Infoln("Agent: using ShellexProvider firewall provider")
+		return firewall.ShellexProvider
+	case "save-restore":
+		glog.Infoln("Agent: using IPTsaveProvider firewall provider")
+		return firewall.IPTsaveProvider
+	default:
+		panic(fmt.Sprintf("Unsupported firewall type value %s, supported values are 'shellex' and 'save-restore'", provider))
+	}
+		
 }
