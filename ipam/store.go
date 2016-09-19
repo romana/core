@@ -87,14 +87,12 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *Endpoint, upToEndpointIpInt ui
 	segId := endpoint.SegmentID
 	filter := "host_id = ? AND tenant_id = ? AND segment_id = ? "
 
-	var where string
 	var sel string
 
 	// First, find the MAX network ID available for this host/segment combination.
 	sel = "IFNULL(MAX(network_id),-1)+1"
-	where = filter + "AND in_use = 1"
-	log.Printf("IpamStore: Calling SELECT %s FROM endpoints WHERE %s;", sel, fmt.Sprintf(strings.Replace(where, "?", "%s", 3), hostId, tenantId, segId))
-	row := tx.Model(Endpoint{}).Where(where, hostId, tenantId, segId).Select(sel).Row()
+	log.Printf("IpamStore: Calling SELECT %s FROM endpoints WHERE %s;", sel, fmt.Sprintf(strings.Replace(filter, "?", "%s", 3), hostId, tenantId, segId))
+	row := tx.Model(Endpoint{}).Where(filter, hostId, tenantId, segId).Select(sel).Row()
 	err = common.GetDbErrors(tx)
 	if err != nil {
 		log.Printf("Errors: %v", err)
@@ -139,10 +137,9 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *Endpoint, upToEndpointIpInt ui
 	log.Printf("IpamStore: New effective network ID is %d, exceeds maximum %d\n", endpoint.EffectiveNetworkID, maxEffNetID)
 	// See if there is a formerly allocated IP already that has been released
 	// (marked "in_use")
-	where = filter + "AND in_use = 0"
 	sel = "MIN(network_id), ip"
-	log.Printf("IpamStore: Calling SELECT %s FROM endpoints WHERE %s;", sel, fmt.Sprintf(strings.Replace(where, "?", "%s", 3), hostId, tenantId, segId))
-	row = tx.Model(Endpoint{}).Where(where, hostId, tenantId, segId).Select(sel).Row()
+	log.Printf("IpamStore: Calling SELECT %s FROM endpoints WHERE %s;", sel, fmt.Sprintf(strings.Replace(filter + "AND in_use = 0", "?", "%s", 3), hostId, tenantId, segId))
+	row = tx.Model(Endpoint{}).Where(filter + "AND in_use = 0", hostId, tenantId, segId).Select(sel).Row()
 	err = common.GetDbErrors(tx)
 	if err != nil {
 		log.Printf("Errors: %v", err)
