@@ -364,7 +364,7 @@ func (a *Agent) vmUpHandlerAsync(netif NetIf) error {
 	}
 
 	glog.Info("Agent: provisioning firewall")
-	fw, err := firewall.NewFirewall(firewall.ShellexProvider)
+	fw, err := firewall.NewFirewall(currentProvider)
 	if err != nil {
 		return err
 	}
