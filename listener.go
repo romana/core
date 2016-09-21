@@ -27,6 +27,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 )
 
 // readChunk reads the next chunk from the provided reader.
@@ -70,6 +71,7 @@ type kubeListener struct {
 	policyNotificationPathPrefix  string
 	policyNotificationPathPostfix string
 	segmentLabelName              string
+	lastEvent 			map[string]time.Time
 }
 
 // Routes returns various routes used in the service.
@@ -304,6 +306,7 @@ func (l *kubeListener) Initialize() error {
 	if err != nil {
 		return err
 	}
+	l.lastEvent = make(map[string]time.Time)
 	log.Printf("Starting to listen on %s", nsURL)
 	done := make(chan Done)
 	nsEvents, err := l.nsWatch(done, nsURL)
