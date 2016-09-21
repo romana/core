@@ -23,6 +23,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"time"
 )
 
 const (
@@ -100,6 +101,28 @@ type Metadata struct {
 // handle kubernetes events according to their type.
 func (e Event) handle(l *kubeListener) {
 	log.Printf("Processing %s request for %s", e.Type, e.Object.Metadata.Name)
+
+	if last, ok := l.lastEvent[e.Object.Metadata.Uid]; ok {
+		now, errt := time.Parse(time.RFC3339, e.Object.Metadata.CreationTimestamp)
+		if errt != nil {
+			log.Printf("WARNING ignoring event %v. Failed to parse creation timestamp of the .Object", e)
+			return
+		}
+
+		if now.Before(last) {
+			log.Printf("WARNING ignoring event %v since current timestamp is %s", e, last)
+			return
+		} else {
+			l.lastEvent[e.Object.Metadata.Uid] = now
+		}
+	} else {
+		now, errt := time.Parse(time.RFC3339, e.Object.Metadata.CreationTimestamp)
+		if errt != nil {
+			log.Printf("WARNING ignoring event %v. Failed to parse creation timestamp of the .Object", e)
+			return
+		}
+		l.lastEvent[e.Object.Metadata.Uid] = now
+	}
 
 	if e.Object.Kind == "NetworkPolicy" && e.Type != KubeEventModified {
 		e.handleNetworkPolicyEvent(l)
