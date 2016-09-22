@@ -98,30 +98,54 @@ type Metadata struct {
 	Annotations       map[string]string `json:"annotations,omitempty"`
 }
 
-// handle kubernetes events according to their type.
-func (e Event) handle(l *kubeListener) {
-	log.Printf("Processing %s request for %s", e.Type, e.Object.Metadata.Name)
+func isNew(e Event, l *kubeListener) bool {
 
-	if last, ok := l.lastEvent[e.Object.Metadata.Uid]; ok {
+
+	// DELETED and MODIFIED events do not have up to date creationTimestamp
+	// so we always treat them as new
+	if e.Type != KubeEventAdded {
+		return true
+	}
+
+	if last, ok := l.lastEvent[e.Object.Metadata.Namespace]; ok {
 		now, errt := time.Parse(time.RFC3339, e.Object.Metadata.CreationTimestamp)
 		if errt != nil {
 			log.Printf("WARNING ignoring event %v. Failed to parse creation timestamp of the .Object", e)
-			return
+			return false
 		}
 
 		if now.Before(last) {
 			log.Printf("WARNING ignoring event %v since current timestamp is %s", e, last)
-			return
+			return false
 		} else {
-			l.lastEvent[e.Object.Metadata.Uid] = now
+			log.Printf("DEBUG last timestamp is %s, current timestamp is %s, accepting", last, now)
+			l.lastEvent[e.Object.Metadata.Namespace] = now
+
+			return true
 		}
 	} else {
 		now, errt := time.Parse(time.RFC3339, e.Object.Metadata.CreationTimestamp)
 		if errt != nil {
 			log.Printf("WARNING ignoring event %v. Failed to parse creation timestamp of the .Object", e)
-			return
+			return false
 		}
-		l.lastEvent[e.Object.Metadata.Uid] = now
+		log.Printf("DEBUG last timestamp is %s, current timestamp is %s, accepting", last, now)
+		l.lastEvent[e.Object.Metadata.Namespace] = now
+
+		return true
+	}
+}
+
+// handle kubernetes events according to their type.
+func (e Event) handle(l *kubeListener) {
+	log.Printf("Processing %s request for %s", e.Type, e.Object.Metadata.Name)
+
+	if e.Type == InternalEventDeleteAll {
+		return
+	}
+
+	if !isNew(e, l) {
+		return
 	}
 
 	if e.Object.Kind == "NetworkPolicy" && e.Type != KubeEventModified {
@@ -292,7 +316,7 @@ func (l *kubeListener) watchEvents(done <-chan Done, url string, resp *http.Resp
 // NsWatch is a generator that watches namespace related events in
 // kubernetes API and publishes this events to a channel.
 func (l *kubeListener) nsWatch(done <-chan Done, url string) (<-chan Event, error) {
-	out := make(chan Event)
+	out := make(chan Event, 2000)
 
 	resp, err := http.Get(url)
 	if err != nil {
