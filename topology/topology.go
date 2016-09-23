@@ -148,7 +148,7 @@ func (topology *TopologySvc) handleHostListPost(input interface{}, ctx common.Re
 		}
 	}
 	log.Printf("Host will be added with agent port %d", host.AgentPort)
-	_, err := topology.store.addHost(host)
+	err := topology.store.addHost(topology.datacenter, host)
 	if err != nil {
 		return nil, err
 	}

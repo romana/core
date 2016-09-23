@@ -339,7 +339,7 @@ func (dbStore *DbStore) getConnString() string {
 		if info.Port == 0 {
 			portStr = ":3306"
 		}
-		// First construct the network part, to log it 
+		// First construct the network part, to log it
 		connStr = fmt.Sprintf("@tcp(%s%s)/%s?parseTime=true", info.Host, portStr, info.Database)
 		log.Printf("DB: Connection string: ****:****%s", connStr)
 		// Now add credentials to connection string
