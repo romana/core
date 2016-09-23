@@ -28,7 +28,7 @@ func TestResourceProcessor(t *testing.T) {
 	done := make(chan Done)
 	events := make(chan Event)
 
-	l := kubeListener{}
+	l := kubeListener{lastEventPerNamespace: make(map[string]uint64)}
 	cfg := common.ServiceConfig{}
 	cfg.ServiceSpecific = make(map[string]interface{})
 	cfg.ServiceSpecific["kubernetes_url"] = "http://192.168.0.10:8080"

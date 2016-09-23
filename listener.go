@@ -307,12 +307,12 @@ func (l *kubeListener) applyNetworkPolicy(action networkPolicyAction, romanaNetw
 }
 
 func (l *kubeListener) Initialize() error {
+	l.lastEventPerNamespace = make(map[string]uint64)
 	log.Printf("%s: Starting server", l.Name())
 	nsURL, err := common.CleanURL(fmt.Sprintf("%s%s", l.kubeURL, l.namespaceNotificationPath))
 	if err != nil {
 		return err
 	}
-	l.lastEventPerNamespace = make(map[string]uint64)
 	log.Printf("Starting to listen on %s", nsURL)
 	done := make(chan Done)
 	nsEvents, err := l.nsWatch(done, nsURL)
