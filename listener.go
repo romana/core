@@ -72,6 +72,7 @@ type kubeListener struct {
 	policyNotificationPathPostfix string
 	segmentLabelName              string
 	lastEvent 			map[string]time.Time
+	eventsHistory			map[string]uint64
 }
 
 // Routes returns various routes used in the service.
@@ -307,6 +308,7 @@ func (l *kubeListener) Initialize() error {
 		return err
 	}
 	l.lastEvent = make(map[string]time.Time)
+	l.eventsHistory = make(map[string]uint64)
 	log.Printf("Starting to listen on %s", nsURL)
 	done := make(chan Done)
 	nsEvents, err := l.nsWatch(done, nsURL)
