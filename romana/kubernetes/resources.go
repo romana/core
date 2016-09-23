@@ -23,7 +23,8 @@ import (
 	"log"
 	"net/http"
 	"strings"
-	"time"
+//	"time"
+	"strconv"
 )
 
 const (
@@ -103,34 +104,34 @@ func isNew(e Event, l *kubeListener) bool {
 
 	// DELETED and MODIFIED events do not have up to date creationTimestamp
 	// so we always treat them as new
-	if e.Type != KubeEventAdded {
-		return true
-	}
+	// if e.Type != KubeEventAdded {
+	//	return true
+	// }
 
-	if last, ok := l.lastEvent[e.Object.Metadata.Namespace]; ok {
-		now, errt := time.Parse(time.RFC3339, e.Object.Metadata.CreationTimestamp)
+	if last, ok := l.eventsHistory[e.Object.Metadata.Namespace]; ok {
+		now, errt := strconv.ParseUint(e.Object.Metadata.ResourceVersion, 10, 64)
 		if errt != nil {
-			log.Printf("WARNING ignoring event %v. Failed to parse creation timestamp of the .Object", e)
+			log.Printf("WARNING ignoring event %v. Failed to parse resourceVersion of the .Object", e)
 			return false
 		}
 
-		if now.Before(last) {
-			log.Printf("WARNING ignoring event %v since current timestamp is %s", e, last)
+		if now < last {
+			log.Printf("WARNING ignoring event %v since current resourceVersion is %d", e, last)
 			return false
 		} else {
-			log.Printf("DEBUG last timestamp is %s, current timestamp is %s, accepting", last, now)
-			l.lastEvent[e.Object.Metadata.Namespace] = now
+			log.Printf("DEBUG last resourceVersionp is %d, current timestamp is %d, accepting", last, now)
+			l.eventsHistory[e.Object.Metadata.Namespace] = now
 
 			return true
 		}
 	} else {
-		now, errt := time.Parse(time.RFC3339, e.Object.Metadata.CreationTimestamp)
+		now, errt := strconv.ParseUint(e.Object.Metadata.ResourceVersion, 10, 64)
 		if errt != nil {
-			log.Printf("WARNING ignoring event %v. Failed to parse creation timestamp of the .Object", e)
+			log.Printf("WARNING ignoring event %v. Failed to parse resourceVersion of the .Object", e)
 			return false
 		}
-		log.Printf("DEBUG last timestamp is %s, current timestamp is %s, accepting", last, now)
-		l.lastEvent[e.Object.Metadata.Namespace] = now
+		log.Printf("DEBUG last resourceVersion is %d, current resourceVersion is %d, accepting", last, now)
+		l.eventsHistory[e.Object.Metadata.Namespace] = now
 
 		return true
 	}
