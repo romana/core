@@ -70,6 +70,14 @@ func (s *mockSvc) Initialize() error {
 }
 
 func (s *mockSvc) Routes() common.Routes {
+	policyServiceConfig := fmt.Sprintf(`{
+			          "common":{
+						"api":{"host":"0.0.0.0","port":0}
+					 },
+			   	      "config":{"store":
+			  			 {"type" : "sqlite3",  "database" : "%s" }
+			  		  }	 
+			        }`, common.GetMockSqliteFile("policy"))
 
 	tenantGetRoute := common.Route{
 		Method:  "GET",
@@ -95,25 +103,7 @@ func (s *mockSvc) Routes() common.Routes {
 		Method:  "GET",
 		Pattern: "/config/policy",
 		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
-
-			json := fmt.Sprintf(`{
-			          "common":{
-						"api":{"host":"0.0.0.0","port":0}
-					 },
-			   	      "config":{"store":
-			  			 {"type" : "sqlite3",  "database" : "%s" }
-			  		  }	 
-			        }`, common.GetMockSqliteFile("topology"))
-
-			//			json = `{
-			//			          "common":{
-			//						"api":{"host":"0.0.0.0","port":0}
-			//					 },
-			//			   	      "config":{"store":
-			//			  			 {"type" : "mysql",  "database" : "policy", "host" : "127.0.0.1", "port" : "8889", "username" : "root", "password" : "root" }
-			//			  		  }
-			//			        }`
-			return common.Raw{Body: json}, nil
+			return common.Raw{Body: policyServiceConfig}, nil
 		},
 	}
 
@@ -254,7 +244,8 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	svcInfo, err := common.InitializeService(svc, *cfg)
 
 	if err != nil {
-		c.Fatal(err)
+		c.Error(err)
+		c.FailNow()
 	}
 	msg := <-svcInfo.Channel
 	log.Printf("Test: Mock service says %s; listening on %s\n", msg, svcInfo.Address)
@@ -262,15 +253,18 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	portStr := addrComponents[len(addrComponents)-1]
 	s.servicePort, err = strconv.ParseUint(portStr, 10, 64)
 	if err != nil {
-		c.Fatal(err)
+		c.Error(err)
+		c.FailNow()
 	}
 	s.serviceURL = fmt.Sprintf("http://%s", svcInfo.Address)
 	log.Printf("Test: Mock service listens at %s\n", s.serviceURL)
 	err = CreateSchema(s.serviceURL, true)
 
 	if err != nil {
-		c.Fatal(err)
+		c.Error(err)
+		c.FailNow()
 	}
+
 	log.Printf("Policy schema created.")
 	svcInfo, err = Run(s.serviceURL, nil)
 	if err != nil {
@@ -296,7 +290,8 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	policyOut := common.Policy{}
 	err = client.Post(polURL, policyIn, &policyOut)
 	if err != nil {
-		c.Fatal(err)
+		c.Error(err)
+		c.FailNow()
 	}
 	log.Printf("Added policy result: %s", policyOut)
 	c.Assert(policyOut.Name, check.Equals, "pol1")
@@ -336,11 +331,12 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	log.Println("5. Add default policy")
 	one := uint64(1)
 	defPol := common.Policy{
-		Direction: common.PolicyDirectionIngress,
-		Name:      "default",
-		AppliedTo: []common.Endpoint{{TenantNetworkID: &one}},
-		Peers:     []common.Endpoint{{Peer: common.Wildcard}},
-		Rules:     []common.Rule{{Protocol: common.Wildcard}},
+		Direction:  common.PolicyDirectionIngress,
+		Name:       "default",
+		ExternalID: "default",
+		AppliedTo:  []common.Endpoint{{TenantNetworkID: &one}},
+		Peers:      []common.Endpoint{{Peer: common.Wildcard}},
+		Rules:      []common.Rule{{Protocol: common.Wildcard}},
 	}
 	err = client.Post(polURL, defPol, &policyOut)
 	if err != nil {
@@ -461,7 +457,13 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	c.Assert(client.GetStatusCode(), check.Equals, http.StatusNotFound)
 	c.Assert(httpErr.ResourceType, check.Equals, "policy")
 	c.Assert(httpErr.StatusCode, check.Equals, http.StatusNotFound)
-	c.Assert(httpErr.ResourceID, check.Equals, "default")
+	// TODO
+	// Important! This should really be done in policy agent.
+	// Only done here as temporary measure.
+	id := makeId(defPol.AppliedTo, defPol.Name)
+	c.Assert(httpErr.ResourceID, check.Equals, id)
+	//	c.Assert(httpErr.ResourceID, check.Equals, "default")
+
 	log.Printf("%v", err)
 
 }

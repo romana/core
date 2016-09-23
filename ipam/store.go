@@ -81,6 +81,33 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *Endpoint, upToEndpointIpInt ui
 	var err error
 	tx := ipamStore.DbStore.Db.Begin()
 
+	if endpoint.RequestToken.Valid && endpoint.RequestToken.String != "" {
+		var existingEndpoints []Endpoint
+		var count int
+		tx.Where("request_token = ?", endpoint.RequestToken.String).Find(&existingEndpoints).Count(&count)
+		err = common.GetDbErrors(tx)
+		if err != nil {
+			log.Printf("IPAM Errors 1: %v", err)
+			tx.Rollback()
+			return err
+		}
+		if count > 0 {
+			// This will only be 1, because of unique constraint.
+			tx.Rollback()
+			log.Printf("Found existing %s: %+v", endpoint.RequestToken.String, existingEndpoints[0])
+			endpoint.EffectiveNetworkID = existingEndpoints[0].EffectiveNetworkID
+			endpoint.HostId = existingEndpoints[0].HostId
+			endpoint.Id = existingEndpoints[0].Id
+			endpoint.InUse = existingEndpoints[0].InUse
+			endpoint.Name = existingEndpoints[0].Name
+			endpoint.NetworkID = existingEndpoints[0].NetworkID
+			endpoint.RequestToken = existingEndpoints[0].RequestToken
+			endpoint.SegmentID = existingEndpoints[0].SegmentID
+			endpoint.TenantID = existingEndpoints[0].TenantID
+			return nil
+		}
+	}
+
 	hostId := endpoint.HostId
 	endpoint.InUse = true
 	tenantId := endpoint.TenantID
@@ -95,7 +122,7 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *Endpoint, upToEndpointIpInt ui
 	row := tx.Model(Endpoint{}).Where(filter, hostId, tenantId, segId).Select(sel).Row()
 	err = common.GetDbErrors(tx)
 	if err != nil {
-		log.Printf("Errors: %v", err)
+		log.Printf("IPAM Errors 2: %v", err)
 		tx.Rollback()
 		return err
 	}
@@ -104,7 +131,7 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *Endpoint, upToEndpointIpInt ui
 	row.Scan(&netID)
 	err = common.GetDbErrors(tx)
 	if err != nil {
-		log.Printf("Errors: %v", err)
+		log.Printf("IPAM Errors 3: %v", err)
 		tx.Rollback()
 		return err
 	}
@@ -125,7 +152,7 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *Endpoint, upToEndpointIpInt ui
 		tx = tx.Create(endpoint)
 		err = common.GetDbErrors(tx)
 		if err != nil {
-			log.Printf("Errors: %v", err)
+			log.Printf("IPAM Errors 4: %v", err)
 			tx.Rollback()
 			return err
 		}
@@ -142,7 +169,7 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *Endpoint, upToEndpointIpInt ui
 	row = tx.Model(Endpoint{}).Where(filter+"AND in_use = 0", hostId, tenantId, segId).Select(sel).Row()
 	err = common.GetDbErrors(tx)
 	if err != nil {
-		log.Printf("Errors: %v", err)
+		log.Printf("IPAM Errors 5: %v", err)
 		tx.Rollback()
 		return err
 	}
@@ -151,7 +178,7 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *Endpoint, upToEndpointIpInt ui
 	row.Scan(&netID, &ip)
 	err = common.GetDbErrors(tx)
 	if err != nil {
-		log.Printf("Errors: %v", err)
+		log.Printf("IPAM Errors 6: %v", err)
 		tx.Rollback()
 		return err
 	}
@@ -160,6 +187,7 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *Endpoint, upToEndpointIpInt ui
 		tx = tx.Model(Endpoint{}).Where("ip = ?", ip).Update("in_use", true)
 		err = common.GetDbErrors(tx)
 		if err != nil {
+			log.Printf("IPAM Errors 7: %v", err)
 			tx.Rollback()
 			return err
 		}

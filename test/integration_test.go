@@ -18,9 +18,11 @@ package test
 
 import (
 	//	"database/sql"
+
 	"encoding/json"
 	"fmt"
 	"github.com/go-check/check"
+	"github.com/pborman/uuid"
 	"github.com/romana/core/agent"
 	"github.com/romana/core/common"
 	"github.com/romana/core/ipam"
@@ -30,14 +32,22 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"runtime"
+	//	"runtime/debug"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 )
 
+var (
+	// How many times SetUpTest was called...
+	setupCnt = 0
+)
+
 // Hook up gocheck into the "go test" runner.
 func Test(t *testing.T) {
+	os.Args = []string{os.Args[0], "-check.vv", "true"}
 	check.TestingT(t)
 }
 
@@ -54,8 +64,7 @@ var _ = check.Suite(&MySuite{})
 
 func myLog(c *check.C, args ...interface{}) {
 	if len(args) == 1 {
-		fmt.Println(args[0])
-		c.Log(fmt.Sprintf("%v\n", args[0]))
+		c.Log(fmt.Sprintf("%s: %v\n", c.TestName(), args[0]))
 		return
 	}
 	newArgs := make([]interface{}, len(args)-1)
@@ -80,12 +89,15 @@ func myLog(c *check.C, args ...interface{}) {
 			newArgs[i] = a
 		}
 	}
-	fmt.Printf(args[0].(string), newArgs...)
-	c.Log(fmt.Sprintf(args[0].(string), newArgs...))
+	fmtStr := fmt.Sprintf("%s: %s\n", c.TestName(), args[0].(string))
+	c.Logf(fmtStr, newArgs...)
 }
 
 // SetUpTest for now deletes all hosts from topology DB.
 func (s *MySuite) SetUpTest(c *check.C) {
+	setupCnt += 1
+	fmt.Printf("integration_test: Entering SetUpTest #%d for test %s\n", setupCnt, c.TestName())
+
 	// Clean up host entries for each test.
 	topoDb := common.DbStore{}
 	topoDb.SetConfig(s.config.Services["topology"].ServiceSpecific["store"].(map[string]interface{}))
@@ -93,7 +105,7 @@ func (s *MySuite) SetUpTest(c *check.C) {
 	if err != nil {
 		c.Fatal(err)
 	}
-	myLog(c, "Deleting from hosts")
+	fmt.Printf("Doing 'DELETE FROM hosts' on %s\n", topoDb.Config.Database)
 	topoDb.Db.Exec("DELETE FROM hosts")
 	err = common.MakeMultiError(topoDb.Db.GetErrors())
 	if err != nil {
@@ -106,13 +118,31 @@ func (s *MySuite) SetUpTest(c *check.C) {
 	if err != nil {
 		c.Fatal(err)
 	}
-	myLog(c, "Deleting from segments")
+
+	fmt.Printf("Doing 'DELETE FROM segments' on %s\n", tenantDb.Config.Database)
 	tenantDb.Db.Exec("DELETE FROM segments")
 	err = common.MakeMultiError(tenantDb.Db.GetErrors())
 	if err != nil {
 		c.Fatal(err)
 	}
+
+	fmt.Printf("Doing 'DELETE FROM tenants' on %s\n", tenantDb.Config.Database)
 	tenantDb.Db.Exec("DELETE FROM tenants")
+	err = common.MakeMultiError(tenantDb.Db.GetErrors())
+	if err != nil {
+		c.Fatal(err)
+	}
+
+	ipamDb := common.DbStore{}
+	ipamDb.SetConfig(s.config.Services["ipam"].ServiceSpecific["store"].(map[string]interface{}))
+	err = ipamDb.Connect()
+	if err != nil {
+		c.Fatal(err)
+	}
+	fmt.Printf("Doing 'DELETE FROM endpoints' on %s\n", ipamDb.Config.Database)
+	ipamDb.Db.Exec("DELETE FROM endpoints")
+	//	fmt.Printf("SLEEPING...\n")
+	//	time.Sleep(30 * time.Second)
 	err = common.MakeMultiError(tenantDb.Db.GetErrors())
 	if err != nil {
 		c.Fatal(err)
@@ -130,6 +160,7 @@ func (s *MySuite) SetUpSuite(c *check.C) {
 	}
 	c.Log("Will use config file ", romanaConfigFile)
 	var err error
+	c.Log("integration_test.SetUpSuite mocking")
 	s.configFile, err = common.MockConfig(romanaConfigFile)
 	if err != nil {
 		c.Fatal(err)
@@ -210,6 +241,11 @@ func (s *MySuite) SetUpSuite(c *check.C) {
 
 // Test that agent starts
 func (s *MySuite) TestAgentStart(c *check.C) {
+	myLog(c, "integration_test: Entering TestAgentStart")
+	if runtime.GOOS != "linux" {
+		c.Errorf("Unsupported platform: %s", runtime.GOOS)
+		c.FailNow()
+	}
 	// Find some romana IPs that we can use... Because the agent checks for those
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
@@ -242,7 +278,7 @@ func (s *MySuite) TestAgentStart(c *check.C) {
 	// Get list of hosts - should be empty for now.
 	var hostList []common.Host
 	client.Get(hostsRelURL, &hostList)
-	myLog(c, "Host list: %s", hostList)
+	myLog(c, "Host list: (expecting 0): %s", hostList)
 	c.Assert(len(hostList), check.Equals, 0)
 
 	// Add host 1
@@ -277,6 +313,7 @@ func (s *MySuite) TestAgentStart(c *check.C) {
 }
 
 func (s *MySuite) TestConcurrentReads(c *check.C) {
+	myLog(c, "integration_test: Entering TestConcurrentReads")
 	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(s.rootURL))
 	client.NewUrl(s.tenantURL)
 	if err != nil {
@@ -320,7 +357,7 @@ func (s *MySuite) TestConcurrentReads(c *check.C) {
 
 // Test the interaction of root/topo/tenant/ipam
 func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
-	myLog(c, "Entering TestRootTopoTenantIpamInteraction()")
+	myLog(c, "integration_test: Entering TestRootTopoTenantIpamInteraction()")
 
 	// 1. Add some hosts to topology service and test.
 	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(s.rootURL))
@@ -596,6 +633,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	tenantId := fmt.Sprintf("%d", t1Out.ID)
 	segmentId := fmt.Sprintf("%d", t1s1Out.ID)
 	t1s1h1EpIn := ipam.Endpoint{Name: "endpoint1", TenantID: tenantId, SegmentID: segmentId, HostId: fmt.Sprintf("%d", host1.ID)}
+	t1s1h1EpIn.RequestToken = common.SqlNullStringUuid()
 	t1s1h1Ep1Out := ipam.Endpoint{}
 	client.NewUrl(s.ipamURL)
 	err = client.Post("/endpoints", t1s1h1EpIn, &t1s1h1Ep1Out)
@@ -604,27 +642,31 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 		c.Error(err)
 		c.FailNow()
 	}
-	myLog(c, "IPAM Test: Response from IPAM for %s is %s", t1s1h1EpIn, t1s1h1Ep1Out)
+	myLog(c, "IPAM Test: Response from IPAM for %s is %s, #1", t1s1h1EpIn, t1s1h1Ep1Out)
 	c.Assert(t1s1h1Ep1Out.Ip, check.Equals, "10.0.0.3")
 
 	// Get another IP for t1, s1, h1
 	t1s1h1Ep2Out := ipam.Endpoint{}
+	t1s1h1EpIn.Name = "endpoint2"
+	t1s1h1EpIn.RequestToken = common.SqlNullStringUuid()
 	err = client.Post("/endpoints", t1s1h1EpIn, &t1s1h1Ep2Out)
 	if err != nil {
 		c.Error(err)
 		c.FailNow()
 	}
-	myLog(c, "IPAM Test: Response from IPAM for %s is %s", t1s1h1EpIn, t1s1h1Ep2Out)
+	myLog(c, "IPAM Test: Response from IPAM for %s is %s, #2", t1s1h1EpIn, t1s1h1Ep2Out)
 	c.Assert(t1s1h1Ep2Out.Ip, check.Equals, "10.0.0.4")
 
 	// And another one for t1, s1, h1
+	t1s1h1EpIn.Name = "endpoint3"
+	t1s1h1EpIn.RequestToken = common.SqlNullStringUuid()
 	t1s1h1Ep3Out := ipam.Endpoint{}
 	err = client.Post("/endpoints", t1s1h1EpIn, &t1s1h1Ep3Out)
 	if err != nil {
 		c.Error(err)
 		c.FailNow()
 	}
-	myLog(c, "IPAM Test: Response from IPAM for %s is %s ", t1s1h1EpIn, t1s1h1Ep3Out)
+	myLog(c, "IPAM Test: Response from IPAM for %s is %s, #3", t1s1h1EpIn, t1s1h1Ep3Out)
 	c.Assert(t1s1h1Ep3Out.Ip, check.Equals, "10.0.0.5")
 
 	// Try deleting second...
@@ -638,21 +680,40 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	c.Assert(delOut.Ip, check.Equals, t1s1h1Ep2Out.Ip)
 	myLog(c, "IPAM Test: Deletion returned %s", delOut)
 
-	// And add another one for t1, s1, h1
+	// Add a few more, to fill in the remaining bits, so we
+	// can start reusing the IP deleted above.
+	// Remember, we allocated up to 5, so start with 6.
+	for i := 6; i < (1 << 8); i++ {
+		myLog(c, "IPAM Test: Allocating IP for %s/%s, endpoint %d", t1s1h1EpIn.TenantID, t1s1h1EpIn.SegmentID, i)
+		t1s1h1EpXOut := ipam.Endpoint{}
+		t1s1h1EpIn.Name = fmt.Sprintf("endpoint%d", i)
+		t1s1h1EpIn.RequestToken = common.SqlNullStringUuid()
+		err = client.Post("/endpoints", t1s1h1EpIn, &t1s1h1EpXOut)
+		if err != nil {
+			c.Error(err)
+			c.FailNow()
+		}
+		myLog(c, "IPAM Test: Got %s", t1s1h1EpXOut.Ip)
+	}
+
+	// Now, add another one for t1, s1, h1
 	t1s1h1Ep4Out := ipam.Endpoint{}
+	t1s1h1EpIn.Name = "endpointFinal"
+	t1s1h1EpIn.RequestToken = common.SqlNullStringUuid()
 	err = client.Post("/endpoints", t1s1h1EpIn, &t1s1h1Ep4Out)
 	if err != nil {
 		c.Error(err)
 		c.FailNow()
 	}
-	// Assert that this is the same as the deleted one.
+	// Assert that this is the same as the deleted one above.
 	c.Assert(delOut.Ip, check.Equals, t1s1h1Ep4Out.Ip)
 	myLog(c, "IPAM Test: Response from IPAM for %s is %s", t1s1h1EpIn, t1s1h1Ep4Out)
 
 	// Get IP for t2, s2, h2
 	tenantId = fmt.Sprintf("%d", t2Out.ID)
 	segmentId = fmt.Sprintf("%d", t2s2Out.ID)
-	t2s2h2EpIn := ipam.Endpoint{Name: "endpoint1", TenantID: tenantId, SegmentID: segmentId, HostId: fmt.Sprintf("%d", host2.ID)}
+	t2s2h2EpIn := ipam.Endpoint{Name: "endpointT2S2H2", TenantID: tenantId, SegmentID: segmentId, HostId: fmt.Sprintf("%d", host2.ID)}
+	t2s2h2EpIn.RequestToken = common.SqlNullStringUuid()
 	t2s2h2EpOut := ipam.Endpoint{}
 	err = client.Post("/endpoints", t2s2h2EpIn, &t2s2h2EpOut)
 	if err != nil {
@@ -665,7 +726,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 
 	// Try legacy request using tenantID
 	endpointOut := ipam.Endpoint{}
-	legacyURL := "/allocateIP?tenantID=t1&segmentName=s1&hostName=HOST2000&instanceName=bla"
+	legacyURL := "/allocateIP?tenantID=t1&segmentName=s1&hostName=HOST2000&instanceName=bla&" + common.RequestTokenQueryParameter + "=" + uuid.New()
 	myLog(c, "Calling legacy URL %s", legacyURL)
 	err = client.Get(legacyURL, &endpointOut)
 	if err != nil {
@@ -678,11 +739,10 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 
 	// Try legacy request using tenantName
 	endpointOut = ipam.Endpoint{}
-	legacyURL = "/allocateIP?tenantName=name2&segmentName=s3&hostName=HOST2000&instanceName=bla"
+	legacyURL = "/allocateIP?tenantName=name2&segmentName=s3&hostName=HOST2000&instanceName=bla&" + common.RequestTokenQueryParameter + "=" + uuid.New()
 	myLog(c, "Calling legacy URL %s", legacyURL)
 	//	time.Sleep(time.Hour)
 	err = client.Get(legacyURL, &endpointOut)
-
 	if err != nil {
 		myLog(c, "Error %s\n", err)
 		c.Error(err)

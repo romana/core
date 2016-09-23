@@ -107,8 +107,8 @@ type ServiceMessage string
 type Host struct {
 	ID        uint64 `sql:"AUTO_INCREMENT" json:"id,omitempty"`
 	Name      string `json:"name,omitempty"`
-	Ip        string `json:"ip,omitempty"`
-	RomanaIp  string `json:"romana_ip,omitempty"`
+	Ip        string `json:"ip,omitempty" sql:"unique"`
+	RomanaIp  string `json:"romana_ip,omitempty" sql:"unique"`
 	AgentPort uint64 `json:"agent_port,omitempty"`
 	Links     Links  `json:"links,omitempty" sql:"-"`
 }
