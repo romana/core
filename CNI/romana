@@ -16,10 +16,6 @@
 
 # Romana CNI plugin for kubernetes.
 # This plugin integrated with Romana IPAM and will not honour k8s IPAM config.
-# It is a pure demo designed to demonstrate romana networking with kubernetes
-# TODO plugin need to be redesigned to take in account segments and possibly 
-# other romana tags, romana url and ports should be taken from configuration
-# communication with kubernetes might be better off via API.
 
 # DEPENDENCIES
 # - nsenter
@@ -96,14 +92,18 @@ for k in $(echo $INPUT | jq -r 'keys[]'); do
 	romana_cli_config)
 		ROMANA_CLI="$ROMANA_CLI -c $(get_config_item $k)"
 		;;
+	segment_label_name)
+		SEGMENT_LABEL_NAME=$(get_config_item $k)
+		;;
         esac
 done
 
 # -- Defaults
-[[ $KUBE_MASTER_IP ]]   || die "kube_master_ip required in network config - not found" 1
-[[ $ROMANA_MASTER_IP ]] || ROMANA_MASTER_IP=$KUBE_MASTER_IP
-[[ $KUBECTL ]]          || KUBECTL=kubectl
-[[ $KUBEARGS ]]         || KUBEARGS=" -s $KUBE_MASTER_IP:8080"
+[[ $SEGMENT_LABEL_NAME ]] || die "segment_label_name required in config - not found" 1
+[[ $KUBE_MASTER_IP ]]     || die "kube_master_ip required in config - not found" 1
+[[ $ROMANA_MASTER_IP ]]   || ROMANA_MASTER_IP=$KUBE_MASTER_IP
+[[ $KUBECTL ]]            || KUBECTL=kubectl
+[[ $KUBEARGS ]]           || KUBEARGS=" -s $KUBE_MASTER_IP:8080"
 GATE_SRC=$(get_romana_gate)
 GATE_MASK=$(get_romana_mask)
 
@@ -146,7 +146,7 @@ set_up_pod () {
 	KUBEARGS="$KUBEARGS --namespace=$NAMESPACE"
 #	TENANT=$( $KUBECTL $KUBEARGS describe pod $POD | get_labels | get_tenant )
 #	log "--- TENANT = $TENANT ---"
-	SEGMENT=$( $KUBECTL $KUBEARGS get pod $POD -o json | jq -r 'if .metadata.labels["segment"] then .metadata.labels["segment"] else empty end')
+	SEGMENT=$( $KUBECTL $KUBEARGS get pod $POD -o json | jq -r 'if .metadata.labels["'$SEGMENT_LABEL_NAME'"] then .metadata.labels["'$SEGMENT_LABEL_NAME'"] else empty end')
 	[[ $SEGMENT ]] || SEGMENT="default"
 	log "--- SEGMENT = $SEGMENT ---"
 	NODE=$( $KUBECTL $KUBEARGS get pod "$POD" -o json | jq -r '.spec.nodeName')
