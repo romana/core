@@ -108,7 +108,7 @@ func isNewRevision(e Event, l *kubeListener) bool {
 	}
 
 	if last, ok := l.eventsHistory[e.Object.Metadata.Namespace]; ok {
-		if now < last {
+		if now <= last {
 			log.Printf("WARNING ignoring event %v since current resourceVersion is %d", e, last)
 
 			return false
