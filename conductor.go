@@ -38,12 +38,20 @@ func (l *kubeListener) manageResources(ns Event, terminators map[string]chan Don
 			return
 		}
 
+		// Send shutdown signal to the goroutine that handles given namespace.
 		close(terminators[uid])
+
+		// Delete termination channel for the namespace.
 		delete(terminators, uid)
+
+		// Delete resource version counter for the namespace.
+		delete(l.eventsHistory, uid)
+
 	} else if ns.Type == InternalEventDeleteAll {
 		for uid, c := range terminators {
 			close(c)
 			delete(terminators, uid)
+			delete(l.eventsHistory, uid)
 		}
 	}
 }
