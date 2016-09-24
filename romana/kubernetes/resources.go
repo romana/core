@@ -22,9 +22,8 @@ import (
 	"github.com/romana/core/tenant"
 	"log"
 	"net/http"
-	"strings"
-//	"time"
 	"strconv"
+	"strings"
 )
 
 const (
@@ -99,38 +98,26 @@ type Metadata struct {
 	Annotations       map[string]string `json:"annotations,omitempty"`
 }
 
-func isNew(e Event, l *kubeListener) bool {
+// isNewRevision checks if given even has higher ResourceVersion then previous one.
+func isNewRevision(e Event, l *kubeListener) bool {
+	now, errt := strconv.ParseUint(e.Object.Metadata.ResourceVersion, 10, 64)
+	if errt != nil {
+		log.Printf("WARNING ignoring event %v. Failed to parse resourceVersion of the .Object", e)
 
-
-	// DELETED and MODIFIED events do not have up to date creationTimestamp
-	// so we always treat them as new
-	// if e.Type != KubeEventAdded {
-	//	return true
-	// }
+		return false
+	}
 
 	if last, ok := l.eventsHistory[e.Object.Metadata.Namespace]; ok {
-		now, errt := strconv.ParseUint(e.Object.Metadata.ResourceVersion, 10, 64)
-		if errt != nil {
-			log.Printf("WARNING ignoring event %v. Failed to parse resourceVersion of the .Object", e)
-			return false
-		}
-
 		if now < last {
 			log.Printf("WARNING ignoring event %v since current resourceVersion is %d", e, last)
+
 			return false
 		} else {
-			log.Printf("DEBUG last resourceVersionp is %d, current timestamp is %d, accepting", last, now)
 			l.eventsHistory[e.Object.Metadata.Namespace] = now
 
 			return true
 		}
 	} else {
-		now, errt := strconv.ParseUint(e.Object.Metadata.ResourceVersion, 10, 64)
-		if errt != nil {
-			log.Printf("WARNING ignoring event %v. Failed to parse resourceVersion of the .Object", e)
-			return false
-		}
-		log.Printf("DEBUG last resourceVersion is %d, current resourceVersion is %d, accepting", last, now)
 		l.eventsHistory[e.Object.Metadata.Namespace] = now
 
 		return true
@@ -141,11 +128,13 @@ func isNew(e Event, l *kubeListener) bool {
 func (e Event) handle(l *kubeListener) {
 	log.Printf("Processing %s request for %s", e.Type, e.Object.Metadata.Name)
 
+	// Ignore internal events.
 	if e.Type == InternalEventDeleteAll {
 		return
 	}
 
-	if !isNew(e, l) {
+	// Ignore the events that we procesed already.
+	if !isNewRevision(e, l) {
 		return
 	}
 
