@@ -70,7 +70,7 @@ func (l *kubeListener) conductor(in <-chan Event, done <-chan Done) <-chan Event
 	terminators := map[string]chan Done{}
 
 	ns := Event{}
-	out := make(chan Event, 2000)
+	out := make(chan Event, l.namespaceBufferSize)
 
 	go func() {
 		for {
