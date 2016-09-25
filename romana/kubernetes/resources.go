@@ -44,6 +44,10 @@ const (
 	KubeEventAdded         = "ADDED"
 	KubeEventDeleted       = "DELETED"
 	KubeEventModified      = "MODIFIED"
+
+	// Signal used to terminate all goroutines
+	// if connection to k8s API is lost.
+	// Does not carry a valid .Object field.
 	InternalEventDeleteAll = "_DELETE_ALL"
 )
 
@@ -98,7 +102,7 @@ type Metadata struct {
 	Annotations       map[string]string `json:"annotations,omitempty"`
 }
 
-// isNewRevision checks if given even has higher ResourceVersion then previous one.
+// isNewRevision checks if given event has higher ResourceVersion then previous one.
 func isNewRevision(e Event, l *kubeListener) bool {
 	now, errt := strconv.ParseUint(e.Object.Metadata.ResourceVersion, 10, 64)
 	if errt != nil {
@@ -107,28 +111,28 @@ func isNewRevision(e Event, l *kubeListener) bool {
 		return false
 	}
 
-	if last, ok := l.eventsHistory[e.Object.Metadata.Namespace]; ok {
+	if last, ok := l.lastEventPerNamespace[e.Object.Metadata.Namespace]; ok {
 		if now <= last {
 			log.Printf("WARNING ignoring event %v since current resourceVersion is %d", e, last)
 
 			return false
 		} else {
-			l.eventsHistory[e.Object.Metadata.Namespace] = now
+			l.lastEventPerNamespace[e.Object.Metadata.Namespace] = now
 
 			return true
 		}
-	} else {
-		l.eventsHistory[e.Object.Metadata.Namespace] = now
-
-		return true
 	}
+
+	l.lastEventPerNamespace[e.Object.Metadata.Namespace] = now
+
+	return true
 }
 
 // handle kubernetes events according to their type.
 func (e Event) handle(l *kubeListener) {
 	log.Printf("Processing %s request for %s", e.Type, e.Object.Metadata.Name)
 
-	// Ignore internal events.
+	// This event doesn't have a valid .Object field.
 	if e.Type == InternalEventDeleteAll {
 		return
 	}
