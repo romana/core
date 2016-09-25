@@ -71,6 +71,7 @@ type kubeListener struct {
 	policyNotificationPathPostfix string
 	segmentLabelName              string
 	lastEventPerNamespace                 map[string]uint64
+	namespaceBufferSize           uint64
 }
 
 // Routes returns various routes used in the service.
@@ -111,6 +112,12 @@ func (l *kubeListener) SetConfig(config common.ServiceConfig) error {
 		return errors.New("segment_label_name required")
 	}
 	l.segmentLabelName = m["segment_label_name"].(string)
+
+	if m["wait_for_iface_try"] == nil {
+		l.namespaceBufferSize = 10
+	} else {
+		l.namespaceBufferSize = uint64(m["namespace_buffer_size"].(float64))
+	}
 
 	return nil
 }

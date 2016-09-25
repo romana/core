@@ -310,7 +310,7 @@ func (l *kubeListener) watchEvents(done <-chan Done, url string, resp *http.Resp
 // NsWatch is a generator that watches namespace related events in
 // kubernetes API and publishes this events to a channel.
 func (l *kubeListener) nsWatch(done <-chan Done, url string) (<-chan Event, error) {
-	out := make(chan Event, 2000)
+	out := make(chan Event, l.namespaceBufferSize)
 
 	resp, err := http.Get(url)
 	if err != nil {
