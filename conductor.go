@@ -45,13 +45,16 @@ func (l *kubeListener) manageResources(ns Event, terminators map[string]chan Don
 		delete(terminators, uid)
 
 		// Delete resource version counter for the namespace.
-		delete(l.eventsHistory, uid)
+		delete(l.lastEventPerNamespace, uid)
 
 	} else if ns.Type == InternalEventDeleteAll {
+		// Terminate all per-namespace goroutines
+		// clean associated resources.
+
 		for uid, c := range terminators {
 			close(c)
 			delete(terminators, uid)
-			delete(l.eventsHistory, uid)
+			delete(l.lastEventPerNamespace, uid)
 		}
 	}
 }
