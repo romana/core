@@ -41,9 +41,9 @@ type Event struct {
 }
 
 const (
-	KubeEventAdded         = "ADDED"
-	KubeEventDeleted       = "DELETED"
-	KubeEventModified      = "MODIFIED"
+	KubeEventAdded    = "ADDED"
+	KubeEventDeleted  = "DELETED"
+	KubeEventModified = "MODIFIED"
 
 	// Signal used to terminate all goroutines
 	// if connection to k8s API is lost.
