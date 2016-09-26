@@ -238,12 +238,13 @@ func prepareFirewallRules(fw firewall.Firewall, nc *NetworkConfig, rules RuleSet
 
 	var defaultRules []firewall.FirewallRule
 	var u32filter string = metadata["u32filter"].(string)
-	var chainNames []string = metadata["chains"].([]string)
 	var hostAddr = nc.RomanaGW()
 	var formatBody string
 
 	switch firewallProvider {
 	case firewall.ShellexProvider:
+		var chainNames []string = metadata["chains"].([]string)
+
 		for _, rule := range rules {
 			glog.V(2).Infof("In prepareFirewallRules(), with %v", rule)
 
