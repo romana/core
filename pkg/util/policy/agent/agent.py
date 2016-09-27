@@ -516,7 +516,7 @@ def make_rules(addr_scheme, policy_def, policy_id):
                 jump_rules = [ _make_rule(policy_chain_name, "-s %s -j %s") % (cidr, in_chain_name) ]
 
             elif not None in [ from_segment, from_tenant ]:
-                u32_in_match = _make_u32_match(addr_scheme, from_tenant=tenant, from_segment=from_segment)
+                u32_in_match = _make_u32_match(addr_scheme, from_tenant=from_tenant, from_segment=from_segment)
                 jump_rules = [
                     _make_rule(policy_chain_name, '-m u32 --u32 "%s" -j %s' %
                                                        (u32_in_match, in_chain_name))
@@ -623,7 +623,8 @@ def _make_rule(chain_name, text):
 
 
 def _make_u32_match(addr_scheme,
-                    from_tenant=None, from_segment=None, to_tenant=None, to_segment=None):
+                    from_tenant=None, from_segment=None,
+                    to_tenant=None, to_segment=None):
     """
     Creates the obscure u32 match string with bitmasks and all that's needed.
 
@@ -636,7 +637,7 @@ def _make_u32_match(addr_scheme,
     "0xc&0xff00ff00=0xa001200"
 
     """
-    mask = src = dst = 0
+    src_mask = dst_mask = src = dst = 0
 
     # Take network bits from Romana CIDR. e.g. 10.0.0.0/8
     #                                                   ^
@@ -648,7 +649,8 @@ def _make_u32_match(addr_scheme,
 
 
     # Full match on net portion.
-    mask = ((1<<network_width)-1) << 24
+    src_mask = ((1<<network_width)-1) << 24
+    dst_mask = ((1<<network_width)-1) << 24
     src  = network_value << 24
     dst  = network_value << 24
 
@@ -656,22 +658,24 @@ def _make_u32_match(addr_scheme,
 
     # Adding the mask and values for tenant
     shift_by = addr_scheme['segment_bits'] + addr_scheme['endpoint_bits']
-    mask |= ((1<<addr_scheme['tenant_bits'])-1) << shift_by
     if from_tenant is not None:
+        src_mask |= ((1<<addr_scheme['tenant_bits'])-1) << shift_by
         src  |= from_tenant << shift_by
     if to_tenant is not None:
+        dst_mask |= ((1<<addr_scheme['tenant_bits'])-1) << shift_by
         dst  |= to_tenant << shift_by
 
     # Adding the mask and values for segment
     shift_by = addr_scheme['endpoint_bits']
-    mask |= ((1<<addr_scheme['segment_bits'])-1) << shift_by
     if from_segment is not None:
+        src_mask |= ((1<<addr_scheme['segment_bits'])-1) << shift_by
         src  |= from_segment << shift_by
     if to_segment is not None:
+        dst_mask |= ((1<<addr_scheme['segment_bits'])-1) << shift_by
         dst  |= to_segment << shift_by
 
-    from_rule = "0xc&0x%(mask)x=0x%(src)x"  % { "mask" : mask, "src" : src }
-    to_rule   = "0x10&0x%(mask)x=0x%(dst)x" % { "mask" : mask, "dst" : dst }
+    from_rule = "0xc&0x%(mask)x=0x%(src)x"  % { "mask" : src_mask, "src" : src }
+    to_rule   = "0x10&0x%(mask)x=0x%(dst)x" % { "mask" : dst_mask, "dst" : dst }
 
     if not None in [ to_tenant, from_tenant ]:
         res = "%(from)&&%(to)" % { "from" : from_rule, "to" : to_rule }
