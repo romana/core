@@ -220,12 +220,12 @@ pod_down () {
 	IFACE=$( get_iface_name "$POD_IP" )
 	log "--- IFACE = ${IFACE} ---"
 
-	# Just a dummy ip to satisfy the request
-	IP="0.0.0.0"
-
 	log "$(req "${IFACE}" "$IP" "$NS_ISOLATION")"
 	# Romana agent does the rest (endpoint route and firewall)
-	curl -s -XDELETE -H 'content-type: application/json' -d "$(req "${IFACE}" "$IP")" http://localhost:9604/pod 2>&1 >> $LOGFILE
+	curl -s -XDELETE -H 'content-type: application/json' -d "$(req "${IFACE}" "$POD_IP")" http://localhost:9604/pod 2>&1 >> $LOGFILE
+
+	# Deallocate ip address
+	curl -s -XDELETE "http://$ROMANA_MASTER_IP:9601/endpoints/$POD_IP"
 
 	# Restore stdout - ready to talk back to kubernetes
 	exec 1>&6
