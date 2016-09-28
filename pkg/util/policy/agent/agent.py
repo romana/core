@@ -649,10 +649,14 @@ def _make_u32_match(addr_scheme,
 
 
     # Full match on net portion.
-    src_mask = ((1<<network_width)-1) << 24
-    dst_mask = ((1<<network_width)-1) << 24
-    src  = network_value << 24
-    dst  = network_value << 24
+    shift_by = ( addr_scheme['tenant_bits']
+               + addr_scheme['segment_bits']
+               + addr_scheme['endpoint_bits']
+               + addr_scheme['port_bits'] )
+    src_mask = ((1<<network_width)-1) << shift_by
+    dst_mask = ((1<<network_width)-1) << shift_by
+    src  = network_value << shift_by
+    dst  = network_value << shift_by
 
     # Leaving the host portion empty...
 
