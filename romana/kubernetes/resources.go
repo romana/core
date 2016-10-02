@@ -22,6 +22,7 @@ import (
 	"github.com/romana/core/tenant"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -40,9 +41,13 @@ type Event struct {
 }
 
 const (
-	KubeEventAdded         = "ADDED"
-	KubeEventDeleted       = "DELETED"
-	KubeEventModified      = "MODIFIED"
+	KubeEventAdded    = "ADDED"
+	KubeEventDeleted  = "DELETED"
+	KubeEventModified = "MODIFIED"
+
+	// Signal used to terminate all goroutines
+	// if connection to k8s API is lost.
+	// Does not carry a valid .Object field.
 	InternalEventDeleteAll = "_DELETE_ALL"
 )
 
@@ -97,9 +102,45 @@ type Metadata struct {
 	Annotations       map[string]string `json:"annotations,omitempty"`
 }
 
+// isNewRevision checks if given event has higher ResourceVersion then previous one.
+func isNewRevision(e Event, l *kubeListener) bool {
+	now, errt := strconv.ParseUint(e.Object.Metadata.ResourceVersion, 10, 64)
+	if errt != nil {
+		log.Printf("WARNING ignoring event %v. Failed to parse resourceVersion of the .Object", e)
+
+		return false
+	}
+
+	if last, ok := l.lastEventPerNamespace[e.Object.Metadata.Namespace]; ok {
+		if now <= last {
+			log.Printf("WARNING ignoring event %v since current resourceVersion is %d", e, last)
+
+			return false
+		} else {
+			l.lastEventPerNamespace[e.Object.Metadata.Namespace] = now
+
+			return true
+		}
+	}
+
+	l.lastEventPerNamespace[e.Object.Metadata.Namespace] = now
+
+	return true
+}
+
 // handle kubernetes events according to their type.
 func (e Event) handle(l *kubeListener) {
 	log.Printf("Processing %s request for %s", e.Type, e.Object.Metadata.Name)
+
+	// This event doesn't have a valid .Object field.
+	if e.Type == InternalEventDeleteAll {
+		return
+	}
+
+	// Ignore the events that we procesed already.
+	if !isNewRevision(e, l) {
+		return
+	}
 
 	if e.Object.Kind == "NetworkPolicy" && e.Type != KubeEventModified {
 		e.handleNetworkPolicyEvent(l)
@@ -269,7 +310,7 @@ func (l *kubeListener) watchEvents(done <-chan Done, url string, resp *http.Resp
 // NsWatch is a generator that watches namespace related events in
 // kubernetes API and publishes this events to a channel.
 func (l *kubeListener) nsWatch(done <-chan Done, url string) (<-chan Event, error) {
-	out := make(chan Event)
+	out := make(chan Event, l.namespaceBufferSize)
 
 	resp, err := http.Get(url)
 	if err != nil {
