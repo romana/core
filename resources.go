@@ -18,9 +18,9 @@ package kubernetes
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/golang/glog"
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
-	"github.com/golang/glog"
 	"net/http"
 	"strconv"
 	"strings"
