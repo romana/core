@@ -48,6 +48,7 @@ type RestClient struct {
 type RestClientConfig struct {
 	TimeoutMillis int64
 	Retries       int
+	RetryStrategy string
 	Credential    *Credential
 	TestMode      bool
 	RootURL       string
@@ -74,8 +75,11 @@ func GetRestClientConfig(config ServiceConfig) RestClientConfig {
 // still work, but Romana-specific functionality does not.
 func NewRestClient(config RestClientConfig) (*RestClient, error) {
 	rc := &RestClient{client: &http.Client{}, config: &config}
+	if config.RetryStrategy != RestRetryStrategyExponential && config.RetryStrategy != RestRetryStrategyFibonacci {
+		rc.logf("Invalid retry strategy %s, defaulting to %s\n", config.RetryStrategy, RestRetryStrategyFibonacci)
+		config.RetryStrategy = RestRetryStrategyFibonacci
+	}
 	timeoutMillis := config.TimeoutMillis
-
 	if timeoutMillis <= 0 {
 		rc.logf("Invalid timeout %d, defaulting to %d\n", timeoutMillis, DefaultRestTimeout)
 		rc.client.Timeout = DefaultRestTimeout * time.Millisecond
@@ -397,6 +401,8 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 	// We allow also file scheme, for testing purposes.
 	var resp *http.Response
 	log.Printf("RestClient.execMethod(): TODO")
+	var sleepTime time.Duration
+	var prevSleepTime time.Duration
 	if rc.url.Scheme == "http" || rc.url.Scheme == "https" {
 		for i := 0; i < rc.config.Retries; i++ {
 			var req *http.Request
@@ -419,7 +425,19 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 			}
 			rc.logf("Try %d for %s", (i + 1), rc.url)
 			if i > 0 {
-				sleepTime, _ := time.ParseDuration(fmt.Sprintf("%ds", int(math.Pow(2, (float64(i-1))))))
+				switch rc.config.RetryStrategy {
+				case RestRetryStrategyExponential:
+					sleepTime, _ = time.ParseDuration(fmt.Sprintf("%dms", 100*int(math.Pow(2, (float64(i-1))))))
+				default:
+					// Fibonacci
+					if sleepTime == 0 {
+						sleepTime = 100 * time.Millisecond
+					} else {
+						incr := prevSleepTime
+						prevSleepTime = sleepTime
+						sleepTime += incr
+					}
+				}
 				rc.logf("Sleeping for %v before retrying %d time\n", sleepTime, i)
 				time.Sleep(sleepTime)
 			}
