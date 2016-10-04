@@ -24,7 +24,7 @@ import (
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
 	"io"
-	"log"
+	"github.com/golang/glog"
 	"net/http"
 	"strings"
 )
@@ -224,7 +224,7 @@ func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Po
 	ns := kubePolicy.Metadata.Namespace
 	// TODO actually look up tenant K8S ID.
 	t, err := l.resolveTenantByName(ns)
-	log.Printf("translateNetworkPolicy(): For namespace %s got %+v / %+v", ns, t, err)
+	glog.Infof("translateNetworkPolicy(): For namespace %s got %+v / %+v", ns, t, err)
 	if err != nil {
 		return *romanaPolicy, err
 	}
@@ -289,13 +289,13 @@ func (l *kubeListener) applyNetworkPolicy(action networkPolicyAction, romanaNetw
 	policyStr, _ := json.Marshal(romanaNetworkPolicy)
 	switch action {
 	case networkPolicyActionAdd:
-		log.Printf("Applying policy %s", policyStr)
+		glog.Infof("Applying policy %s", policyStr)
 		err := l.restClient.Post(policyURL, romanaNetworkPolicy, &romanaNetworkPolicy)
 		if err != nil {
 			return err
 		}
 	case networkPolicyActionDelete:
-		log.Printf("Deleting policy policy %s", policyStr)
+		glog.Infof("Deleting policy policy %s", policyStr)
 		err := l.restClient.Delete(policyURL, romanaNetworkPolicy, &romanaNetworkPolicy)
 		if err != nil {
 			return err
@@ -307,22 +307,22 @@ func (l *kubeListener) applyNetworkPolicy(action networkPolicyAction, romanaNetw
 }
 
 func (l *kubeListener) Initialize() error {
-	log.Printf("%s: Starting server", l.Name())
+	glog.Infof("%s: Starting server", l.Name())
 	nsURL, err := common.CleanURL(fmt.Sprintf("%s%s", l.kubeURL, l.namespaceNotificationPath))
 	if err != nil {
 		return err
 	}
 	l.lastEventPerNamespace = make(map[string]uint64)
-	log.Printf("Starting to listen on %s", nsURL)
+	glog.Infof("Starting to listen on %s", nsURL)
 	done := make(chan Done)
 	nsEvents, err := l.nsWatch(done, nsURL)
 	if err != nil {
-		log.Fatal("Namespace watcher failed to start", err)
+		glog.Fatal("Namespace watcher failed to start", err)
 	}
 
 	events := l.conductor(nsEvents, done)
 	l.process(events, done)
-	log.Println("All routines started")
+	glog.Infoln("All routines started")
 	return nil
 }
 

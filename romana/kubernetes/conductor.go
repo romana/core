@@ -16,7 +16,7 @@
 package kubernetes
 
 import (
-	"log"
+	"github.com/golang/glog"
 )
 
 // manageResources manages map of termination channels and fires up new
@@ -25,7 +25,7 @@ func (l *kubeListener) manageResources(ns Event, terminators map[string]chan Don
 	uid := ns.Object.Metadata.Uid
 	if ns.Type == KubeEventAdded {
 		if _, ok := terminators[uid]; ok {
-			log.Println("Received ADDED event for uid that is already known, ignoring ", uid)
+			glog.Infoln("Received ADDED event for uid that is already known, ignoring ", uid)
 			return
 		}
 
@@ -34,7 +34,7 @@ func (l *kubeListener) manageResources(ns Event, terminators map[string]chan Don
 		ns.Object.produce(out, terminators[uid], l)
 	} else if ns.Type == KubeEventDeleted {
 		if _, ok := terminators[uid]; !ok {
-			log.Println("Received DELETED event for uid that is not known, ignoring ", uid)
+			glog.Infoln("Received DELETED event for uid that is not known, ignoring ", uid)
 			return
 		}
 
