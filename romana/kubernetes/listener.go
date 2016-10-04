@@ -17,35 +17,15 @@
 package kubernetes
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
-	"io"
 	"github.com/golang/glog"
 	"net/http"
 	"strings"
 )
-
-// readChunk reads the next chunk from the provided reader.
-func readChunk(reader io.Reader) ([]byte, error) {
-	var result []byte
-	for {
-		buf := make([]byte, bytes.MinRead)
-		n, err := reader.Read(buf)
-		if n < bytes.MinRead {
-			result = append(result, buf[0:n]...)
-			if err != nil {
-				return result, err
-			}
-			break
-		}
-		result = append(result, buf...)
-	}
-	return result, nil
-}
 
 type networkPolicyAction int
 
