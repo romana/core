@@ -35,6 +35,10 @@ const (
 	networkPolicyActionModify
 )
 
+const (
+	HttpGetParamWatch = "?watch=true"
+)
+
 // kubeListener is a Service that listens to updates
 // from Kubernetes by connecting to the endpoints specified
 // and consuming chunked JSON documents. The endpoints are
@@ -288,7 +292,7 @@ func (l *kubeListener) applyNetworkPolicy(action networkPolicyAction, romanaNetw
 
 func (l *kubeListener) Initialize() error {
 	glog.Infof("%s: Starting server", l.Name())
-	nsURL, err := common.CleanURL(fmt.Sprintf("%s%s", l.kubeURL, l.namespaceNotificationPath))
+	nsURL, err := common.CleanURL(fmt.Sprintf("%s/%s/%s", l.kubeURL, l.namespaceNotificationPath, HttpGetParamWatch))
 	if err != nil {
 		return err
 	}
