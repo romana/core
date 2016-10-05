@@ -24,6 +24,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"io/ioutil"
+	"time"
 )
 
 const (
@@ -325,7 +327,7 @@ func (l *kubeListener) nsWatch(done <-chan Done, url string) (<-chan Event, erro
 // Produce method listens for resource updates happening within given namespace
 // and publishes these updates in a channel.
 func (ns KubeObject) produce(out chan Event, done <-chan Done, kubeListener *kubeListener) error {
-	url, err := common.CleanURL(fmt.Sprintf("%s/%s/%s/%s/%s", kubeListener.kubeURL, kubeListener.policyNotificationPathPrefix, ns.Metadata.Name, kubeListener.policyNotificationPathPostfix, HttpGetParamWatch))
+	url, err := common.CleanURL(fmt.Sprintf("%s/%s/%s/%s/?%s", kubeListener.kubeURL, kubeListener.policyNotificationPathPrefix, ns.Metadata.Name, kubeListener.policyNotificationPathPostfix, HttpGetParamWatch))
 	if err != nil {
 		return err
 	}
@@ -338,4 +340,171 @@ func (ns KubeObject) produce(out chan Event, done <-chan Done, kubeListener *kub
 	go kubeListener.watchEvents(done, url, resp, out)
 
 	return nil
+}
+
+// ProducePolicies produces kubernetes network policy events that arent applied
+// in romana policy service yet.
+func ProducePolicies(out chan Event, done <-chan Done, namespace string, kubeListener *kubeListener) {
+	// >> loop goroutine start
+	// >> 1. fire up watchKubernetesResource
+	// >> 1.1 if watchKubernetesResource returns error, repeat with incremental delay
+	// >> 2. compare policies returned from watchKubernetesResource
+	// >> with policies registered with romana policy service.
+	// >> see syncNetworkPolicies, pass events received from syncNetworkPolicies
+	// >> into the out channel
+	// >> >> loop select
+	// >> >> 3. if event is received on channel from watchKubernetesResource
+	// >> >> pass it into the out channel
+	// >> >> 4. if channel from watchKubernetesResource is closed, repeat from 1
+	// >> >> 5. if done channel closed then return
+	// << << loop select end
+	// << loop goroutine end
+
+	var sleepTime time.Duration = 1
+	url := fmt.Sprintf("%s/%s/%s/%s", kubeListener.kubeURL, kubeListener.policyNotificationPathPrefix, namespace, kubeListener.policyNotificationPathPostfix)
+	glog.Infof("Listening for kubernetes network policy events for namespace %s on %s", namespace, url)
+	for {
+		items, in, err := kubeListener.watchKubernetesResource(url, done)
+		if err != nil {
+			glog.Infof("Failed to create listener for kubernetes network policies on %s, repeat in %d seconds", namespace, sleepTime)
+			glog.V(1).Infof("Failed to create listener for kubernetes network policies on %s, error %s", namespace, err)
+			time.Sleep(sleepTime * time.Second)
+			sleepTime += 1
+			continue
+		} 
+
+		// TODO should be syncNetworkPolicies instead
+		for _, policy := range items {
+			genEvent := Event{KubeEventAdded, policy}
+			glog.V(2).Infof("New policy event generated to account for difference between romana policy and kubernetes %v", genEvent)
+			out <- genEvent
+		}
+
+		for {
+			select {
+			case <- done:
+				glog.V(2).Infof("Shutting down listener for %s", namespace)
+				return
+			case e, ok := <- in:
+				if ok {
+					glog.V(4).Infof("New kubernetes network policy event on %s", namespace)
+					out <- e
+				} else {
+					glog.V(4).Infof("Connection to %s terminated", namespace)
+					glog.V(5).Infof("Connection to %s terminated - error %v", url, e)
+					break
+				}
+			}
+		}
+	}
+}
+
+// watchKubernetesResource retrieves a list of kubernetes objects
+// associated with particular resource and channel of events.
+func (l *kubeListener) watchKubernetesResource(url string, done <- chan Done) ([]KubeObject, <-chan Event, error) {
+	// 1. list current objects in a resource 
+	// curl -s http://192.168.99.10:8080/apis/extensions/v1beta1/namespaces/http-tests/networkpolicies
+	// 1.1 if error then return
+	// 1.2 store resourceVersion from request in 1
+	// 1.3 store objects found in a resource
+	// curl -s http://192.168.99.10:8080/apis/extensions/v1beta1/namespaces/http-tests/networkpolicies | jq -r '.metadata.resourceVersion'
+	// 2. subscribe for events starting from resourceVersion acquired in 1.1
+	// curl -s "http://192.168.99.10:8080/apis/extensions/v1beta1/namespaces/http-tests/networkpolicies/?watch=true&resourceVersion=100"
+	// 2.1 make json decoder for events
+	// 2.1 make out channel
+	// >> loop goroutine start
+	// >> 3. decode event
+	// >> 3.1 Check for errors
+	// >> 3.2 if error code 410 then log, close out channel and return
+	// {"type":"ERROR","object":{"kind":"Status","apiVersion":"v1","metadata":{},"status":"Failure","message":"too old resource version: 100 (7520)","reason":"Gone","code":410}}
+	// >> 3.3 if error then log, close out channel and return
+	// >> 3.6 if channel Done is closed while watching resource, close events channel and return
+	// << loop goroutine end
+	// 3. Return out channel and a items
+
+	cleanUrl, err := common.CleanURL(url)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	resp, err := http.Get(cleanUrl)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	var kubeResource KubernetesResource
+	err = json.Unmarshal(body, &kubeResource)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	glog.V(3).Infof("List of resources on %s returned %d items and resource version %s", url, len(kubeResource.Items), kubeResource.Metadata.ResourceVersion)
+
+	watchUrl := fmt.Sprintf("%s?%s&%s=%s", url, HttpGetParamWatch, HttpGetParamResourceVersion, kubeResource.Metadata.ResourceVersion)
+	watchResp, err := http.Get(watchUrl)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	dec := json.NewDecoder(watchResp.Body)
+	out := make(chan Event, l.namespaceBufferSize)
+
+	var e Event
+
+	go func() {
+		glog.V(3).Infof("Watching for events on %s", watchUrl), kubeResource.Metadata.ResourceVersion)
+		defer close(out)
+
+		for {
+			select {
+			case <-done:
+				return
+			default:
+				// Flush e to ensure nothing gets carried over
+				e = Event{}
+
+				// Attempting to read event from HTTP connection
+				err := dec.Decode(&e)
+				if err != nil {
+					glog.Errorf("Failed to decode message from connection %s due to %s\n. Attempting to re-establish", watchUrl, err)
+					// stop all goroutines
+					// TODO - is this needed ?
+					// out <- Event{Type: InternalEventDeleteAll}
+
+					return
+				} else if e.Type == "ERROR" {
+					glog.Errorf("Received error from kubernetes %s while listening on %s", err, watchUrl)
+					return
+				} else {
+					// Else submit event
+					glog.V(3).Infof("Received event from kubernetes %v while listening on %s", e, watchUrl)
+					out <- e
+				}
+			}
+
+		}
+	}()
+
+	return kubeResource.Items, out, nil
+
+}
+
+// syncNetworkPolicies compares
+func (l *kubeListener) syncNetworkPolicies(namespace string, kubePolicies []KubeObject, romanaPolicies []interface{}) ([]Event, error) {
+	// 2.1 produce DELETE network policy events for outdated policies
+	// in romana policy service
+	// 2.2 produce ADDED network policy events for polices that arent
+	// registered with romana policy service
+	return nil, nil
+}
+
+type KubernetesResource struct {
+	Kind string `json:"kind"`
+	Metadata Metadata `json:"metadata"`
+	Items []KubeObject `json:"items"`
 }

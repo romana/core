@@ -36,7 +36,8 @@ const (
 )
 
 const (
-	HttpGetParamWatch = "?watch=true"
+	HttpGetParamWatch           = "watch=true"
+	HttpGetParamResourceVersion = "resourceVersion"
 )
 
 // kubeListener is a Service that listens to updates
@@ -292,7 +293,7 @@ func (l *kubeListener) applyNetworkPolicy(action networkPolicyAction, romanaNetw
 
 func (l *kubeListener) Initialize() error {
 	glog.Infof("%s: Starting server", l.Name())
-	nsURL, err := common.CleanURL(fmt.Sprintf("%s/%s/%s", l.kubeURL, l.namespaceNotificationPath, HttpGetParamWatch))
+	nsURL, err := common.CleanURL(fmt.Sprintf("%s/%s/?%s", l.kubeURL, l.namespaceNotificationPath, HttpGetParamWatch))
 	if err != nil {
 		return err
 	}
