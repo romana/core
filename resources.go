@@ -457,7 +457,7 @@ func (l *kubeListener) watchKubernetesResource(url string, done <- chan Done) ([
 	var e Event
 
 	go func() {
-		glog.V(3).Infof("Watching for events on %s", watchUrl), kubeResource.Metadata.ResourceVersion)
+		glog.V(3).Infof("Watching for events on %s", watchUrl, kubeResource.Metadata.ResourceVersion)
 		defer close(out)
 
 		for {
