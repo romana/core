@@ -44,9 +44,10 @@ const (
 	ContextKeyMarshaller   string = "Marshaller"
 	ContextKeyRoles        string = "Roles"
 	// DefaultRestTimeout, in milliseconds.
-	DefaultRestTimeout    = 500
-	DefaultRestRetries    = 3
-	ReadWriteTimeoutDelta = 10
+	DefaultRestTimeout       = 500
+	DefaultRestRetryStrategy = "fibonacci"
+	DefaultRestRetries       = 3
+	ReadWriteTimeoutDelta    = 10
 
 	// Name of the query parameter used for request token
 	RequestTokenQueryParameter = "RequestToken"
