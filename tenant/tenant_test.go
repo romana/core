@@ -126,14 +126,6 @@ func (s *MySuite) TestStore(c *check.C) {
 	c.Assert(err, check.IsNil)
 	log.Printf("Created segment %+v", seg)
 
-	// Duplicate
-	seg = Segment{ExternalID: "segextid2"}
-	err = store.addSegment(tenID1, &seg)
-	c.Assert(err, check.NotNil, check.Commentf("Expected error"))
-	log.Printf("Expected error %T %+v", err, err)
-
-	c.Assert("", check.Equals, "")
-
 	for i := 0; i < 500; i++ {
 		toFind := []Tenant{}
 		query := url.Values{}

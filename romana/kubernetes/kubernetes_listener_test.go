@@ -24,6 +24,7 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+
 	"strconv"
 	"strings"
 	"testing"
@@ -91,6 +92,7 @@ type mockSvc struct {
 	segmentCounter uint64
 	segments       map[uint64]string
 	segmentsStr    map[string]uint64
+	policies       []common.Policy
 }
 
 func (s *mockSvc) SetConfig(config common.ServiceConfig) error {
@@ -102,6 +104,7 @@ func (s *mockSvc) Name() string {
 }
 
 func (s *mockSvc) Initialize() error {
+	s.policies = make([]common.Policy, 0)
 	return nil
 }
 
@@ -114,9 +117,10 @@ func (s *mockSvc) Routes() common.Routes {
 			log.Printf("Mock policy received: %T %s", input, j)
 			switch input := input.(type) {
 			case *common.Policy:
+				s.policies = append(s.policies, *input)
 				return input, nil
 			default:
-				return nil, common.NewError("Expected common.Policy, got %+v", input)
+				panic(common.NewError("Expected common.Policy, got %+v", input))
 			}
 		},
 		MakeMessage: func() interface{} { return &common.Policy{} },

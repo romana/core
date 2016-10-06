@@ -235,7 +235,6 @@ func (dbStore *DbStore) Find(query url.Values, entities interface{}, flag FindFl
 		//		log.Printf("For %s, query string field %s, struct field %s, DB field %s", t, queryStringField, fieldName, dbField)
 		queryStringFieldToDbField[queryStringField] = dbField
 	}
-	log.Printf("%+v", queryStringFieldToDbField)
 	whereMap := make(map[string]interface{})
 
 	for k, v := range query {
