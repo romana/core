@@ -20,23 +20,26 @@ import (
 )
 
 // manageResources manages map of termination channels and fires up new
-// per-namespace gorotines when needed.
+// per-namespace goroutines when needed.
 func (l *kubeListener) manageResources(ns Event, terminators map[string]chan Done, out chan Event) {
 	uid := ns.Object.Metadata.Uid
+	log.Printf("kubeListener: manageResources(): Received event %s", ns.Type)
 	if ns.Type == KubeEventAdded {
+		log.Printf("kubeListener: manageResources(): ADDED event for %s", uid)
+
 		if _, ok := terminators[uid]; ok {
-			log.Println("Received ADDED event for uid that is already known, ignoring ", uid)
+			log.Printf("kubeListener: manageResources(): Received ADDED event for uid that is already known, ignoring ", uid)
 			return
 		}
-
 		done := make(chan Done)
 		terminators[uid] = done
 		ns.Object.produce(out, terminators[uid], l)
 	} else if ns.Type == KubeEventDeleted {
 		if _, ok := terminators[uid]; !ok {
-			log.Println("Received DELETED event for uid that is not known, ignoring ", uid)
+			log.Printf("kubeListener: manageResources(): Received DELETED event for uid that is not known, ignoring ", uid)
 			return
 		}
+		log.Printf("kubeListener: manageResources(): DELETED event for %s", uid)
 
 		// Send shutdown signal to the goroutine that handles given namespace.
 		close(terminators[uid])
@@ -50,12 +53,13 @@ func (l *kubeListener) manageResources(ns Event, terminators map[string]chan Don
 	} else if ns.Type == InternalEventDeleteAll {
 		// Terminate all per-namespace goroutines
 		// clean associated resources.
-
 		for uid, c := range terminators {
 			close(c)
 			delete(terminators, uid)
 			delete(l.lastEventPerNamespace, uid)
 		}
+	} else {
+		log.Printf("kubeListener: manageResources(): Unknown event.")
 	}
 }
 
@@ -71,16 +75,18 @@ func (l *kubeListener) conductor(in <-chan Event, done <-chan Done) <-chan Event
 
 	ns := Event{}
 	out := make(chan Event, l.namespaceBufferSize)
-
+	log.Printf("kubeListener: conductor(): entered with in: %v, done: %v", in, done)
 	go func() {
 		for {
 			select {
 			case ns = <-in:
+				log.Printf("kubeListener: conductor(): calling manageResources")
 				l.manageResources(ns, terminators, out)
-
 				// ADDED, DELETED events for namespace handled here
+				log.Printf("kubeListener: conductor(): calling handle on %+v", ns)
 				ns.handle(l)
 			case <-done:
+				log.Printf("kubeListener: conductor(): got done on %v", done)
 				return
 			}
 		}
