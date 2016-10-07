@@ -141,7 +141,10 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 
 	endpoint.SegmentID = fmt.Sprintf("%d", seg.ID)
 	log.Printf("Segment name %s has ID %s", segmentName, endpoint.SegmentID)
-	endpoint.RequestToken = sql.NullString{Valid: true, String: ctx.QueryVariables.Get(common.RequestTokenQueryParameter)}
+	token := ctx.QueryVariables.Get(common.RequestTokenQueryParameter)
+	if token != "" {
+		endpoint.RequestToken = sql.NullString{Valid: true, String: token}
+	}
 	return ipam.addEndpoint(&endpoint, ctx)
 }
 
