@@ -28,7 +28,7 @@ func (l *kubeListener) manageResources(ns Event, terminators map[string]chan Don
 		log.Printf("kubeListener: manageResources(): ADDED event for %s", uid)
 
 		if _, ok := terminators[uid]; ok {
-			log.Printf("kubeListener: manageResources(): Received ADDED event for uid that is already known, ignoring ", uid)
+			log.Printf("kubeListener: manageResources(): Received ADDED event for uid %s that is already known, ignoring ", uid)
 			return
 		}
 		done := make(chan Done)
@@ -36,7 +36,7 @@ func (l *kubeListener) manageResources(ns Event, terminators map[string]chan Don
 		ns.Object.produce(out, terminators[uid], l)
 	} else if ns.Type == KubeEventDeleted {
 		if _, ok := terminators[uid]; !ok {
-			log.Printf("kubeListener: manageResources(): Received DELETED event for uid that is not known, ignoring ", uid)
+			log.Printf("kubeListener: manageResources(): Received DELETED event for uid %s that is not known, ignoring ", uid)
 			return
 		}
 		log.Printf("kubeListener: manageResources(): DELETED event for %s", uid)
