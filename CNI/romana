@@ -144,13 +144,13 @@ find_romana_id () {
     field_name=$2
     field_value=$3
     if [[ "$entity_type" == "tenant" ]]; then
-    svc = "tenant"
+        svc = "tenant"
     elif [[ "$entity_type" == "segment" ]]; then
-      svc = "tenant"
+        svc = "tenant"
     elif [[ "$entity_type" == "host" ]]; then
-      svc = "topology"
+        svc = "topology"
     else
-    trap "Don't know how to deal with $entity_type." EXIT
+        trap "Don't know how to deal with $entity_type." EXIT
     fi
     svc_url=$(find_romana_service svc)
     find_url="${svc_url}/findExactlyOne/${entity_type}s?${field_name}=${field_value}"
@@ -168,7 +168,7 @@ ipam_allocate_ip () {
         romana_host_id=$(find_romana_id 'host' 'name' node)
         ipam_service_url=$(find_romana_service 'ipam')
         url="${ipam_service_url}/endpoints"
-    payload="{\"tenant_id\" : ${romana_tenant_id}, \"segment_id\' : ${romana_segment_id}, \"host_id\" : ${romana_host_id} }"
+    payload="{\"tenant_id\" : ${romana_tenant_id}, \"segment_id\" : \"${romana_segment_id}\", \"host_id\" : \"${romana_host_id}\" }"
     ip=`curl -H 'content-type: application/json' -X POST -d $payload | jq '.ip'`
     echo $ip
 }
