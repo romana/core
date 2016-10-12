@@ -164,7 +164,7 @@ ipam_allocate_ip () {
     segment=$2
     node=$3
     romana_tenant_id=$(find_romana_id 'tenant' 'external_id' tenant)
-        romana_segment_id=$(find_romana_id'segment' 'name' segment)
+        romana_segment_id=$(find_romana_id 'segment' 'name' segment)
         romana_host_id=$(find_romana_id 'host' 'name' node)
         ipam_service_url=$(find_romana_service 'ipam')
         url="${ipam_service_url}/endpoints"
