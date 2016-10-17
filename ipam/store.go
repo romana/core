@@ -115,7 +115,6 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *Endpoint, upToEndpointIpInt ui
 	filter := "host_id = ? AND tenant_id = ? AND segment_id = ? "
 
 	var sel string
-
 	// First, find the MAX network ID available for this host/segment combination.
 	sel = "IFNULL(MAX(network_id),-1)+1"
 	log.Printf("IpamStore: Calling SELECT %s FROM endpoints WHERE %s;", sel, fmt.Sprintf(strings.Replace(filter, "?", "%s", 3), hostId, tenantId, segId))
@@ -166,7 +165,7 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *Endpoint, upToEndpointIpInt ui
 	// (marked "in_use")
 	sel = "MIN(network_id), ip"
 	log.Printf("IpamStore: Calling SELECT %s FROM endpoints WHERE %s;", sel, fmt.Sprintf(strings.Replace(filter+"AND in_use = 0", "?", "%s", 3), hostId, tenantId, segId))
-	row = tx.Model(Endpoint{}).Where(filter+"AND in_use = 0", hostId, tenantId, segId).Select(sel).Row()
+	row = tx.Model(Endpoint{}).Where(filter+"AND in_use = 0", hostId, tenantId, segId).Select(sel).Group("ip").Row()
 	err = common.GetDbErrors(tx)
 	if err != nil {
 		log.Printf("IPAM Errors 5: %v", err)
