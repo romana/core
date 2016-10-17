@@ -220,14 +220,15 @@ func (l *kubeListener) resolveTenantByName(tenantName string) (*tenant.Tenant, e
 //    automatically have been created when the namespace was added)
 func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Policy, error) {
 	policyName := kubePolicy.Metadata.Name
-	romanaPolicy := &common.Policy{Direction: common.PolicyDirectionIngress, Name: policyName, ExternalID: policyName}
+	romanaPolicy := &common.Policy{Direction: common.PolicyDirectionIngress, Name: policyName, ExternalID: kubePolicy.Metadata.Uid}
 	ns := kubePolicy.Metadata.Namespace
 	// TODO actually look up tenant K8S ID.
 	t, err := l.resolveTenantByName(ns)
-	log.Printf("translateNetworkPolicy(): For namespace %s got %+v / %+v", ns, t, err)
+	//	log.Printf("XXXX Resolving tenant by name %s: %+v / %+v", ns, t, err)
 	if err != nil {
 		return *romanaPolicy, err
 	}
+	log.Printf("translateNetworkPolicy(): For namespace %s got %+v / %+v", ns, t, err)
 	tenantID := t.ID
 	tenantExternalID := t.ExternalID
 
@@ -237,19 +238,24 @@ func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Po
 	}
 
 	segment, err := l.getOrAddSegment(ns, kubeSegmentID)
+	//	log.Printf("XXXX getOrAddSegment %s %s: %+v %v", ns, kubeSegmentID, segment, err)
 	if err != nil {
 		return *romanaPolicy, err
 	}
 	segmentID := segment.ID
 	appliedTo := common.Endpoint{TenantID: tenantID, SegmentID: segmentID}
+	//	log.Printf("XXXX 0 %+v %d %d", appliedTo, tenantID, segmentID)
+	//	log.Printf("XXXX 1 %+v", romanaPolicy.AppliedTo)
 	romanaPolicy.AppliedTo = make([]common.Endpoint, 1)
 	romanaPolicy.AppliedTo[0] = appliedTo
-	romanaPolicy.Peers = []common.Endpoint{}
-	romanaPolicy.Rules = common.Rules{}
+	//	log.Printf("XXXX 2 %+v %d expecting %+v", romanaPolicy.AppliedTo, len(romanaPolicy.AppliedTo), appliedTo)
+	romanaPolicy.Peers = make([]common.Endpoint, 0)
+	romanaPolicy.Rules = make([]common.Rule, 0)
 	// TODO range
 	// from := kubePolicy.Spec.Ingress[0].From
 	// This is subject to change once the network specification in Kubernetes is finalized.
 	// Right now it is a work in progress.
+	log.Printf("YYYYY For %s processing %+v", kubePolicy.Metadata.Name, kubePolicy.Spec.Ingress)
 	for _, ingress := range kubePolicy.Spec.Ingress {
 		for _, entry := range ingress.From {
 			pods := entry.Pods
@@ -264,15 +270,15 @@ func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Po
 			peer := common.Endpoint{TenantID: tenantID, TenantExternalID: tenantExternalID, SegmentID: fromSegment.ID, SegmentExternalID: fromSegment.ExternalID}
 			romanaPolicy.Peers = append(romanaPolicy.Peers, peer)
 		}
-		// TODO range
-		// toPorts := kubePolicy.Spec.Ingress[0].ToPorts
 		for _, toPort := range ingress.ToPorts {
 			proto := strings.ToLower(toPort.Protocol)
 			ports := []uint{toPort.Port}
 			rule := common.Rule{Protocol: proto, Ports: ports}
 			romanaPolicy.Rules = append(romanaPolicy.Rules, rule)
+			log.Printf("YYYYY %+v", romanaPolicy.Rules)
 		}
 	}
+	log.Printf("translateNetworkPolicy(): Validating %+v", romanaPolicy)
 	err = romanaPolicy.Validate()
 	if err != nil {
 		return *romanaPolicy, err

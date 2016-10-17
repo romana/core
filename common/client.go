@@ -209,7 +209,6 @@ func (rc *RestClient) Find(entity interface{}, flag FindFlag) error {
 		svcURL += "/"
 	}
 	svcURL += fmt.Sprintf("%s/%ss?", flag, entityName)
-
 	queryString := ""
 	structValue := reflect.ValueOf(entity).Elem()
 	if flag == FindAll {
@@ -253,7 +252,7 @@ func (rc *RestClient) Find(entity interface{}, flag FindFlag) error {
 		queryString += fmt.Sprintf("%s=%v", queryStringFieldName, fieldValue)
 	}
 	url := svcURL + queryString
-	rc.logf("Trying to find one %s at %s, results go into %+v", entityName, url, entity)
+	rc.logf("Trying to find %s %s at %s, results go into %+v", entityName, flag, url, entity)
 	return rc.Get(url, entity)
 } // func
 
