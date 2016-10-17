@@ -147,7 +147,7 @@ class AgentHandler(BaseHTTPRequestHandler):
             logging.warning("In validate_policy, policy is invalid - some of expected fields are missing, %s" % expected_fields)
             return False
 
-        
+
         # Validating compatibility across applied_to and peers list.
         valid = {
                 "full_tenant" : [ "peer_any", "full_tenant", "cidr" ],
@@ -187,9 +187,9 @@ class AgentHandler(BaseHTTPRequestHandler):
                 peer_type = "peer_%s" % peer
             else:
                 raise Exception("Unsupported value of peers %s" % target)
-            
+
             peer_types.append(peer_type)
-            
+
         logging.info("In validate_policy with applied_to %s and peers %s" % (target_types, peer_types))
         for target in target_types:
             for peer in peer_types:
@@ -315,7 +315,7 @@ def make_new_full_ruleset(current_rules, new_rules):
             # new chains added
             sweet_spot_offset += 1
 
-    
+
     # Insert all the rules from all new chains, if they don't exist already.
     for chain in new_rules.keys():
         for rule in new_rules[chain]:
@@ -460,8 +460,19 @@ def make_rules(addr_scheme, policy_def, policy_id):
             ]
 
             # Jump from per-tenant chain into per-segment chains.
+            if target_segment is not None:
+                # NOTE: We are adding a segment-specific address check to the
+                # rule, which jumps into the segment-specific policy chain.
+                # This works as long as we have ingress rules, where the
+                # segment in question is identified by the destination address.
+                # Once we add egress rules, this needs to be revisited!
+                u32_segment_match = _make_u32_match(addr_scheme, to_tenant=tenant, to_segment=target_segment)
+                u32_match_str     = '-m u32 --u32 "%s" ' % u32_segment_match
+            else:
+                u32_match_str     = ""
+
             rules[tenant_policy_vector_chain] = [
-                _make_rule(tenant_policy_vector_chain, "-j %s" % target_segment_forward_chain),
+                _make_rule(tenant_policy_vector_chain, "%s-j %s" % (u32_match_str, target_segment_forward_chain)),
                 _make_rule(tenant_policy_vector_chain, "-j %s" % tenant_wide_policy_vector_chain),
             ]
         else:
