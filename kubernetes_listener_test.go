@@ -52,15 +52,44 @@ type kubeSimulator struct {
 func (ks *kubeSimulator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	//	w.Header().Set("Connection", "Keep-Alive")
 	//	w.Header().Set("Transfer-Encoding", "chunked")
-	flusher, _ := w.(http.Flusher)
+
+	//	flusher, _ := w.(http.Flusher)
 	reqURI, _ := url.Parse(r.RequestURI)
 	path := fmt.Sprintf("%s?%s", reqURI.Path, reqURI.RawQuery)
 	log.Printf("KubeSimulator: At %s", path)
+
+	var ns Event
+	err := json.Unmarshal([]byte(addNamespace1), &ns)
+	if err != nil {
+		log.Printf("KubeSimulator: At %s: failed to unmarshall kube event %s", path, err)
+		return
+	}
+
+	var pol Event
+	err = json.Unmarshal([]byte(addPolicy1), &pol)
+	if err != nil {
+		log.Printf("KubeSimulator: At %s: failed to unmarshall kube event %sl", path, err)
+		return
+	}
+
 	if path == "/api/v1/namespaces/?watch=true" {
 		log.Printf("KubeSimulator: At %s: Sending namespace event %s", path, addNamespace1)
-		fmt.Fprintf(w, addNamespace1)
-		flusher.Flush() // Trigger "chunked" encoding and send a chunk...
-		time.Sleep(100 * time.Millisecond)
+		//		fmt.Fprintf(w, addNamespace1)
+		enc := json.NewEncoder(w)
+		go func() {
+			for {
+				err = enc.Encode(ns)
+				if err != nil {
+					log.Printf("KubeSimulator: At %s: failed to encode namespace event %s", path, err)
+					return
+				}
+				time.Sleep(1000 * time.Millisecond)
+			}
+
+		}()
+		// Response writer becomes outdated when handler exists, which triggers Eof to be sent to the listener
+		// who will try to reconnect and so on. There should really be an endless loop.
+		time.Sleep(100000 * time.Millisecond)
 		return
 	}
 	if strings.HasPrefix(path, "/apis/extensions/v1beta1/namespaces/") && strings.HasSuffix(path, "/networkpolicies/?watch=true") {
@@ -74,15 +103,26 @@ func (ks *kubeSimulator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		for {
 			log.Printf("KubeSimulator: At %s: have %d tenants", path, len(ks.mockSvc.tenants))
 
+			// DEBUG, for Greg. So how is this test supposed to pass
+			// if tenant only created by listener upon receiving first policy
+			// event. Which it will never receive unless a tenant is created.
+			// Worst thing, it somehow worked in original commit.
 			if len(ks.mockSvc.tenants) == 1 {
 				log.Printf("KubeSimulator: At %s: tenants[1]: %+v", path, *ks.mockSvc.tenants[1])
 				break
 			}
 			time.Sleep(100 * time.Millisecond)
+			break
 		}
-		log.Printf("KubeSimulator: At %s: Sending policy event %s", path, addPolicy1)
-		fmt.Fprintf(w, addPolicy1)
-		flusher.Flush() // Trigger "chunked" encoding and send a chunk...
+		//		log.Printf("KubeSimulator: At %s: Sending policy event %s", path, addPolicy1)
+		//		fmt.Fprintf(w, addPolicy1)
+		//		flusher.Flush() // Trigger "chunked" encoding and send a chunk...
+		enc := json.NewEncoder(w)
+		err = enc.Encode(pol)
+		if err != nil {
+			log.Printf("KubeSimulator: At %s: failed to encode policy event %s", path, err)
+			return
+		}
 		time.Sleep(100 * time.Millisecond)
 		return
 	}
