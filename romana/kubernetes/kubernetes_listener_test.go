@@ -85,20 +85,8 @@ func (ks *kubeSimulator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			time.Sleep(100 * time.Millisecond)
 		}
 	}
-
-	if path == "/api/v1/namespaces/?watch=true" {
-		enc := json.NewEncoder(w)
-		for {
-			log.Printf("KubeSimulator: At %s: Sending namespace event %s", path, addNamespace1)
-			//		fmt.Fprintf(w, addNamespace1)
-			err = enc.Encode(ns)
-			if err != nil {
-				log.Printf("KubeSimulator: At %s: failed to encode namespace event %s", path, err)
-
-			}
-			time.Sleep(100 * time.Millisecond)
-		}
-	}
+	m := make(map[string]string)
+	m["x"] = "y"
 	if strings.HasPrefix(path, "/apis/extensions/v1beta1/namespaces/") && strings.HasSuffix(path, "/networkpolicies/?watch=true") {
 		uriArr := strings.Split(path, "/")
 		if len(uriArr) != 8 {
@@ -106,22 +94,37 @@ func (ks *kubeSimulator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(fmt.Sprintf("{\"error\" : \"Not found: %s (expected 9, got %d parts of the URL: %v)\"}", path, len(uriArr), uriArr)))
 			return
 		}
-		// Wait until sentNamespaceEvent is true
+
 		for {
 			log.Printf("KubeSimulator: At %s: have %d tenants", path, len(ks.mockSvc.tenants))
+			// Wait until sentNamespaceEvent is true
 			if len(ks.mockSvc.tenants) == 1 {
 				log.Printf("KubeSimulator: At %s: tenants[1]: %+v", path, *ks.mockSvc.tenants[1])
 				break
 			}
+
+			flusher, _ := w.(http.Flusher)
+			w.Write([]byte("{}"))
+			flusher.Flush()
+
+			if err != nil {
+				log.Printf("KubeSimulator: At %s: failed to encode empty event %s", path, err)
+				return
+			}
 			time.Sleep(100 * time.Millisecond)
 		}
-		enc := json.NewEncoder(w)
+
 		if err != nil {
 			log.Printf("KubeSimulator: At %s: failed to encode policy event %s", path, err)
 			return
 		}
+		enc := json.NewEncoder(w)
 		for {
 			err = enc.Encode(pol)
+			if err != nil {
+				log.Printf("KubeSimulator: At %s: failed to encode policy event %s", path, err)
+				return
+			}
 			time.Sleep(100 * time.Millisecond)
 		}
 	}

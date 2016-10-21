@@ -25,7 +25,7 @@ func (l *kubeListener) manageResources(ns Event, terminators map[string]chan Don
 	uid := ns.Object.Metadata.Uid
 	log.Printf("kubeListener: manageResources(): Received event %s", ns.Type)
 	if ns.Type == KubeEventAdded {
-		log.Printf("kubeListener: manageResources(): ADDED event for %s", uid)
+		log.Printf("kubeListener: manageResources(): ADDED event for %s (%s)", uid, ns.Object.Metadata.Name)
 
 		if _, ok := terminators[uid]; ok {
 			log.Printf("kubeListener: manageResources(): Received ADDED event for uid %s that is already known, ignoring ", uid)
