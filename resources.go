@@ -272,7 +272,7 @@ func CreateDefaultPolicy(o KubeObject, l *kubeListener) {
 
 // watchEvents maintains goroutine fired by NsWatch, restarts it in case HTTP GET times out.
 func (l *kubeListener) watchEvents(done <-chan Done, url string, resp *http.Response, out chan Event) {
-	log.Println("Received namespace related event from kubernetes", resp.Body)
+	log.Println("kubeListener.watchEvents(): Received namespace related event from kubernetes")
 
 	// Uncomment and use if needed for debugging.
 	//	buf := new(bytes.Buffer)
@@ -292,6 +292,7 @@ func (l *kubeListener) watchEvents(done <-chan Done, url string, resp *http.Resp
 
 			// Attempting to read event from HTTP connection
 			err := dec.Decode(&e)
+			log.Printf("kubeListener.watchEvents(): Decoded event %v, error %v", e, err)
 			if err != nil {
 				// If fail
 				//				log.Printf("Failed to decode message from connection %s due to %s\n, log buffer %s. Attempting to re-establish", url, err, buf.String())
@@ -301,7 +302,7 @@ func (l *kubeListener) watchEvents(done <-chan Done, url string, resp *http.Resp
 				// And try to re-establish HTTP connection
 				resp, err2 := http.Get(url)
 				if err2 != nil {
-					log.Printf("Failed establish connection %s due to %s\n.", url, err)
+					log.Printf("kubeListener.watchEvents(): Failed establish connection %s due to %s\n.", url, err)
 				} else if err2 == nil {
 					//					buf = new(bytes.Buffer)
 					//					treader = io.TeeReader(resp.Body, buf)
@@ -339,12 +340,12 @@ func (ns KubeObject) produce(out chan Event, done <-chan Done, kubeListener *kub
 	if err != nil {
 		return err
 	}
-	log.Printf("Launching producer to listen for policy notifications on namespace %s at URL %s ", ns.Metadata.Name, url)
+	log.Printf("kubeListener.produce(): Launching producer to listen for policy notifications on namespace %s at URL %s ", ns.Metadata.Name, url)
 	resp, err := http.Get(url)
 	if err != nil {
 		return err
 	}
-
+	log.Printf("kubeListener.produce(): Read from %s", url)
 	go kubeListener.watchEvents(done, url, resp, out)
 
 	return nil
