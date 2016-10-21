@@ -76,21 +76,28 @@ func (ks *kubeSimulator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		log.Printf("KubeSimulator: At %s: Sending namespace event %s", path, addNamespace1)
 		//		fmt.Fprintf(w, addNamespace1)
 		enc := json.NewEncoder(w)
-		go func() {
-			for {
-				err = enc.Encode(ns)
-				if err != nil {
-					log.Printf("KubeSimulator: At %s: failed to encode namespace event %s", path, err)
-					return
-				}
-				time.Sleep(1000 * time.Millisecond)
+		for {
+			err = enc.Encode(ns)
+			if err != nil {
+				log.Printf("KubeSimulator: At %s: failed to encode namespace event %s", path, err)
+				return
 			}
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
 
-		}()
-		// Response writer becomes outdated when handler exists, which triggers Eof to be sent to the listener
-		// who will try to reconnect and so on. There should really be an endless loop.
-		time.Sleep(100000 * time.Millisecond)
-		return
+	if path == "/api/v1/namespaces/?watch=true" {
+		enc := json.NewEncoder(w)
+		for {
+			log.Printf("KubeSimulator: At %s: Sending namespace event %s", path, addNamespace1)
+			//		fmt.Fprintf(w, addNamespace1)
+			err = enc.Encode(ns)
+			if err != nil {
+				log.Printf("KubeSimulator: At %s: failed to encode namespace event %s", path, err)
+
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
 	}
 	if strings.HasPrefix(path, "/apis/extensions/v1beta1/namespaces/") && strings.HasSuffix(path, "/networkpolicies/?watch=true") {
 		uriArr := strings.Split(path, "/")
@@ -114,17 +121,15 @@ func (ks *kubeSimulator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			time.Sleep(100 * time.Millisecond)
 			break
 		}
-		//		log.Printf("KubeSimulator: At %s: Sending policy event %s", path, addPolicy1)
-		//		fmt.Fprintf(w, addPolicy1)
-		//		flusher.Flush() // Trigger "chunked" encoding and send a chunk...
 		enc := json.NewEncoder(w)
-		err = enc.Encode(pol)
 		if err != nil {
 			log.Printf("KubeSimulator: At %s: failed to encode policy event %s", path, err)
 			return
 		}
-		time.Sleep(100 * time.Millisecond)
-		return
+		for {
+			err = enc.Encode(pol)
+			time.Sleep(100 * time.Millisecond)
+		}
 	}
 	w.WriteHeader(http.StatusNotFound)
 	w.Write([]byte(fmt.Sprintf("Not found: %s", path)))
