@@ -16,12 +16,12 @@
 package kubernetes
 
 import (
-	"bytes"
+	//	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
-	"io"
+	//	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -274,11 +274,12 @@ func CreateDefaultPolicy(o KubeObject, l *kubeListener) {
 func (l *kubeListener) watchEvents(done <-chan Done, url string, resp *http.Response, out chan Event) {
 	log.Println("Received namespace related event from kubernetes", resp.Body)
 
-	buf := new(bytes.Buffer)
-	treader := io.TeeReader(resp.Body, buf)
+	// Uncomment and use if needed for debugging.
+	//	buf := new(bytes.Buffer)
+	//	treader := io.TeeReader(resp.Body, buf)
+	//	dec := json.NewDecoder(treader)
 
-	//	dec := json.NewDecoder(resp.Body)
-	dec := json.NewDecoder(treader)
+	dec := json.NewDecoder(resp.Body)
 	var e Event
 
 	for {
@@ -293,7 +294,7 @@ func (l *kubeListener) watchEvents(done <-chan Done, url string, resp *http.Resp
 			err := dec.Decode(&e)
 			if err != nil {
 				// If fail
-				log.Printf("Failed to decode message from connection %s due to %s\n, log buffer %s. Attempting to re-establish", url, err, buf.String())
+				//				log.Printf("Failed to decode message from connection %s due to %s\n, log buffer %s. Attempting to re-establish", url, err, buf.String())
 				// Then stop all goroutines
 				out <- Event{Type: InternalEventDeleteAll}
 
@@ -302,11 +303,10 @@ func (l *kubeListener) watchEvents(done <-chan Done, url string, resp *http.Resp
 				if err2 != nil {
 					log.Printf("Failed establish connection %s due to %s\n.", url, err)
 				} else if err2 == nil {
-					buf = new(bytes.Buffer)
-					treader = io.TeeReader(resp.Body, buf)
-
-					//dec = json.NewDecoder(resp.Body)
-					dec = json.NewDecoder(treader)
+					//					buf = new(bytes.Buffer)
+					//					treader = io.TeeReader(resp.Body, buf)
+					//					dec = json.NewDecoder(treader)
+					dec = json.NewDecoder(resp.Body)
 				}
 			} else {
 				// Else submit event

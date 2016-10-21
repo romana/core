@@ -109,17 +109,11 @@ func (ks *kubeSimulator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// Wait until sentNamespaceEvent is true
 		for {
 			log.Printf("KubeSimulator: At %s: have %d tenants", path, len(ks.mockSvc.tenants))
-
-			// DEBUG, for Greg. So how is this test supposed to pass
-			// if tenant only created by listener upon receiving first policy
-			// event. Which it will never receive unless a tenant is created.
-			// Worst thing, it somehow worked in original commit.
 			if len(ks.mockSvc.tenants) == 1 {
 				log.Printf("KubeSimulator: At %s: tenants[1]: %+v", path, *ks.mockSvc.tenants[1])
 				break
 			}
 			time.Sleep(100 * time.Millisecond)
-			break
 		}
 		enc := json.NewEncoder(w)
 		if err != nil {
