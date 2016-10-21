@@ -104,6 +104,7 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *Endpoint, upToEndpointIpInt ui
 			endpoint.RequestToken = existingEndpoints[0].RequestToken
 			endpoint.SegmentID = existingEndpoints[0].SegmentID
 			endpoint.TenantID = existingEndpoints[0].TenantID
+			endpoint.Ip = existingEndpoints[0].Ip
 			return nil
 		}
 	}
@@ -155,6 +156,7 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *Endpoint, upToEndpointIpInt ui
 			tx.Rollback()
 			return err
 		}
+		log.Printf("IpamStore: Allocated %d: %s", endpoint.NetworkID, endpoint.Ip)
 		tx.Commit()
 		return nil
 	}
@@ -168,7 +170,7 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *Endpoint, upToEndpointIpInt ui
 	// In containerized setup, not using group by leads to failure due to
 	// incompatible sql mode, thus use "GROUP BY network_id, ip" to avoid
 	// this failure.
-	row = tx.Model(Endpoint{}).Where(filter+"AND in_use = 0", hostId, tenantId, segId).Select(sel).Group("ip").Row()
+	row = tx.Model(Endpoint{}).Where(filter+"AND in_use = 0", hostId, tenantId, segId).Select(sel).Group("ip").Order("network_id ASC").Row()
 	err = common.GetDbErrors(tx)
 	if err != nil {
 		log.Printf("IPAM Errors 5: %v", err)
@@ -185,6 +187,7 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *Endpoint, upToEndpointIpInt ui
 		return err
 	}
 	if netID.Valid {
+		log.Printf("IpamStore: Reusing %d: %s", netID.Int64, ip)
 		endpoint.Ip = ip
 		tx = tx.Model(Endpoint{}).Where("ip = ?", ip).Update("in_use", true)
 		err = common.GetDbErrors(tx)
