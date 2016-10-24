@@ -16,12 +16,12 @@
 package kubernetes
 
 import (
-	"bytes"
+	//	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
-	"io/ioutil"
+	//	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -132,7 +132,7 @@ func isNewRevision(e Event, l *kubeListener) bool {
 
 // handle kubernetes events according to their type.
 func (e Event) handle(l *kubeListener) {
-	log.Printf("kubeListener: handle(): Processing %s request for %s", e.Type, e.Object.Metadata.Name)
+	log.Printf("Processing %s request for %s", e.Type, e.Object.Metadata.Name)
 
 	// This event doesn't have a valid .Object field.
 	if e.Type == InternalEventDeleteAll {
@@ -141,7 +141,6 @@ func (e Event) handle(l *kubeListener) {
 
 	// Ignore the events that we procesed already.
 	if !isNewRevision(e, l) {
-		log.Printf("kubeListener: handle(): kubernetesListener: Already processed event ID %s, version %s, ignoring...", e.Object.Metadata.Uid, e.Object.Metadata.ResourceVersion)
 		return
 	}
 
@@ -150,7 +149,7 @@ func (e Event) handle(l *kubeListener) {
 	} else if e.Object.Kind == "Namespace" {
 		e.handleNamespaceEvent(l)
 	} else {
-		log.Printf("kubeListener: handle(): Received unindentified request %s for %s", e.Type, e.Object.Metadata.Name)
+		log.Printf("Received unindentified request %s for %s", e.Type, e.Object.Metadata.Name)
 	}
 }
 
@@ -169,7 +168,7 @@ func (e Event) handleNetworkPolicyEvent(l *kubeListener) {
 		log.Printf("handleNetworkPolicyEvent(): translated\n\t%s\n\tto\n\t%s", j1, j2)
 		l.applyNetworkPolicy(action, policy)
 	} else {
-		log.Printf("handleNetworkPolicyEvent(): Error translating: %s: %+v", e.Object.Metadata.Name, err)
+		log.Println(err)
 	}
 }
 
@@ -271,48 +270,48 @@ func CreateDefaultPolicy(o KubeObject, l *kubeListener) {
 	}
 }
 
-// watchEvents maintains goroutine fired by nsWatch, restarts it in case HTTP GET times out.
-func (l *kubeListener) watchEvents(done <-chan Done, url string, out chan Event) {
-	log.Printf("kubeListener: watchEvents(): Entered with out %v, done %v, URL %s: Received namespace related event from kubernetes", out, done, url)
+// watchEvents maintains goroutine fired by NsWatch, restarts it in case HTTP GET times out.
+func (l *kubeListener) watchEvents(done <-chan Done, url string, resp *http.Response, out chan Event) {
+	log.Println("kubeListener.watchEvents(): Received namespace related event from kubernetes")
 
+	// Uncomment and use if needed for debugging.
+	//	buf := new(bytes.Buffer)
+	//	treader := io.TeeReader(resp.Body, buf)
+	//	dec := json.NewDecoder(treader)
+
+	dec := json.NewDecoder(resp.Body)
 	var e Event
+
 	for {
-		resp, err := http.Get(url)
-		if err != nil {
-			log.Printf("kubeListener: watchEvents(): Error reading from %s: %v", url, err)
-		}
 		select {
 		case <-done:
-			log.Printf("kubeListener: watchEvents(): got done")
 			return
 		default:
 			// Flush e to ensure nothing gets carried over
 			e = Event{}
 
 			// Attempting to read event from HTTP connection
-			body, err := ioutil.ReadAll(resp.Body)
-			if err == nil {
-				dec := json.NewDecoder(bytes.NewReader(body))
-				err = dec.Decode(&e)
-				if err == nil {
-					log.Printf("kubeListener: watchEvents(): Decoded event %+v, sending to %v", e, out)
-					out <- e
-					return
-				}
-			}
+			err := dec.Decode(&e)
+			log.Printf("kubeListener.watchEvents(): Decoded event %v, error %v", e, err)
 			if err != nil {
 				// If fail
-				log.Printf("kubeListener: watchEvents(): Failed to decode message %s from connection %s due to %s. Attempting to re-establish", string(body), url, err)
+				//				log.Printf("Failed to decode message from connection %s due to %s\n, log buffer %s. Attempting to re-establish", url, err, buf.String())
 				// Then stop all goroutines
 				out <- Event{Type: InternalEventDeleteAll}
 
 				// And try to re-establish HTTP connection
-				_, err2 := http.Get(url)
+				resp, err2 := http.Get(url)
 				if err2 != nil {
-					log.Printf("kubeListener: watchEvents(): Failed establish connection %s due to %s\n.", url, err)
+					log.Printf("kubeListener.watchEvents(): Failed establish connection %s due to %s\n.", url, err)
 				} else if err2 == nil {
-					//					dec := json.NewDecoder(resp.Body)
+					//					buf = new(bytes.Buffer)
+					//					treader = io.TeeReader(resp.Body, buf)
+					//					dec = json.NewDecoder(treader)
+					dec = json.NewDecoder(resp.Body)
 				}
+			} else {
+				// Else submit event
+				out <- e
 			}
 		}
 
@@ -322,31 +321,32 @@ func (l *kubeListener) watchEvents(done <-chan Done, url string, out chan Event)
 // NsWatch is a generator that watches namespace related events in
 // kubernetes API and publishes this events to a channel.
 func (l *kubeListener) nsWatch(done <-chan Done, url string) (<-chan Event, error) {
-	log.Printf("kubeListener: nsWatch(): Entered with done %v, url %s\n", done, url)
 	out := make(chan Event, l.namespaceBufferSize)
-	//	resp, err := http.Get(url)
-	//	if err != nil {
-	//		return out, err
-	//	}
-	go l.watchEvents(done, url, out)
+
+	resp, err := http.Get(url)
+	if err != nil {
+		return out, err
+	}
+
+	go l.watchEvents(done, url, resp, out)
+
 	return out, nil
 }
 
 // Produce method listens for resource updates happening within given namespace
 // and publishes these updates in a channel.
 func (ns KubeObject) produce(out chan Event, done <-chan Done, kubeListener *kubeListener) error {
-	log.Printf("kubeListener: produce(): Entered with out %v, done %v", out, done)
 	url, err := common.CleanURL(fmt.Sprintf("%s/%s/%s%s", kubeListener.kubeURL, kubeListener.policyNotificationPathPrefix, ns.Metadata.Name, kubeListener.policyNotificationPathPostfix))
 	if err != nil {
 		return err
 	}
-	log.Printf("kubeListener: produce(): Launching producer to listen for policy notifications on namespace %s at URL %s ", ns.Metadata.Name, url)
-	//	resp, err := http.Get(url)
-	//	if err != nil {
-	//		return err
-	//	}
-
-	go kubeListener.watchEvents(done, url, out)
+	log.Printf("kubeListener.produce(): Launching producer to listen for policy notifications on namespace %s at URL %s ", ns.Metadata.Name, url)
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	log.Printf("kubeListener.produce(): Read from %s", url)
+	go kubeListener.watchEvents(done, url, resp, out)
 
 	return nil
 }

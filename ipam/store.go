@@ -168,7 +168,7 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *Endpoint, upToEndpointIpInt ui
 	// In containerized setup, not using group by leads to failure due to
 	// incompatible sql mode, thus use "GROUP BY network_id, ip" to avoid
 	// this failure.
-	row = tx.Model(Endpoint{}).Where(filter+"AND in_use = 0", hostId, tenantId, segId).Select(sel).Group("network_id, ip").Row()
+	row = tx.Model(Endpoint{}).Where(filter+"AND in_use = 0", hostId, tenantId, segId).Select(sel).Group("ip").Row()
 	err = common.GetDbErrors(tx)
 	if err != nil {
 		log.Printf("IPAM Errors 5: %v", err)

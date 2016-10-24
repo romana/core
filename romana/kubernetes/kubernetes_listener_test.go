@@ -52,17 +52,41 @@ type kubeSimulator struct {
 func (ks *kubeSimulator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	//	w.Header().Set("Connection", "Keep-Alive")
 	//	w.Header().Set("Transfer-Encoding", "chunked")
-	flusher, _ := w.(http.Flusher)
+
+	//	flusher, _ := w.(http.Flusher)
 	reqURI, _ := url.Parse(r.RequestURI)
 	path := fmt.Sprintf("%s?%s", reqURI.Path, reqURI.RawQuery)
 	log.Printf("KubeSimulator: At %s", path)
-	if path == "/api/v1/namespaces/?watch=true" {
-		log.Printf("KubeSimulator: At %s: Sending namespace event %s", path, addNamespace1)
-		fmt.Fprintf(w, addNamespace1)
-		flusher.Flush() // Trigger "chunked" encoding and send a chunk...
-		time.Sleep(100 * time.Millisecond)
+
+	var ns Event
+	err := json.Unmarshal([]byte(addNamespace1), &ns)
+	if err != nil {
+		log.Printf("KubeSimulator: At %s: failed to unmarshall kube event %s", path, err)
 		return
 	}
+
+	var pol Event
+	err = json.Unmarshal([]byte(addPolicy1), &pol)
+	if err != nil {
+		log.Printf("KubeSimulator: At %s: failed to unmarshall kube event %sl", path, err)
+		return
+	}
+
+	if path == "/api/v1/namespaces/?watch=true" {
+		log.Printf("KubeSimulator: At %s: Sending namespace event %s", path, addNamespace1)
+		//		fmt.Fprintf(w, addNamespace1)
+		enc := json.NewEncoder(w)
+		for {
+			err = enc.Encode(ns)
+			if err != nil {
+				log.Printf("KubeSimulator: At %s: failed to encode namespace event %s", path, err)
+				return
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+	m := make(map[string]string)
+	m["x"] = "y"
 	if strings.HasPrefix(path, "/apis/extensions/v1beta1/namespaces/") && strings.HasSuffix(path, "/networkpolicies/?watch=true") {
 		uriArr := strings.Split(path, "/")
 		if len(uriArr) != 8 {
@@ -70,21 +94,35 @@ func (ks *kubeSimulator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			w.Write([]byte(fmt.Sprintf("{\"error\" : \"Not found: %s (expected 9, got %d parts of the URL: %v)\"}", path, len(uriArr), uriArr)))
 			return
 		}
-		// Wait until sentNamespaceEvent is true
+
 		for {
 			log.Printf("KubeSimulator: At %s: have %d tenants", path, len(ks.mockSvc.tenants))
-
+			// Wait until sentNamespaceEvent is true
 			if len(ks.mockSvc.tenants) == 1 {
 				log.Printf("KubeSimulator: At %s: tenants[1]: %+v", path, *ks.mockSvc.tenants[1])
 				break
 			}
+
+			flusher, _ := w.(http.Flusher)
+			w.Write([]byte("{}"))
+			flusher.Flush()
+
+			if err != nil {
+				log.Printf("KubeSimulator: At %s: failed to encode empty event %s", path, err)
+				return
+			}
 			time.Sleep(100 * time.Millisecond)
 		}
-		log.Printf("KubeSimulator: At %s: Sending policy event %s", path, addPolicy1)
-		fmt.Fprintf(w, addPolicy1)
-		flusher.Flush() // Trigger "chunked" encoding and send a chunk...
-		time.Sleep(100 * time.Millisecond)
-		return
+
+		enc := json.NewEncoder(w)
+		for {
+			err = enc.Encode(pol)
+			if err != nil {
+				log.Printf("KubeSimulator: At %s: failed to encode policy event %s", path, err)
+				return
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
 	}
 	w.WriteHeader(http.StatusNotFound)
 	w.Write([]byte(fmt.Sprintf("Not found: %s", path)))
