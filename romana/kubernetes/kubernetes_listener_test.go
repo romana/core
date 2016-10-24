@@ -114,10 +114,6 @@ func (ks *kubeSimulator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			time.Sleep(100 * time.Millisecond)
 		}
 
-		if err != nil {
-			log.Printf("KubeSimulator: At %s: failed to encode policy event %s", path, err)
-			return
-		}
 		enc := json.NewEncoder(w)
 		for {
 			err = enc.Encode(pol)
