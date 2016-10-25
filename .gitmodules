@@ -10,12 +10,6 @@
 [submodule "vendor/github.com/codegangsta/negroni"]
 	path = vendor/github.com/codegangsta/negroni
 	url = https://github.com/codegangsta/negroni.git
-[submodule "vendor/github.com/unrolled/render"]
-	path = vendor/github.com/unrolled/render
-	url = https://github.com/unrolled/render.git
-[submodule "vendor/github.com/K-Phoen/http-negotiate"]
-	path = vendor/github.com/K-Phoen/http-negotiate
-	url = https://github.com/K-Phoen/http-negotiate.git
 [submodule "vendor/github.com/K-Phoen/negotiation"]
 	path = vendor/github.com/K-Phoen/negotiation
 	url = https://github.com/K-Phoen/negotiation.git
@@ -25,15 +19,6 @@
 [submodule "vendor/github.com/mitchellh/mapstructure"]
 	path = vendor/github.com/mitchellh/mapstructure
 	url = https://github.com/mitchellh/mapstructure.git
-[submodule "vendor/github.com/qor/inflection"]
-	path = vendor/github.com/qor/inflection
-	url = https://github.com/qor/inflection.git
-[submodule "vendor/github.com/lib/pq"]
-	path = vendor/github.com/lib/pq
-	url = https://github.com/lib/pq.git
-[submodule "vendor/github.com/go-check/check"]
-	path = vendor/github.com/go-check/check
-	url = https://github.com/go-check/check.git
 [submodule "vendor/github.com/jinzhu/gorm"]
 	path = vendor/github.com/jinzhu/gorm
 	url = https://github.com/jinzhu/gorm
@@ -46,7 +31,6 @@
 [submodule "vendor/github.com/pborman/uuid"]
 	path = vendor/github.com/pborman/uuid
 	url = https://github.com/pborman/uuid.git
-
 [submodule "vendor/github.com/spf13/cobra"]
 	path = vendor/github.com/spf13/cobra
 	url = https://github.com/spf13/cobra
@@ -56,3 +40,45 @@
 [submodule "vendor/github.com/rackspace/gophercloud"]
 	path = vendor/github.com/rackspace/gophercloud
 	url = https://github.com/rackspace/gophercloud
+[submodule "vendor/github.com/golang/glog"]
+	path = vendor/github.com/golang/glog
+	url = https://github.com/golang/glog
+[submodule "vendor/github.com/hashicorp/hcl"]
+	path = vendor/github.com/hashicorp/hcl
+	url = https://github.com/hashicorp/hcl
+[submodule "vendor/github.com/jinzhu/inflection"]
+	path = vendor/github.com/jinzhu/inflection
+	url = https://github.com/jinzhu/inflection
+[submodule "vendor/github.com/kr/pretty"]
+	path = vendor/github.com/kr/pretty
+	url = https://github.com/kr/pretty
+[submodule "vendor/github.com/kr/text"]
+	path = vendor/github.com/kr/text
+	url = https://github.com/kr/text
+[submodule "vendor/github.com/BurntSushi/toml"]
+	path = vendor/github.com/BurntSushi/toml
+	url = https://github.com/BurntSushi/toml
+[submodule "vendor/golang.org/x/tools"]
+	path = vendor/golang.org/x/tools
+	url = https://go.googlesource.com/tools
+[submodule "vendor/github.com/magiconair/properties"]
+	path = vendor/github.com/magiconair/properties
+	url = https://github.com/magiconair/properties
+[submodule "vendor/github.com/spf13/cast"]
+	path = vendor/github.com/spf13/cast
+	url = https://github.com/spf13/cast
+[submodule "vendor/github.com/spf13/jwalterweatherman"]
+	path = vendor/github.com/spf13/jwalterweatherman
+	url = https://github.com/spf13/jwalterweatherman
+[submodule "vendor/github.com/spf13/pflag"]
+	path = vendor/github.com/spf13/pflag
+	url = https://github.com/spf13/pflag
+[submodule "vendor/golang.org/x/sys"]
+	path = vendor/golang.org/x/sys
+	url = https://go.googlesource.com/sys
+[submodule "vendor/gopkg.in/fsnotify.v1"]
+	path = vendor/gopkg.in/fsnotify.v1
+	url = https://gopkg.in/fsnotify.v1
+[submodule "vendor/gopkg.in/yaml.v2"]
+	path = vendor/gopkg.in/yaml.v2
+	url = https://gopkg.in/yaml.v2
