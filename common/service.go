@@ -292,7 +292,7 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 					retries = DefaultRestRetries
 				}
 				clientConfig := RestClientConfig{TimeoutMillis: timeoutMillis, Retries: retries, RootURL: config.Common.Api.RootServiceUrl, TestMode: config.Common.Api.RestTestMode}
-				log.Printf("InitializeService() : Initializing Rest client with %v", clientConfig)
+				//				log.Printf("InitializeService() : Initializing Rest client with %v", clientConfig)
 				client, err := NewRestClient(clientConfig)
 				if err != nil {
 					return svcInfo, err

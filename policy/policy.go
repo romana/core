@@ -172,12 +172,14 @@ func (policy *PolicySvc) augmentPolicy(policyDoc *common.Policy) error {
 	// Get info from topology service
 	log.Printf("Augmenting policy %s", policyDoc.Name)
 
-	// TODO
-	// Important! This should really be done in policy agent.
-	// Only done here as temporary measure.
-	externalId := makeId(policyDoc.AppliedTo, policyDoc.Name)
-	log.Printf("Constructing internal policy name = %s", externalId)
-	policyDoc.ExternalID = externalId
+	if policyDoc.ExternalID != "" {
+		// TODO
+		// Important! This should really be done in policy agent.
+		// Only done here as temporary measure.
+		externalId := makeId(policyDoc.AppliedTo, policyDoc.Name)
+		log.Printf("Constructing internal policy name = %s", externalId)
+		policyDoc.ExternalID = externalId
+	}
 
 	topoUrl, err := policy.client.GetServiceUrl("topology")
 	if err != nil {

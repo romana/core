@@ -43,6 +43,11 @@ type Hook struct {
 	Output string `json:"output"`
 }
 
+const (
+	RestRetryStrategyExponential = "exponential"
+	RestRetryStrategyFibonacci   = "fibonacci"
+)
+
 // Api part of service configuration (host/port).
 type Api struct {
 	// Host to listen on.
@@ -52,8 +57,9 @@ type Api struct {
 	// Root service URL
 	RootServiceUrl string `json:"root_service_url,omitempty" yaml:"root_service_url,omitempty"`
 	// Rest timeout in milliseconds (if omitted, defaults to DefaultRestTimeout)
-	RestTimeoutMillis int64 `yaml:"rest_timeout_millis,omitempty" json:"rest_timeout_millis,omitempty"`
-	RestRetries       int   `yaml:"rest_retries,omitempty" json:"rest_retries,omitempty"`
+	RestTimeoutMillis int64  `yaml:"rest_timeout_millis,omitempty" json:"rest_timeout_millis,omitempty"`
+	RestRetries       int    `yaml:"rest_retries,omitempty" json:"rest_retries,omitempty"`
+	RestRetryStrategy string `yaml:"rest_retry_strategy,omitempty" yaml:"rest_retry_strategy,json"`
 	// Location of the public key.
 	AuthPublic   string `yaml:"auth_public" json:"auth_public"`
 	RestTestMode bool   `yaml:"rest_test_mode,omitempty" json:"rest_test_mode,omitempty"`

@@ -17,11 +17,16 @@ package common
 
 import (
 	"bufio"
+	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/pborman/uuid"
+	"io/ioutil"
+
 	"log"
 	"os"
 	"reflect"
+	"runtime/debug"
 	"strings"
 	"sync"
 )
@@ -47,6 +52,15 @@ func initEnviron() {
 	}
 }
 
+var (
+	mockSeqNum  = 0
+	mockSeqLock sync.Mutex
+)
+
+func SqlNullStringUuid() sql.NullString {
+	return sql.NullString{String: uuid.New(), Valid: true}
+}
+
 // IsZeroValue checks whether the provided value is equal to the
 // zero value for the type. Zero values would be:
 //  - 0 for numeric types
@@ -61,7 +75,7 @@ func IsZeroValue(val interface{}) bool {
 		return valVal.Len() == 0
 	}
 	zeroVal := reflect.Zero(valType).Interface()
-	log.Printf("Zero value of %+v (type %T, kind %s) is %+v", val, val, valKind, zeroVal)
+	//	log.Printf("Zero value of %+v (type %T, kind %s) is %+v", val, val, valKind, zeroVal)
 	return val == zeroVal
 }
 
@@ -91,13 +105,47 @@ func PressEnterToContinue() {
 	scanner.Scan()
 }
 
-// GetMockDbName creates a DB name tied to the process ID
-func GetMockDbName(svc string) string {
-	return fmt.Sprintf("%s_%d", svc, os.Getpid())
+// getMockSeqNum gets the next number in the sequence, used for numbering
+// test resources so that they are unique within the run.
+func getMockSeqNum() int {
+	(&mockSeqLock).Lock()
+	mockSeqNum += 1
+	(&mockSeqLock).Unlock()
+	return mockSeqNum
 }
 
+// GetMockDbName creates a DB name tied to the process ID
+func GetMockDbName(svc string) string {
+	return fmt.Sprintf("%s_%d_%d", svc, os.Getpid(), getMockSeqNum())
+}
+
+// GetMockSqliteFile creates a SQLite DB filename based on GetMockDbName.
 func GetMockSqliteFile(svc string) string {
 	return fmt.Sprintf("/var/tmp/%s.sqlite3", GetMockDbName(svc))
+}
+
+// GetCaller2 is similar to GetCaller but goes up the specified
+// number of frames.
+func GetCaller2(up int) string {
+	stackLines := strings.Split(string(debug.Stack()), "\n")
+	location := "Unknown"
+
+	// Given that each frame takes up 2 lines, this is the breakdown:
+	// 0-1: debug.Stack()
+	// 2-3: GetCaller (this method)
+	// 4-5: Method that called GetCaller
+	// 6-7: Information we are looking for
+	cnt := 8 + up*2
+	if len(stackLines) > cnt {
+		location = strings.TrimSpace(stackLines[cnt])
+	}
+	return location
+}
+
+// GetCaller returns the location information of the caller of
+// the method that invoked GetCaller.
+func GetCaller() string {
+	return GetCaller2(0)
 }
 
 // MockConfig will take the config file specified
@@ -106,21 +154,25 @@ func GetMockSqliteFile(svc string) string {
 // 2. Replacing all database instance names with the result of GetMockDbName
 //    and write it out to /tmp/romana.yaml
 func MockConfig(fname string) (string, error) {
+	location := GetCaller()
+	log.Printf("MockConfig: Called from %s", location)
+
 	config, err := ReadConfig(fname)
 	if err != nil {
 		return "", err
 	}
 	services := []string{"root", "topology", "ipam", "agent", "tenant", "policy"}
-	for i := range services {
+	for i, _ := range services {
 		svc := services[i]
 		if svc == "" {
 			log.Printf("No service %s specified, nothing to mock", svc)
 			continue
 		}
 		svcConfig := config.Services[svc]
-		//		log.Printf("MockConfig: Mocking for %s: %+v", svc, svcConfig)
+		log.Printf("MockConfig: Mocking for service %s", svc)
 		svcConfig.Common.Api.Port = 0
 		//		log.Printf("MockConfig: Set port for %s: %d\n", svc, config.Services[svc].Common.Api.Port)
+
 		storeConfig := svcConfig.ServiceSpecific["store"].(map[string]interface{})
 		dbName := GetMockDbName(svc)
 		if storeConfig["type"] == "sqlite3" {
@@ -132,12 +184,14 @@ func MockConfig(fname string) (string, error) {
 		//		log.Printf("MockConfig: Set database for %s: %s\n", svc, svcConfig.ServiceSpecific["store"].(map[string]interface{})["database"])
 	}
 
-	outFile := fmt.Sprintf("/tmp/romana_%d.yaml", os.Getpid())
+	outFile := fmt.Sprintf("/tmp/romana_%d_%d.yaml", os.Getpid(), getMockSeqNum())
 	err = WriteConfig(config, outFile)
 	if err != nil {
+		log.Printf("Read %s, trying to write %s: %v", fname, outFile, err)
 		return "", err
 	}
-	log.Printf("Read %s, wrote %s: %v", fname, outFile, err)
+	wrote, _ := ioutil.ReadFile(outFile)
+	log.Printf("Read %s, wrote to %s:\n%s", fname, outFile, string(wrote))
 	return outFile, nil
 }
 

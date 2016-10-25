@@ -170,7 +170,7 @@ func TestServiceList(t *testing.T) {
 	msg := <-svcInfo.Channel
 	fmt.Println("Root service said:", msg)
 
-	_, err = common.ReadConfig("/tmp/romana.yaml")
+	_, err = common.ReadConfig(configFile)
 	if err != nil {
 		t.Error(err)
 		t.FailNow()

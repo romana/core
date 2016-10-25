@@ -44,9 +44,10 @@ const (
 	ContextKeyMarshaller   string = "Marshaller"
 	ContextKeyRoles        string = "Roles"
 	// DefaultRestTimeout, in milliseconds.
-	DefaultRestTimeout    = 500
-	DefaultRestRetries    = 3
-	ReadWriteTimeoutDelta = 10
+	DefaultRestTimeout       = 500
+	DefaultRestRetryStrategy = "fibonacci"
+	DefaultRestRetries       = 3
+	ReadWriteTimeoutDelta    = 10
 
 	// Name of the query parameter used for request token
 	RequestTokenQueryParameter = "RequestToken"
@@ -106,8 +107,8 @@ type ServiceMessage string
 type Host struct {
 	ID        uint64 `sql:"AUTO_INCREMENT" json:"id,omitempty"`
 	Name      string `json:"name,omitempty"`
-	Ip        string `json:"ip,omitempty"`
-	RomanaIp  string `json:"romana_ip,omitempty"`
+	Ip        string `json:"ip,omitempty" sql:"unique"`
+	RomanaIp  string `json:"romana_ip,omitempty" sql:"unique"`
 	AgentPort uint64 `json:"agent_port,omitempty"`
 	Links     Links  `json:"links,omitempty" sql:"-"`
 }

@@ -222,7 +222,7 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 	// This function is very long. Could we please break it up into a few smaller functions
 	// (with self-documenting names), which are called from within this function?
 	makeMessage := route.MakeMessage
-	log.Printf("Entering wrapHandler(%v,%v)", restHandler, route)
+	//	log.Printf("Entering wrapHandler(%v,%v)", restHandler, route)
 	if route.Hook != nil {
 		log.Printf("wrapHandler(): %s %s %s", route.Method, route.Pattern, route.Hook.Executable)
 	}
@@ -328,14 +328,14 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 				v := reflect.Indirect(reflect.ValueOf(inData)).FieldByName(RequestTokenQueryParameter)
 				if v.IsValid() {
 					token = v.String()
-					log.Printf("Token from payload %s\n", token)
+					log.Printf("Token from payload %s (path %s)\n", token, route.Pattern)
 				} else {
 					tokens := request.Form[RequestTokenQueryParameter]
 					if len(tokens) != 1 {
 						token = uuid.New()
-						log.Printf("Token created %s\n", token)
+						log.Printf("Token created %s (path %s)\n", token, route.Pattern)
 					} else {
-						log.Printf("Token from query string %s\n", token)
+						log.Printf("Token from query string %s (path %s)\n", token, route.Pattern)
 					}
 					if len(tokens) == 0 {
 						// Token was not sent, the caller does it at his own
@@ -399,9 +399,50 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 	return RomanaHandler{httpHandler}
 }
 
+// notFoundHandler adds functionality to send the body of a 404
+// error as a document parseable by the client in accordance with
+// its "Accept" declaration.
+type notFoundHandler struct{}
+
+func (n notFoundHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+	// TODO answer with a 406 here?
+	accept := request.Header.Get("accept")
+	// Default to JSON.
+	contentType := "application/json"
+	if accept == "*/*" || accept == "" {
+		// Force json if it can take anything.
+		accept = "application/json"
+	}
+
+	format, err := negotiation.NegotiateAccept(accept, SupportedContentTypes)
+	var marshaller Marshaller
+	defaultMarshaller := ContentTypeMarshallers["application/json"]
+
+	if err == nil {
+		contentType = format.Value
+		writer.Header().Set("Content-Type", contentType)
+		marshaller = ContentTypeMarshallers[contentType]
+	}
+	// Error in negotiation or marshaller not found.
+	if err != nil || marshaller == nil {
+		// This should never happen... Just in case...
+		log.Printf("No marshaler for [%s] found in %s, %s\n", contentType, ContentTypeMarshallers, ContentTypeMarshallers["application/json"])
+		writer.WriteHeader(http.StatusUnsupportedMediaType)
+		sct := SupportedContentTypesMessage
+		dataOut, _ := defaultMarshaller.Marshal(sct)
+		writer.Write(dataOut)
+		return
+	}
+	dataOut, _ := marshaller.Marshal(NewError404("URI", request.RequestURI))
+	writer.Write(dataOut)
+	return
+}
+
 // NewRouter creates router for a new service.
 func newRouter(routes []Route) *mux.Router {
 	router := mux.NewRouter().StrictSlash(true)
+
+	router.NotFoundHandler = notFoundHandler{}
 	for _, route := range routes {
 		handler := route.Handler
 		if route.Hook != nil {

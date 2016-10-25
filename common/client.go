@@ -48,6 +48,7 @@ type RestClient struct {
 type RestClientConfig struct {
 	TimeoutMillis int64
 	Retries       int
+	RetryStrategy string
 	Credential    *Credential
 	TestMode      bool
 	RootURL       string
@@ -74,10 +75,13 @@ func GetRestClientConfig(config ServiceConfig) RestClientConfig {
 // still work, but Romana-specific functionality does not.
 func NewRestClient(config RestClientConfig) (*RestClient, error) {
 	rc := &RestClient{client: &http.Client{}, config: &config}
+	if config.RetryStrategy != RestRetryStrategyExponential && config.RetryStrategy != RestRetryStrategyFibonacci {
+		rc.logf("Invalid retry strategy %s, defaulting to %s\n", config.RetryStrategy, RestRetryStrategyFibonacci)
+		config.RetryStrategy = RestRetryStrategyFibonacci
+	}
 	timeoutMillis := config.TimeoutMillis
-
 	if timeoutMillis <= 0 {
-		rc.logf("Invalid timeout %d, defaulting to %d\n", timeoutMillis, DefaultRestTimeout)
+		//		rc.logf("Invalid timeout %d, defaulting to %d\n", timeoutMillis, DefaultRestTimeout)
 		rc.client.Timeout = DefaultRestTimeout * time.Millisecond
 	} else {
 		timeoutStr := fmt.Sprintf("%dms", timeoutMillis)
@@ -86,7 +90,7 @@ func NewRestClient(config RestClientConfig) (*RestClient, error) {
 		rc.client.Timeout = dur
 	}
 	if config.Retries < 1 {
-		rc.logf("Invalid retries %d, defaulting to %d\n", config.Retries, DefaultRestRetries)
+		//		rc.logf("Invalid retries %d, defaulting to %d\n", config.Retries, DefaultRestRetries)
 		config.Retries = DefaultRestRetries
 	}
 	var myUrl string
@@ -122,7 +126,8 @@ func (rc *RestClient) log(arg interface{}) {
 // with the ID of this RestClient instance and the number
 // of the call.
 func (rc *RestClient) logf(s string, args ...interface{}) {
-	s1 := fmt.Sprintf("RestClient.%p.%d: %s\n", rc, rc.callNum, s)
+	// TODO of course using GetCaller() here is
+	s1 := fmt.Sprintf("RestClient.%p.%d: %s: %s\n", rc, rc.callNum, GetCaller2(2), s)
 	log.Printf(s1, args...)
 }
 
@@ -204,7 +209,6 @@ func (rc *RestClient) Find(entity interface{}, flag FindFlag) error {
 		svcURL += "/"
 	}
 	svcURL += fmt.Sprintf("%s/%ss?", flag, entityName)
-
 	queryString := ""
 	structValue := reflect.ValueOf(entity).Elem()
 	if flag == FindAll {
@@ -248,7 +252,7 @@ func (rc *RestClient) Find(entity interface{}, flag FindFlag) error {
 		queryString += fmt.Sprintf("%s=%v", queryStringFieldName, fieldValue)
 	}
 	url := svcURL + queryString
-	rc.logf("Trying to find one %s at %s, results go into %+v", entityName, url, entity)
+	rc.logf("Trying to find %s %s at %s, results go into %+v", entityName, flag, url, entity)
 	return rc.Get(url, entity)
 } // func
 
@@ -281,10 +285,10 @@ func (rc *RestClient) GetServiceUrl(name string) (string, error) {
 				}
 				return rc.url.String(), nil
 			}
-			return ErrorNoValue, errors.New(fmt.Sprintf("Cannot find service %s at %s", name, resp))
+			return ErrorNoValue, errors.New(fmt.Sprintf("Cannot find service %s in response from %s: %+v", name, rc.config.RootURL, resp))
 		}
 	}
-	return ErrorNoValue, errors.New(fmt.Sprintf("Cannot find service %s at %s", name, resp))
+	return ErrorNoValue, errors.New(fmt.Sprintf("Cannot find service %s in response from %s: %+v", name, rc.config.RootURL, resp))
 }
 
 // modifyUrl sets the client's new URL to dest, possibly updating it with
@@ -304,7 +308,7 @@ func (rc *RestClient) modifyUrl(dest string, queryMod url.Values) error {
 		rc.url = u
 	} else {
 		newUrl := rc.url.ResolveReference(u)
-		rc.logf("Getting %s, resolved reference from %s to %s: %s\n", dest, rc.url, u, newUrl)
+		//		rc.logf("Getting %s, resolved reference from %s to %s: %s\n", dest, rc.url, u, newUrl)
 		rc.url = newUrl
 	}
 
@@ -328,7 +332,7 @@ func (rc *RestClient) modifyUrl(dest string, queryMod url.Values) error {
 		}
 		dest = rc.url.Scheme + "://" + rc.url.Host + rc.url.Path + "?" + dest
 		rc.url, _ = url.Parse(dest)
-		rc.logf("Modified URL %s to %s (%v)\n", origUrl, rc.url, err)
+		//		rc.logf("Modified URL %s to %s (%v)\n", origUrl, rc.url, err)
 	}
 
 	return nil
@@ -377,7 +381,7 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 		return err
 	}
 
-	rc.logf("Scheme is %s, method is %s, test mode: %t", rc.url.Scheme, method, rc.config.TestMode)
+	//	rc.logf("Scheme is %s, method is %s, test mode: %t", rc.url.Scheme, method, rc.config.TestMode)
 	if rc.url.Scheme == "file" && method == "POST" && rc.config.TestMode {
 		rc.logf("Attempt to POST to a file URL %s, in test mode will just return OK", rc.url)
 		return nil
@@ -387,7 +391,7 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 	var reqBody []byte
 	if data != nil {
 		reqBody, err = json.Marshal(data)
-		rc.logf("RestClient.execMethod(): Marshaled %T %v to %s", data, data, string(reqBody))
+		//		rc.logf("RestClient.execMethod(): Marshaled %T %v to %s", data, data, string(reqBody))
 		if err != nil {
 			return err
 		}
@@ -396,7 +400,8 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 	var body []byte
 	// We allow also file scheme, for testing purposes.
 	var resp *http.Response
-	log.Printf("RestClient.execMethod(): TODO")
+	var sleepTime time.Duration
+	var prevSleepTime time.Duration
 	if rc.url.Scheme == "http" || rc.url.Scheme == "https" {
 		for i := 0; i < rc.config.Retries; i++ {
 			var req *http.Request
@@ -417,9 +422,21 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 			if rc.token != "" {
 				req.Header.Set("authorization", rc.token)
 			}
-			rc.logf("Try %d for %s", (i + 1), rc.url)
+			rc.logf("Try %d for %s %s", (i + 1), method, rc.url)
 			if i > 0 {
-				sleepTime, _ := time.ParseDuration(fmt.Sprintf("%ds", int(math.Pow(2, (float64(i-1))))))
+				switch rc.config.RetryStrategy {
+				case RestRetryStrategyExponential:
+					sleepTime, _ = time.ParseDuration(fmt.Sprintf("%dms", 100*int(math.Pow(2, (float64(i-1))))))
+				default:
+					// Fibonacci
+					if sleepTime == 0 {
+						sleepTime = 100 * time.Millisecond
+					} else {
+						incr := prevSleepTime
+						prevSleepTime = sleepTime
+						sleepTime += incr
+					}
+				}
 				rc.logf("Sleeping for %v before retrying %d time\n", sleepTime, i)
 				time.Sleep(sleepTime)
 			}
@@ -428,6 +445,7 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 				rc.logf("RestClient: Attempting %s %s with content length %d: %s", method, rc.url.String(), reqBodyReader.Len(), string(reqBody))
 			}
 			resp, err = rc.client.Do(req)
+
 			if err != nil {
 				if i == rc.config.Retries-1 {
 					return err
