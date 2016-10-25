@@ -20,24 +20,27 @@ import (
 )
 
 // manageResources manages map of termination channels and fires up new
-// per-namespace gorotines when needed.
+// per-namespace goroutines when needed.
 func (l *kubeListener) manageResources(ns Event, terminators map[string]chan Done, out chan Event) {
 	uid := ns.Object.Metadata.Uid
+	glog.Infof("kubeListener: manageResources(): Received event %s", ns.Type)
 	if ns.Type == KubeEventAdded {
+		glog.Infof("kubeListener: manageResources(): ADDED event for %s (%s)", uid, ns.Object.Metadata.Name)
+
 		if _, ok := terminators[uid]; ok {
-			glog.Infoln("Received ADDED event for uid that is already known, ignoring ", uid)
+			glog.Infoln("kubeListener: manageResources(): Received ADDED event for uid %s that is already known, ignoring ", uid)
 			return
 		}
-
 		done := make(chan Done)
 		terminators[uid] = done
 
-		 go ProducePolicies(out, terminators[uid], ns.Object.Metadata.Name, l)
+		go ProducePolicies(out, terminators[uid], ns.Object.Metadata.Name, l)
 	} else if ns.Type == KubeEventDeleted {
 		if _, ok := terminators[uid]; !ok {
-			glog.Infoln("Received DELETED event for uid that is not known, ignoring ", uid)
+			glog.Infoln("kubeListener: manageResources(): Received DELETED event for uid %s that is not known, ignoring ", uid)
 			return
 		}
+		glog.Infof("kubeListener: manageResources(): DELETED event for %s", uid)
 
 		// Send shutdown signal to the goroutine that handles given namespace.
 		close(terminators[uid])
@@ -51,12 +54,13 @@ func (l *kubeListener) manageResources(ns Event, terminators map[string]chan Don
 	} else if ns.Type == InternalEventDeleteAll {
 		// Terminate all per-namespace goroutines
 		// clean associated resources.
-
 		for uid, c := range terminators {
 			close(c)
 			delete(terminators, uid)
 			delete(l.lastEventPerNamespace, uid)
 		}
+	} else {
+		glog.Infof("kubeListener: manageResources(): Unknown event.")
 	}
 }
 
@@ -72,16 +76,18 @@ func (l *kubeListener) conductor(in <-chan Event, done <-chan Done) <-chan Event
 
 	ns := Event{}
 	out := make(chan Event, l.namespaceBufferSize)
-
+	glog.Infof("kubeListener: conductor(): entered with in: %v, done: %v", in, done)
 	go func() {
 		for {
 			select {
 			case ns = <-in:
+				glog.Infof("kubeListener: conductor(): calling manageResources")
 				l.manageResources(ns, terminators, out)
-
 				// ADDED, DELETED events for namespace handled here
+				glog.Infof("kubeListener: conductor(): calling handle on %+v", ns)
 				ns.handle(l)
 			case <-done:
+				glog.Infof("kubeListener: conductor(): got done on %v", done)
 				return
 			}
 		}

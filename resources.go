@@ -21,10 +21,11 @@ import (
 	"github.com/golang/glog"
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
+	"io/ioutil"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
-	"io/ioutil"
 	"time"
 )
 
@@ -272,7 +273,12 @@ func CreateDefaultPolicy(o KubeObject, l *kubeListener) {
 
 // watchEvents maintains goroutine fired by NsWatch, restarts it in case HTTP GET times out.
 func (l *kubeListener) watchEvents(done <-chan Done, url string, resp *http.Response, out chan Event) {
-	glog.Infoln("Received namespace related event from kubernetes", resp.Body)
+	glog.Infoln("kubeListener.watchEvents(): Received namespace related event from kubernetes")
+
+	// Uncomment and use if needed for debugging.
+	//	buf := new(bytes.Buffer)
+	//	treader := io.TeeReader(resp.Body, buf)
+	//	dec := json.NewDecoder(treader)
 
 	dec := json.NewDecoder(resp.Body)
 	var e Event
@@ -287,6 +293,7 @@ func (l *kubeListener) watchEvents(done <-chan Done, url string, resp *http.Resp
 
 			// Attempting to read event from HTTP connection
 			err := dec.Decode(&e)
+			log.Printf("kubeListener.watchEvents(): Decoded event %v, error %v", e, err)
 			if err != nil {
 				// If fail
 				glog.Infof("Failed to decode message from connection %s due to %s\n. Attempting to re-establish", url, err)
@@ -296,8 +303,11 @@ func (l *kubeListener) watchEvents(done <-chan Done, url string, resp *http.Resp
 				// And try to re-establish HTTP connection
 				resp, err2 := http.Get(url)
 				if err2 != nil {
-					glog.Infof("Failed establish connection %s due to %s\n.", url, err)
+					glog.Infof("kubeListener.watchEvents(): Failed establish connection %s due to %s\n.", url, err)
 				} else if err2 == nil {
+					//					buf = new(bytes.Buffer)
+					//					treader = io.TeeReader(resp.Body, buf)
+					//					dec = json.NewDecoder(treader)
 					dec = json.NewDecoder(resp.Body)
 				}
 			} else {
@@ -331,12 +341,12 @@ func (ns KubeObject) produce(out chan Event, done <-chan Done, kubeListener *kub
 	if err != nil {
 		return err
 	}
-	glog.Infof("Launching producer to listen for policy notifications on namespace %s at URL %s ", ns.Metadata.Name, url)
+	glog.Infof("kubeListener.produce(): Launching producer to listen for policy notifications on namespace %s at URL %s ", ns.Metadata.Name, url)
 	resp, err := http.Get(url)
 	if err != nil {
 		return err
 	}
-
+	log.Printf("kubeListener.produce(): Read from %s", url)
 	go kubeListener.watchEvents(done, url, resp, out)
 
 	return nil
@@ -371,7 +381,7 @@ func ProducePolicies(out chan Event, done <-chan Done, namespace string, kubeLis
 			time.Sleep(sleepTime * time.Second)
 			sleepTime += 1
 			continue
-		} 
+		}
 
 		// TODO should be syncNetworkPolicies instead
 		for _, policy := range items {
@@ -380,19 +390,20 @@ func ProducePolicies(out chan Event, done <-chan Done, namespace string, kubeLis
 			out <- genEvent
 		}
 
+	Loop:
 		for {
 			select {
-			case <- done:
+			case <-done:
 				glog.V(2).Infof("Shutting down listener for %s", namespace)
 				return
-			case e, ok := <- in:
+			case e, ok := <-in:
 				if ok {
 					glog.V(4).Infof("New kubernetes network policy event on %s", namespace)
 					out <- e
 				} else {
 					glog.V(4).Infof("Connection to %s terminated", namespace)
 					glog.V(5).Infof("Connection to %s terminated - error %v", url, e)
-					break
+					break Loop
 				}
 			}
 		}
@@ -401,8 +412,8 @@ func ProducePolicies(out chan Event, done <-chan Done, namespace string, kubeLis
 
 // watchKubernetesResource retrieves a list of kubernetes objects
 // associated with particular resource and channel of events.
-func (l *kubeListener) watchKubernetesResource(url string, done <- chan Done) ([]KubeObject, <-chan Event, error) {
-	// 1. list current objects in a resource 
+func (l *kubeListener) watchKubernetesResource(url string, done <-chan Done) ([]KubeObject, <-chan Event, error) {
+	// 1. list current objects in a resource
 	// curl -s http://192.168.99.10:8080/apis/extensions/v1beta1/namespaces/http-tests/networkpolicies
 	// 1.1 if error then return
 	// 1.2 store resourceVersion from request in 1
@@ -424,23 +435,27 @@ func (l *kubeListener) watchKubernetesResource(url string, done <- chan Done) ([
 
 	cleanUrl, err := common.CleanURL(url)
 	if err != nil {
+		glog.Errorf("In watchKubernetesResource failed to clean url %s", err)
 		return nil, nil, err
 	}
 
 	resp, err := http.Get(cleanUrl)
 	if err != nil {
+		glog.Errorf("In watchKubernetesResource failed to GET response from kubernetes %s", err)
 		return nil, nil, err
 	}
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
+		glog.Errorf("In watchKubernetesResource failed to read kubernetes response %s", err)
 		return nil, nil, err
 	}
 
 	var kubeResource KubernetesResource
 	err = json.Unmarshal(body, &kubeResource)
 	if err != nil {
-		return nil, nil, err
+		glog.Errorf("In watchKubernetesResource failed to decode kubernetes response %s", err)
+		// return nil, nil, err
 	}
 
 	glog.V(3).Infof("List of resources on %s returned %d items and resource version %s", url, len(kubeResource.Items), kubeResource.Metadata.ResourceVersion)
@@ -448,6 +463,7 @@ func (l *kubeListener) watchKubernetesResource(url string, done <- chan Done) ([
 	watchUrl := fmt.Sprintf("%s?%s&%s=%s", url, HttpGetParamWatch, HttpGetParamResourceVersion, kubeResource.Metadata.ResourceVersion)
 	watchResp, err := http.Get(watchUrl)
 	if err != nil {
+		glog.Infof("In watchKubernetesResource failed connect to %s due to %s", watchResp, err)
 		return nil, nil, err
 	}
 
@@ -504,7 +520,7 @@ func (l *kubeListener) syncNetworkPolicies(namespace string, kubePolicies []Kube
 }
 
 type KubernetesResource struct {
-	Kind string `json:"kind"`
-	Metadata Metadata `json:"metadata"`
-	Items []KubeObject `json:"items"`
+	Kind     string       `json:"kind"`
+	Metadata Metadata     `json:"metadata"`
+	Items    []KubeObject `json:"items"`
 }

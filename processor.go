@@ -15,7 +15,9 @@
 
 package kubernetes
 
-import ()
+import (
+	"log"
+)
 
 // Process is a goroutine that consumes resource update events and:
 // 1. On receiving an added or deleted event:
@@ -26,14 +28,16 @@ import ()
 //       Logs an error if not possible.
 // 2. On receiving a done event, exit the goroutine
 func (l *kubeListener) process(in <-chan Event, done chan Done) {
+	log.Printf("kubeListener: process(): Entered with in %v, done %v", in, done)
 	go func() {
 		for {
 			select {
 			case e := <-in:
-
+				log.Printf("kubeListener: process(): Got %v", e)
 				// All events for policies and MODIFIED for namespaces
 				e.handle(l)
 			case <-done:
+				log.Printf("kubeListener: process(): Got done")
 				return
 			}
 		}
