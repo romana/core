@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"github.com/pborman/uuid"
 	"io/ioutil"
+	"sync/atomic"
 
 	"log"
 	"os"
@@ -29,6 +30,10 @@ import (
 	"runtime/debug"
 	"strings"
 	"sync"
+)
+
+const (
+	DefaultTestConfigFile = "../common/testdata/romana.sample.yaml"
 )
 
 var once sync.Once
@@ -52,8 +57,89 @@ func initEnviron() {
 	}
 }
 
+// RomanaTestSuite holds state for use in testing.
+type RomanaTestSuite struct {
+	tmpFiles   []string
+	ConfigFile string
+	Config     Config
+}
+
+// MockConfig will take the config file specified
+// and mock things up, by:
+// 1. Replacing all ports with 0 (making the services use ephemeral ports)
+// 2. Replacing all database instance names with the result of GetMockDbName
+//    and write it out to /tmp/romana.yaml
+func (rts *RomanaTestSuite) MockConfig(romanaConfigFile string) error {
+	log.Printf("MockConfig():")
+	overrideConfigFile := os.ExpandEnv("${ROMANA_CONFIG_FILE}")
+	if overrideConfigFile != "" {
+		log.Printf("\tOverriding %s with value of ROMANA_CONFIG_FILE: %s", romanaConfigFile, overrideConfigFile)
+		romanaConfigFile = overrideConfigFile
+	}
+	log.Printf("\tWill use config file %s", romanaConfigFile)
+	var err error
+	location := GetCaller()
+	log.Printf("\tCalled from %s", location)
+	config, err := ReadConfig(romanaConfigFile)
+	if err != nil {
+		return err
+	}
+	services := []string{"root", "topology", "ipam", "agent", "tenant", "policy"}
+
+	for _, svc := range services {
+		svcConfig := config.Services[svc]
+		log.Printf("\tMocking for service %s:", svc)
+		svcConfig.Common.Api.Port = 0
+		if svc != "root" {
+			storeConfig := svcConfig.ServiceSpecific["store"].(map[string]interface{})
+			if storeConfig["type"] == "sqlite3" {
+				sqliteFile := rts.GetMockSqliteFile(svc)
+				storeConfig["database"] = sqliteFile
+			} else {
+				// For now it's just mysql
+				// TODO add this to RomanaTestSuite list of resources to destroy
+				storeConfig["database"] = GetMockDbName(svc)
+			}
+			log.Printf("\t\tDB config: %v", storeConfig["database"])
+		}
+	}
+
+	outFile := fmt.Sprintf("/tmp/romana_%s.yaml", getUniqueMockNameComponent())
+	err = WriteConfig(config, outFile)
+	if err != nil {
+		log.Printf("\tRead %s, trying to write %s: %v", romanaConfigFile, outFile, err)
+		return err
+	}
+	wrote, _ := ioutil.ReadFile(outFile)
+	rts.Config, err = ReadConfig(outFile)
+	if err != nil {
+		return err
+	}
+	rts.ConfigFile = outFile
+	log.Printf("\tRead %s, wrote to %s:\n%s\n------------------------", romanaConfigFile, outFile, string(wrote))
+	return nil
+}
+
+func (rts *RomanaTestSuite) CleanUp() {
+	log.Printf("CleanUp(): Cleaning up the following temporary files: %v", rts.tmpFiles)
+	for _, f := range rts.tmpFiles {
+		err := os.Remove(f)
+		if err == nil {
+			log.Printf("CleanUp(): Removed %s.", f)
+		} else {
+			log.Printf("CleanUp(): Failed removing %s: %v", f, err)
+		}
+	}
+}
+
+func (rts *RomanaTestSuite) GetMockSqliteFile(svc string) string {
+	fname := fmt.Sprintf("/var/tmp/%s.sqlite3", GetMockDbName(svc))
+	rts.tmpFiles = append(rts.tmpFiles, fname)
+	return fname
+}
+
 var (
-	mockSeqNum  = 0
+	mockSeqNum  = int64(0)
 	mockSeqLock sync.Mutex
 )
 
@@ -105,23 +191,21 @@ func PressEnterToContinue() {
 	scanner.Scan()
 }
 
-// getMockSeqNum gets the next number in the sequence, used for numbering
-// test resources so that they are unique within the run.
-func getMockSeqNum() int {
-	(&mockSeqLock).Lock()
-	mockSeqNum += 1
-	(&mockSeqLock).Unlock()
-	return mockSeqNum
+// getUniqueMockNameComponent creates a string that can be used as a part of
+// a name of a resource (e.g., file, DB name, etc) that is unique.
+// It is of the form <PID>_<SEQ>_<UUID>, where
+// - SEQ gets is next number in the sequence
+// - UUID is normalized to remove dashes.
+func getUniqueMockNameComponent() string {
+	atomic.AddInt64(&mockSeqNum, 1)
+	uuid := strings.Replace(uuid.New(), "-", "", -1)
+	return fmt.Sprintf("%d_%d_%s", os.Getpid(), mockSeqNum, uuid)
 }
 
-// GetMockDbName creates a DB name tied to the process ID
+// GetMockDbName creates a DB name as follows:
+// <SERVICE_NAME>_<Result of getUniqueMockNameComponent()>
 func GetMockDbName(svc string) string {
-	return fmt.Sprintf("%s_%d_%d", svc, os.Getpid(), getMockSeqNum())
-}
-
-// GetMockSqliteFile creates a SQLite DB filename based on GetMockDbName.
-func GetMockSqliteFile(svc string) string {
-	return fmt.Sprintf("/var/tmp/%s.sqlite3", GetMockDbName(svc))
+	return fmt.Sprintf("%s_%s", svc, getUniqueMockNameComponent())
 }
 
 // GetCaller2 is similar to GetCaller but goes up the specified
@@ -145,54 +229,7 @@ func GetCaller2(up int) string {
 // GetCaller returns the location information of the caller of
 // the method that invoked GetCaller.
 func GetCaller() string {
-	return GetCaller2(0)
-}
-
-// MockConfig will take the config file specified
-// and mock things up, by:
-// 1. Replacing all ports with 0 (making the services use ephemeral ports)
-// 2. Replacing all database instance names with the result of GetMockDbName
-//    and write it out to /tmp/romana.yaml
-func MockConfig(fname string) (string, error) {
-	location := GetCaller()
-	log.Printf("MockConfig: Called from %s", location)
-
-	config, err := ReadConfig(fname)
-	if err != nil {
-		return "", err
-	}
-	services := []string{"root", "topology", "ipam", "agent", "tenant", "policy"}
-	for i, _ := range services {
-		svc := services[i]
-		if svc == "" {
-			log.Printf("No service %s specified, nothing to mock", svc)
-			continue
-		}
-		svcConfig := config.Services[svc]
-		log.Printf("MockConfig: Mocking for service %s", svc)
-		svcConfig.Common.Api.Port = 0
-		//		log.Printf("MockConfig: Set port for %s: %d\n", svc, config.Services[svc].Common.Api.Port)
-
-		storeConfig := svcConfig.ServiceSpecific["store"].(map[string]interface{})
-		dbName := GetMockDbName(svc)
-		if storeConfig["type"] == "sqlite3" {
-			storeConfig["database"] = "/var/tmp/" + dbName + ".sqlite3"
-		} else {
-			// For now it's just mysql
-			storeConfig["database"] = dbName
-		}
-		//		log.Printf("MockConfig: Set database for %s: %s\n", svc, svcConfig.ServiceSpecific["store"].(map[string]interface{})["database"])
-	}
-
-	outFile := fmt.Sprintf("/tmp/romana_%d_%d.yaml", os.Getpid(), getMockSeqNum())
-	err = WriteConfig(config, outFile)
-	if err != nil {
-		log.Printf("Read %s, trying to write %s: %v", fname, outFile, err)
-		return "", err
-	}
-	wrote, _ := ioutil.ReadFile(outFile)
-	log.Printf("Read %s, wrote to %s:\n%s", fname, outFile, string(wrote))
-	return outFile, nil
+	return GetCaller2(1)
 }
 
 // toBool is a convenience function that's like ParseBool

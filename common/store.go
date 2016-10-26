@@ -403,11 +403,11 @@ func (dbStore *DbStore) CreateSchema(force bool) error {
 	return f(dbStore, force)
 }
 
-// createSchemaMysql creates schema for a sqlite3 db
+// createSchemaSqlite3 creates schema for a sqlite3 db
 func createSchemaSqlite3(dbStore *DbStore, force bool) error {
-	log.Println("Entering createSchemaSqlite3()")
-	var err error
 	schemaName := dbStore.Config.Database
+	log.Printf("Entering createSchemaSqlite3() with %s", schemaName)
+	var err error
 	if force {
 		finfo, err := os.Stat(schemaName)
 		exist := finfo != nil || os.IsExist(err)

@@ -210,46 +210,65 @@ func (rc *RestClient) Find(entity interface{}, flag FindFlag) error {
 	}
 	svcURL += fmt.Sprintf("%s/%ss?", flag, entityName)
 	queryString := ""
+
 	structValue := reflect.ValueOf(entity).Elem()
+	// Whether findAll is constrained -- the provided pointer is to a slice
+	// that has an element with the filled in struct.
+	var findAllConstrained bool
 	if flag == FindAll {
-		structValue = structValue.Elem()
+		if structValue.Kind() != reflect.Slice && structValue.Kind() != reflect.Array {
+			return NewError("Expected slice or array with FindAll, received %s", structValue.Kind())
+		}
+		// If we have an empty array, then we just want to do a FindAll. But if there is
+		// any constituent in the array, then that element has constraints.
+		if structValue.Len() > 0 {
+			findAllConstrained = true
+			structValue = structValue.Index(0)
+		}
 	}
 
-	for i := 0; i < structType.NumField(); i++ {
-		structField := structType.Field(i)
-		fieldTag := structField.Tag
-		fieldName := structField.Name
-		queryStringFieldName := strings.ToLower(fieldName)
-		omitEmpty := false
-		if fieldTag != "" {
-			jTag := fieldTag.Get("json")
-			if jTag != "" {
-				jTagElts := strings.Split(jTag, ",")
-				// This takes care of ",omitempty"
-				if len(jTagElts) > 1 {
-					queryStringFieldName = jTagElts[0]
-					for _, jTag2 := range jTagElts {
-						if jTag2 == "omitempty" {
-							omitEmpty = true
-							break
-						} // if jTag2
-					} // for / jTagElts
-				} else {
-					queryStringFieldName = jTag
-				}
-			} // if jTag
-		} // if fieldTag
-		fieldValue := structValue.Field(i).Interface()
-		if omitEmpty && IsZeroValue(fieldValue) {
-			rc.logf("Skipping field %s: %v - empty", fieldName, fieldValue)
-			continue
-		}
+	// Construct querystring only if flag is not FindAll or findAllConstrained is true --
+	// see above.
+	if flag != FindAll || findAllConstrained {
+		for i := 0; i < structType.NumField(); i++ {
+			structField := structType.Field(i)
+			fieldTag := structField.Tag
+			fieldName := structField.Name
+			queryStringFieldName := strings.ToLower(fieldName)
+			omitEmpty := false
+			if fieldTag != "" {
+				jTag := fieldTag.Get("json")
+				if jTag != "" {
+					jTagElts := strings.Split(jTag, ",")
+					// This takes care of ",omitempty"
+					if len(jTagElts) > 1 {
+						queryStringFieldName = jTagElts[0]
+						for _, jTag2 := range jTagElts {
+							if jTag2 == "omitempty" {
+								omitEmpty = true
+								break
+							} // if jTag2
+						} // for / jTagElts
+					} else {
+						queryStringFieldName = jTag
+					}
+				} // if jTag
+			} // if fieldTag
+			//
+			if !structValue.Field(i).CanInterface() {
+				continue
+			}
+			fieldValue := structValue.Field(i).Interface()
+			if omitEmpty && IsZeroValue(fieldValue) {
+				rc.logf("Skipping field %s: %v - empty", fieldName, fieldValue)
+				continue
+			}
 
-		if queryString != "" {
-			queryString += "&"
+			if queryString != "" {
+				queryString += "&"
+			}
+			queryString += fmt.Sprintf("%s=%v", queryStringFieldName, fieldValue)
 		}
-
-		queryString += fmt.Sprintf("%s=%v", queryStringFieldName, fieldValue)
 	}
 	url := svcURL + queryString
 	rc.logf("Trying to find %s %s at %s, results go into %+v", entityName, flag, url, entity)
@@ -259,7 +278,6 @@ func (rc *RestClient) Find(entity interface{}, flag FindFlag) error {
 // GetServiceUrl is a convenience function, which, given the root
 // service URL and name of desired service, returns the URL of that service.
 func (rc *RestClient) GetServiceUrl(name string) (string, error) {
-	rc.logf("Entering GetServiceUrl(%s, %s)", rc.config.RootURL, name)
 	// Save the current state of things, so we can restore after call to root.
 	savedUrl := rc.url
 	// Restore this after we're done so we don't lose this

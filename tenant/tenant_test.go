@@ -29,9 +29,14 @@ func Test(t *testing.T) {
 }
 
 type MySuite struct {
+	common.RomanaTestSuite
 }
 
 var _ = check.Suite(&MySuite{})
+
+func (s *MySuite) TearDownSuite(c *check.C) {
+	s.RomanaTestSuite.CleanUp()
+}
 
 func (s *MySuite) TestStore(c *check.C) {
 	var err error
@@ -43,7 +48,7 @@ func (s *MySuite) TestStore(c *check.C) {
 
 	storeConfig := make(map[string]interface{})
 	storeConfig["type"] = "sqlite3"
-	storeConfig["database"] = common.GetMockSqliteFile("tenant")
+	storeConfig["database"] = s.GetMockSqliteFile("tenant")
 	//
 	//	storeConfig["database"] = "tenant"
 	//	storeConfig["port"] = 8889

@@ -296,9 +296,7 @@ func validateRules(rules Rules) []string {
 				if r.IcmpCode != 0 {
 					errMsg = append(errMsg, fmt.Sprintf("Rule #%d: Invalid ICMP code for type %d: %d.", ruleNo, r.IcmpType, r.IcmpCode))
 				}
-
 			}
-
 		}
 	}
 	if len(errMsg) == 0 {

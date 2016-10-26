@@ -155,23 +155,20 @@ func ReadConfig(fname string) (Config, error) {
 		return *config, err
 	}
 	if fname != absFname {
-		log.Printf("Normalized %s to %s", fname, absFname)
+		log.Printf("ReadConfig(): Normalized %s to %s", fname, absFname)
 		fname = absFname
 	}
-
 	yamlConfig := yamlConfig{}
 	if fname != "" {
 		data, err := ioutil.ReadFile(fname)
 		if err != nil {
 			return *config, err
 		}
-		log.Printf("Reading config from %s", fname)
-		err = yaml.Unmarshal([]byte(data), &yamlConfig)
+		err = yaml.Unmarshal(data, &yamlConfig)
 		if err != nil {
-			log.Printf("Error reading config: %v", err)
+			log.Printf("ReadConfig(): Error reading config: %v", err)
 			return *config, err
 		}
-		log.Printf("Read config from %s", fname)
 		serviceConfigs := yamlConfig.Services
 		config.Services = make(map[string]ServiceConfig)
 		// Now convert this to map for easier reading...
@@ -182,7 +179,6 @@ func ReadConfig(fname string) (Config, error) {
 			commonConfig := CommonConfig{Api: &api, Credential: nil, PublicKey: nil}
 			config.Services[c.Service] = ServiceConfig{Common: commonConfig, ServiceSpecific: cleanedConfig}
 		}
-		log.Println("Read configuration from", fname)
 		return *config, nil
 	}
 	return *config, errors.New("Empty filename.")

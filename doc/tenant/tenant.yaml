@@ -323,7 +323,7 @@ definitions:
         format: uint64
       name:
         type: string
-      seq:
+      network_id:
         type: integer
         format: uint64
       tenant_id:
@@ -340,8 +340,10 @@ definitions:
         type: integer
         format: uint64
       name:
-        description: desc
         type: string
-      seq:
+      network_id:
         type: integer
         format: uint64
+      segments:
+        type: array
+        items: {}
