@@ -162,7 +162,18 @@ func (e Event) handleNetworkPolicyEvent(l *kubeListener) {
 	} else {
 		action = networkPolicyActionDelete
 	}
-	policy, err := l.translateNetworkPolicy(&e.Object)
+
+	// DEBUG
+	policyList, kubePolicy, err := PTranslator.Kube2RomanaBulk([]KubeObject{e.Object})
+	if err != nil {
+		glog.Fatalf("Error translating %v - %s", e.Object, err)
+	}
+	if len(kubePolicy) > 0 {
+		glog.Fatalf("Error translating policy %v, returned as kube policy", e.Object)
+	}
+
+	policy := policyList[0]
+	//	policy, err := l.translateNetworkPolicy(&e.Object)
 	if err == nil {
 		j1, _ := json.Marshal(e)
 		j2, _ := json.Marshal(policy)
