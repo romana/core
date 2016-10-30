@@ -107,6 +107,10 @@ func (l *kubeListener) SetConfig(config common.ServiceConfig) error {
 	return nil
 }
 
+// TODO there should be a better way to introduce translator
+// then global variable like this one.
+var PTranslator Translator
+
 // Run configures and runs listener service.
 func Run(rootServiceURL string, cred *common.Credential) (*common.RestServiceInfo, error) {
 	clientConfig := common.GetDefaultRestClientConfig(rootServiceURL)
@@ -117,6 +121,19 @@ func Run(rootServiceURL string, cred *common.Credential) (*common.RestServiceInf
 	}
 	kubeListener := &kubeListener{}
 	kubeListener.restClient = client
+
+	tc := PTranslator.GetClient()
+	if tc == nil {
+		glog.Error("DEBUG Translator has nil client before Init")
+	}
+
+	// DEBUG
+	PTranslator.Init(client, kubeListener.segmentLabelName)
+	tc = PTranslator.GetClient()
+	if tc == nil {
+		glog.Fatal("DEBUG Translator has nil client after Init")
+	}
+
 	config, err := client.GetServiceConfig(kubeListener.Name())
 	if err != nil {
 		return nil, err
@@ -209,7 +226,6 @@ func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Po
 	ns := kubePolicy.Metadata.Namespace
 	// TODO actually look up tenant K8S ID.
 	t, err := l.resolveTenantByName(ns)
-	glog.Infof("translateNetworkPolicy(): For namespace %s got %+v / %+v", ns, t, err)
 	if err != nil {
 		return *romanaPolicy, err
 	}
@@ -313,6 +329,7 @@ func (l *kubeListener) Initialize() error {
 
 	events := l.conductor(nsEvents, done)
 	l.process(events, done)
+
 	glog.Infoln("All routines started")
 	return nil
 }

@@ -290,6 +290,20 @@ func (s *mockSvc) Routes() common.Routes {
 		},
 	}
 
+	tenantGetAllRoute := common.Route{
+		Method:  "GET",
+		Pattern: "/tenants",
+		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
+			glog.Infof("MockService: Entering GET /tenants")
+			var tr []tenant.Tenant
+			for tk, _ := range s.tenants {
+				tr = append(tr, *s.tenants[tk])
+			}
+
+			return tr, nil
+		},
+	}
+
 	segmentAddRoute := common.Route{
 		Method: "POST",
 		// For the purpose of this test, we are going to ignore tenantID and pretend
@@ -318,6 +332,26 @@ func (s *mockSvc) Routes() common.Routes {
 			return newSegment, nil
 		},
 		MakeMessage: func() interface{} { return &tenant.Segment{} },
+	}
+
+	segmentGetAllRoute := common.Route{
+		Method:  "GET",
+		Pattern: "/tenants/{tenantID}/segments",
+		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
+			var sr []tenant.Segment
+			tenantIDStr := ctx.PathVariables["tenantID"]
+			id, err := strconv.ParseUint(tenantIDStr, 10, 64)
+			if err != nil {
+				return nil, common.NewError400(fmt.Sprintf("Bad ID %s", tenantIDStr))
+			}
+			for sn, sv := range s.segments {
+				if sv.TenantID == id {
+					sr = append(sr, *s.segments[sn])
+				}
+			}
+
+			return sr, nil
+		},
 	}
 
 	segmentGetRoute := common.Route{
@@ -388,7 +422,9 @@ func (s *mockSvc) Routes() common.Routes {
 		rootRoute,
 		tenantAddRoute,
 		tenantGetRoute,
+		tenantGetAllRoute,
 		segmentGetRoute,
+		segmentGetAllRoute,
 		segmentAddRoute,
 		kubeListenerConfigRoute,
 		registerPortRoute,
@@ -436,6 +472,21 @@ func (s *MySuite) startListener() error {
 	if err != nil {
 		return err
 	}
+
+	// DEBUG </
+	tc := PTranslator.GetClient()
+	if tc == nil {
+		glog.Error("DEBUG Translator has nil client before Init")
+	}
+
+	PTranslator.Init(client, kubeListener.segmentLabelName)
+	tc = PTranslator.GetClient()
+	if tc == nil {
+		glog.Fatal("DEBUG Translator has nil client after Init")
+	}
+
+	// DEBUG />
+
 	return nil
 }
 
@@ -480,7 +531,6 @@ func (s *MySuite) TestListener(c *check.C) {
 	c.Assert(len(svc.policies), check.Equals, 2)
 	c.Assert(svc.policies[0].Name, check.Equals, "ns0")
 	c.Assert(svc.policies[1].Name, check.Equals, "pol1")
-
 }
 
 const (
