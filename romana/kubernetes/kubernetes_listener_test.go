@@ -189,6 +189,46 @@ func (s *mockSvc) Routes() common.Routes {
 		MakeMessage: func() interface{} { return &common.Policy{} },
 	}
 
+	deletePolicyRoute := common.Route{
+		Method:  "DELETE",
+		Pattern: "/policies/{policyID}",
+		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
+			idStr := ctx.PathVariables["policyID"]
+			glog.Infof("MockService: Entering DELETE /policies/%s\n", idStr)
+			id, err := strconv.ParseUint(idStr, 10, 64)
+			if err != nil {
+				return nil, common.NewError400(fmt.Sprintf("Bad ID %s", idStr))
+			}
+			delete := func(i int, a []common.Policy) []common.Policy {
+				return append(a[:i], a[i+1:]...)
+			}
+			var ret *common.Policy
+			for n, _ := range s.policies {
+				glog.Infof("DEBUG delete policy by id, comparing %d and %d", s.policies[n].ID, id)
+				if s.policies[n].ID == id {
+					ret = &s.policies[n]
+					s.policies = delete(n, s.policies)
+					break
+				}
+			}
+
+			if ret == nil {
+				return nil, common.NewError404("policies", idStr)
+			}
+			return ret, nil
+		},
+	}
+
+	policyGetAll := common.Route{
+		Method:  "GET",
+		Pattern: "/policies",
+		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
+			glog.Infof("MockService: Entering GET /policies\n")
+
+			return s.policies, nil
+		},
+	}
+
 	findLastTenantRoute := common.Route{
 		Method:  "GET",
 		Pattern: "/findLast/tenants",
@@ -419,6 +459,8 @@ func (s *mockSvc) Routes() common.Routes {
 
 	routes := common.Routes{
 		addPolicyRoute,
+		deletePolicyRoute,
+		policyGetAll,
 		rootRoute,
 		tenantAddRoute,
 		tenantGetRoute,
@@ -498,6 +540,7 @@ func (s *MySuite) TestListener(c *check.C) {
 	svc.tenants = make(map[uint64]*tenant.Tenant)
 	svc.segments = make(map[uint64]*tenant.Segment)
 	svc.policies = make([]common.Policy, 0)
+	svc.policies = append(svc.policies, makeTestPolicy2())
 	svcInfo, err := common.InitializeService(svc, *cfg)
 	if err != nil {
 		c.Error(err)
@@ -531,6 +574,32 @@ func (s *MySuite) TestListener(c *check.C) {
 	c.Assert(len(svc.policies), check.Equals, 2)
 	c.Assert(svc.policies[0].Name, check.Equals, "ns0")
 	c.Assert(svc.policies[1].Name, check.Equals, "pol1")
+}
+
+func makeTestPolicy2() common.Policy {
+	TestPolicy2 := common.Policy{
+		Description: "Predefined test policy to test listener sync",
+		Direction:   "ingress",
+		Name:        "pol2",
+		ID:          999,
+		AppliedTo: []common.Endpoint{
+			common.Endpoint{
+				Dest: "host",
+			},
+		},
+		Peers: []common.Endpoint{
+			common.Endpoint{
+				Peer: "local",
+			},
+		},
+		Rules: []common.Rule{
+			common.Rule{
+				Ports:    []uint{67},
+				Protocol: "UPD",
+			},
+		},
+	}
+	return TestPolicy2
 }
 
 const (
