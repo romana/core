@@ -395,11 +395,21 @@ func ProducePolicies(out chan Event, done <-chan Done, namespace string, kubeLis
 		}
 
 		// TODO should be syncNetworkPolicies instead
-		for _, policy := range items {
-			genEvent := Event{KubeEventAdded, policy}
-			glog.V(2).Infof("New policy event generated to account for difference between romana policy and kubernetes %v", genEvent)
-			out <- genEvent
+		newEvents, err := kubeListener.syncNetworkPolicies(namespace, items, nil)
+		if err != nil {
+			glog.Errorf("Failed to sync romana policies with kube policies on namespace %s, sync failed with %s", namespace, err)
 		}
+
+		for _, event := range newEvents {
+			out <- event
+		}
+		/*
+			for _, policy := range items {
+				genEvent := Event{KubeEventAdded, policy}
+				glog.V(2).Infof("New policy event generated to account for difference between romana policy and kubernetes %v", genEvent)
+				out <- genEvent
+			}
+		*/
 
 	Loop:
 		for {
@@ -527,7 +537,54 @@ func (l *kubeListener) syncNetworkPolicies(namespace string, kubePolicies []Kube
 	// in romana policy service
 	// 2.2 produce ADDED network policy events for polices that arent
 	// registered with romana policy service
-	return nil, nil
+	glog.Infof("In syncNetworkPolicies with %v", kubePolicies)
+
+	var retEvents []Event
+
+	policyUrl, err := l.restClient.GetServiceUrl("policy")
+	if err != nil {
+		return nil, err
+	}
+
+	policies := []common.Policy{}
+	err = l.restClient.Get(policyUrl+"/policies", &policies)
+	if err != nil {
+		return nil, err
+	}
+	glog.Infof("In syncNetworkPolicies fetched %d romana policies", len(policies))
+
+	var found bool
+	var accountedRomanaPolicies map[int]bool
+	accountedRomanaPolicies = make(map[int]bool)
+
+	for kn, kubePolicy := range kubePolicies {
+		found = false
+		for pn, policy := range policies {
+			if kubePolicy.Metadata.Name == policy.Name {
+				found = true
+				accountedRomanaPolicies[pn] = true
+				break
+			}
+		}
+
+		if !found {
+			glog.Infof("Sync policies detected new kube policy %v", kubePolicies[kn])
+			retEvents = append(retEvents, Event{KubeEventAdded, kubePolicies[kn]})
+		}
+	}
+
+	for k, _ := range policies {
+		if !accountedRomanaPolicies[k] {
+			glog.Infof("Sync policies detected that romana policy %d is obsolete - deleting", policies[k].ID)
+			err = l.restClient.Delete(fmt.Sprintf("%s/policies/%d", policyUrl, policies[k].ID), nil, &policies)
+			if err != nil {
+				glog.Errorf("Sync policies detected obsolete policy %d but failed to delete, %s", policies[k].ID, err)
+			}
+			// retEvents = append(retEvents, Event{KubeEventDeleted, asdf})
+		}
+	}
+
+	return retEvents, nil
 }
 
 type KubernetesResource struct {
