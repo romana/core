@@ -317,13 +317,29 @@ func (t *Translator) updateCache() error {
 		fullUrl := fmt.Sprintf("%s/tenants/%d/segments", tenantURL, ten.ID)
 		err = t.restClient.Get(fullUrl, &segments)
 		// err := t.restClient.Find(&segments, common.FindAll)
-		if err != nil {
+
+		// ignore 404 error here which means no segments
+		// considered to be a zero segments rather then
+		// an error.
+		if err != nil && !checkHttp404(err) {
 			return TranslatorError{ErrorCacheUpdate, err}
 		}
 
 		t.tenantsCache = append(t.tenantsCache, TenantCacheEntry{ten, segments})
 	}
 	return nil
+}
+
+func checkHttp404(err error) bool {
+	var ret bool
+	switch e := err.(type) {
+	case common.HttpError:
+		if e.StatusCode == 404 {
+			ret = true
+		}
+	}
+
+	return ret
 }
 
 func (t *Translator) Init(client *common.RestClient, segmentLabelName string) {
