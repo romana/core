@@ -150,7 +150,7 @@ func (l *Translator) getOrAddSegment(namespace string, kubeSegmentName string) (
 // 2. If Romana Tenant does not exist it is an error (a tenant should
 //    automatically have been created when the namespace was added)
 func (l *Translator) translateNetworkPolicy(kubePolicy *KubeObject) (common.Policy, error) {
-	policyName := kubePolicy.Metadata.Name
+	policyName := fmt.Sprintf("kube.%s.%s", kubePolicy.Metadata.Namespace, kubePolicy.Metadata.Name)
 	romanaPolicy := &common.Policy{Direction: common.PolicyDirectionIngress, Name: policyName, ExternalID: kubePolicy.Metadata.Uid}
 	ns := kubePolicy.Metadata.Namespace
 	// TODO actually look up tenant K8S ID.
