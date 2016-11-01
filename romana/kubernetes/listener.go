@@ -104,6 +104,19 @@ func (l *kubeListener) SetConfig(config common.ServiceConfig) error {
 		l.namespaceBufferSize = uint64(m["namespace_buffer_size"].(float64))
 	}
 
+	tc := PTranslator.GetClient()
+	if tc == nil {
+		glog.Error("DEBUG Translator has nil client before Init")
+	}
+
+	// DEBUG
+	PTranslator.Init(l.restClient, l.segmentLabelName)
+	tc = PTranslator.GetClient()
+	if tc == nil {
+		glog.Fatal("DEBUG Translator has nil client after Init")
+	}
+
+
 	return nil
 }
 
@@ -121,18 +134,6 @@ func Run(rootServiceURL string, cred *common.Credential) (*common.RestServiceInf
 	}
 	kubeListener := &kubeListener{}
 	kubeListener.restClient = client
-
-	tc := PTranslator.GetClient()
-	if tc == nil {
-		glog.Error("DEBUG Translator has nil client before Init")
-	}
-
-	// DEBUG
-	PTranslator.Init(client, kubeListener.segmentLabelName)
-	tc = PTranslator.GetClient()
-	if tc == nil {
-		glog.Fatal("DEBUG Translator has nil client after Init")
-	}
 
 	config, err := client.GetServiceConfig(kubeListener.Name())
 	if err != nil {
@@ -316,7 +317,7 @@ func (l *kubeListener) applyNetworkPolicy(action networkPolicyAction, romanaNetw
 func (l *kubeListener) Initialize() error {
 	l.lastEventPerNamespace = make(map[string]uint64)
 	glog.Infof("%s: Starting server", l.Name())
-	nsURL, err := common.CleanURL(fmt.Sprintf("%s%s", l.kubeURL, l.namespaceNotificationPath))
+	nsURL, err := common.CleanURL(fmt.Sprintf("%s/%s/?%s", l.kubeURL, l.namespaceNotificationPath, HttpGetParamWatch))
 	if err != nil {
 		return err
 	}

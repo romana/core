@@ -141,9 +141,9 @@ func (e Event) handle(l *kubeListener) {
 	}
 
 	// Ignore the events that we procesed already.
-	if !isNewRevision(e, l) {
-		return
-	}
+	// if !isNewRevision(e, l) {
+	// 	return
+	// }
 
 	if e.Object.Kind == "NetworkPolicy" && e.Type != KubeEventModified {
 		e.handleNetworkPolicyEvent(l)
@@ -400,8 +400,9 @@ func ProducePolicies(out chan Event, done <-chan Done, namespace string, kubeLis
 			glog.Errorf("Failed to sync romana policies with kube policies on namespace %s, sync failed with %s", namespace, err)
 		}
 
-		for _, event := range newEvents {
-			out <- event
+		for en, _ := range newEvents {
+			glog.Info("DEBUG submitting policy %v for processing", newEvents[en])
+			out <- newEvents[en]
 		}
 		/*
 			for _, policy := range items {
@@ -481,6 +482,14 @@ func (l *kubeListener) watchKubernetesResource(url string, done <-chan Done) ([]
 
 	glog.V(3).Infof("List of resources on %s returned %d items and resource version %s", url, len(kubeResource.Items), kubeResource.Metadata.ResourceVersion)
 
+	// When list kubernetes resources, kind field of
+	// response is 'NetworkPolicyList' and kind fiels
+	// of items is not defined. We rely on that field
+	// to identify network policies so we force it.
+	for in, _ := range kubeResource.Items {
+		kubeResource.Items[in].Kind = "NetworkPolicy"
+	}
+
 	watchUrl := fmt.Sprintf("%s?%s&%s=%s", url, HttpGetParamWatch, HttpGetParamResourceVersion, kubeResource.Metadata.ResourceVersion)
 	watchResp, err := http.Get(watchUrl)
 	if err != nil {
@@ -494,7 +503,7 @@ func (l *kubeListener) watchKubernetesResource(url string, done <-chan Done) ([]
 	var e Event
 
 	go func() {
-		glog.V(3).Infof("Watching for events on %s", watchUrl, kubeResource.Metadata.ResourceVersion)
+		glog.V(3).Infof("Watching for events on %s", watchUrl)
 		defer close(out)
 
 		for {
