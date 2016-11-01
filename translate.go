@@ -164,14 +164,17 @@ func (l *Translator) translateNetworkPolicy(kubePolicy *KubeObject) (common.Poli
 	tenantID := t.ID
 	tenantExternalID := t.ExternalID
 
+	glog.Infof("DEBUG in translateNetworkPolicy with l.segmentLabelName = %s", l.segmentLabelName)
 	kubeSegmentID := kubePolicy.Spec.PodSelector.MatchLabels[l.segmentLabelName]
 	if kubeSegmentID == "" {
+		glog.Errorf("DEBUG Expected segment to be specified in podSelector part as %s", l.segmentLabelName)
 		return *romanaPolicy, common.NewError("Expected segment to be specified in podSelector part as '%s'", l.segmentLabelName)
 	}
 
 	segment, err := l.getOrAddSegment(ns, kubeSegmentID)
 	//	log.Printf("XXXX getOrAddSegment %s %s: %+v %v", ns, kubeSegmentID, segment, err)
 	if err != nil {
+		glog.Errorf("DEBUG error in translate while calling l.getOrAddSegment with %s and %s - error %s", ns, kubeSegmentID, err)
 		return *romanaPolicy, err
 	}
 	segmentID := segment.ID
@@ -256,6 +259,7 @@ func (t Translator) Kube2RomanaBulk(kubePolicies []KubeObject) ([]common.Policy,
 	for kubePolicyNumber, _ := range kubePolicies {
 		romanaPolicy, err := t.translateNetworkPolicy(&kubePolicies[kubePolicyNumber])
 		if err != nil {
+			glog.Errorf("Error during policy translation %s", err)
 			returnKubePolicy = append(returnKubePolicy, kubePolicies[kubePolicyNumber])
 		} else {
 			returnRomanaPolicy = append(returnRomanaPolicy, romanaPolicy)

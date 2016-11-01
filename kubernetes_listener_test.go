@@ -180,6 +180,11 @@ func (s *mockSvc) Routes() common.Routes {
 			glog.Infof("Mock policy received: %T %s", input, j)
 			switch input := input.(type) {
 			case *common.Policy:
+				for _, p := range s.policies {
+					if p.Name == input.Name {
+						return input, common.NewErrorConflict(fmt.Sprintf("Policy with name %s already exists", input.Name))
+					}
+				}
 				s.policies = append(s.policies, *input)
 				return input, nil
 			default:
@@ -280,9 +285,9 @@ func (s *mockSvc) Routes() common.Routes {
 			json := `{"common":{"api":{"host":"0.0.0.0","port":9606}},
 			"config":{"kubernetes_url":"http://localhost",
 			"segment_label_name":"tier",
-		    "namespace_notification_path: "/api/v1/namespaces/?watch=true",
-     		"policy_notification_path_prefix : "/apis/extensions/v1beta1/namespaces/",
-    		"policy_notification_path_postfix : "/networkpolicies/?watch=true",
+			"namespace_notification_path: "/api/v1/namespaces",
+			"policy_notification_path_prefix : "apis/extensions/v1beta1/namespaces",
+			"policy_notification_path_postfix : "networkpolicies",
       		}}`
 			return common.Raw{Body: json}, nil
 		},
@@ -485,7 +490,7 @@ func (s *MySuite) getKubeListenerServiceConfig() *common.ServiceConfig {
 	commonConfig := common.CommonConfig{Api: api}
 	kubeListenerConfig := make(map[string]interface{})
 	kubeListenerConfig["kubernetes_url"] = s.kubeURL
-	kubeListenerConfig["namespace_notification_path"] = "/api/v1/namespaces/?watch=true"
+	kubeListenerConfig["namespace_notification_path"] = "/api/v1/namespaces"
 	kubeListenerConfig["policy_notification_path_prefix"] = "apis/extensions/v1beta1/namespaces"
 	kubeListenerConfig["policy_notification_path_postfix"] = "networkpolicies"
 	kubeListenerConfig["segment_label_name"] = "tier"
