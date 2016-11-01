@@ -583,7 +583,7 @@ func (l *kubeListener) syncNetworkPolicies(namespace string, kubePolicies []Kube
 	}
 
 	for k, _ := range policies {
-		if !accountedRomanaPolicies[k] {
+		if !accountedRomanaPolicies[k] && strings.HasPrefix(policies[k].Name, "kube.") {
 			glog.Infof("Sync policies detected that romana policy %d is obsolete - deleting", policies[k].ID)
 			err = l.restClient.Delete(fmt.Sprintf("%s/policies/%d", policyUrl, policies[k].ID), nil, &policies)
 			if err != nil {
