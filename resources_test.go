@@ -1,10 +1,10 @@
 package kubernetes
 
 import (
-	"testing"
+	"bytes"
 	"github.com/romana/core/common"
 	"io"
-	"bytes"
+	"testing"
 )
 
 func TestSyncNetworkPolicies(t *testing.T) {
@@ -74,7 +74,7 @@ func TestWatchKubernetesResource(t *testing.T) {
 		{"type":"ADDED","object":{"kind":"NetworkPolicy","metadata":{"name":"po10","namespace":"http-tests"}}}
 	`)
 
-	httpGetFunc = func (url string) (io.Reader, error) {
+	httpGetFunc = func(url string) (io.Reader, error) {
 		if url == "http://dummy:8080" {
 			return bytes.NewReader(kubernetesResponse), nil
 		} else if url == "http://dummy:8080?watch=true&resourceVersion=1" {
@@ -84,10 +84,10 @@ func TestWatchKubernetesResource(t *testing.T) {
 		}
 		return bytes.NewReader([]byte(`{}`)), nil
 	}
-	
+
 	done := make(chan Done)
 	l := &kubeListener{}
-	
+
 	items, in, err := l.watchKubernetesResource("http://dummy:8080", done)
 	if err != nil {
 		t.Errorf("Unexpected error %s", err)
@@ -101,7 +101,7 @@ func TestWatchKubernetesResource(t *testing.T) {
 		t.Errorf("Received policy %s from kubernetes (expect po9)", items[0].Metadata.Name)
 	}
 
-	e := <- in
+	e := <-in
 	if e.Object.Metadata.Name != "po10" {
 		t.Errorf("Received policy %s from kubernetes (expect p10)", e.Object.Metadata.Name)
 	}
