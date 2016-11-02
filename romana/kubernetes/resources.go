@@ -21,8 +21,8 @@ import (
 	"github.com/golang/glog"
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
-	"io/ioutil"
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"strconv"
@@ -424,7 +424,6 @@ func ProducePolicies(out chan Event, done <-chan Done, namespace string, kubeLis
 			}
 		}
 
-
 	Loop:
 		for {
 			select {
@@ -514,7 +513,7 @@ func (l *kubeListener) watchKubernetesResource(url string, done <-chan Done) ([]
 	}
 
 	dec := json.NewDecoder(watchRespBody)
-	
+
 	out := make(chan Event, l.namespaceBufferSize)
 
 	var e Event
@@ -557,7 +556,6 @@ func (l *kubeListener) watchKubernetesResource(url string, done <-chan Done) ([]
 
 }
 
-
 func getAllPolicies(restClient *common.RestClient) ([]common.Policy, error) {
 	policyUrl, err := restClient.GetServiceUrl("policy")
 	if err != nil {
@@ -571,12 +569,12 @@ func getAllPolicies(restClient *common.RestClient) ([]common.Policy, error) {
 	}
 	return policies, nil
 }
-	
+
 // Dependencies for syncNetworkPolicies
 var getAllPoliciesFunc = getAllPolicies
 
 // syncNetworkPolicies compares a list of kubernetes network policies with romana network policies,
-// 
+//
 func (l *kubeListener) syncNetworkPolicies(namespace string, kubePolicies []KubeObject) ([]Event, []common.Policy, error) {
 	// 2.1 produces a list of outdated romana policies, ones that doesn't
 	// have corresponding kubernetes network policy for them.

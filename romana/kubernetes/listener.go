@@ -116,7 +116,6 @@ func (l *kubeListener) SetConfig(config common.ServiceConfig) error {
 		glog.Fatal("DEBUG Translator has nil client after Init")
 	}
 
-
 	return nil
 }
 
