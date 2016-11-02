@@ -16,7 +16,13 @@
 package kubernetes
 
 import (
-	"log"
+	"github.com/golang/glog"
+	"time"
+)
+
+const (
+	// TODO make a parameter. Stas.
+	processorTickTime = 4
 )
 
 // Process is a goroutine that consumes resource update events and:
@@ -28,16 +34,35 @@ import (
 //       Logs an error if not possible.
 // 2. On receiving a done event, exit the goroutine
 func (l *kubeListener) process(in <-chan Event, done chan Done) {
-	log.Printf("kubeListener: process(): Entered with in %v, done %v", in, done)
+	glog.Infof("kubeListener: process(): Entered with in %v, done %v", in, done)
+
+	timer := time.Tick(processorTickTime * time.Second)
+	var networkPolicyEvents []Event
+
 	go func() {
 		for {
 			select {
+			case <-timer:
+				if len(networkPolicyEvents) > 0 {
+					glog.V(1).Infof("Calling network policy handler for scheduled %d events", len(networkPolicyEvents))
+					handleNetworkPolicyEvents(networkPolicyEvents, l)
+					networkPolicyEvents = []Event{}
+				}
 			case e := <-in:
-				log.Printf("kubeListener: process(): Got %v", e)
-				// All events for policies and MODIFIED for namespaces
-				e.handle(l)
+				glog.V(1).Infof("kubeListener: process(): Got %v", e)
+				switch e.Object.Kind {
+				case "NetworkPolicy":
+					glog.Infof("DEBUG scheduing network policy action, now scheduled %d actions", len(networkPolicyEvents))
+					networkPolicyEvents = append(networkPolicyEvents, e)
+				case "Namespace":
+					e.handleNamespaceEvent(l)
+				case "":
+					glog.V(3).Infof("Processor received an event with empty Object.Kind field, ignoring")
+				default:
+					glog.Errorf("Processor received an event with unknown Object.Kind field %s, ignoring", e.Object.Kind)
+				}
 			case <-done:
-				log.Printf("kubeListener: process(): Got done")
+				glog.Infof("kubeListener: process(): Got done")
 				return
 			}
 		}

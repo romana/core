@@ -132,56 +132,53 @@ func isNewRevision(e Event, l *kubeListener) bool {
 	return true
 }
 
-// handle kubernetes events according to their type.
-func (e Event) handle(l *kubeListener) {
-	glog.Infof("Processing %s request for %s", e.Type, e.Object.Metadata.Name)
+// handleNetworkPolicyEvents by creating or deleting romana policies.
+func handleNetworkPolicyEvents(events []Event, l *kubeListener) {
+	// TODO optimise deletion, search policy by name/id
+	// and delete by id rather then sending full policy body.
+	// Stas.
+	var deleteEvents []KubeObject
+	var createEvents []KubeObject
 
-	// This event doesn't have a valid .Object field.
-	if e.Type == InternalEventDeleteAll {
-		return
+	for en, _ := range events {
+		switch events[en].Type {
+		case KubeEventAdded:
+			createEvents = append(createEvents, events[en].Object)
+		case KubeEventDeleted:
+			deleteEvents = append(deleteEvents, events[en].Object)
+		default:
+			glog.V(3).Info("Ignoring %s event in handleNetworkPolicyEvents", events[en].Type)
+		}
 	}
 
-	// Ignore the events that we procesed already.
-	// if !isNewRevision(e, l) {
-	// 	return
-	// }
-
-	if e.Object.Kind == "NetworkPolicy" && e.Type != KubeEventModified {
-		e.handleNetworkPolicyEvent(l)
-	} else if e.Object.Kind == "Namespace" {
-		e.handleNamespaceEvent(l)
-	} else {
-		glog.Infof("Received unindentified request %s for %s", e.Type, e.Object.Metadata.Name)
-	}
-}
-
-// handleNetworkPolicyEvent by creating or deleting romana policies.
-func (e Event) handleNetworkPolicyEvent(l *kubeListener) {
-	var action networkPolicyAction
-	if e.Type == KubeEventAdded {
-		action = networkPolicyActionAdd
-	} else {
-		action = networkPolicyActionDelete
-	}
-
-	// DEBUG
-	policyList, kubePolicy, err := PTranslator.Kube2RomanaBulk([]KubeObject{e.Object})
+	// Translate new network policies into romana policies.
+	createPolicyList, kubePolicy, err := PTranslator.Kube2RomanaBulk(createEvents)
 	if err != nil {
-		glog.Fatalf("Error translating %v - %s", e.Object, err)
+		glog.Error("Not all kubernetes policies could be translated romana policies attempted %d, succes %d, fail %d, error %d", len(createEvents), len(createPolicyList), len(kubePolicy), err)
 	}
-	if len(kubePolicy) > 0 {
-		glog.Fatalf("Error translating policy %v, returned as kube policy", e.Object)
+	for kn, _ := range kubePolicy {
+		glog.Error("Failed to translate kubernetes policy %v", kubePolicy[kn])
 	}
 
-	policy := policyList[0]
-	//	policy, err := l.translateNetworkPolicy(&e.Object)
-	if err == nil {
-		j1, _ := json.Marshal(e)
-		j2, _ := json.Marshal(policy)
-		glog.Infof("handleNetworkPolicyEvent(): translated\n\t%s\n\tto\n\t%s", j1, j2)
-		l.applyNetworkPolicy(action, policy)
-	} else {
-		glog.Infoln(err)
+	// Translate old network policies into romana policies.
+	// TODO this feels strange but we have to have a full policy body
+	// for deletion. Stas.
+	deletePolicyList, kubePolicy, err := PTranslator.Kube2RomanaBulk(deleteEvents)
+	if err != nil {
+		glog.Error("Not all kubernetes policies could be translated romana policies attempted %d, succes %d, fail %d, error %d", len(createEvents), len(deletePolicyList), len(kubePolicy), err)
+	}
+	for kn, _ := range kubePolicy {
+		glog.Error("Failed to translate kubernetes policy %v", kubePolicy[kn])
+	}
+
+	// Create new policies.
+	for pn, _ := range createPolicyList {
+		l.applyNetworkPolicy(networkPolicyActionAdd, createPolicyList[pn])
+	}
+
+	// Delete old policies.
+	for pn, _ := range deletePolicyList {
+		l.applyNetworkPolicy(networkPolicyActionDelete, deletePolicyList[pn])
 	}
 }
 

@@ -164,7 +164,6 @@ func (l *Translator) translateNetworkPolicy(kubePolicy *KubeObject) (common.Poli
 	tenantID := t.ID
 	tenantExternalID := t.ExternalID
 
-	glog.Infof("DEBUG in translateNetworkPolicy with l.segmentLabelName = %s", l.segmentLabelName)
 	kubeSegmentID := kubePolicy.Spec.PodSelector.MatchLabels[l.segmentLabelName]
 	if kubeSegmentID == "" {
 		glog.Errorf("DEBUG Expected segment to be specified in podSelector part as %s", l.segmentLabelName)
@@ -190,7 +189,7 @@ func (l *Translator) translateNetworkPolicy(kubePolicy *KubeObject) (common.Poli
 	// from := kubePolicy.Spec.Ingress[0].From
 	// This is subject to change once the network specification in Kubernetes is finalized.
 	// Right now it is a work in progress.
-	glog.Infof("YYYYY For %s processing %+v", kubePolicy.Metadata.Name, kubePolicy.Spec.Ingress)
+	glog.V(1).Infof("For %s processing %+v", kubePolicy.Metadata.Name, kubePolicy.Spec.Ingress)
 	for _, ingress := range kubePolicy.Spec.Ingress {
 		for _, entry := range ingress.From {
 			pods := entry.Pods
@@ -211,7 +210,6 @@ func (l *Translator) translateNetworkPolicy(kubePolicy *KubeObject) (common.Poli
 			ports := []uint{toPort.Port}
 			rule := common.Rule{Protocol: proto, Ports: ports}
 			romanaPolicy.Rules = append(romanaPolicy.Rules, rule)
-			glog.Infof("YYYYY %+v", romanaPolicy.Rules)
 		}
 	}
 	glog.Infof("translateNetworkPolicy(): Validating %+v", romanaPolicy)
@@ -291,14 +289,12 @@ func (t *Translator) updateCache() error {
 	if err != nil {
 		return TranslatorError{ErrorCacheUpdate, err}
 	}
-	glog.Info("In updateCache 2")
 
 	tenants := []tenant.Tenant{}
 	err = t.restClient.Get(tenantURL+"/tenants", &tenants)
 	if err != nil {
 		return TranslatorError{ErrorCacheUpdate, err}
 	}
-	glog.Info("In updateCache 3")
 
 	if t.restClient == nil {
 		glog.Fatal("REST client is nil")
