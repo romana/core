@@ -19,16 +19,15 @@ package common
 // interfaces.
 
 import (
-	//		"net/url"
 	"errors"
 	"fmt"
 	"github.com/codegangsta/negroni"
-	//	log "github.com/Sirupsen/logrus"
-	"log"
+	"github.com/golang/glog"
+
 	"net"
 	"net/http"
 	"reflect"
-	//	"net/url"
+
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -175,7 +174,7 @@ type Service interface {
 // service. Messages are of type ServiceMessage above.
 // It can be used for launching service from tests, etc.
 func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo, error) {
-	log.Printf("Initializing service %s with %v", service.Name(), config.Common.Api)
+	glog.V(1).Infof("Initializing service %s with %v", service.Name(), config.Common.Api)
 
 	routes := service.Routes()
 
@@ -195,13 +194,13 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 			if r.Pattern == hook.Pattern && strings.ToUpper(r.Method) == m {
 				found = true
 				r.Hook = &hooks[i]
-				log.Printf("InitializeService(): [%d] Added hook to run %s %s %s %s", j, hook.Executable, hook.When, r.Method, r.Pattern)
+				glog.V(1).Infof("InitializeService(): [%d] Added hook to run %s %s %s %s", j, hook.Executable, hook.When, r.Method, r.Pattern)
 				break
 			}
 		}
 
 		for i, r := range routes {
-			log.Printf("InitializeService(): Modified route[%d]: %s %s %v", i, r.Method, r.Pattern, r.Hook)
+			glog.V(1).Infof("InitializeService(): Modified route[%d]: %s %s %v", i, r.Method, r.Pattern, r.Hook)
 		}
 		if !found {
 			return nil, errors.New(fmt.Sprintf("No route matching pattern %s and method %s found in %v", hook.Pattern, hook.Method, routes))
@@ -239,7 +238,7 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 	negroni.Use(NewUnmarshaller())
 	pubKeyLocation := config.Common.Api.AuthPublic
 	if pubKeyLocation != "" {
-		log.Printf("Reading public key from %s", pubKeyLocation)
+		glog.V(1).Infof("Reading public key from %s", pubKeyLocation)
 		config.Common.PublicKey, err = ioutil.ReadFile(pubKeyLocation)
 	}
 	if err != nil {
@@ -255,7 +254,7 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 	var dur time.Duration
 	var readWriteDur time.Duration
 	if timeoutMillis <= 0 {
-		log.Printf("%s: Invalid timeout %d, defaulting to %d\n", service.Name(), timeoutMillis, DefaultRestTimeout)
+		glog.V(1).Infof("%s: Invalid timeout %d, defaulting to %d\n", service.Name(), timeoutMillis, DefaultRestTimeout)
 		timeoutMillis = DefaultRestTimeout
 		dur = DefaultRestTimeout * time.Millisecond
 		readWriteDur = (DefaultRestTimeout + ReadWriteTimeoutDelta) * time.Millisecond
@@ -266,18 +265,17 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 		readWriteDur, _ = time.ParseDuration(timeoutStr)
 	}
 
-	log.Printf("%s: Creating TimeoutHandler with %v\n", service.Name(), dur)
+	glog.V(1).Infof("%s: Creating TimeoutHandler with %v\n", service.Name(), dur)
 	timeoutHandler := http.TimeoutHandler(router, dur, TimeoutMessage)
 	negroni.UseHandler(timeoutHandler)
 
 	hostPort := config.Common.Api.GetHostPort()
-	log.Println("About to start...")
 	svcInfo, err := RunNegroni(negroni, hostPort, readWriteDur)
 
 	if err == nil {
 		addr := svcInfo.Address
 		if addr != hostPort {
-			log.Printf("Requested address %s, real %s\n", hostPort, addr)
+			glog.V(1).Infof("Requested address %s, real %s\n", hostPort, addr)
 			idx := strings.LastIndex(addr, ":")
 			config.Common.Api.Host = addr[0:idx]
 			port, _ := strconv.Atoi(addr[idx+1:])
@@ -292,7 +290,7 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 					retries = DefaultRestRetries
 				}
 				clientConfig := RestClientConfig{TimeoutMillis: timeoutMillis, Retries: retries, RootURL: config.Common.Api.RootServiceUrl, TestMode: config.Common.Api.RestTestMode}
-				//				log.Printf("InitializeService() : Initializing Rest client with %v", clientConfig)
+				//				glog.V(1).Infof("InitializeService() : Initializing Rest client with %v", clientConfig)
 				client, err := NewRestClient(clientConfig)
 				if err != nil {
 					return svcInfo, err
@@ -300,9 +298,9 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 				url := fmt.Sprintf("/config/%s/port", service.Name())
 				err = client.Post(url, portMsg, &result)
 				if err != nil {
-					log.Printf("Error attempting to register service %s with root: %+v", service.Name(), err)
+					glog.V(1).Infof("Error attempting to register service %s with root: %+v", service.Name(), err)
 				} else {
-					log.Printf("Register service %s with root: %+v: %+v", service.Name(), portMsg, result)
+					glog.V(1).Infof("Register service %s with root: %+v: %+v", service.Name(), portMsg, result)
 
 				}
 			}
@@ -317,10 +315,10 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 //    because the Handler used will be the n Negroni object.
 func RunNegroni(n *negroni.Negroni, addr string, timeout time.Duration) (*RestServiceInfo, error) {
 	svr := &http.Server{Addr: addr, ReadTimeout: timeout, WriteTimeout: timeout}
-	l := log.New(os.Stdout, "[negroni] ", 0)
+	l := NewGlogAdapter(0)
 	svr.Handler = n
 	svr.ErrorLog = l
-	log.Printf("Calling ListenAndServe(%p)", svr)
+	glog.V(1).Infof("Calling ListenAndServe(%p)", svr)
 	return ListenAndServe(svr)
 }
 
@@ -349,7 +347,7 @@ func (ln tcpKeepAliveListener) Accept() (c net.Conn, err error) {
 // arbitrary ports).
 // See https://github.com/golang/go/blob/master/src/net/http/server.go
 func ListenAndServe(svr *http.Server) (*RestServiceInfo, error) {
-	log.Printf("Entering ListenAndServe(%p)", svr)
+	glog.V(1).Infof("Entering ListenAndServe(%p)", svr)
 	if svr.Addr == "" {
 		svr.Addr = ":0"
 	}
@@ -361,15 +359,14 @@ func ListenAndServe(svr *http.Server) (*RestServiceInfo, error) {
 	channel := make(chan ServiceMessage)
 	l := svr.ErrorLog
 	if l == nil {
-		l = log.New(os.Stdout, "", 0)
+		l = NewGlogAdapter(0)
 	}
 	go func() {
 		channel <- Starting
 		l.Printf("ListenAndServe(%p): listening on %s (asked for %s) with configuration %v, handler %v\n", svr, realAddr, svr.Addr, svr, svr.Handler)
 		err := svr.Serve(tcpKeepAliveListener{ln.(*net.TCPListener)})
 		if err != nil {
-			log.Printf("RestService: Fatal error %v", err)
-			log.Fatal(err)
+			glog.Fatalf("RestService: Fatal error %v", err)
 		}
 	}()
 	return &RestServiceInfo{Address: realAddr, Channel: channel}, nil

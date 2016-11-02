@@ -20,16 +20,17 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/golang/glog"
 	"github.com/pborman/uuid"
-	"io/ioutil"
-	"sync/atomic"
 
+	"io/ioutil"
 	"log"
 	"os"
 	"reflect"
 	"runtime/debug"
 	"strings"
 	"sync"
+	"sync/atomic"
 )
 
 const (
@@ -70,16 +71,16 @@ type RomanaTestSuite struct {
 // 2. Replacing all database instance names with the result of GetMockDbName
 //    and write it out to /tmp/romana.yaml
 func (rts *RomanaTestSuite) MockConfig(romanaConfigFile string) error {
-	log.Printf("MockConfig():")
+	glog.V(1).Infof("MockConfig():")
 	overrideConfigFile := os.ExpandEnv("${ROMANA_CONFIG_FILE}")
 	if overrideConfigFile != "" {
-		log.Printf("\tOverriding %s with value of ROMANA_CONFIG_FILE: %s", romanaConfigFile, overrideConfigFile)
+		glog.V(1).Infof("\tOverriding %s with value of ROMANA_CONFIG_FILE: %s", romanaConfigFile, overrideConfigFile)
 		romanaConfigFile = overrideConfigFile
 	}
-	log.Printf("\tWill use config file %s", romanaConfigFile)
+	glog.V(1).Infof("\tWill use config file %s", romanaConfigFile)
 	var err error
 	location := GetCaller()
-	log.Printf("\tCalled from %s", location)
+	glog.V(1).Infof("\tCalled from %s", location)
 	config, err := ReadConfig(romanaConfigFile)
 	if err != nil {
 		return err
@@ -88,7 +89,7 @@ func (rts *RomanaTestSuite) MockConfig(romanaConfigFile string) error {
 
 	for _, svc := range services {
 		svcConfig := config.Services[svc]
-		log.Printf("\tMocking for service %s:", svc)
+		glog.V(1).Infof("\tMocking for service %s:", svc)
 		svcConfig.Common.Api.Port = 0
 		if svc != "root" {
 			storeConfig := svcConfig.ServiceSpecific["store"].(map[string]interface{})
@@ -100,14 +101,14 @@ func (rts *RomanaTestSuite) MockConfig(romanaConfigFile string) error {
 				// TODO add this to RomanaTestSuite list of resources to destroy
 				storeConfig["database"] = GetMockDbName(svc)
 			}
-			log.Printf("\t\tDB config: %v", storeConfig["database"])
+			glog.V(1).Infof("\t\tDB config: %v", storeConfig["database"])
 		}
 	}
 
 	outFile := fmt.Sprintf("/tmp/romana_%s.yaml", getUniqueMockNameComponent())
 	err = WriteConfig(config, outFile)
 	if err != nil {
-		log.Printf("\tRead %s, trying to write %s: %v", romanaConfigFile, outFile, err)
+		glog.V(1).Infof("\tRead %s, trying to write %s: %v", romanaConfigFile, outFile, err)
 		return err
 	}
 	wrote, _ := ioutil.ReadFile(outFile)
@@ -116,18 +117,18 @@ func (rts *RomanaTestSuite) MockConfig(romanaConfigFile string) error {
 		return err
 	}
 	rts.ConfigFile = outFile
-	log.Printf("\tRead %s, wrote to %s:\n%s\n------------------------", romanaConfigFile, outFile, string(wrote))
+	glog.V(1).Infof("\tRead %s, wrote to %s:\n%s\n------------------------", romanaConfigFile, outFile, string(wrote))
 	return nil
 }
 
 func (rts *RomanaTestSuite) CleanUp() {
-	log.Printf("CleanUp(): Cleaning up the following temporary files: %v", rts.tmpFiles)
+	glog.V(1).Infof("CleanUp(): Cleaning up the following temporary files: %v", rts.tmpFiles)
 	for _, f := range rts.tmpFiles {
 		err := os.Remove(f)
 		if err == nil {
-			log.Printf("CleanUp(): Removed %s.", f)
+			glog.V(1).Infof("CleanUp(): Removed %s.", f)
 		} else {
-			log.Printf("CleanUp(): Failed removing %s: %v", f, err)
+			glog.V(1).Infof("CleanUp(): Failed removing %s: %v", f, err)
 		}
 	}
 }
@@ -161,8 +162,26 @@ func IsZeroValue(val interface{}) bool {
 		return valVal.Len() == 0
 	}
 	zeroVal := reflect.Zero(valType).Interface()
-	//	log.Printf("Zero value of %+v (type %T, kind %s) is %+v", val, val, valKind, zeroVal)
+	//	glog.V(1).Infof("Zero value of %+v (type %T, kind %s) is %+v", val, val, valKind, zeroVal)
 	return val == zeroVal
+}
+
+// glogWriter implements io.Writer
+type glogWriter struct {
+	severity glog.Level
+}
+
+func (g *glogWriter) Write(p []byte) (n int, err error) {
+	glog.V(g.severity).Info(string(p))
+	return len(p), nil
+}
+
+// NewGlogAdapter returns a Logger that is actually using glog
+// underneath, to satisfy http.Server
+func NewGlogAdapter(severity glog.Level) *log.Logger {
+	out := glogWriter{severity: severity}
+	l := log.New(&out, "", 0)
+	return l
 }
 
 // CleanURL is similar to path.Clean() but to work on URLs

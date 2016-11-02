@@ -21,8 +21,8 @@ import (
 	"errors"
 	"fmt"
 	"github.com/go-yaml/yaml"
+	"github.com/golang/glog"
 	"io/ioutil"
-	"log"
 
 	"path/filepath"
 )
@@ -155,7 +155,7 @@ func ReadConfig(fname string) (Config, error) {
 		return *config, err
 	}
 	if fname != absFname {
-		log.Printf("ReadConfig(): Normalized %s to %s", fname, absFname)
+		glog.V(1).Infof("ReadConfig(): Normalized %s to %s", fname, absFname)
 		fname = absFname
 	}
 	yamlConfig := yamlConfig{}
@@ -166,7 +166,7 @@ func ReadConfig(fname string) (Config, error) {
 		}
 		err = yaml.Unmarshal(data, &yamlConfig)
 		if err != nil {
-			log.Printf("ReadConfig(): Error reading config: %v", err)
+			glog.V(1).Infof("ReadConfig(): Error reading config: %v", err)
 			return *config, err
 		}
 		serviceConfigs := yamlConfig.Services
