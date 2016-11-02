@@ -85,7 +85,7 @@ func (l *kubeListener) conductor(in <-chan Event, done <-chan Done) <-chan Event
 				l.manageResources(ns, terminators, out)
 				// ADDED, DELETED events for namespace handled here
 				glog.Infof("kubeListener: conductor(): calling handle on %+v", ns)
-				ns.handle(l)
+				ns.handleNamespaceEvent(l)
 			case <-done:
 				glog.Infof("kubeListener: conductor(): got done on %v", done)
 				return
