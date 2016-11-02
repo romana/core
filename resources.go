@@ -22,6 +22,7 @@ import (
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
 	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -385,32 +386,44 @@ func ProducePolicies(out chan Event, done <-chan Done, namespace string, kubeLis
 	url := fmt.Sprintf("%s/%s/%s/%s", kubeListener.kubeURL, kubeListener.policyNotificationPathPrefix, namespace, kubeListener.policyNotificationPathPostfix)
 	glog.Infof("Listening for kubernetes network policy events for namespace %s on %s", namespace, url)
 	for {
+		// Get all kubernetes network policies for this namespace.
 		items, in, err := kubeListener.watchKubernetesResource(url, done)
 		if err != nil {
-			glog.Infof("Failed to create listener for kubernetes network policies on %s, repeat in %d seconds", namespace, sleepTime)
+			glog.Errorf("Failed to create listener for kubernetes network policies on %s, repeat in %d seconds", namespace, sleepTime)
 			glog.V(1).Infof("Failed to create listener for kubernetes network policies on %s, error %s", namespace, err)
 			time.Sleep(sleepTime * time.Second)
 			sleepTime += 1
 			continue
 		}
+		glog.Infof("Produce policies received %d policies for namespace %s", len(items), namespace)
 
-		// TODO should be syncNetworkPolicies instead
-		newEvents, err := kubeListener.syncNetworkPolicies(namespace, items, nil)
+		// Compare kubernetes policies and romana policies.
+		newEvents, oldPolicies, err := kubeListener.syncNetworkPolicies(namespace, items)
 		if err != nil {
 			glog.Errorf("Failed to sync romana policies with kube policies on namespace %s, sync failed with %s", namespace, err)
 		}
+		glog.Infof("Produce policies detected %d new kubernetes policies and %d old romana policies for namespace %s", len(newEvents), len(oldPolicies), namespace)
 
+		// Create new kubernetes policies
 		for en, _ := range newEvents {
-			glog.Info("DEBUG submitting policy %v for processing", newEvents[en])
 			out <- newEvents[en]
 		}
-		/*
-			for _, policy := range items {
-				genEvent := Event{KubeEventAdded, policy}
-				glog.V(2).Infof("New policy event generated to account for difference between romana policy and kubernetes %v", genEvent)
-				out <- genEvent
+
+		// Delete old romana policies.
+		// TODO find a way to remove policy deletion from this function. Stas.
+		policyUrl, err := kubeListener.restClient.GetServiceUrl("policy")
+		if err != nil {
+			glog.Errorf("Failed to discover policy url before deleting outdated romana policies")
+			// return nil, err
+		}
+
+		for k, _ := range oldPolicies {
+			err = kubeListener.restClient.Delete(fmt.Sprintf("%s/policies/%d", policyUrl, oldPolicies[k].ID), nil, &oldPolicies)
+			if err != nil {
+				glog.Errorf("Sync policies detected obsolete policy %d but failed to delete, %s", oldPolicies[k].ID, err)
 			}
-		*/
+		}
+
 
 	Loop:
 		for {
@@ -431,6 +444,14 @@ func ProducePolicies(out chan Event, done <-chan Done, namespace string, kubeLis
 		}
 	}
 }
+
+func httpGet(url string) (io.Reader, error) {
+	resp, err := http.Get(url)
+	return resp.Body, err
+}
+
+// watchKubernetesResource dependencies
+var httpGetFunc = httpGet
 
 // watchKubernetesResource retrieves a list of kubernetes objects
 // associated with particular resource and channel of events.
@@ -461,15 +482,10 @@ func (l *kubeListener) watchKubernetesResource(url string, done <-chan Done) ([]
 		return nil, nil, err
 	}
 
-	resp, err := http.Get(cleanUrl)
+	respBody, _ := httpGetFunc(cleanUrl)
+	body, err := ioutil.ReadAll(respBody)
 	if err != nil {
-		glog.Errorf("In watchKubernetesResource failed to GET response from kubernetes %s", err)
-		return nil, nil, err
-	}
-
-	body, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		glog.Errorf("In watchKubernetesResource failed to read kubernetes response %s", err)
+		glog.Errorf("In watchKubernetesResource failed to read kubernetes response from url %s, %s", cleanUrl, err)
 		return nil, nil, err
 	}
 
@@ -491,13 +507,14 @@ func (l *kubeListener) watchKubernetesResource(url string, done <-chan Done) ([]
 	}
 
 	watchUrl := fmt.Sprintf("%s?%s&%s=%s", url, HttpGetParamWatch, HttpGetParamResourceVersion, kubeResource.Metadata.ResourceVersion)
-	watchResp, err := http.Get(watchUrl)
+	watchRespBody, err := httpGetFunc(watchUrl)
 	if err != nil {
-		glog.Infof("In watchKubernetesResource failed connect to %s due to %s", watchResp, err)
+		glog.Infof("In watchKubernetesResource failed connect to %s due to %s", watchRespBody, err)
 		return nil, nil, err
 	}
 
-	dec := json.NewDecoder(watchResp.Body)
+	dec := json.NewDecoder(watchRespBody)
+	
 	out := make(chan Event, l.namespaceBufferSize)
 
 	var e Event
@@ -540,36 +557,56 @@ func (l *kubeListener) watchKubernetesResource(url string, done <-chan Done) ([]
 
 }
 
-// syncNetworkPolicies compares
-func (l *kubeListener) syncNetworkPolicies(namespace string, kubePolicies []KubeObject, romanaPolicies []interface{}) ([]Event, error) {
-	// 2.1 produce DELETE network policy events for outdated policies
-	// in romana policy service
-	// 2.2 produce ADDED network policy events for polices that arent
-	// registered with romana policy service
-	glog.Infof("In syncNetworkPolicies with %v", kubePolicies)
 
-	var retEvents []Event
-
-	policyUrl, err := l.restClient.GetServiceUrl("policy")
+func getAllPolicies(restClient *common.RestClient) ([]common.Policy, error) {
+	policyUrl, err := restClient.GetServiceUrl("policy")
 	if err != nil {
 		return nil, err
 	}
 
 	policies := []common.Policy{}
-	err = l.restClient.Get(policyUrl+"/policies", &policies)
+	err = restClient.Get(policyUrl+"/policies", &policies)
 	if err != nil {
 		return nil, err
 	}
-	glog.Infof("In syncNetworkPolicies fetched %d romana policies", len(policies))
+	return policies, nil
+}
+	
+// Dependencies for syncNetworkPolicies
+var getAllPoliciesFunc = getAllPolicies
 
+// syncNetworkPolicies compares a list of kubernetes network policies with romana network policies,
+// 
+func (l *kubeListener) syncNetworkPolicies(namespace string, kubePolicies []KubeObject) ([]Event, []common.Policy, error) {
+	// 2.1 produces a list of outdated romana policies, ones that doesn't
+	// have corresponding kubernetes network policy for them.
+	// 2.2 produce ADDED network policy events for polices that arent
+	// registered with romana policy service
+	glog.V(1).Infof("In syncNetworkPolicies with %v", kubePolicies)
+
+	var retEvents []Event
+	var retPolicies []common.Policy
+
+	policies, err := getAllPoliciesFunc(l.restClient)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	glog.V(1).Infof("In syncNetworkPolicies fetched %d romana policies", len(policies))
+
+	// Compare kubernetes policies and all romana policies by name.
+	// Prepare a list of kubernetes policies that doesn't have corresponding
+	// romana policy.
 	var found bool
 	var accountedRomanaPolicies map[int]bool
 	accountedRomanaPolicies = make(map[int]bool)
+	currentPrefix := fmt.Sprintf("kube.%s.", namespace)
 
 	for kn, kubePolicy := range kubePolicies {
 		found = false
 		for pn, policy := range policies {
-			if kubePolicy.Metadata.Name == policy.Name {
+			fullPolicyName := fmt.Sprintf("%s%s", currentPrefix, kubePolicy.Metadata.Name)
+			if fullPolicyName == policy.Name {
 				found = true
 				accountedRomanaPolicies[pn] = true
 				break
@@ -577,23 +614,28 @@ func (l *kubeListener) syncNetworkPolicies(namespace string, kubePolicies []Kube
 		}
 
 		if !found {
-			glog.Infof("Sync policies detected new kube policy %v", kubePolicies[kn])
+			glog.V(3).Infof("Sync policies detected new kube policy %v", kubePolicies[kn])
 			retEvents = append(retEvents, Event{KubeEventAdded, kubePolicies[kn]})
 		}
 	}
 
+	// Delete romana policies that doesn't have corresponding
+	// kubernetes policy.
+	// Ignore policies that doesn't have "kube.<namespace>." prefix in the name.
 	for k, _ := range policies {
-		if !accountedRomanaPolicies[k] && strings.HasPrefix(policies[k].Name, "kube.") {
-			glog.Infof("Sync policies detected that romana policy %d is obsolete - deleting", policies[k].ID)
-			err = l.restClient.Delete(fmt.Sprintf("%s/policies/%d", policyUrl, policies[k].ID), nil, &policies)
-			if err != nil {
-				glog.Errorf("Sync policies detected obsolete policy %d but failed to delete, %s", policies[k].ID, err)
-			}
-			// retEvents = append(retEvents, Event{KubeEventDeleted, asdf})
+		if !strings.HasPrefix(policies[k].Name, currentPrefix) {
+			glog.V(4).Infof("Sync policies skipping policy %s since it doesn't match the prefix %s", policies[k].Name, currentPrefix)
+			continue
+		}
+
+		if !accountedRomanaPolicies[k] {
+			glog.Infof("Sync policies detected that romana policy %d is obsolete - scheduling for deletion", policies[k].ID)
+			glog.V(3).Infof("Sync policies detected that romana policy %d is obsolete - scheduling for deletion", policies[k].ID)
+			retPolicies = append(retPolicies, policies[k])
 		}
 	}
 
-	return retEvents, nil
+	return retEvents, retPolicies, nil
 }
 
 type KubernetesResource struct {
