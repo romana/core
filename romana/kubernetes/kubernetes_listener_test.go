@@ -578,14 +578,14 @@ func (s *MySuite) TestListener(c *check.C) {
 	glog.Infof("Policies: %+v\n", svc.policies)
 	c.Assert(len(svc.policies), check.Equals, 2)
 	c.Assert(svc.policies[0].Name, check.Equals, "ns0")
-	c.Assert(svc.policies[1].Name, check.Equals, "pol1")
+	c.Assert(svc.policies[1].Name, check.Equals, "kube.default.pol1")
 }
 
 func makeTestPolicy2() common.Policy {
 	TestPolicy2 := common.Policy{
 		Description: "Predefined test policy to test listener sync",
 		Direction:   "ingress",
-		Name:        "pol2",
+		Name:        "kube.default.pol2",
 		ID:          999,
 		AppliedTo: []common.Endpoint{
 			common.Endpoint{
