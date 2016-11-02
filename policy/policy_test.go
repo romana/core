@@ -34,10 +34,15 @@ func Test(t *testing.T) {
 }
 
 type MySuite struct {
+	common.RomanaTestSuite
 	serviceURL  string
 	servicePort uint64
 	kubeURL     string
 	c           *check.C
+}
+
+func (s *MySuite) TearDownSuite(c *check.C) {
+	s.RomanaTestSuite.CleanUp()
 }
 
 var _ = check.Suite(&MySuite{})
@@ -70,6 +75,7 @@ func (s *mockSvc) Initialize() error {
 }
 
 func (s *mockSvc) Routes() common.Routes {
+	policyDbFile := s.mySuite.RomanaTestSuite.GetMockSqliteFile("policy")
 	policyServiceConfig := fmt.Sprintf(`{
 			          "common":{
 						"api":{"host":"0.0.0.0","port":0}
@@ -77,7 +83,7 @@ func (s *mockSvc) Routes() common.Routes {
 			   	      "config":{"store":
 			  			 {"type" : "sqlite3",  "database" : "%s" }
 			  		  }	 
-			        }`, common.GetMockSqliteFile("policy"))
+			        }`, policyDbFile)
 
 	tenantGetRoute := common.Route{
 		Method:  "GET",
@@ -233,6 +239,16 @@ type RomanaT struct {
 	testing.T
 }
 
+// TestIcmp tests https://paninetworks.kanbanize.com/ctrl_board/3/cards/395/details
+func (s *MySuite) TestIcmp(c *check.C) {
+	policyIn := common.Policy{}
+	err := json.Unmarshal([]byte(icmpPolicy), &policyIn)
+	if err != nil {
+		c.Fatal(err)
+		c.FailNow()
+	}
+}
+
 func (s *MySuite) TestPolicy(c *check.C) {
 	cfg := &common.ServiceConfig{Common: common.CommonConfig{Api: &common.Api{Port: 0, RestTimeoutMillis: 100}}}
 	log.Printf("Test: Mock service config:\n\t%#v\n\t%#v\n", cfg.Common.Api, cfg.ServiceSpecific)
@@ -286,6 +302,7 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	err = json.Unmarshal([]byte(romanaPolicy1), &policyIn)
 	if err != nil {
 		c.Fatal(err)
+		c.FailNow()
 	}
 	policyOut := common.Policy{}
 	err = client.Post(polURL, policyIn, &policyOut)
@@ -521,4 +538,38 @@ const (
             }
       ]
    }`
+
+	icmpPolicy = `{
+  "direction": "ingress",
+  "name": "os-vm-default",
+  "applied_to": [
+    {
+      "dest": "local"
+    }
+  ],
+  "peers": [
+    {
+      "peer": "host"
+    }
+  ],
+  "rules": [
+    {
+      "protocol": "TCP",
+      "ports": [
+        22
+      ]
+    },
+    {
+      "protocol": "UDP",
+      "ports": [
+        67
+      ]
+    },
+    {
+      "protocol": "ICMP",
+      "icmp_type": 8
+      
+    }
+  ]
+}`
 )

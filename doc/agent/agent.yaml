@@ -2,10 +2,7 @@ swagger: "2.0"
 info:
   title: Romana agent API
   description: |
-    Agent provides access to configuration and helper functions, shared across
-    all the threads.
-    Types Config, Leasefile and Firewall are designed to be loosely coupled
-    so they could later be separated into packages and used independently.
+    Agent represents the capabilities of an ssh-agent.
   contact:
     url: http://romana.io
     email: info@romana.io
@@ -31,23 +28,10 @@ produces:
 - application/x-www-form-urlencoded
 paths:
   /:
-    post:
-      summary: index
+    get:
+      summary: statusHandler
       description: |
-        index handles HTTP requests for endpoints provisioning.
-        Currently tested with Romana ML2 driver.
-        TODO index should be reserved for an actual index, while this function
-        need to be renamed as interfaceHandler and need to respond on it's own url.
-      parameters:
-      - name: agent.NetIf
-        in: body
-        description: |
-          NetIf is a structure that represents
-          network interface and its IP configuration
-          together with basic methods operating on this structure.
-        required: true
-        schema:
-          $ref: '#/definitions/agent.NetIf'
+        statusHandler reports operational statistics.
       responses:
         "400":
           description: Bad request
@@ -61,11 +45,38 @@ paths:
           description: Unexpected error
           schema:
             $ref: '#/definitions/common.HttpError'
-  /kubernetes-pod-up:
+  /pod:
     post:
-      summary: k8sPodUpHandler
+      summary: podUpHandler
       description: |
-        k8sPodUpHandler handles HTTP requests for endpoints provisioning.
+        podUpHandler handles HTTP requests for endpoints provisioning.
+      parameters:
+      - name: agent.NetworkRequest
+        in: body
+        description: |
+          NetworkRequest specifies messages sent to the
+          agent containing information on how to configure network
+          on its host.
+        required: true
+        schema:
+          $ref: '#/definitions/agent.NetworkRequest'
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+    delete:
+      summary: podDownHandler
+      description: |
+        podDownHandler cleans up after pod deleted.
       parameters:
       - name: agent.NetworkRequest
         in: body
@@ -163,22 +174,86 @@ paths:
           description: Unexpected error
           schema:
             $ref: '#/definitions/common.HttpError'
+  /vm:
+    post:
+      summary: vmUpHandler
+      description: |
+        vmUpHandler handles HTTP requests for endpoints provisioning.
+        Currently tested with Romana ML2 driver.
+      parameters:
+      - name: agent.NetIf
+        in: body
+        description: |
+          NetIf is a structure that represents
+          network interface and its IP configuration
+          together with basic methods operating on this structure.
+        required: true
+        schema:
+          $ref: '#/definitions/agent.NetIf'
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
+    delete:
+      summary: vmDownHandler
+      description: |
+        vmDownHandler handles HTTP requests for endpoints teardown.
+      parameters:
+      - name: agent.NetIf
+        in: body
+        description: |
+          NetIf is a structure that represents
+          network interface and its IP configuration
+          together with basic methods operating on this structure.
+        required: true
+        schema:
+          $ref: '#/definitions/agent.NetIf'
+      responses:
+        "400":
+          description: Bad request
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "404":
+          description: Not found
+          schema:
+            $ref: '#/definitions/common.HttpError'
+        "500":
+          description: Unexpected error
+          schema:
+            $ref: '#/definitions/common.HttpError'
 definitions:
+  agent.IP:
+    description: |
+      IP structure is basically net.IP, but we redefine it so we
+      can implement Valuer and Scanner interfaces on it for storage.
+    type: object
+    properties:
+      IP:
+        type: array
+        items:
+          type: integer
   agent.NetIf:
     description: |
       NetIf is a structure that represents
       network interface and its IP configuration
       together with basic methods operating on this structure.
     type: object
-    required:
-    - interface_name
     properties:
-      interface_name:
+      IP:
+        $ref: '#/definitions/agent.IP'
+      Mac:
         type: string
-      ip_address:
-        type: array
-        items:
-          type: integer
+      Name:
+        type: string
   agent.NetworkRequest:
     description: |
       NetworkRequest specifies messages sent to the

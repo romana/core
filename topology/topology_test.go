@@ -35,13 +35,16 @@ func Test(t *testing.T) {
 }
 
 type MySuite struct {
-	config          common.Config
-	configFile      string
+	common.RomanaTestSuite
 	rootURL         string
 	servicesStarted bool
 }
 
 var _ = check.Suite(&MySuite{})
+
+func (s *MySuite) TearDownSuite(c *check.C) {
+	s.RomanaTestSuite.CleanUp()
+}
 
 func (s *MySuite) SetUpTest(c *check.C) {
 	myLog(c, "Entering SetUP, services started: ", s.servicesStarted)
@@ -49,21 +52,17 @@ func (s *MySuite) SetUpTest(c *check.C) {
 		dir, _ := os.Getwd()
 		myLog(c, "Entering setup in directory", dir)
 		var err error
-		s.configFile, err = common.MockConfig("../common/testdata/romana.sample.yaml")
-		if err != nil {
-			panic(err)
-		}
-		s.config, err = common.ReadConfig(s.configFile)
+		err = s.RomanaTestSuite.MockConfig(common.DefaultTestConfigFile)
 		if err != nil {
 			panic(err)
 		}
 
-		myLog(c, "Root configuration: ", s.config.Services["root"].Common.Api.GetHostPort())
-		root.Run(s.configFile)
+		myLog(c, "Root configuration: ", s.RomanaTestSuite.Config.Services["root"].Common.Api.GetHostPort())
+		root.Run(s.RomanaTestSuite.ConfigFile)
 
 		// Starting root service
 		myLog(c, "Starting root service...")
-		svcInfo, err := root.Run(s.configFile)
+		svcInfo, err := root.Run(s.RomanaTestSuite.ConfigFile)
 		if err != nil {
 			c.Error(err)
 		}

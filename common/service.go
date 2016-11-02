@@ -61,9 +61,9 @@ type ServiceUtils struct {
 // CreateFindRoute creates Routes for a find functionality given the
 // provided entities. Four routes are created:
 // 1. /findOne/<entityName>s, which will return a single structure (or
-//   an error if more than one entry is found,
+// an error if more than one entry is found,
 // 2. /findFirst/<entityName>s, which will return the first entity (in order
-//    of their creation).
+// of their creation).
 // 3. /findLast/<entityName>s -- similar to above.
 // 4. /findAll/<entityName>s
 // Routes will return a 404 if no entries found.

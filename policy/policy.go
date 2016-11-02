@@ -27,7 +27,7 @@ import (
 	"github.com/romana/core/tenant"
 )
 
-// Policy provides Policy service.
+// PolicySvc provides Policy service.
 type PolicySvc struct {
 	client *common.RestClient
 	config common.ServiceConfig

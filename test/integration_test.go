@@ -51,16 +51,27 @@ func Test(t *testing.T) {
 	check.TestingT(t)
 }
 
+type urlInfo struct {
+	rootURL   string
+	topoURL   string
+	tenantURL string
+	ipamURL   string
+}
+
 type MySuite struct {
-	config     common.Config
-	configFile string
-	rootURL    string
-	topoURL    string
-	tenantURL  string
-	ipamURL    string
+	common.RomanaTestSuite
+	urlInfos map[string]urlInfo
 }
 
 var _ = check.Suite(&MySuite{})
+
+func (s *MySuite) SetUpSuite(c *check.C) {
+	s.urlInfos = make(map[string]urlInfo)
+}
+
+func (s *MySuite) TearDownSuite(c *check.C) {
+	s.RomanaTestSuite.CleanUp()
+}
 
 func myLog(c *check.C, args ...interface{}) {
 	if len(args) == 1 {
@@ -93,154 +104,91 @@ func myLog(c *check.C, args ...interface{}) {
 	c.Logf(fmtStr, newArgs...)
 }
 
-// SetUpTest for now deletes all hosts from topology DB.
 func (s *MySuite) SetUpTest(c *check.C) {
-	setupCnt += 1
-	fmt.Printf("integration_test: Entering SetUpTest #%d for test %s\n", setupCnt, c.TestName())
 
-	// Clean up host entries for each test.
-	topoDb := common.DbStore{}
-	topoDb.SetConfig(s.config.Services["topology"].ServiceSpecific["store"].(map[string]interface{}))
-	err := topoDb.Connect()
-	if err != nil {
-		c.Fatal(err)
-	}
-	fmt.Printf("Doing 'DELETE FROM hosts' on %s\n", topoDb.Config.Database)
-	topoDb.Db.Exec("DELETE FROM hosts")
-	err = common.MakeMultiError(topoDb.Db.GetErrors())
-	if err != nil {
-		c.Fatal(err)
-	}
-
-	tenantDb := common.DbStore{}
-	tenantDb.SetConfig(s.config.Services["tenant"].ServiceSpecific["store"].(map[string]interface{}))
-	err = tenantDb.Connect()
-	if err != nil {
-		c.Fatal(err)
-	}
-
-	fmt.Printf("Doing 'DELETE FROM segments' on %s\n", tenantDb.Config.Database)
-	tenantDb.Db.Exec("DELETE FROM segments")
-	err = common.MakeMultiError(tenantDb.Db.GetErrors())
-	if err != nil {
-		c.Fatal(err)
-	}
-
-	fmt.Printf("Doing 'DELETE FROM tenants' on %s\n", tenantDb.Config.Database)
-	tenantDb.Db.Exec("DELETE FROM tenants")
-	err = common.MakeMultiError(tenantDb.Db.GetErrors())
-	if err != nil {
-		c.Fatal(err)
-	}
-
-	ipamDb := common.DbStore{}
-	ipamDb.SetConfig(s.config.Services["ipam"].ServiceSpecific["store"].(map[string]interface{}))
-	err = ipamDb.Connect()
-	if err != nil {
-		c.Fatal(err)
-	}
-	fmt.Printf("Doing 'DELETE FROM endpoints' on %s\n", ipamDb.Config.Database)
-	ipamDb.Db.Exec("DELETE FROM endpoints")
-	//	fmt.Printf("SLEEPING...\n")
-	//	time.Sleep(30 * time.Second)
-	err = common.MakeMultiError(tenantDb.Db.GetErrors())
-	if err != nil {
-		c.Fatal(err)
-	}
-	c.Log("OK")
-}
-
-func (s *MySuite) SetUpSuite(c *check.C) {
 	dir, _ := os.Getwd()
-	c.Log("Entering setup in directory", dir)
-
-	romanaConfigFile := os.ExpandEnv("${ROMANA_CONFIG_FILE}")
-	if romanaConfigFile == "" {
-		romanaConfigFile = "../common/testdata/romana.sample.yaml"
-	}
-	c.Log("Will use config file ", romanaConfigFile)
-	var err error
-	c.Log("integration_test.SetUpSuite mocking")
-	s.configFile, err = common.MockConfig(romanaConfigFile)
+	c.Log("integration_test.SetUpSuite(): Entering setup in directory", dir)
+	err := s.RomanaTestSuite.MockConfig(common.DefaultTestConfigFile)
 	if err != nil {
 		c.Fatal(err)
 	}
-	s.config, err = common.ReadConfig(s.configFile)
-	if err != nil {
-		c.Fatal(err)
-	}
-
-	c.Log("Root configuration: ", s.config.Services["root"].Common.Api.GetHostPort())
+	c.Log("integration_test.SetUpSuite(): Root configuration: ", s.RomanaTestSuite.Config.Services["root"].Common.Api.GetHostPort())
 
 	// Starting root service
-	fmt.Println("STARTING ROOT SERVICE")
-	rootInfo, err := root.Run(s.configFile)
+	fmt.Printf("integration_test.SetUpSuite(): Starting root service with %s\n", s.RomanaTestSuite.ConfigFile)
+	rootInfo, err := root.Run(s.RomanaTestSuite.ConfigFile)
 	if err != nil {
 		c.Fatal(err)
 	}
-	s.rootURL = "http://" + rootInfo.Address
-	c.Log("Root URL:", s.rootURL)
+
+	urlInfo := urlInfo{}
+	urlInfo.rootURL = "http://" + rootInfo.Address
+	c.Log("integration_test.SetUpSuite(): Root URL:", urlInfo.rootURL)
 
 	msg := <-rootInfo.Channel
-	c.Log("Root service said:", msg)
-	c.Log("Waiting a bit...")
+	c.Log("integration_test.SetUpSuite(): Root service said:", msg)
+	c.Log("integration_test.SetUpSuite(): Waiting a bit...")
 	time.Sleep(time.Second)
 
-	c.Log("Creating topology schema")
-	err = topology.CreateSchema(s.rootURL, true)
+	c.Log("integration_test.SetUpSuite(): Creating topology schema")
+	err = topology.CreateSchema(urlInfo.rootURL, true)
 	if err != nil {
 		c.Fatal(err)
 	}
-	c.Log("OK")
+	c.Log("integration_test.SetUpSuite(): OK")
 
-	c.Log("Creating tenant schema")
-	err = tenant.CreateSchema(s.rootURL, true)
+	c.Log("integration_test.SetUpSuite(): Creating tenant schema")
+	err = tenant.CreateSchema(urlInfo.rootURL, true)
 	if err != nil {
 		c.Fatal(err)
 	}
-	c.Log("OK")
+	c.Log("integration_test.SetUpSuite(): OK")
 
 	c.Log("Creating IPAM schema")
-	err = ipam.CreateSchema(s.rootURL, true)
+	err = ipam.CreateSchema(urlInfo.rootURL, true)
 	if err != nil {
 		c.Fatal(err)
 	}
-	c.Log("OK")
+	c.Log("integration_test.SetUpSuite(): OK")
 
 	// Start topology service
-	myLog(c, "STARTING TOPOLOGY SERVICE")
-	topoInfo, err := topology.Run(s.rootURL, nil)
+	myLog(c, "integration_test.SetUpSuite(): STARTING TOPOLOGY SERVICE")
+	topoInfo, err := topology.Run(urlInfo.rootURL, nil)
 	if err != nil {
 		c.Error(err)
 	}
 	msg = <-topoInfo.Channel
-	myLog(c, "Topology service said:", msg)
-	s.topoURL = "http://" + topoInfo.Address
+	myLog(c, "integration_test.SetUpSuite(): Topology service said:", msg)
+	urlInfo.topoURL = "http://" + topoInfo.Address
 
 	// Start tenant service
-	myLog(c, "STARTING TENANT SERVICE")
-	tenantInfo, err := tenant.Run(s.rootURL, nil)
+	myLog(c, "integration_test.SetUpSuite(): STARTING TENANT SERVICE")
+	tenantInfo, err := tenant.Run(urlInfo.rootURL, nil)
 	if err != nil {
 		c.Fatal(err)
 	}
 	msg = <-tenantInfo.Channel
-	myLog(c, "Tenant service said: %s", msg)
-	s.tenantURL = "http://" + tenantInfo.Address
+	myLog(c, "integration_test.SetUpSuite(): Tenant service said: %s", msg)
+	urlInfo.tenantURL = "http://" + tenantInfo.Address
 
-	myLog(c, "STARTING IPAM SERVICE")
-	ipamInfo, err := ipam.Run(s.rootURL, nil)
+	myLog(c, "integration_test.SetUpSuite(): STARTING IPAM SERVICE")
+	ipamInfo, err := ipam.Run(urlInfo.rootURL, nil)
 	if err != nil {
 		c.Fatal(err)
 	}
-	s.ipamURL = fmt.Sprintf("http://%s", ipamInfo.Address)
+	urlInfo.ipamURL = fmt.Sprintf("http://%s", ipamInfo.Address)
 	msg = <-ipamInfo.Channel
-	myLog(c, "IPAM service said: %s", msg)
+	myLog(c, "integration_test.SetUpSuite(): IPAM service said: %s", msg)
 
-	myLog(c, "Done with setup")
+	testName := c.TestName()
+	s.urlInfos[testName] = urlInfo
+
+	myLog(c, "integration_test.SetUpSuite(): Done with setup")
 }
 
 // Test that agent starts
 func (s *MySuite) TestAgentStart(c *check.C) {
+	urlInfo := s.urlInfos[c.TestName()]
 	myLog(c, "integration_test: Entering TestAgentStart")
 	if runtime.GOOS != "linux" {
 		c.Errorf("Unsupported platform: %s", runtime.GOOS)
@@ -261,11 +209,11 @@ func (s *MySuite) TestAgentStart(c *check.C) {
 		possibleRomanaIps = append(possibleRomanaIps, strAddr)
 	}
 
-	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(s.topoURL))
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(urlInfo.topoURL))
 	if err != nil {
 		c.Error(err)
 	}
-	myLog(c, "Calling %s", s.topoURL)
+	myLog(c, "Calling %s", urlInfo.topoURL)
 	topIndex := &common.IndexResponse{}
 	err = client.Get("/", &topIndex)
 	if err != nil {
@@ -304,7 +252,7 @@ func (s *MySuite) TestAgentStart(c *check.C) {
 	c.Assert(len(hostList2), check.Equals, 2)
 
 	myLog(c, "STARTING Agent SERVICE")
-	agentInfo, err := agent.Run(s.rootURL, nil, true)
+	agentInfo, err := agent.Run(urlInfo.rootURL, nil, true)
 	if err != nil {
 		c.Error(err)
 	}
@@ -313,14 +261,15 @@ func (s *MySuite) TestAgentStart(c *check.C) {
 }
 
 func (s *MySuite) TestConcurrentReads(c *check.C) {
+	urlInfo := s.urlInfos[c.TestName()]
 	myLog(c, "integration_test: Entering TestConcurrentReads")
-	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(s.rootURL))
-	client.NewUrl(s.tenantURL)
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(urlInfo.rootURL))
+	client.NewUrl(urlInfo.tenantURL)
 	if err != nil {
 		c.Error(err)
 	}
 	// Add tenant t1
-	t1In := tenant.Tenant{Name: "name1", ExternalID: "t1"}
+	t1In := tenant.Tenant{Name: "conc_name1", ExternalID: "conc_t1"}
 	t1Out := tenant.Tenant{}
 	err = client.Post("/tenants", t1In, &t1Out)
 	if err != nil {
@@ -328,7 +277,7 @@ func (s *MySuite) TestConcurrentReads(c *check.C) {
 	}
 	t1ExtID := t1In.ExternalID
 	c.Assert(t1Out.NetworkID, check.Equals, uint64(0))
-	c.Assert(t1ExtID, check.Equals, "t1")
+	c.Assert(t1ExtID, check.Equals, "conc_t1")
 	myLog(c, "Tenant 1 %s\n", t1Out)
 
 	// Find by external ID a number of times.
@@ -357,16 +306,17 @@ func (s *MySuite) TestConcurrentReads(c *check.C) {
 
 // Test the interaction of root/topo/tenant/ipam
 func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
+	urlInfo := s.urlInfos[c.TestName()]
 	myLog(c, "integration_test: Entering TestRootTopoTenantIpamInteraction()")
 
 	// 1. Add some hosts to topology service and test.
-	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(s.rootURL))
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(urlInfo.rootURL))
 	if err != nil {
 		c.Error(err)
 	}
 
-	myLog(c, "Calling %s", s.topoURL)
-	client.NewUrl(s.topoURL)
+	myLog(c, "Calling %s", urlInfo.topoURL)
+	client.NewUrl(urlInfo.topoURL)
 	topIndex := &common.IndexResponse{}
 	err = client.Get("/", &topIndex)
 	if err != nil {
@@ -430,7 +380,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	c.Assert(len(hostList2), check.Equals, 2)
 
 	// 4. Add a tenant and a segment
-	err = client.NewUrl(s.tenantURL)
+	err = client.NewUrl(urlInfo.tenantURL)
 	if err != nil {
 		c.Error(err)
 	}
@@ -509,8 +459,9 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	c.Assert(tenSingle.ExternalID, check.Equals, "t2")
 
 	// findAll should find 2 tenants.
+	//	tenants := []tenant.Tenant{tenant.Tenant{}}
 	var tenants []tenant.Tenant
-	err = client.Get("/findAll/tenants?name=name1", &tenants)
+	err = client.Find(&tenants, common.FindAll)
 	c.Assert(len(tenants), check.Equals, 2)
 	c.Assert(tenants[0].Name, check.Equals, "name1")
 	c.Assert(tenants[0].ExternalID, check.Equals, "t1")
@@ -542,8 +493,9 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	c.Assert(t3Out.NetworkID, check.Equals, uint64(2))
 	myLog(c, "Tenant 3 %s", t3Out)
 
-	// findAll should find 1 tenants.
-	err = client.Get("/findAll/tenants?name=name2", &tenants)
+	// findAll should find 1 tenants with name "name2"
+	tenants = []tenant.Tenant{tenant.Tenant{Name: "name2"}}
+	err = client.Find(&tenants, common.FindAll)
 	c.Assert(len(tenants), check.Equals, 1)
 	c.Assert(tenants[0].Name, check.Equals, "name2")
 	c.Assert(tenants[0].ExternalID, check.Equals, "t3")
@@ -635,7 +587,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	t1s1h1EpIn := ipam.Endpoint{Name: "endpoint1", TenantID: tenantId, SegmentID: segmentId, HostId: fmt.Sprintf("%d", host1.ID)}
 	t1s1h1EpIn.RequestToken = common.SqlNullStringUuid()
 	t1s1h1Ep1Out := ipam.Endpoint{}
-	client.NewUrl(s.ipamURL)
+	client.NewUrl(urlInfo.ipamURL)
 	err = client.Post("/endpoints", t1s1h1EpIn, &t1s1h1Ep1Out)
 	myLog(c, "Posting %v to /endpoints: %v", t1s1h1EpIn, err)
 	if err != nil {
