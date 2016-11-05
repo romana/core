@@ -34,7 +34,7 @@ func (l *kubeListener) manageResources(ns Event, terminators map[string]chan Don
 		done := make(chan Done)
 		terminators[uid] = done
 
-		go ProducePolicies(out, terminators[uid], ns.Object.Metadata.Name, l)
+		go ProduceNewPolicyEvents(out, terminators[uid], ns.Object.Metadata.Name, l)
 	} else if ns.Type == KubeEventDeleted {
 		if _, ok := terminators[uid]; !ok {
 			glog.Infoln("kubeListener: manageResources(): Received DELETED event for uid %s that is not known, ignoring ", uid)

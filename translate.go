@@ -27,13 +27,6 @@ import (
 	"sync"
 )
 
-// TODO
-// 1. Make interface for translate
-// 2. implemet caching for resolving tenant/segments
-// 3. Decide what to do with getOrAddSegment,
-//    ( translation might not be possible unless all
-//      tenants/segments created )
-
 type PolicyTranslator interface {
 	Init(*common.RestClient, string)
 
@@ -67,12 +60,12 @@ func (l *Translator) resolveTenantByName(tenantName string) (*tenant.Tenant, err
 // getOrAddSegment finds a segment (based on segment selector).
 // If not found, it adds one.
 func (l *Translator) getOrAddSegment(namespace string, kubeSegmentName string) (*tenant.Segment, error) {
-	tenantCacheEntry := l.checkTenantInCahce(namespace)
+	tenantCacheEntry := l.checkTenantInCache(namespace)
 	if tenantCacheEntry == nil {
 		return nil, TranslatorError{ErrorTenantNotIntCache, fmt.Errorf("Tenant not found in cache while resolving segment")}
 	}
 
-	segment := l.checkSegmentInCahce(tenantCacheEntry, kubeSegmentName)
+	segment := l.checkSegmentInCache(tenantCacheEntry, kubeSegmentName)
 	if segment != nil {
 		// Stop right here, we have what we
 		// came for.
@@ -154,7 +147,7 @@ func (l *Translator) translateNetworkPolicy(kubePolicy *KubeObject) (common.Poli
 	romanaPolicy := &common.Policy{Direction: common.PolicyDirectionIngress, Name: policyName, ExternalID: kubePolicy.Metadata.Uid}
 	ns := kubePolicy.Metadata.Namespace
 	// TODO actually look up tenant K8S ID.
-	tenantCacheEntry := l.checkTenantInCahce(ns)
+	tenantCacheEntry := l.checkTenantInCache(ns)
 	if tenantCacheEntry == nil {
 		return common.Policy{}, TranslatorError{ErrorTenantNotIntCache, nil}
 	}
@@ -226,7 +219,7 @@ type TenantCacheEntry struct {
 	Segments []tenant.Segment
 }
 
-func (t Translator) checkTenantInCahce(tenantName string) *TenantCacheEntry {
+func (t Translator) checkTenantInCache(tenantName string) *TenantCacheEntry {
 	t.cacheMu.Lock()
 	defer func() {
 		t.cacheMu.Unlock()
@@ -240,10 +233,14 @@ func (t Translator) checkTenantInCahce(tenantName string) *TenantCacheEntry {
 	return nil
 }
 
+// Kube2Romana reserved for future use.
 func (t Translator) Kube2Romana(kubePolicy KubeObject) (common.Policy, error) {
 	return common.Policy{}, nil
 }
 
+// Kube2RomanaBulk attempts to translate a list of kubernetes policies into
+// romana representation, returns a list of translated policies and a list
+// of policies that can't be translated in original format.
 func (t Translator) Kube2RomanaBulk(kubePolicies []KubeObject) ([]common.Policy, []KubeObject, error) {
 	glog.Info("In Kube2RomanaBulk")
 	var returnRomanaPolicy []common.Policy
@@ -268,20 +265,23 @@ func (t Translator) Kube2RomanaBulk(kubePolicies []KubeObject) ([]common.Policy,
 
 }
 
-func (t Translator) checkSegmentInCahce(cacheEntry *TenantCacheEntry, segmentId string) *tenant.Segment {
+// checkTenantInCache checks if given tenant cache entry has a segment with given name.
+func (t Translator) checkSegmentInCache(cacheEntry *TenantCacheEntry, segmentId string) *tenant.Segment {
 	t.cacheMu.Lock()
 	defer func() {
 		t.cacheMu.Unlock()
 	}()
 
 	for segn, currentSegment := range cacheEntry.Segments {
-		if currentSegment.Name == currentSegment.Name {
+		if currentSegment.Name == segmentId {
 			return &cacheEntry.Segments[segn]
 		}
 	}
 	return nil
 }
 
+// updateCache contacts romana Tenant service, lists
+// all resources and loads them into memory.
 func (t *Translator) updateCache() error {
 	glog.Info("In updateCache")
 
@@ -305,18 +305,15 @@ func (t *Translator) updateCache() error {
 
 	t.cacheMu.Lock()
 	defer func() {
-		glog.Infof("Exiting updateCahce with %d tenants", len(t.tenantsCache))
+		glog.Infof("Exiting updateCache with %d tenants", len(t.tenantsCache))
 		t.cacheMu.Unlock()
 	}()
 
 	t.tenantsCache = nil
 	for _, ten := range tenants {
 		segments := []tenant.Segment{}
-		// err = t.restClient.Get(tenantURL+"/tenants/"+ten.ExternalID+"/segments", &segments)
-		// err = t.restClient.Get(tenantURL+"/tenants/"+string(ten.ID)+"/segments", &segments)
 		fullUrl := fmt.Sprintf("%s/tenants/%d/segments", tenantURL, ten.ID)
 		err = t.restClient.Get(fullUrl, &segments)
-		// err := t.restClient.Find(&segments, common.FindAll)
 
 		// ignore 404 error here which means no segments
 		// considered to be a zero segments rather then
@@ -330,8 +327,7 @@ func (t *Translator) updateCache() error {
 	return nil
 }
 
-func checkHttp404(err error) bool {
-	var ret bool
+func checkHttp404(err error) (ret bool) {
 	switch e := err.(type) {
 	case common.HttpError:
 		if e.StatusCode == 404 {
@@ -339,7 +335,7 @@ func checkHttp404(err error) bool {
 		}
 	}
 
-	return ret
+	return
 }
 
 func (t *Translator) Init(client *common.RestClient, segmentLabelName string) {

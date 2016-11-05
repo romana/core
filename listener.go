@@ -104,14 +104,10 @@ func (l *kubeListener) SetConfig(config common.ServiceConfig) error {
 		l.namespaceBufferSize = uint64(m["namespace_buffer_size"].(float64))
 	}
 
-	tc := PTranslator.GetClient()
-	if tc == nil {
-		glog.Error("DEBUG Translator has nil client before Init")
-	}
-
-	// DEBUG
+	// TODO, find a better place to initialize
+	// the translator. Stas.
 	PTranslator.Init(l.restClient, l.segmentLabelName)
-	tc = PTranslator.GetClient()
+	tc := PTranslator.GetClient()
 	if tc == nil {
 		glog.Fatal("DEBUG Translator has nil client after Init")
 	}
