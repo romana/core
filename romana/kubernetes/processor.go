@@ -46,7 +46,7 @@ func (l *kubeListener) process(in <-chan Event, done chan Done) {
 				if len(networkPolicyEvents) > 0 {
 					glog.V(1).Infof("Calling network policy handler for scheduled %d events", len(networkPolicyEvents))
 					handleNetworkPolicyEvents(networkPolicyEvents, l)
-					networkPolicyEvents = []Event{}
+					networkPolicyEvents = nil
 				}
 			case e := <-in:
 				glog.V(1).Infof("kubeListener: process(): Got %v", e)
