@@ -61,9 +61,9 @@ type ServiceUtils struct {
 // CreateFindRoute creates Routes for a find functionality given the
 // provided entities. Four routes are created:
 // 1. /findOne/<entityName>s, which will return a single structure (or
-//   an error if more than one entry is found,
+// an error if more than one entry is found,
 // 2. /findFirst/<entityName>s, which will return the first entity (in order
-//    of their creation).
+// of their creation).
 // 3. /findLast/<entityName>s -- similar to above.
 // 4. /findAll/<entityName>s
 // Routes will return a 404 if no entries found.
@@ -292,7 +292,7 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 					retries = DefaultRestRetries
 				}
 				clientConfig := RestClientConfig{TimeoutMillis: timeoutMillis, Retries: retries, RootURL: config.Common.Api.RootServiceUrl, TestMode: config.Common.Api.RestTestMode}
-				log.Printf("InitializeService() : Initializing Rest client with %v", clientConfig)
+				//				log.Printf("InitializeService() : Initializing Rest client with %v", clientConfig)
 				client, err := NewRestClient(clientConfig)
 				if err != nil {
 					return svcInfo, err
@@ -358,14 +358,12 @@ func ListenAndServe(svr *http.Server) (*RestServiceInfo, error) {
 		return nil, err
 	}
 	realAddr := ln.Addr().String()
-	log.Printf("ListenAndServe(%p): Hmm 1", svr)
 	channel := make(chan ServiceMessage)
 	l := svr.ErrorLog
 	if l == nil {
 		l = log.New(os.Stdout, "", 0)
 	}
 	go func() {
-		l.Printf("ListenAndServe(%p): Hmm 2", svr)
 		channel <- Starting
 		l.Printf("ListenAndServe(%p): listening on %s (asked for %s) with configuration %v, handler %v\n", svr, realAddr, svr.Addr, svr, svr.Handler)
 		err := svr.Serve(tcpKeepAliveListener{ln.(*net.TCPListener)})

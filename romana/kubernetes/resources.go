@@ -16,12 +16,15 @@
 package kubernetes
 
 import (
+	//	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
+	//	"io"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -40,9 +43,13 @@ type Event struct {
 }
 
 const (
-	KubeEventAdded         = "ADDED"
-	KubeEventDeleted       = "DELETED"
-	KubeEventModified      = "MODIFIED"
+	KubeEventAdded    = "ADDED"
+	KubeEventDeleted  = "DELETED"
+	KubeEventModified = "MODIFIED"
+
+	// Signal used to terminate all goroutines
+	// if connection to k8s API is lost.
+	// Does not carry a valid .Object field.
 	InternalEventDeleteAll = "_DELETE_ALL"
 )
 
@@ -97,9 +104,45 @@ type Metadata struct {
 	Annotations       map[string]string `json:"annotations,omitempty"`
 }
 
+// isNewRevision checks if given event has higher ResourceVersion then previous one.
+func isNewRevision(e Event, l *kubeListener) bool {
+	now, errt := strconv.ParseUint(e.Object.Metadata.ResourceVersion, 10, 64)
+	if errt != nil {
+		log.Printf("WARNING ignoring event %v. Failed to parse resourceVersion of the .Object", e)
+
+		return false
+	}
+
+	if last, ok := l.lastEventPerNamespace[e.Object.Metadata.Namespace]; ok {
+		if now <= last {
+			log.Printf("WARNING ignoring event %v since current resourceVersion is %d", e, last)
+
+			return false
+		} else {
+			l.lastEventPerNamespace[e.Object.Metadata.Namespace] = now
+
+			return true
+		}
+	}
+
+	l.lastEventPerNamespace[e.Object.Metadata.Namespace] = now
+
+	return true
+}
+
 // handle kubernetes events according to their type.
 func (e Event) handle(l *kubeListener) {
 	log.Printf("Processing %s request for %s", e.Type, e.Object.Metadata.Name)
+
+	// This event doesn't have a valid .Object field.
+	if e.Type == InternalEventDeleteAll {
+		return
+	}
+
+	// Ignore the events that we procesed already.
+	if !isNewRevision(e, l) {
+		return
+	}
 
 	if e.Object.Kind == "NetworkPolicy" && e.Type != KubeEventModified {
 		e.handleNetworkPolicyEvent(l)
@@ -229,7 +272,12 @@ func CreateDefaultPolicy(o KubeObject, l *kubeListener) {
 
 // watchEvents maintains goroutine fired by NsWatch, restarts it in case HTTP GET times out.
 func (l *kubeListener) watchEvents(done <-chan Done, url string, resp *http.Response, out chan Event) {
-	log.Println("Received namespace related event from kubernetes", resp.Body)
+	log.Println("kubeListener.watchEvents(): Received namespace related event from kubernetes")
+
+	// Uncomment and use if needed for debugging.
+	//	buf := new(bytes.Buffer)
+	//	treader := io.TeeReader(resp.Body, buf)
+	//	dec := json.NewDecoder(treader)
 
 	dec := json.NewDecoder(resp.Body)
 	var e Event
@@ -244,17 +292,21 @@ func (l *kubeListener) watchEvents(done <-chan Done, url string, resp *http.Resp
 
 			// Attempting to read event from HTTP connection
 			err := dec.Decode(&e)
+			log.Printf("kubeListener.watchEvents(): Decoded event %v, error %v", e, err)
 			if err != nil {
 				// If fail
-				log.Printf("Failed to decode message from connection %s due to %s\n. Attempting to re-establish", url, err)
+				//				log.Printf("Failed to decode message from connection %s due to %s\n, log buffer %s. Attempting to re-establish", url, err, buf.String())
 				// Then stop all goroutines
 				out <- Event{Type: InternalEventDeleteAll}
 
 				// And try to re-establish HTTP connection
 				resp, err2 := http.Get(url)
 				if err2 != nil {
-					log.Printf("Failed establish connection %s due to %s\n.", url, err)
+					log.Printf("kubeListener.watchEvents(): Failed establish connection %s due to %s\n.", url, err)
 				} else if err2 == nil {
+					//					buf = new(bytes.Buffer)
+					//					treader = io.TeeReader(resp.Body, buf)
+					//					dec = json.NewDecoder(treader)
 					dec = json.NewDecoder(resp.Body)
 				}
 			} else {
@@ -269,7 +321,7 @@ func (l *kubeListener) watchEvents(done <-chan Done, url string, resp *http.Resp
 // NsWatch is a generator that watches namespace related events in
 // kubernetes API and publishes this events to a channel.
 func (l *kubeListener) nsWatch(done <-chan Done, url string) (<-chan Event, error) {
-	out := make(chan Event)
+	out := make(chan Event, l.namespaceBufferSize)
 
 	resp, err := http.Get(url)
 	if err != nil {
@@ -288,12 +340,12 @@ func (ns KubeObject) produce(out chan Event, done <-chan Done, kubeListener *kub
 	if err != nil {
 		return err
 	}
-	log.Printf("Launching producer to listen for policy notifications on namespace %s at URL %s ", ns.Metadata.Name, url)
+	log.Printf("kubeListener.produce(): Launching producer to listen for policy notifications on namespace %s at URL %s ", ns.Metadata.Name, url)
 	resp, err := http.Get(url)
 	if err != nil {
 		return err
 	}
-
+	log.Printf("kubeListener.produce(): Read from %s", url)
 	go kubeListener.watchEvents(done, url, resp, out)
 
 	return nil

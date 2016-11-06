@@ -133,7 +133,6 @@ func (topology *TopologySvc) handleHostListGet(input interface{}, ctx common.Res
 // the default Agent port.
 func (topology *TopologySvc) handleHostListPost(input interface{}, ctx common.RestContext) (interface{}, error) {
 	host := input.(*common.Host)
-	var port uint64
 	// If no agent port is specfied in the creation of new host,
 	// get the agent port from root service.
 	log.Printf("Host requested with agent port %d", host.AgentPort)
@@ -144,12 +143,12 @@ func (topology *TopologySvc) handleHostListPost(input interface{}, ctx common.Re
 			return nil, err
 		}
 		host.AgentPort = agentConfig.Common.Api.Port
-		if port == 0 {
+		if host.AgentPort == 0 {
 			return nil, common.NewError500("Cannot determine port for agent")
 		}
 	}
 	log.Printf("Host will be added with agent port %d", host.AgentPort)
-	_, err := topology.store.addHost(host)
+	err := topology.store.addHost(topology.datacenter, host)
 	if err != nil {
 		return nil, err
 	}
@@ -185,6 +184,9 @@ func (topology *TopologySvc) SetConfig(config common.ServiceConfig) error {
 	dcMap := config.ServiceSpecific["datacenter"].(map[string]interface{})
 	dc := common.Datacenter{}
 	dc.IpVersion = uint(dcMap["ip_version"].(float64))
+	if dc.IpVersion != 4 {
+		return common.NewError("Only IPv4 is currently supported.")
+	}
 	dc.Cidr = dcMap["cidr"].(string)
 	_, ipNet, err := net.ParseCIDR(dc.Cidr)
 	if err != nil {
@@ -198,6 +200,15 @@ func (topology *TopologySvc) SetConfig(config common.ServiceConfig) error {
 	dc.SegmentBits = uint(dcMap["segment_bits"].(float64))
 	dc.EndpointBits = uint(dcMap["endpoint_bits"].(float64))
 	dc.EndpointSpaceBits = uint(dcMap["endpoint_space_bits"].(float64))
+	if dc.EndpointBits == 0 {
+		return common.NewError("Endpoint bits may not be 0")
+	}
+	bitSum := dc.PrefixBits + dc.PortBits + dc.TenantBits + dc.SegmentBits + dc.EndpointBits + dc.EndpointSpaceBits
+	if bitSum != 32 {
+		bitSumStr := fmt.Sprintf("%s+%d+%d+%d+%d+%d", dc.Cidr, dc.PortBits, dc.TenantBits, dc.SegmentBits, dc.EndpointBits, dc.EndpointSpaceBits)
+		return common.NewError("Sum of prefix, port, tenant, segment, endpoint and endpoint space bits must be exactly 32, but it is %s=%d", bitSumStr, bitSum)
+	}
+
 	// TODO this should have worked but it doesn't...
 	//	err := mapstructure.Decode(dcMap, &dc)
 	//	if err != nil {
@@ -232,6 +243,7 @@ func Run(rootServiceURL string, cred *common.Credential) (*common.RestServiceInf
 // Initialize the topology service
 func (topology *TopologySvc) Initialize() error {
 	log.Println("Parsing", topology.datacenter)
+
 	ip, _, err := net.ParseCIDR(topology.datacenter.Cidr)
 	if err != nil {
 		return err

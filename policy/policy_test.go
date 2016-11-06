@@ -23,6 +23,7 @@ import (
 	"github.com/romana/core/tenant"
 	"log"
 	"net/http"
+
 	"strconv"
 	"strings"
 	"testing"
@@ -33,10 +34,15 @@ func Test(t *testing.T) {
 }
 
 type MySuite struct {
+	common.RomanaTestSuite
 	serviceURL  string
 	servicePort uint64
 	kubeURL     string
 	c           *check.C
+}
+
+func (s *MySuite) TearDownSuite(c *check.C) {
+	s.RomanaTestSuite.CleanUp()
 }
 
 var _ = check.Suite(&MySuite{})
@@ -69,6 +75,15 @@ func (s *mockSvc) Initialize() error {
 }
 
 func (s *mockSvc) Routes() common.Routes {
+	policyDbFile := s.mySuite.RomanaTestSuite.GetMockSqliteFile("policy")
+	policyServiceConfig := fmt.Sprintf(`{
+			          "common":{
+						"api":{"host":"0.0.0.0","port":0}
+					 },
+			   	      "config":{"store":
+			  			 {"type" : "sqlite3",  "database" : "%s" }
+			  		  }	 
+			        }`, policyDbFile)
 
 	tenantGetRoute := common.Route{
 		Method:  "GET",
@@ -94,24 +109,7 @@ func (s *mockSvc) Routes() common.Routes {
 		Method:  "GET",
 		Pattern: "/config/policy",
 		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
-			json := `{
-			          "common":{
-						"api":{"host":"0.0.0.0","port":0}
-					 },
-			   	      "config":{"store":
-			  			 {"type" : "sqlite3",  "database" : "/var/tmp/policy.sqlite3" }
-			  		  }	 
-			        }`
-
-			//			json = `{
-			//			          "common":{
-			//						"api":{"host":"0.0.0.0","port":0}
-			//					 },
-			//			   	      "config":{"store":
-			//			  			 {"type" : "mysql",  "database" : "policy", "host" : "127.0.0.1", "port" : "8889", "username" : "root", "password" : "root" }
-			//			  		  }
-			//			        }`
-			return common.Raw{Body: json}, nil
+			return common.Raw{Body: policyServiceConfig}, nil
 		},
 	}
 
@@ -241,6 +239,16 @@ type RomanaT struct {
 	testing.T
 }
 
+// TestIcmp tests https://paninetworks.kanbanize.com/ctrl_board/3/cards/395/details
+func (s *MySuite) TestIcmp(c *check.C) {
+	policyIn := common.Policy{}
+	err := json.Unmarshal([]byte(icmpPolicy), &policyIn)
+	if err != nil {
+		c.Fatal(err)
+		c.FailNow()
+	}
+}
+
 func (s *MySuite) TestPolicy(c *check.C) {
 	cfg := &common.ServiceConfig{Common: common.CommonConfig{Api: &common.Api{Port: 0, RestTimeoutMillis: 100}}}
 	log.Printf("Test: Mock service config:\n\t%#v\n\t%#v\n", cfg.Common.Api, cfg.ServiceSpecific)
@@ -252,7 +260,8 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	svcInfo, err := common.InitializeService(svc, *cfg)
 
 	if err != nil {
-		c.Fatal(err)
+		c.Error(err)
+		c.FailNow()
 	}
 	msg := <-svcInfo.Channel
 	log.Printf("Test: Mock service says %s; listening on %s\n", msg, svcInfo.Address)
@@ -260,15 +269,18 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	portStr := addrComponents[len(addrComponents)-1]
 	s.servicePort, err = strconv.ParseUint(portStr, 10, 64)
 	if err != nil {
-		c.Fatal(err)
+		c.Error(err)
+		c.FailNow()
 	}
 	s.serviceURL = fmt.Sprintf("http://%s", svcInfo.Address)
 	log.Printf("Test: Mock service listens at %s\n", s.serviceURL)
 	err = CreateSchema(s.serviceURL, true)
 
 	if err != nil {
-		c.Fatal(err)
+		c.Error(err)
+		c.FailNow()
 	}
+
 	log.Printf("Policy schema created.")
 	svcInfo, err = Run(s.serviceURL, nil)
 	if err != nil {
@@ -290,11 +302,13 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	err = json.Unmarshal([]byte(romanaPolicy1), &policyIn)
 	if err != nil {
 		c.Fatal(err)
+		c.FailNow()
 	}
 	policyOut := common.Policy{}
 	err = client.Post(polURL, policyIn, &policyOut)
 	if err != nil {
-		c.Fatal(err)
+		c.Error(err)
+		c.FailNow()
 	}
 	log.Printf("Added policy result: %s", policyOut)
 	c.Assert(policyOut.Name, check.Equals, "pol1")
@@ -334,11 +348,12 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	log.Println("5. Add default policy")
 	one := uint64(1)
 	defPol := common.Policy{
-		Direction: common.PolicyDirectionIngress,
-		Name:      "default",
-		AppliedTo: []common.Endpoint{{TenantNetworkID: &one}},
-		Peers:     []common.Endpoint{{Peer: common.Wildcard}},
-		Rules:     []common.Rule{{Protocol: common.Wildcard}},
+		Direction:  common.PolicyDirectionIngress,
+		Name:       "default",
+		ExternalID: "default",
+		AppliedTo:  []common.Endpoint{{TenantNetworkID: &one}},
+		Peers:      []common.Endpoint{{Peer: common.Wildcard}},
+		Rules:      []common.Rule{{Protocol: common.Wildcard}},
 	}
 	err = client.Post(polURL, defPol, &policyOut)
 	if err != nil {
@@ -459,7 +474,13 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	c.Assert(client.GetStatusCode(), check.Equals, http.StatusNotFound)
 	c.Assert(httpErr.ResourceType, check.Equals, "policy")
 	c.Assert(httpErr.StatusCode, check.Equals, http.StatusNotFound)
-	c.Assert(httpErr.ResourceID, check.Equals, "default")
+	// TODO
+	// Important! This should really be done in policy agent.
+	// Only done here as temporary measure.
+	id := makeId(defPol.AppliedTo, defPol.Name)
+	c.Assert(httpErr.ResourceID, check.Equals, id)
+	//	c.Assert(httpErr.ResourceID, check.Equals, "default")
+
 	log.Printf("%v", err)
 
 }
@@ -517,4 +538,38 @@ const (
             }
       ]
    }`
+
+	icmpPolicy = `{
+  "direction": "ingress",
+  "name": "os-vm-default",
+  "applied_to": [
+    {
+      "dest": "local"
+    }
+  ],
+  "peers": [
+    {
+      "peer": "host"
+    }
+  ],
+  "rules": [
+    {
+      "protocol": "TCP",
+      "ports": [
+        22
+      ]
+    },
+    {
+      "protocol": "UDP",
+      "ports": [
+        67
+      ]
+    },
+    {
+      "protocol": "ICMP",
+      "icmp_type": 8
+      
+    }
+  ]
+}`
 )

@@ -49,7 +49,7 @@ func init() {
 }
 
 var hostAddCmd = &cli.Command{
-	Use:          "add [hostname][hostip][romana cidr][(optional)agent port]",
+	Use:          "add [hostname][hostip][(optional)romana cidr][(optional)agent port]",
 	Short:        "Add a new host.",
 	Long:         `Add a new host.`,
 	RunE:         hostAdd,
@@ -81,14 +81,17 @@ var hostRemoveCmd = &cli.Command{
 }
 
 func hostAdd(cmd *cli.Command, args []string) error {
-	if len(args) < 3 || len(args) > 4 {
+	if len(args) < 2 || len(args) > 4 {
 		return util.UsageError(cmd,
-			fmt.Sprintf("expected 3 or 4 arguments, saw %d: %s", len(args), args))
+			fmt.Sprintf("expected 2, 3 or 4 arguments, saw %d: %s", len(args), args))
 	}
 
 	hostname := args[0]
 	hostip := args[1]
-	romanacidr := args[2]
+	var romanacidr string
+	if len(args) >= 3 {
+		romanacidr = args[2]
+	}
 	var agentport uint64
 	if len(args) == 4 {
 		var err error
@@ -97,9 +100,6 @@ func hostAdd(cmd *cli.Command, args []string) error {
 			return util.UsageError(cmd,
 				fmt.Sprintf("Agent Port number error, saw %s", args[3]))
 		}
-		agentport = uint64(agentPortInt)
-	} else {
-		agentPortInt, _ := strconv.Atoi("9606")
 		agentport = uint64(agentPortInt)
 	}
 

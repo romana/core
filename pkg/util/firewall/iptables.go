@@ -20,6 +20,7 @@ package firewall
 import (
 	"fmt"
 	"github.com/golang/glog"
+	"github.com/romana/core/common"
 	utilexec "github.com/romana/core/pkg/util/exec"
 	"net"
 	"strconv"
@@ -191,7 +192,7 @@ func (fw *IPtables) makeRules(netif FirewallEndpoint) error {
 // Returns true if chain exists.
 // *Scheduled for deprecation, use isChainExistByName*
 func (fw *IPtables) isChainExist(chain int) bool {
-	args := []string{"-L", fw.chains[chain].ChainName}
+	args := []string{"-w", "-L", fw.chains[chain].ChainName}
 	output, err := fw.os.Exec(iptablesCmd, args)
 	if err != nil {
 		glog.V(1).Infof("isChainExist(): iptables -L %s returned %s", fw.chains[chain].ChainName, err)
@@ -204,7 +205,7 @@ func (fw *IPtables) isChainExist(chain int) bool {
 // isChainExistByName verifies if given iptables chain exists.
 // Returns true if chain exists.
 func (fw *IPtables) isChainExistByName(chainName string) bool {
-	args := []string{"-L", chainName}
+	args := []string{"-w", "-L", chainName}
 	output, err := fw.os.Exec(iptablesCmd, args)
 	if err != nil {
 		glog.V(1).Infof("isChainExist(): iptables -L %s returned %s", chainName, err)
@@ -380,7 +381,7 @@ func (fw *IPtables) CreateRules(chain int) error {
 func (fw *IPtables) CreateU32Rules(chain int) error {
 	glog.Info("Creating U32 firewall rules for chain", chain)
 	chainName := fw.chains[chain].ChainName
-	args := []string{"-A", chainName, "-m", "u32", "--u32", fw.u32filter, "-j", "ACCEPT"}
+	args := []string{"-w", "-A", chainName, "-m", "u32", "--u32", fw.u32filter, "-j", "ACCEPT"}
 	_, err := fw.os.Exec(iptablesCmd, args)
 	if err != nil {
 		glog.Error("Creating U32 firewall rules failed")
@@ -590,6 +591,9 @@ func (fw IPtables) Cleanup(netif FirewallEndpoint) error {
 // deleteIPtablesRulesBySubstring uninstalls iptables Rules matching given
 // substring and deletes them from database. Has no effect on 'inactive' Rules.
 func (fw *IPtables) deleteIPtablesRulesBySubstring(substring string) error {
+	if substring == "" {
+		return common.NewError("Empty substring specified to deleteIPtablesRulesBySubstring")
+	}
 	rules, err := fw.Store.findIPtablesRules(substring)
 	if err != nil {
 		return err

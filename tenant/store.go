@@ -88,8 +88,8 @@ func (tenantStore *tenantStore) listSegments(tenantId string) ([]Segment, error)
 }
 
 func (tenantStore *tenantStore) addTenant(tenant *Tenant) error {
-	log.Println("In tenantStore addTenant().")
-
+	//	log.Println("In tenantStore addTenant()")
+	log.Printf("In tenantStore addTenant(%v) in %s", *tenant, tenantStore.Config.Database)
 	var tenants []Tenant
 	tx := tenantStore.DbStore.Db.Begin()
 	err := common.GetDbErrors(tx)

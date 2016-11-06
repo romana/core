@@ -8,7 +8,7 @@
 //   http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
-//  distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
 // WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 // License for the specific language governing permissions and limitations
 // under the License.
@@ -17,15 +17,25 @@ package root
 
 import (
 	"fmt"
+	"github.com/go-check/check"
 	"github.com/romana/core/common"
-	//	"log"
 	"os"
 	"strings"
 	"testing"
 )
 
-// Test hooks
-func TestHooks(t *testing.T) {
+func Test(t *testing.T) {
+	os.Args = []string{os.Args[0], "-check.vv", "true"}
+	check.TestingT(t)
+}
+
+type MySuite struct {
+	common.RomanaTestSuite
+}
+
+var _ = check.Suite(&MySuite{})
+
+func (s *MySuite) TestHooks(c *check.C) {
 
 	fmt.Println("Entering TestHooks")
 	dir, _ := os.Getwd()
@@ -44,32 +54,30 @@ func TestHooks(t *testing.T) {
 	rootURL := fmt.Sprintf("http://%s", svcInfo.Address)
 	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
 	if err != nil {
-		t.Error(err)
-
+		c.Fatal(err)
 	}
 
 	result1 := make(map[string]interface{})
 	err = client.Get("/config/ipam", &result1)
 	if err != nil {
-		t.Error(err)
-
+		c.Fatal(err)
 	}
 	fmt.Println("Received: ", result1)
 
 	file, err := os.Open("/tmp/hook.txt")
 	if err != nil {
-		t.Error(err)
+		c.Fatal(err)
 	}
 	data := make([]byte, 1024)
 	n, err := file.Read(data)
 	if err != nil {
-		t.Error(err)
+		c.Fatal(err)
 	}
 	str := strings.TrimSpace(string(data[0:n]))
 	fmt.Printf("Hook output: [%s]", str)
 	expect := "Hello, world and body= serviceName=ipam"
 	if str != expect {
-		t.Error(fmt.Sprintf("Expected %s, received %s", expect, str))
+		c.Fatalf("Expected %s, received %s", expect, str)
 	}
 
 	url := fmt.Sprintf("%s/config/ipam/port", rootURL)
@@ -78,41 +86,41 @@ func TestHooks(t *testing.T) {
 	err = client.Post(url, portMsg, &result2)
 	fmt.Printf("Got %v", err)
 	if err == nil {
-		t.Error("Expected error, got nothing")
-		t.FailNow()
+		c.Fatal("Expected error, got nothing")
+
 	}
 	fmt.Println("Received: ", result2)
 
 	file, err = os.Open("/tmp/hook_bad.txt")
 	if err != nil {
-		t.Error(err)
+		c.Fatal(err)
 	}
 	data = make([]byte, 1024)
 	n, err = file.Read(data)
 	if err != nil {
-		t.Error(err)
+		c.Fatal(err)
 	}
 	str = strings.TrimSpace(string(data[0:n]))
 	fmt.Printf("Hook output: [%s]", str)
 	expect = "Good-bye, cruel world"
 	if str != expect {
-		t.Error(fmt.Sprintf("Expected %s, received %s", expect, str))
+		c.Fatalf("Expected %s, received %s", expect, str)
 	}
 }
 
 // Test the service list.
-func TestAuth(t *testing.T) {
+func (s *MySuite) TestAuth(c *check.C) {
 	fmt.Println("Entering TestServiceList")
 	dir, _ := os.Getwd()
 	fmt.Println("In", dir)
-
-	yamlFileName := "../common/testdata/romana.auth.yaml"
-	common.MockPortsInConfig(yamlFileName)
-	fmt.Println("Calling Run()")
-	svcInfo, err := Run("/tmp/romana.yaml")
+	err := s.RomanaTestSuite.MockConfig("../common/testdata/romana.auth.yaml")
 	if err != nil {
-		fmt.Println(err.Error())
-		t.FailNow()
+		c.Fatal(err)
+	}
+	fmt.Printf("Calling Run(%s)", s.RomanaTestSuite.ConfigFile)
+	svcInfo, err := Run(s.RomanaTestSuite.ConfigFile)
+	if err != nil {
+		c.Fatal(err)
 	}
 
 	fmt.Println("Waiting for message")
@@ -125,65 +133,58 @@ func TestAuth(t *testing.T) {
 	client, err := common.NewRestClient(clientConfig)
 
 	if err != nil {
-		t.Error(err)
-		t.FailNow()
+		c.Fatal(err)
+
 	}
 	r := common.IndexResponse{}
 	err = client.Get("", &r)
 	if err != nil {
-		t.Error(err)
-		t.FailNow()
+		c.Fatal(err)
 	}
 	fmt.Println("Received: ", r)
 	svcName := r.ServiceName
 	fmt.Printf("Service name: %s", svcName)
 
 	if svcName != "root" {
-		t.Errorf("Expected serviceName to be root, got %s", svcName)
+		c.Fatalf("Expected serviceName to be root, got %s", svcName)
 	}
 }
 
 // Test the service list.
-func TestServiceList(t *testing.T) {
+func (s *MySuite) TestServiceList(c *check.C) {
 	fmt.Println("Entering TestServiceList")
 	dir, _ := os.Getwd()
 	fmt.Println("In", dir)
 
-	yamlFileName := "../common/testdata/romana.sample.yaml"
-	common.MockPortsInConfig(yamlFileName)
-	fmt.Println("Calling Run()")
-	svcInfo, err := Run("/tmp/romana.yaml")
+	err := s.RomanaTestSuite.MockConfig(common.DefaultTestConfigFile)
 	if err != nil {
-		fmt.Println(err.Error())
-		t.FailNow()
+		c.Fatal(err)
+	}
+	fmt.Printf("Calling Run(%s)", s.RomanaTestSuite.ConfigFile)
+	svcInfo, err := Run(s.RomanaTestSuite.ConfigFile)
+	if err != nil {
+		c.Fatal(err)
 	}
 
 	fmt.Println("Waiting for message")
 	msg := <-svcInfo.Channel
 	fmt.Println("Root service said:", msg)
 
-	_, err = common.ReadConfig("/tmp/romana.yaml")
-	if err != nil {
-		t.Error(err)
-		t.FailNow()
-	}
 	rootURL := fmt.Sprintf("http://%s", svcInfo.Address)
 	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
 	if err != nil {
-		t.Error(err)
-		t.FailNow()
+		c.Fatal(err)
 	}
 	r := common.IndexResponse{}
 	err = client.Get("", &r)
 	if err != nil {
-		t.Error(err)
-		t.FailNow()
+		c.Fatal(err)
 	}
 	fmt.Println("Received: ", r)
 	svcName := r.ServiceName
 	fmt.Printf("Service name: %s", svcName)
 
 	if svcName != "root" {
-		t.Errorf("Expected serviceName to be root, got %s", svcName)
+		c.Fatalf("Expected serviceName to be root, got %s", svcName)
 	}
 }

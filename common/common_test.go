@@ -181,7 +181,7 @@ func TestPolicyValidation(t *testing.T) {
 	err2 = err.(HttpError)
 	log.Printf("Bad tenant: %v", err2)
 	det = (err2.Details).([]string)
-	expect(t, det[0], "applied_to entry #2: at least one of: tenant, tenant_id, tenant_external_id or tenant_network_id must be specified.")
+	expect(t, det[0], "applied_to entry #2: at least one of: dest, tenant, tenant_id, tenant_external_id or tenant_network_id must be specified.")
 }
 
 // TestClientNoHost just tests that we don't hang forever
@@ -496,5 +496,4 @@ func TestFormMarshaling(t *testing.T) {
 	if formStr != "interface_name=eth0&mac_address=aa:bb:cc:dd:ee:ff&ip_address=10.0.1.4" {
 		t.Fail()
 	}
-
 }

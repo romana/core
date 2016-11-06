@@ -17,6 +17,7 @@
 package topology
 
 import (
+	"encoding/json"
 	"fmt"
 	"github.com/go-check/check"
 	"github.com/romana/core/common"
@@ -34,33 +35,34 @@ func Test(t *testing.T) {
 }
 
 type MySuite struct {
-	config          common.Config
-	configFile      string
+	common.RomanaTestSuite
 	rootURL         string
 	servicesStarted bool
 }
 
 var _ = check.Suite(&MySuite{})
 
+func (s *MySuite) TearDownSuite(c *check.C) {
+	s.RomanaTestSuite.CleanUp()
+}
+
 func (s *MySuite) SetUpTest(c *check.C) {
 	myLog(c, "Entering SetUP, services started: ", s.servicesStarted)
 	if !s.servicesStarted {
 		dir, _ := os.Getwd()
 		myLog(c, "Entering setup in directory", dir)
-		common.MockPortsInConfig("../common/testdata/romana.sample.yaml")
-		s.configFile = "/tmp/romana.yaml"
 		var err error
-		s.config, err = common.ReadConfig(s.configFile)
+		err = s.RomanaTestSuite.MockConfig(common.DefaultTestConfigFile)
 		if err != nil {
 			panic(err)
 		}
 
-		myLog(c, "Root configuration: ", s.config.Services["root"].Common.Api.GetHostPort())
-		root.Run(s.configFile)
+		myLog(c, "Root configuration: ", s.RomanaTestSuite.Config.Services["root"].Common.Api.GetHostPort())
+		root.Run(s.RomanaTestSuite.ConfigFile)
 
 		// Starting root service
 		myLog(c, "Starting root service...")
-		svcInfo, err := root.Run(s.configFile)
+		svcInfo, err := root.Run(s.RomanaTestSuite.ConfigFile)
 		if err != nil {
 			c.Error(err)
 		}
@@ -82,8 +84,34 @@ func (s *MySuite) SetUpTest(c *check.C) {
 }
 
 func myLog(c *check.C, args ...interface{}) {
-	fmt.Println(args)
-	c.Log(args)
+	if len(args) == 1 {
+		c.Log(fmt.Sprintf("%s: %v\n", c.TestName(), args[0]))
+		return
+	}
+	newArgs := make([]interface{}, len(args)-1)
+	for i, a := range args[1:] {
+		switch a := a.(type) {
+		default:
+			j, err := json.Marshal(a)
+			if err == nil {
+				newArgs[i] = fmt.Sprintf("%T: %s", a, j)
+			} else {
+				newArgs[i] = fmt.Sprintf("%s", a)
+			}
+		case bool:
+			newArgs[i] = a
+		case int:
+			newArgs[i] = a
+		case uint:
+			newArgs[i] = a
+		case uint64:
+			newArgs[i] = a
+		case string:
+			newArgs[i] = a
+		}
+	}
+	fmtStr := fmt.Sprintf("%s: %s\n", c.TestName(), args[0].(string))
+	c.Logf(fmtStr, newArgs...)
 }
 
 // TestHostMarshaling tests marshaling/unmarshaling of Host
@@ -137,6 +165,7 @@ func (s *MySuite) TestTopology(c *check.C) {
 	err = client.Get("/", &topIndex)
 	if err != nil {
 		c.Error(err)
+		c.FailNow()
 	}
 
 	c.Assert(topIndex.ServiceName, check.Equals, "topology")
@@ -146,13 +175,21 @@ func (s *MySuite) TestTopology(c *check.C) {
 
 	// Get list of hosts - should be empty for now.
 	var hostList []common.Host
-	client.Get(hostsRelURL, &hostList)
+	err = client.Get(hostsRelURL, &hostList)
+	if err != nil {
+		c.Error(err)
+		c.FailNow()
+	}
 	myLog(c, "Host list: ", hostList)
 	c.Assert(len(hostList), check.Equals, 0)
 	newHostReq := common.Host{Ip: "10.10.10.10", AgentPort: 9999, Name: "host10", RomanaIp: "15.15.15.15"}
 
 	newHostResp := common.Host{}
-	client.Post(hostsRelURL, newHostReq, &newHostResp)
+	err = client.Post(hostsRelURL, newHostReq, &newHostResp)
+	if err != nil {
+		c.Error(err)
+		c.FailNow()
+	}
 	myLog(c, "Response: ", newHostResp)
 	myLog(c, "Waiting for....", time.Hour)
 	//	time.Sleep(time.Hour)
@@ -162,15 +199,55 @@ func (s *MySuite) TestTopology(c *check.C) {
 
 	newHostReq = common.Host{Ip: "10.10.10.11", AgentPort: 9999, Name: "host11", RomanaIp: "15.15.15.16"}
 	newHostResp = common.Host{}
-	client.Post(hostsRelURL, newHostReq, &newHostResp)
+	err = client.Post(hostsRelURL, newHostReq, &newHostResp)
+	if err != nil {
+		c.Error(err)
+		c.FailNow()
+	}
 	myLog(c, "Response: ", newHostResp)
-
-	c.Assert(newHostResp.Ip, check.Equals, "10.10.10.11")
 	c.Assert(newHostResp.ID, check.Equals, uint64(2))
 
-	var hostList2 []common.Host
-	client.Get(hostsRelURL, &hostList2)
-	myLog(c, "Host list: ", hostList2)
-	c.Assert(len(hostList2), check.Equals, 2)
+	err = client.Post(hostsRelURL, newHostReq, &newHostResp)
+	httpErr := err.(common.HttpError)
+	myLog(c, "Attempt to add duplicate host: %v", httpErr)
+	c.Assert(httpErr.StatusCode, check.Equals, 409)
 
+	newHostReqWithoutRomanaIP := common.Host{Ip: "10.10.10.12", AgentPort: 9999, Name: "host12"}
+	newHostRespWithoutRomanaIP := common.Host{}
+	err = client.Post(hostsRelURL, newHostReqWithoutRomanaIP, &newHostRespWithoutRomanaIP)
+	if err != nil {
+		c.Error(err)
+		c.FailNow()
+	}
+	myLog(c, "Response: ", newHostRespWithoutRomanaIP)
+
+	c.Assert(newHostRespWithoutRomanaIP.Ip, check.Equals, "10.10.10.12")
+	c.Assert(newHostRespWithoutRomanaIP.RomanaIp, check.Equals, "10.2.0.0/16")
+	c.Assert(newHostRespWithoutRomanaIP.ID, check.Equals, uint64(3))
+
+	newHostReqWithoutRomanaIP = common.Host{Ip: "10.10.10.13", AgentPort: 9999, Name: "host13"}
+	newHostRespWithoutRomanaIP = common.Host{}
+	err = client.Post(hostsRelURL, newHostReqWithoutRomanaIP, &newHostRespWithoutRomanaIP)
+	if err != nil {
+		c.Error(err)
+		c.FailNow()
+	}
+	myLog(c, "Response: ", newHostRespWithoutRomanaIP)
+
+	c.Assert(newHostRespWithoutRomanaIP.Ip, check.Equals, "10.10.10.13")
+	c.Assert(newHostRespWithoutRomanaIP.RomanaIp, check.Equals, "10.3.0.0/16")
+	c.Assert(newHostRespWithoutRomanaIP.ID, check.Equals, uint64(4))
+
+	// TODO: auto generation of romana cidr currently don't
+	//       handle manually assigned one gracefully, thus tests
+	//       to be added here once that support is added.
+
+	var hostList2 []common.Host
+	err = client.Get(hostsRelURL, &hostList2)
+	if err != nil {
+		c.Error(err)
+		c.FailNow()
+	}
+	myLog(c, "Host list: ", hostList2)
+	c.Assert(len(hostList2), check.Equals, 4)
 }

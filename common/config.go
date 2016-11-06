@@ -43,6 +43,11 @@ type Hook struct {
 	Output string `json:"output"`
 }
 
+const (
+	RestRetryStrategyExponential = "exponential"
+	RestRetryStrategyFibonacci   = "fibonacci"
+)
+
 // Api part of service configuration (host/port).
 type Api struct {
 	// Host to listen on.
@@ -52,8 +57,9 @@ type Api struct {
 	// Root service URL
 	RootServiceUrl string `json:"root_service_url,omitempty" yaml:"root_service_url,omitempty"`
 	// Rest timeout in milliseconds (if omitted, defaults to DefaultRestTimeout)
-	RestTimeoutMillis int64 `yaml:"rest_timeout_millis,omitempty" json:"rest_timeout_millis,omitempty"`
-	RestRetries       int   `yaml:"rest_retries,omitempty" json:"rest_retries,omitempty"`
+	RestTimeoutMillis int64  `yaml:"rest_timeout_millis,omitempty" json:"rest_timeout_millis,omitempty"`
+	RestRetries       int    `yaml:"rest_retries,omitempty" json:"rest_retries,omitempty"`
+	RestRetryStrategy string `yaml:"rest_retry_strategy,omitempty" yaml:"rest_retry_strategy,json"`
 	// Location of the public key.
 	AuthPublic   string `yaml:"auth_public" json:"auth_public"`
 	RestTestMode bool   `yaml:"rest_test_mode,omitempty" json:"rest_test_mode,omitempty"`
@@ -149,23 +155,20 @@ func ReadConfig(fname string) (Config, error) {
 		return *config, err
 	}
 	if fname != absFname {
-		log.Printf("Normalized %s to %s", fname, absFname)
+		log.Printf("ReadConfig(): Normalized %s to %s", fname, absFname)
 		fname = absFname
 	}
-
 	yamlConfig := yamlConfig{}
 	if fname != "" {
 		data, err := ioutil.ReadFile(fname)
 		if err != nil {
 			return *config, err
 		}
-		log.Printf("Reading config from %s", fname)
-		err = yaml.Unmarshal([]byte(data), &yamlConfig)
+		err = yaml.Unmarshal(data, &yamlConfig)
 		if err != nil {
-			log.Printf("Error reading config: %v", err)
+			log.Printf("ReadConfig(): Error reading config: %v", err)
 			return *config, err
 		}
-		log.Printf("Read config from %s", fname)
 		serviceConfigs := yamlConfig.Services
 		config.Services = make(map[string]ServiceConfig)
 		// Now convert this to map for easier reading...
@@ -176,7 +179,6 @@ func ReadConfig(fname string) (Config, error) {
 			commonConfig := CommonConfig{Api: &api, Credential: nil, PublicKey: nil}
 			config.Services[c.Service] = ServiceConfig{Common: commonConfig, ServiceSpecific: cleanedConfig}
 		}
-		log.Println("Read configuration from", fname)
 		return *config, nil
 	}
 	return *config, errors.New("Empty filename.")

@@ -1,6 +1,23 @@
+// Copyright (c) 2016 Pani Networks
+// All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License"); you may
+// not use this file except in compliance with the License. You may obtain
+// a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+// License for the specific language governing permissions and limitations
+// under the License.
+
+// store.go contains functionality for agent's backend store.
 package agent
 
 import (
+	"fmt"
 	"github.com/golang/glog"
 	"github.com/romana/core/common"
 	"github.com/romana/core/pkg/util/firewall"
@@ -127,10 +144,14 @@ func (agentStore *agentStore) addNetIf(netif *NetIf) error {
 
 func (agentStore *agentStore) findNetIf(netif *NetIf) error {
 	db := agentStore.DbStore.Db
-	agentStore.DbStore.Db.Where(netif).First(netif)
+	var count int
+	agentStore.DbStore.Db.Where(netif).First(netif).Count(&count)
 	err := common.GetDbErrors(db)
 	if err != nil {
 		return err
+	}
+	if count == 0 {
+		return common.NewError404("interface", fmt.Sprintf("mac: %s", netif.Mac))
 	}
 	return nil
 }
