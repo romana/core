@@ -198,7 +198,7 @@ type Policy struct {
 	ID uint64 `json:"id,omitempty" sql:"AUTO_INCREMENT"`
 	// ExternalID is an optional identifier of this policy in an external system working
 	// with Romana in this deployment (e.g., Open Stack).
-	ExternalID string `json:"external_id,omitempty",sql:"unique"`
+	ExternalID string `json:"external_id,omitempty"`
 	// Datacenter describes a Romana deployment.
 	Datacenter *Datacenter `json:"datacenter,omitempty"`
 	AppliedTo  []Endpoint  `json:"applied_to,omitempty"`
