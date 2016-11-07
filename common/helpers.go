@@ -19,9 +19,11 @@ import (
 	"bufio"
 	"database/sql"
 	"errors"
+	"flag"
 	"fmt"
 	"github.com/golang/glog"
 	"github.com/pborman/uuid"
+	"strconv"
 
 	"io/ioutil"
 	"log"
@@ -177,9 +179,23 @@ func (g *glogWriter) Write(p []byte) (n int, err error) {
 }
 
 // NewGlogAdapter returns a Logger that is actually using glog
-// underneath, to satisfy http.Server
-func NewGlogAdapter(severity glog.Level) *log.Logger {
-	out := glogWriter{severity: severity}
+// underneath, to satisfy http.Server. It uses the command-line
+// value of -v from glog's CLI arguments. If not sets, it uses
+// the default value. If it cannot be parsed, defaults to 0.
+func NewGlogAdapter() *log.Logger {
+	if !flag.Parsed() {
+		flag.Parse()
+	}
+	vFlag := flag.Lookup("v")
+	var severity uint64
+	if vFlag != nil {
+		vFlagStr := vFlag.DefValue
+		if vFlag.Value != nil {
+			vFlagStr = vFlag.Value.String()
+		}
+		severity, _ = strconv.ParseUint(vFlagStr, 10, 32)
+	}
+	out := glogWriter{severity: glog.Level(severity)}
 	l := log.New(&out, "", 0)
 	return l
 }
