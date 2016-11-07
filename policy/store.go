@@ -19,9 +19,9 @@ import (
 	"log"
 	"time"
 
-	"github.com/romana/core/common"
-
+	"database/sql"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/romana/core/common"
 )
 
 type policyStore struct {
@@ -31,12 +31,17 @@ type policyStore struct {
 func (policyStore *policyStore) addPolicy(policyDoc *common.Policy) error {
 	// TODO ensure uniqueness of datacenter/external ID combination.
 	json, err := json.Marshal(policyDoc)
+	if err != nil {
+		return err
+	}
 	policyDb := &PolicyDb{}
 	policyDb.Policy = string(json)
 	if policyDoc.ID != 0 {
 		policyDb.ID = policyDoc.ID
 	}
-	policyDb.ExternalID = policyDoc.ExternalID
+	if policyDoc.ExternalID != "" {
+		policyDb.ExternalID = sql.NullString{String: policyDoc.ExternalID, Valid: true}
+	}
 	tx := policyStore.DbStore.Db.Begin()
 	err = common.GetDbErrors(tx)
 	if err != nil {
@@ -177,13 +182,6 @@ func (policyStore *policyStore) deletePolicy(id uint64) error {
 // CreateSchemaPostProcess implements CreateSchemaPostProcess method of
 // ServiceStore interface.
 func (policyStore *policyStore) CreateSchemaPostProcess() error {
-	db := policyStore.Db
-	log.Printf("policyStore.CreateSchemaPostProcess(), DB is %v", db)
-	db.Model(&PolicyDb{}).AddUniqueIndex("idx_extid", "external_id")
-	err := common.GetDbErrors(db)
-	if err != nil {
-		return err
-	}
 	return nil
 }
 
@@ -193,8 +191,8 @@ func (policyStore *policyStore) CreateSchemaPostProcess() error {
 type PolicyDb struct {
 	ID uint64 `sql:"AUTO_INCREMENT"`
 	// Policy document as JSON
-	Policy       string `sql:"type:TEXT"`
-	ExternalID   string
+	Policy       string         `sql:"type:TEXT"`
+	ExternalID   sql.NullString `json:"external_id,omitempty" sql:"unique"`
 	DatacenterID string
 	// DeletedAt is for using soft delete functionality
 	// from http://jinzhu.me/gorm/curd.html#delete

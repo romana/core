@@ -154,10 +154,10 @@ func handleNetworkPolicyEvents(events []Event, l *kubeListener) {
 	// Translate new network policies into romana policies.
 	createPolicyList, kubePolicy, err := PTranslator.Kube2RomanaBulk(createEvents)
 	if err != nil {
-		glog.Error("Not all kubernetes policies could be translated to Romana policies. Attempted %d, succes %d, fail %d, error %s", len(createEvents), len(createPolicyList), len(kubePolicy), err)
+		glog.Errorf("Not all kubernetes policies could be translated to Romana policies. Attempted %d, succes %d, fail %d, error %s", len(createEvents), len(createPolicyList), len(kubePolicy), err)
 	}
 	for kn, _ := range kubePolicy {
-		glog.Error("Failed to translate kubernetes policy %v", kubePolicy[kn])
+		glog.Errorf("Failed to translate kubernetes policy %v", kubePolicy[kn])
 	}
 
 	// Translate old network policies into romana policies.
@@ -165,10 +165,10 @@ func handleNetworkPolicyEvents(events []Event, l *kubeListener) {
 	// for deletion. Stas.
 	deletePolicyList, kubePolicy, err := PTranslator.Kube2RomanaBulk(deleteEvents)
 	if err != nil {
-		glog.Error("Not all kubernetes policies could be translated to Romana policies. Attempted %d, succes %d, fail %d, error %s", len(createEvents), len(deletePolicyList), len(kubePolicy), err)
+		glog.Errorf("Not all kubernetes policies could be translated to Romana policies. Attempted %d, succes %d, fail %d, error %s", len(createEvents), len(deletePolicyList), len(kubePolicy), err)
 	}
 	for kn, _ := range kubePolicy {
-		glog.Error("Failed to translate kubernetes policy %v", kubePolicy[kn])
+		glog.Errorf("Failed to translate kubernetes policy %v", kubePolicy[kn])
 	}
 
 	// Create new policies.

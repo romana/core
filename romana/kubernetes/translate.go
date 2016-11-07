@@ -43,7 +43,7 @@ type Translator struct {
 	listener         *kubeListener
 	restClient       *common.RestClient
 	tenantsCache     []TenantCacheEntry
-	cacheMu          sync.Mutex
+	cacheMu          *sync.Mutex
 	segmentLabelName string
 }
 
@@ -339,7 +339,7 @@ func checkHttp404(err error) (ret bool) {
 }
 
 func (t *Translator) Init(client *common.RestClient, segmentLabelName string) {
-
+	t.cacheMu = &sync.Mutex{}
 	t.restClient = client
 	err := t.updateCache()
 	if err == nil {
@@ -347,8 +347,6 @@ func (t *Translator) Init(client *common.RestClient, segmentLabelName string) {
 	} else {
 		glog.Errorf("Translator cache update failed, %s", err)
 	}
-
-	t.cacheMu = sync.Mutex{}
 	t.segmentLabelName = segmentLabelName
 }
 
