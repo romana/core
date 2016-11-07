@@ -396,41 +396,6 @@ func (a *Agent) vmUpHandlerAsync(netif NetIf) error {
 		return agentError(err)
 	}
 
-	/*
-		metadata := fw.Metadata()
-		chainNames := metadata["chains"].([]string)
-		u32filter := metadata["u32filter"]
-		hostAddr := a.networkConfig.RomanaGW()
-
-		// Default firewall rules for OpenStack
-		inboundChain := chainNames[firewall.InputChainIndex]
-		var defaultRules []firewall.FirewallRule
-
-		inboundRule := firewall.NewFirewallRule()
-		inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-m comment --comment DefaultDrop -j DROP"))
-		defaultRules = append(defaultRules, inboundRule)
-
-		inboundRule = firewall.NewFirewallRule()
-		inboundRule.SetBody(fmt.Sprintf("%s %s", inboundChain, "-m state --state ESTABLISHED -j ACCEPT"))
-		defaultRules = append(defaultRules, inboundRule)
-
-		forwardOutChain := chainNames[firewall.ForwardOutChainIndex]
-		forwardOutRule := firewall.NewFirewallRule()
-		forwardOutRule.SetBody(fmt.Sprintf("%s %s", forwardOutChain, "-m comment --comment Outgoing -j RETURN"))
-		defaultRules = append(defaultRules, forwardOutRule)
-
-		forwardInChain := chainNames[firewall.ForwardInChainIndex]
-		forwardInRule := firewall.NewFirewallRule()
-		forwardInRule.SetBody(fmt.Sprintf("%s %s", forwardInChain, "-m state --state ESTABLISHED -j ACCEPT"))
-		defaultRules = append(defaultRules, forwardInRule)
-
-		forwardInRule = firewall.NewFirewallRule()
-		forwardInRule.SetBody(fmt.Sprintf("%s ! -s %s -m u32 --u32 %s %s", forwardInChain, hostAddr, u32filter, "-j ACCEPT"))
-		defaultRules = append(defaultRules, forwardInRule)
-
-		fw.SetDefaultRules(defaultRules)
-	*/
-
 	var rules RuleSet
 	switch currentProvider {
 	case firewall.ShellexProvider:
