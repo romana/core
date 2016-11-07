@@ -17,35 +17,15 @@
 package kubernetes
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/golang/glog"
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
-	"io"
-	"log"
 	"net/http"
 	"strings"
 )
-
-// readChunk reads the next chunk from the provided reader.
-func readChunk(reader io.Reader) ([]byte, error) {
-	var result []byte
-	for {
-		buf := make([]byte, bytes.MinRead)
-		n, err := reader.Read(buf)
-		if n < bytes.MinRead {
-			result = append(result, buf[0:n]...)
-			if err != nil {
-				return result, err
-			}
-			break
-		}
-		result = append(result, buf...)
-	}
-	return result, nil
-}
 
 type networkPolicyAction int
 
@@ -53,6 +33,11 @@ const (
 	networkPolicyActionDelete networkPolicyAction = iota
 	networkPolicyActionAdd
 	networkPolicyActionModify
+)
+
+const (
+	HttpGetParamWatch           = "watch=true"
+	HttpGetParamResourceVersion = "resourceVersion"
 )
 
 // kubeListener is a Service that listens to updates
@@ -119,8 +104,20 @@ func (l *kubeListener) SetConfig(config common.ServiceConfig) error {
 		l.namespaceBufferSize = uint64(m["namespace_buffer_size"].(float64))
 	}
 
+	// TODO, find a better place to initialize
+	// the translator. Stas.
+	PTranslator.Init(l.restClient, l.segmentLabelName)
+	tc := PTranslator.GetClient()
+	if tc == nil {
+		glog.Fatal("DEBUG Translator has nil client after Init")
+	}
+
 	return nil
 }
+
+// TODO there should be a better way to introduce translator
+// then global variable like this one.
+var PTranslator Translator
 
 // Run configures and runs listener service.
 func Run(rootServiceURL string, cred *common.Credential) (*common.RestServiceInfo, error) {
@@ -132,6 +129,7 @@ func Run(rootServiceURL string, cred *common.Credential) (*common.RestServiceInf
 	}
 	kubeListener := &kubeListener{}
 	kubeListener.restClient = client
+
 	config, err := client.GetServiceConfig(kubeListener.Name())
 	if err != nil {
 		return nil, err
@@ -224,11 +222,10 @@ func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Po
 	ns := kubePolicy.Metadata.Namespace
 	// TODO actually look up tenant K8S ID.
 	t, err := l.resolveTenantByName(ns)
-	//	log.Printf("XXXX Resolving tenant by name %s: %+v / %+v", ns, t, err)
 	if err != nil {
 		return *romanaPolicy, err
 	}
-	log.Printf("translateNetworkPolicy(): For namespace %s got %+v / %+v", ns, t, err)
+	glog.Infof("translateNetworkPolicy(): For namespace %s got %+v / %+v", ns, t, err)
 	tenantID := t.ID
 	tenantExternalID := t.ExternalID
 
@@ -255,7 +252,7 @@ func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Po
 	// from := kubePolicy.Spec.Ingress[0].From
 	// This is subject to change once the network specification in Kubernetes is finalized.
 	// Right now it is a work in progress.
-	log.Printf("YYYYY For %s processing %+v", kubePolicy.Metadata.Name, kubePolicy.Spec.Ingress)
+	glog.Infof("YYYYY For %s processing %+v", kubePolicy.Metadata.Name, kubePolicy.Spec.Ingress)
 	for _, ingress := range kubePolicy.Spec.Ingress {
 		for _, entry := range ingress.From {
 			pods := entry.Pods
@@ -275,10 +272,10 @@ func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Po
 			ports := []uint{toPort.Port}
 			rule := common.Rule{Protocol: proto, Ports: ports}
 			romanaPolicy.Rules = append(romanaPolicy.Rules, rule)
-			log.Printf("YYYYY %+v", romanaPolicy.Rules)
+			glog.Infof("YYYYY %+v", romanaPolicy.Rules)
 		}
 	}
-	log.Printf("translateNetworkPolicy(): Validating %+v", romanaPolicy)
+	glog.Infof("translateNetworkPolicy(): Validating %+v", romanaPolicy)
 	err = romanaPolicy.Validate()
 	if err != nil {
 		return *romanaPolicy, err
@@ -295,13 +292,13 @@ func (l *kubeListener) applyNetworkPolicy(action networkPolicyAction, romanaNetw
 	policyStr, _ := json.Marshal(romanaNetworkPolicy)
 	switch action {
 	case networkPolicyActionAdd:
-		log.Printf("Applying policy %s", policyStr)
+		glog.Infof("Applying policy %s", policyStr)
 		err := l.restClient.Post(policyURL, romanaNetworkPolicy, &romanaNetworkPolicy)
 		if err != nil {
 			return err
 		}
 	case networkPolicyActionDelete:
-		log.Printf("Deleting policy policy %s", policyStr)
+		glog.Infof("Deleting policy policy %s", policyStr)
 		err := l.restClient.Delete(policyURL, romanaNetworkPolicy, &romanaNetworkPolicy)
 		if err != nil {
 			return err
@@ -314,21 +311,22 @@ func (l *kubeListener) applyNetworkPolicy(action networkPolicyAction, romanaNetw
 
 func (l *kubeListener) Initialize() error {
 	l.lastEventPerNamespace = make(map[string]uint64)
-	log.Printf("%s: Starting server", l.Name())
-	nsURL, err := common.CleanURL(fmt.Sprintf("%s%s", l.kubeURL, l.namespaceNotificationPath))
+	glog.Infof("%s: Starting server", l.Name())
+	nsURL, err := common.CleanURL(fmt.Sprintf("%s/%s/?%s", l.kubeURL, l.namespaceNotificationPath, HttpGetParamWatch))
 	if err != nil {
 		return err
 	}
-	log.Printf("Starting to listen on %s", nsURL)
+	glog.Infof("Starting to listen on %s", nsURL)
 	done := make(chan Done)
 	nsEvents, err := l.nsWatch(done, nsURL)
 	if err != nil {
-		log.Fatal("Namespace watcher failed to start", err)
+		glog.Fatal("Namespace watcher failed to start", err)
 	}
 
 	events := l.conductor(nsEvents, done)
 	l.process(events, done)
-	log.Println("All routines started")
+
+	glog.Infoln("All routines started")
 	return nil
 }
 
