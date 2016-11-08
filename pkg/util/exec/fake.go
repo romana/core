@@ -29,7 +29,7 @@ type FakeExecutor struct {
 	Commands *string
 }
 
-// Fakemd implement Cmd interface for testing purposes.
+// FakeCmd implement Cmd interface for testing purposes.
 type FakeCmd struct{}
 
 func (FakeCmd) StdinPipe() (io.WriteCloser, error) {

@@ -22,47 +22,81 @@ package agent
 
 import ()
 
-// RuleSet is a collection of agent rules.
-type RuleSet []Rule
-
 // Rule type in romana agent represents a firewall rule
 // along with information about how this rule should be
 // provisioned in firewall.
 type Rule struct {
-	// Specifies what kind of formatting must
-	// be applied to the Body of the rule.
+	// Text representation of the rule may contain
+	// dynamic tokens (%s), this flag tells how to
+	// expand such tokens.
 	Format RuleFormat
 
 	// Text representation of the rule.
 	Body string
 
 	// Specifies what position rule must occupy.
+	// Provides a hint for firewall on how to
+	// install this rule in relation to other rules.
+	// e.g. top, bottom, after/before something.
 	Position RulePosition
 
 	// Specifies traffic direction the rule must be applied to.
+	// Provides a hint for firewall on rule placement,
+	// different firewall implementations might interpret it
+	// differently.
 	Direction RuleDirection
 }
 
+// RuleSet is a collection of agent rules.
+type RuleSet []Rule
+
+// RuleFormat indicates that Rule.Body contains a specific
+// number of tokens that should be replaced with specific
+// information.
 type RuleFormat int
 
 const (
 	NoFormatNeeded RuleFormat = iota
+
+	// There is one token in the rule which
+	// must be replaced with a chain iptables
+	// chain name.
 	FormatChain
+
+	// There are 3 tokens in the rule
+	// first one must be replaces with iptables
+	// chain name, second one must be replaced
+	// with localhost ip address (10.1.0.1)
+	// and a last one with u32 mask that
+	// matches romana tenant and segment.
 	FormatChainHostU32TenantSegment
 )
 
+// RulePosition indicates that firewall implementation
+// should render the rule at specific place of the ruleset
+// e.g. in iptables chain.
 type RulePosition int
 
 const (
+	// Firewall implementation uses default
+	// position for the rule.
 	DefaultPosition RulePosition = iota
+
+	// Firewall implementation should put
+	// this rule at the top of the chain/list.
 	TopPosition
+
+	// Firewall implementation should put
+	// this rule at the bottom of the chain/list.
 	BottomPosition
 )
 
+// RuleDirection indicates that rule should be applied to the traffic
+// going in a specific direction.
 type RuleDirection int
 
 const (
-	// List of rules matching traffic form endpoints to the host.
+	// List of rules matching traffic from endpoints to the host.
 	EgressLocalDirection RuleDirection = iota
 
 	// List of rules matching traffic from endpoints to the rest
@@ -104,6 +138,9 @@ var KubeShellRules = RuleSet{
 	},
 }
 
+// KubeSaveRestoreRules is a set of rules to be applied for kubernetes with IPTsaveProvider firewall.
+// ShellexProvider and IPTsaveProvider firewall providers are using different default order strategy, so
+// we need different set of same rules with different Position values.
 var KubeSaveRestoreRules = RuleSet{
 	Rule{
 		Format:    FormatChain,
@@ -131,6 +168,7 @@ var KubeSaveRestoreRules = RuleSet{
 	},
 }
 
+// OpenStackShellRules is a set of rules to be applied for OpenStack with ShellexProvider firewall.
 var OpenStackShellRules = RuleSet{
 	Rule{
 		Format:    FormatChain,
@@ -164,6 +202,7 @@ var OpenStackShellRules = RuleSet{
 	},
 }
 
+// OpenStackSaveRestoreRules is a set of rules to be applied for OpenStack with IPTsaveProvider firewall.
 var OpenStackSaveRestoreRules = RuleSet{
 	Rule{
 		Format:    FormatChain,

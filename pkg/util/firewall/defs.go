@@ -24,7 +24,7 @@ import (
 	utilexec "github.com/romana/core/pkg/util/exec"
 )
 
-// Firewall interface allows different implementation to be used with
+// Firewall interface allows different implementations to be used with
 // romana agent.
 type Firewall interface {
 	// Init initializes firewall.
@@ -128,8 +128,15 @@ func (i chainState) String() string {
 type RuleState int
 
 const (
+	// Indicates that rule should be placed at the
+	// bottom of the chain/list.
 	EnsureLast RuleState = iota
+
+	// Indicates that rule should be placed at the
+	// top of the chain/list.
 	EnsureFirst
+
+	// Indicates that rule must be removed.
 	EnsureAbsent
 )
 

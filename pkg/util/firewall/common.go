@@ -117,7 +117,7 @@ func prepareTenantSegmentMask(nc NetConfig) uint64 {
 }
 
 // extractSegmentID extracts segment id from the given ip address.
-// This is possible because segment id encoded in the ip address.
+// This is possible because segment is encoded in the ip address.
 func extractSegmentID(addr uint64, nc NetConfig) uint64 {
 	endpointBits := nc.EndpointBits()
 	segmentBits := nc.SegmentBits()

@@ -76,7 +76,7 @@ func (a *Agent) podDownHandler(input interface{}, ctx common.RestContext) (inter
 	netReq := input.(*NetworkRequest)
 	netif := netReq.NetIf
 
-	// We need new firewall instance here to use it's Cleanup()
+	// We need new firewall instance here to use its Cleanup()
 	// to uninstall firewall rules related to the endpoint.
 	fw, err := firewall.NewFirewall(a.getFirewallType())
 	if err != nil {
@@ -388,12 +388,13 @@ func (a *Agent) vmUpHandlerAsync(netif NetIf) error {
 
 	err = fw.Init(a.Helper.Executor, a.store, a.networkConfig)
 	if err != nil {
-		return err
+		glog.Error(agentError(err))
+		return agentError(err)
 	}
 
 	if err1 := fw.SetEndpoint(netif); err1 != nil {
-		glog.Error(agentError(err))
-		return agentError(err)
+		glog.Error(agentError(err1))
+		return agentError(err1)
 	}
 
 	var rules RuleSet
@@ -422,6 +423,8 @@ func (a *Agent) vmUpHandlerAsync(netif NetIf) error {
 	return nil
 }
 
+// getFirewallType converts configuration option firewall_provider into
+// firewall.Provider type.
 func (a Agent) getFirewallType() firewall.Provider {
 	provider, ok := a.config.ServiceSpecific["firewall_provider"].(string)
 	if !ok {

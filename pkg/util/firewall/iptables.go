@@ -41,7 +41,7 @@ type IPtables struct {
 	networkConfig NetConfig
 }
 
-// Init implements Firewall interface
+// Init implements Firewall interface.
 func (fw *IPtables) Init(exec utilexec.Executable, store FirewallStore, nc NetConfig) error {
 	fwstore := firewallStore{}
 	fwstore.DbStore = store.GetDb()
@@ -54,6 +54,7 @@ func (fw *IPtables) Init(exec utilexec.Executable, store FirewallStore, nc NetCo
 	return nil
 }
 
+// SetEndpoint implements Firewall interface.
 func (fw *IPtables) SetEndpoint(netif FirewallEndpoint) error {
 	err := fw.makeRules(netif)
 	if err != nil {
@@ -64,7 +65,7 @@ func (fw *IPtables) SetEndpoint(netif FirewallEndpoint) error {
 	return err
 }
 
-// Metadata implements Firewall interface
+// Metadata implements Firewall interface.
 func (fw IPtables) Metadata() map[string]interface{} {
 	var chains []string
 	for _, chain := range fw.chains {
@@ -108,11 +109,12 @@ func (fw *IPtables) SetDefaultRules(rules []FirewallRule) error {
 	return nil
 }
 
-// injectRule puts provided rule into appropriate chain.
+// injectRule extracts chain name from a rule body and appends a rule
+// to the appropriate chain in IPtables.chains list.
 func (fw *IPtables) injectRule(rule *IPtablesRule) error {
 	rule2arr := strings.Split(rule.GetBody(), " ")
 	if len(rule2arr) < 3 {
-		return fmt.Errorf("In injectRule() too many elements in rule %s", rule.GetBody())
+		return fmt.Errorf("In injectRule() not enough elements in rule %s", rule.GetBody())
 	}
 
 	ruleChain := rule2arr[0]
@@ -216,7 +218,7 @@ func (fw *IPtables) isChainExistByName(chainName string) bool {
 }
 
 // isRuleExist verifies if given iptables rule exists.
-// Returns true rule exists.
+// Returns true if rule exists.
 func (fw *IPtables) isRuleExist(rule FirewallRule) bool {
 	body := strings.Split(rule.GetBody(), " ")
 	args := append([]string{"-C"}, body...)
@@ -367,7 +369,7 @@ func (fw *IPtables) CreateRules(chain int) error {
 
 		// Finally, set 'active' flag in database record.
 		if err2 := fw.Store.switchIPtablesRule(rule, setRuleActive); err2 != nil {
-			glog.Error("In CreateRules() iptables rule created but activation failed ", rule.GetBody())
+			glog.Error("In CreateRules() iptables rule created, but activation failed ", rule.GetBody())
 			return err2
 		}
 	}

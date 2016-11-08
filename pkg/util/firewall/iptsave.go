@@ -30,7 +30,7 @@ const (
 	iptablesRestoreBin = `/sbin/iptables-restore`
 )
 
-// IPtables implements romana Firewall using iptables.
+// IPTsaveFirewall implements romana Firewall using iptables-save|iptables-restore.
 type IPTsaveFirewall struct {
 	u32filter     string
 	chainPrefix   string
@@ -100,7 +100,7 @@ func (i *IPTsaveFirewall) SetEndpoint(netif FirewallEndpoint) error {
 	backendFilter := i.CurrentState.TableByName("filter")
 	newChains := iptsave.MergeTables(backendFilter, divertFilter)
 
-	// schedule divert rules that aren't exist yet for installation
+	// schedule divert rules that don't exist yet for installation
 	newFilter := i.DesiredState.TableByName("filter")
 	newFilter.Chains = append(newFilter.Chains, newChains...)
 
