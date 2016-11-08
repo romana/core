@@ -182,10 +182,8 @@ func (g *glogWriter) Write(p []byte) (n int, err error) {
 // underneath, to satisfy http.Server. It uses the command-line
 // value of -v from glog's CLI arguments. If not sets, it uses
 // the default value. If it cannot be parsed, defaults to 0.
+// It is assumed this is called after flag.Parse().
 func NewGlogAdapter() *log.Logger {
-	if !flag.Parsed() {
-		flag.Parse()
-	}
 	vFlag := flag.Lookup("v")
 	var severity uint64
 	if vFlag != nil {
