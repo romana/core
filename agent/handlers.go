@@ -226,7 +226,7 @@ func (a *Agent) podUpHandlerAsync(netReq NetworkRequest) error {
 	var rules RuleSet
 	switch currentProvider {
 	case firewall.ShellexProvider:
-		rules = KubeShellRules
+		rules = KubeShellXRules
 	case firewall.IPTsaveProvider:
 		rules = KubeSaveRestoreRules
 	default:
@@ -431,6 +431,9 @@ func (a Agent) getFirewallType() firewall.Provider {
 		panic("Unable to read firewall_provider from config")
 	}
 
+	// Value of "shellex" stands for firewall provider that executes iptables
+	// commands line by line and value of "save-restore" stands for
+	// firewall provider that uses iptables-save/iptables-restore.
 	switch provider {
 	case "shellex":
 		glog.Infoln("Agent: using ShellexProvider firewall provider")

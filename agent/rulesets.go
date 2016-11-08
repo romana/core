@@ -64,9 +64,9 @@ const (
 	FormatChain
 
 	// There are 3 tokens in the rule
-	// first one must be replaces with iptables
+	// first one must be replaced with iptables
 	// chain name, second one must be replaced
-	// with localhost ip address (10.1.0.1)
+	// with localhost ip address (e.g. 10.1.0.1)
 	// and a last one with u32 mask that
 	// matches romana tenant and segment.
 	FormatChainHostU32TenantSegment
@@ -110,8 +110,8 @@ const (
 	IngressGlobalDirection
 )
 
-// KubeShellRules is a set of rules to be applied for kubernetes with ShellexProvider firewall.
-var KubeShellRules = RuleSet{
+// KubeShellXRules is a set of rules to be applied for kubernetes with ShellexProvider firewall.
+var KubeShellXRules = RuleSet{
 	Rule{
 		Format:    FormatChain,
 		Body:      "%s -m comment --comment DefaultDrop -j DROP",
