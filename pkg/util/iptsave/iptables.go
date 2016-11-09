@@ -518,8 +518,8 @@ func MergeChains(dstChain, srcChain *IPchain) []*IPrule {
 
 // removeRuleFromList removes IPrule from the list of IPrules
 // by its id, returns new list.
-func removeRuleFromList(i int, dst []*IPrule) []*IPrule {
-	copy(dst[i:], dst[i+1:])
+func removeRuleFromList(index int, dst []*IPrule) []*IPrule {
+	copy(dst[index:], dst[index+1:])
 	dst[len(dst)-1] = nil
 	dst = dst[:len(dst)-1]
 

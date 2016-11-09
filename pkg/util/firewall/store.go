@@ -101,7 +101,7 @@ func (firewallStore *firewallStore) addIPtablesRule(rule *IPtablesRule) error {
 }
 
 // addIPtablesRuleUnsafe is a non thread safe implementation of addIPtablesRule.
-// Unsafe implementation is needed for a functions which are already managing same mutex.
+// Unsafe implementation is needed for functions which are already managing same mutex.
 func (firewallStore *firewallStore) addIPtablesRuleUnsafe(rule *IPtablesRule) error {
 
 	db := firewallStore.DbStore.Db

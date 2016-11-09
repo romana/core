@@ -208,6 +208,11 @@ func (i *IPTsaveFirewall) Cleanup(netif FirewallEndpoint) error {
 
 	// Delete netif related rules from ifirewall store and schedule
 	// them for deletion from current state.
+	// TODO it is possible that someone will make a chain
+	// with a name that matchies interface name and this call
+	// will delete all rules from such a chain.
+	// This is very unlikely but still should be
+	// addressed just in case. Stas.
 	err := i.deleteIPtablesRulesBySubstring(netif.GetName())
 	if err != nil {
 		return err
@@ -309,11 +314,11 @@ func (i IPTsaveFirewall) deleteDbRules(ruleList []*IPtablesRule) error {
 // that would bring current state ro remove same rules that were deleted from database.
 func (i *IPTsaveFirewall) deleteIPtablesRulesBySubstring(substring string) error {
 
-	rules, err := i.Store.findIPtablesRules(substring)
+	rulesPtr, err := i.Store.findIPtablesRules(substring)
 	if err != nil {
 		return err
 	}
-	glog.V(2).Infof("In Cleanup - found %d rules for interface %s", len(*rules), substring)
+	glog.V(2).Infof("In Cleanup - found %d rules for interface %s", len(*rulesPtr), substring)
 
 	// This function operates on "filter" table.
 	tableDesired := i.DesiredState.TableByName("filter")
@@ -328,7 +333,7 @@ func (i *IPTsaveFirewall) deleteIPtablesRulesBySubstring(substring string) error
 
 	// walk through rules from database, check if they are present
 	// in current iptables config and schedule them for deletion if necessary.
-	for _, rule := range *rules {
+	for _, rule := range *rulesPtr {
 		glog.V(3).Infof("In Cleanup - deleting rule %s", rule.GetBody())
 
 		// ignore inactive rules, they shouldn't be
