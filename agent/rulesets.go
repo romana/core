@@ -110,6 +110,13 @@ const (
 	IngressGlobalDirection
 )
 
+// We support different firewall implementation backends (currently ShellxProvider and IPTsaveProvider).
+// Different providers may use different strategies for placing and ordering rules. Furthermore, different
+// orchestration systems (such as Kubernetes or OpenStack) have different requirements for the rules
+// they need and for how rules are inserted.
+// Therefore, we need to provide separate and specific rule specifications for each provider in the context
+// of each orchestration environment. Below then, we have these specifications.
+
 // KubeShellXRules is a set of rules to be applied for kubernetes with ShellexProvider firewall.
 var KubeShellXRules = RuleSet{
 	Rule{
@@ -139,8 +146,6 @@ var KubeShellXRules = RuleSet{
 }
 
 // KubeSaveRestoreRules is a set of rules to be applied for kubernetes with IPTsaveProvider firewall.
-// ShellexProvider and IPTsaveProvider firewall providers are using different default order strategy, so
-// we need different set of same rules with different Position values.
 var KubeSaveRestoreRules = RuleSet{
 	Rule{
 		Format:    FormatChain,

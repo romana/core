@@ -22,13 +22,16 @@ import (
 	"strings"
 )
 
-// Executable is a facade to exec.Command().Output()
+// Interfaces in this file are designed to provide
+// a "mockable" implementation of os/exec for testing purposes.
+
+// Executable is a facade to exec.Command().Output().
 type Executable interface {
 	Exec(cmd string, args []string) ([]byte, error)
 	Cmd(cmd string, args []string) Cmd
 }
 
-// Cmd is a facade to exec.Cmd
+// Cmd is a facade to exec.Cmd.
 type Cmd interface {
 	StdinPipe() (io.WriteCloser, error)
 	CombinedOutput() ([]byte, error)
@@ -40,8 +43,7 @@ type Cmd interface {
 // back to standard library.
 type DefaultExecutor struct{}
 
-// Exec proxies all requests to exec.Command()
-// Used to support unit testing.
+// Exec implements Executable interface by proxiyng all requests to exec.Command().
 func (DefaultExecutor) Exec(cmd string, args []string) ([]byte, error) {
 	log.Printf("Helper.Executor: executing command: %s %s", cmd, strings.Join(args, " "))
 	cmdObj := exec.Command(cmd, args...)
@@ -49,6 +51,7 @@ func (DefaultExecutor) Exec(cmd string, args []string) ([]byte, error) {
 	return out, err
 }
 
+// Cmd implements Executable interface.
 func (DefaultExecutor) Cmd(cmd string, args []string) Cmd {
 	return exec.Command(cmd, args...)
 }

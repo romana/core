@@ -63,13 +63,27 @@ type Firewall interface {
 	Cleanup(netif FirewallEndpoint) error
 }
 
-// NetConfig is for agent.NetworkConfig.
+// NetConfig exposes agent runtime configuration to the consumers outside
+// of the agent who can't have a dependency on the agent (e.g. pkg/utils/firewall).
 type NetConfig interface {
+
+	// Returns romana network cidr.
 	PNetCIDR() (cidr *net.IPNet, err error)
+
+	// Returns tenant bits from romana network config.
 	TenantBits() uint
+
+	// Returns segment bits from romana network config.
 	SegmentBits() uint
+
+	// Returns endpoint bits from romana network config.
 	EndpointBits() uint
+
+	// Returns EndpointNetmaskSize bits from romana network config.
 	EndpointNetmaskSize() uint64
+
+	// Returns IP address of romana-gw interface on the host
+	// where agent is running.
 	RomanaGW() net.IP
 }
 
@@ -80,8 +94,10 @@ func NewFirewall(provider Provider) (Firewall, error) {
 	switch provider {
 	case IPTsaveProvider:
 		fw = new(IPTsaveFirewall)
-	default:
+	case ShellexProvider:
 		fw = new(IPtables)
+	default:
+		return nil, fmt.Errorf("NewFirewall() failed with unknown provider type %d", provider)
 	}
 
 	return fw, nil

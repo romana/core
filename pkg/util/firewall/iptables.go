@@ -451,8 +451,8 @@ func ipToInt(ip net.IP) uint64 {
 	return uint64(ip[12])<<24 | uint64(ip[13])<<16 | uint64(ip[14])<<8 | uint64(ip[15])
 }
 
-// PseudoNetNetmaskInt returns integer representation of pseudo net netmask.
-func (fw *IPtables) PseudoNetNetmaskInt() (uint64, error) {
+// RomanaNetNetmaskInt returns integer representation of pseudo net netmask.
+func (fw *IPtables) RomanaNetNetmaskInt() (uint64, error) {
 	cidr, err := fw.networkConfig.PNetCIDR()
 	if err != nil {
 		return 0, err
@@ -519,7 +519,7 @@ func (fw *IPtables) prepareU32Rules(ipAddr net.IP) (string, string, error) {
 // Used to prepare u32 firewall Rules that would match ip addresses belonging
 // to given tenant/segment pair.
 func (fw *IPtables) prepareNetmaskBits() (uint64, error) {
-	iCidrMask, err := fw.PseudoNetNetmaskInt()
+	iCidrMask, err := fw.RomanaNetNetmaskInt()
 	if err != nil {
 		return 0, err
 	}
@@ -643,7 +643,7 @@ func (fw IPtables) EnsureRule(rule FirewallRule, opType RuleState) error {
 
 		switch opType {
 		case EnsureAbsent:
-			args = append(args, []string{"-D"}...)
+			args = append(args, "-D")
 		default:
 			glog.Infoln("In EnsureRule - nothing to do ", rule.GetBody())
 			return nil
@@ -652,9 +652,9 @@ func (fw IPtables) EnsureRule(rule FirewallRule, opType RuleState) error {
 
 		switch opType {
 		case EnsureLast:
-			args = append(args, []string{"-A"}...)
+			args = append(args, "-A")
 		case EnsureFirst:
-			args = append(args, []string{"-I"}...)
+			args = append(args, "-I")
 		default:
 			glog.Infoln("In EnsureRule - nothing to do ", rule.GetBody())
 			return nil

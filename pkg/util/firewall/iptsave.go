@@ -92,15 +92,17 @@ func (i *IPTsaveFirewall) SetEndpoint(netif FirewallEndpoint) error {
 	}
 
 	// Assemble firewall rules needed to divert traffic
-	// to/from the endpoint
+	// to/from the endpoint.
 	divertFilter := makeDivertRules(netif)
 	glog.V(3).Infof("In SetEndpoint() after divertFilter with\n%s", divertFilter.RenderFooter())
 
 	// compare list of divert rules and list of current rules
+	// make a list of chains filled with divert rules that need
+	// to be created to match current rules.
 	backendFilter := i.CurrentState.TableByName("filter")
 	newChains := iptsave.MergeTables(backendFilter, divertFilter)
 
-	// schedule divert rules that don't exist yet for installation
+	// schedule divert rules that don't exist yet for installation.
 	newFilter := i.DesiredState.TableByName("filter")
 	newFilter.Chains = append(newFilter.Chains, newChains...)
 
@@ -116,7 +118,8 @@ func (i *IPTsaveFirewall) EnsureRule(rule FirewallRule, opType RuleState) error 
 
 	var ruleExists bool
 
-	// This function operates on "filter" table.
+	// This firewall only manages filtering rules so it only operates
+	// on `filter` table.
 	table := i.DesiredState.TableByName("filter")
 	if table == nil {
 		return fmt.Errorf("In EnsureRule() firewall doesn't have filter table")
@@ -131,12 +134,26 @@ func (i *IPTsaveFirewall) EnsureRule(rule FirewallRule, opType RuleState) error 
 	if chain == nil {
 		table.Chains = append(table.Chains, tempChain)
 		chain = tempChain
-		ruleExists = true
 
-	} else {
+		// we just added a chain with our rule
+		// into the filter table so we know that
+		// target rule is in the table.
+		ruleExists = true
+	}
+
+	// If we didn't put that rule in the table ourselves yet then
+	// try to find it in existing table.
+	if !ruleExists {
 		ruleExists = chain.RuleInChain(ipRule)
 	}
 
+	// +------------------------------------------------------------+
+	// | ruleExist \ opType | EnsureAbsent | EnsureLast|EnsureFirst |
+	// +------------------------------------------------------------+
+	// | true               | delete rule  | no op                  |
+	// +------------------------------------------------------------+
+	// | false              | no op        | add rule               |
+	// +------------------------------------------------------------+
 	if ruleExists {
 		switch opType {
 		case EnsureAbsent:

@@ -82,7 +82,7 @@ func prepareU32Rules(ipAddr net.IP, nc NetConfig) (string, string, error) {
 // Used to prepare u32 firewall Rules that would match ip addresses belonging
 // to given tenant/segment pair.
 func prepareNetmaskBits(nc NetConfig) (uint64, error) {
-	iCidrMask, err := PseudoNetNetmaskInt(nc)
+	iCidrMask, err := RomanaNetNetmaskInt(nc)
 	if err != nil {
 		return 0, err
 	}
@@ -91,8 +91,8 @@ func prepareNetmaskBits(nc NetConfig) (uint64, error) {
 	return res, nil
 }
 
-// PseudoNetNetmaskInt returns integer representation of pseudo net netmask.
-func PseudoNetNetmaskInt(nc NetConfig) (uint64, error) {
+// RomanaNetNetmaskInt returns integer representation of pseudo net netmask.
+func RomanaNetNetmaskInt(nc NetConfig) (uint64, error) {
 	cidr, err := nc.PNetCIDR()
 	if err != nil {
 		return 0, err
