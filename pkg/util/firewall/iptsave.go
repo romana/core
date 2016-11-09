@@ -147,13 +147,6 @@ func (i *IPTsaveFirewall) EnsureRule(rule FirewallRule, opType RuleState) error 
 		ruleExists = chain.RuleInChain(ipRule)
 	}
 
-	// +------------------------------------------------------------+
-	// | ruleExist \ opType | EnsureAbsent | EnsureLast|EnsureFirst |
-	// +------------------------------------------------------------+
-	// | true               | delete rule  | no op                  |
-	// +------------------------------------------------------------+
-	// | false              | no op        | add rule               |
-	// +------------------------------------------------------------+
 	if ruleExists {
 		switch opType {
 		case EnsureAbsent:
@@ -161,7 +154,6 @@ func (i *IPTsaveFirewall) EnsureRule(rule FirewallRule, opType RuleState) error 
 			chain.DeleteRule(ipRule)
 		default:
 			glog.Infof("In EnsureRule - nothing to do %s", rule.GetBody())
-			return nil
 		}
 	} else {
 		glog.Infof("In EnsureRule - rule %s doesn't exist is current state, %s", rule.GetBody(), opType.String())
@@ -172,7 +164,6 @@ func (i *IPTsaveFirewall) EnsureRule(rule FirewallRule, opType RuleState) error 
 			chain.InsertRule(0, ipRule)
 		default:
 			glog.Infof("In EnsureRule - nothing to do %s", rule.GetBody())
-			return nil
 		}
 	}
 
@@ -180,15 +171,15 @@ func (i *IPTsaveFirewall) EnsureRule(rule FirewallRule, opType RuleState) error 
 }
 
 // SetDefaultRules implements Firewall interface.
-// In this implementation it basically a loop over EnsureRule
+// The implementation iterates over the provided rules and ensures that each of them is present.
 func (i *IPTsaveFirewall) SetDefaultRules(rules []FirewallRule) error {
 	// Walking backwards to preserve original order
-	length := len(rules)
-	for ruleNum, _ := range rules {
-		if err := i.EnsureRule(rules[length-ruleNum-1], EnsureFirst); err != nil {
-			return err
-		}
+	for ruleNum := len(rules)-1; ruleNum >= 0; ruleNum-- {
+	    if err := i.EnsureRule(rules[ruleNum], EnsureFirst); err != nil {
+		return err
+	    }
 	}
+
 	return nil
 }
 
@@ -222,7 +213,7 @@ func (i *IPTsaveFirewall) Cleanup(netif FirewallEndpoint) error {
 		return err
 	}
 
-	// Delete  netif related rules from current state.
+	// Delete netif related rules from current state.
 	err = i.applyRules(i.DesiredState)
 	if err != nil {
 		return err
@@ -232,7 +223,7 @@ func (i *IPTsaveFirewall) Cleanup(netif FirewallEndpoint) error {
 	return nil
 }
 
-// ProvisionEndpoint implements Firewall.
+// ProvisionEndpoint implements Firewall interface.
 func (i *IPTsaveFirewall) ProvisionEndpoint() error {
 	glog.V(4).Infof("In ProvisionEndpoint\n%s", i.DesiredState.Render())
 
@@ -263,12 +254,13 @@ func (i *IPTsaveFirewall) ProvisionEndpoint() error {
 	return nil
 }
 
+// createNewDbRules is a helper method that puts a list of firewall rules
+// in a firewall storage.
 func (i IPTsaveFirewall) createNewDbRules(ruleList []*IPtablesRule) error {
 
 	for ruleNum, _ := range ruleList {
 		rule := ruleList[ruleNum]
 		glog.V(3).Infof("In createNewDbRules() storing rule %p", rule)
-		//		err0 := i.Store.addIPtablesRule(rule)
 		err0 := i.Store.ensureIPtablesRule(rule)
 		if err0 != nil {
 			glog.Errorf("In createNewDbRules() failed to store rule %s", rule)
@@ -279,6 +271,8 @@ func (i IPTsaveFirewall) createNewDbRules(ruleList []*IPtablesRule) error {
 	return nil
 }
 
+// enableNewDbRules is a halper method that sets `enabled` flag for
+// a list of firewall rules in a firewall storage.
 func (i IPTsaveFirewall) enableNewDbRules(ruleList []*IPtablesRule) error {
 
 	for ruleNum, _ := range ruleList {
@@ -294,14 +288,16 @@ func (i IPTsaveFirewall) enableNewDbRules(ruleList []*IPtablesRule) error {
 	return nil
 }
 
-func (i IPTsaveFirewall) deleteNewDbRules(ruleList []*IPtablesRule) error {
+// deleteDbRules is a helper method that deletes a list of firewall rules
+// from a firewall storage.
+func (i IPTsaveFirewall) deleteDbRules(ruleList []*IPtablesRule) error {
 
 	for ruleNum, _ := range ruleList {
 		rule := ruleList[ruleNum]
-		glog.V(3).Infof("In deleteNewDbRules() deleting rule %p", rule)
+		glog.V(3).Infof("In deleteDbRules() deleting rule %p", rule)
 		err0 := i.Store.deleteIPtablesRule(rule)
 		if err0 != nil {
-			glog.Errorf("In deleteNewDbRules() failed to enable rule %s", rule)
+			glog.Errorf("In deleteDbRules() failed to enable rule %s", rule)
 			return err0
 		}
 	}
@@ -346,6 +342,13 @@ func (i *IPTsaveFirewall) deleteIPtablesRulesBySubstring(substring string) error
 			return err
 		}
 
+		// If rule exists in current state then we want to delete it
+		// in order to do so we will generate an `undo` rule and schedule
+		// the `undo` rule for installation by putting it in desired state.
+		// e.g. current rule
+		// "-A INPUT -j DROP"
+		// `undo` rule in desired state is
+		// "-D INPUT -j DROP"
 		makeUndoRule(&rule, tableCurrent, tableDesired)
 
 	}
@@ -364,7 +367,7 @@ func makeUndoRule(rule FirewallRule, tableCurrent, tableDesired *iptsave.IPtable
 	// check if chain exists in current iptables config
 	chain := tableCurrent.ChainByName(tempChain.Name)
 	if chain == nil {
-		// if chain isn't in iptables config then non of the rules are
+		// if chain isn't in iptables config then none of the rules are
 		// just skip them
 		return
 	}
@@ -399,6 +402,7 @@ func makeUndoRule(rule FirewallRule, tableCurrent, tableDesired *iptsave.IPtable
 	}
 }
 
+// applyRules renders desired rules and passes them as stdin to iptables-restore.
 func (i *IPTsaveFirewall) applyRules(iptables *iptsave.IPtables) error {
 	cmd := i.os.Cmd(iptablesRestoreBin, []string{"--noflush"})
 	reader := bytes.NewReader([]byte(iptables.Render()))
@@ -525,7 +529,7 @@ func makeDivertRules(netif FirewallEndpoint) *iptsave.IPtable {
 }
 
 // chain2rules converts rules from given chain into
-// IPtablesRule form so the could be stored in database
+// IPtablesRule form, so they can be stored in the database.
 func chain2rules(chain iptsave.IPchain) []*IPtablesRule {
 	var rules []*IPtablesRule
 
@@ -540,7 +544,7 @@ func chain2rules(chain iptsave.IPchain) []*IPtablesRule {
 }
 
 // makeDbRules aggregates all rules from given iptables table and converts them
-// in format acceptible by firewall store.
+// into a format acceptible by firewall store.
 func makeDbRules(iptables *iptsave.IPtables) ([]*IPtablesRule, error) {
 
 	var res []*IPtablesRule

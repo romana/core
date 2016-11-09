@@ -1,3 +1,17 @@
+// Copyright (c) 2016 Pani Networks
+// All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License"); you may
+// not use this file except in compliance with the License. You may obtain
+// a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+// License for the specific language governing permissions and limitations
+// under the License.
 package iptsave
 
 import (
@@ -15,7 +29,7 @@ type IPtables struct {
 	currentRule *IPrule
 }
 
-// lastTable return pointer to the last IPtable in IPtables.
+// lastTable returns pointer to the last IPtable in IPtables.
 func (i *IPtables) lastTable() *IPtable {
 	glog.V(1).Info("In lastTable()")
 	if len(i.Tables) == 0 {
@@ -27,7 +41,8 @@ func (i *IPtables) lastTable() *IPtable {
 	return t
 }
 
-// tableByName returns pointer to the IPtable with corresponding name
+// TableByName returns pointer to the IPtable with corresponding name.
+// e.g. iptables "filter" table.
 func (i *IPtables) TableByName(name string) *IPtable {
 	for tn, t := range i.Tables {
 		if t.Name == name {
@@ -37,7 +52,7 @@ func (i *IPtables) TableByName(name string) *IPtable {
 	return nil
 }
 
-// IPtable represents tables in iptables.
+// IPtable represents table in iptables.
 type IPtable struct {
 	Name   string
 	Chains []*IPchain
@@ -47,6 +62,19 @@ func (it IPtable) String() string {
 	return it.Name
 }
 
+// IPtables save-restore format for IPtable
+// 
+// --------------------------------------------+---------
+// *filter                                     |         
+// :Chain1                                     | Header
+// :Chain2                                     |         
+// --------------------------------------------+---------
+// -A Chain1 -m ruleMatch -j ruleAction        | Rules
+// -A Chain2 -m ruleMatch -j ruleAction        |
+// --------------------------------------------+---------
+// *COMMIT                                     | Footer
+
+// Renders header of iptables table.
 func (it IPtable) RenderHeader() string {
 	res := fmt.Sprintf("*%s\n", it.String())
 	for _, chain := range it.Chains {
@@ -56,6 +84,7 @@ func (it IPtable) RenderHeader() string {
 	return res
 }
 
+// Renders footer of iptables table.
 func (it IPtable) RenderFooter() string {
 	var res string
 	for _, chain := range it.Chains {
@@ -121,7 +150,7 @@ func (ic IPchain) String() string {
 	return fmt.Sprintf("%s\n%s", ic.RenderHeader(), ic.RenderFooter())
 }
 
-// lastRule returns pointer to the last IPchain in IPtable.
+// lastRule returns pointer to the last IPrule in IPchain.
 func (i *IPchain) lastRule() *IPrule {
 	if len(i.Rules) == 0 {
 		return nil
@@ -177,6 +206,10 @@ func (ic IPchain) IsBuiltin() bool {
 // IPrule represents a rule in iptables.
 type IPrule struct {
 	RenderState RenderState
+
+	// From iptables man page. 
+	// rule-specification = [matches...] [target]
+	// match = -m matchname [per-match-options]
 	Match       []*Match
 	Action      IPtablesAction
 }
@@ -212,7 +245,11 @@ func (ir IPrule) String() string {
 	return res
 }
 
-// Match represents a match in iptables rule.
+// Match is a string representation of a simple boolean expressio in
+// iptables terms.
+// e.g. "-o eth1"
+//      "-m comment --comment HelloWorld"
+//      "! -p tcp --dport 80"
 type Match struct {
 	Negated bool
 	Body    string
@@ -240,6 +277,8 @@ func (m Match) String() string {
 }
 
 // IPtablesAction represents an action in iptables rule.
+// e.g. "-j DROP"
+//      "-j DNAT --to-destination 1.2.3.4"
 type IPtablesAction struct {
 	Type ActionType
 	Body string
@@ -252,17 +291,17 @@ func (ia IPtablesAction) String() string {
 // IPtablesComment represents a comment in iptables.
 type IPtablesComment string
 
-// Parse reads iptables configuration from input.
+// Parse prepares input stream, initializes lexer and launches a parse loop.
 func (i *IPtables) Parse(input io.Reader) {
 	bufReader := bufio.NewReader(input)
 	lexer := newLexer(bufReader)
-	i.parse(lexer)
+	i.parseLoop(lexer)
 }
 
-func (i *IPtables) parse(lexer *Lexer) {
+// parseLoop extracts items from input stream and passes them to the parser.
+func (i *IPtables) parseLoop(lexer *Lexer) {
 	for {
 		item := lexer.NextItem()
-		// fmt.Printf("Discovered item of type %s with body %s \n", item.Type, item.Body)
 		i.parseItem(item)
 
 		if item.Type == ItemError || item.Type == ItemEOF {
@@ -271,13 +310,17 @@ func (i *IPtables) parse(lexer *Lexer) {
 	}
 }
 
+// parseItem installs given item in its appropriate place in IPtables.Tables tree.
 func (i *IPtables) parseItem(item Item) {
 	switch item.Type {
 	case itemComment:
+		// Ignore comment items.
 		return
 	case itemTable:
+		// If item is a table, initialize a new Itable.
 		i.Tables = append(i.Tables, &IPtable{Name: item.Body})
 	case itemChain:
+		// If item is a chain, add a new chain to the last table.
 		table := i.lastTable()
 		if table == nil {
 			panic("Chain before table")
@@ -287,6 +330,7 @@ func (i *IPtables) parseItem(item Item) {
 
 		table.Chains = append(table.Chains, &IPchain{Name: item.Body})
 	case itemChainPolicy:
+		// If item is a chain policy, set a policy for the last chain.
 		table := i.lastTable()
 
 		glog.V(5).Infof("In ParseItem table %s has %d chains", table.Name, len(table.Chains))
@@ -298,6 +342,7 @@ func (i *IPtables) parseItem(item Item) {
 
 		chain.Policy = item.Body
 	case itemChainCounter:
+		// If item is a chain counter, set a chain counter for the last chain.
 		table := i.lastTable()
 		chain := table.lastChain()
 		if table == nil || chain == nil {
@@ -306,8 +351,11 @@ func (i *IPtables) parseItem(item Item) {
 
 		chain.Counters = item.Body
 	case itemCommit:
+		// Ignore COMMIT items.
 		return // TODO, ignored for now, should probably be in the model
 	case itemRule:
+		// If item is a rule, add a new rule in to the proper chain,
+		// and initialize i.currentRule.
 		table := i.lastTable()
 		chain := table.ChainByName(item.Body)
 		if table == nil || chain == nil {
@@ -319,12 +367,14 @@ func (i *IPtables) parseItem(item Item) {
 
 		i.currentRule = newRule
 	case itemRuleMatch:
+		// If item is a rule match, add new match to the current rule.
 		if i.currentRule == nil {
 			panic("RuleMatch before table/chain/rule")
 		} // TODO crash here
 
 		i.currentRule.Match = append(i.currentRule.Match, &Match{Body: item.Body})
 	case itemAction:
+		// If item is a rule action, add a new target to the current rule.
 		if i.currentRule == nil {
 			panic("RuleMatch before table/chain/rule")
 		} // TODO crash here
@@ -398,7 +448,7 @@ func MergeTables(dstTable, srcTable *IPtable) []*IPchain {
 	return returnChains
 }
 
-// MergeUserChains merges rules of source and destination chains,
+// MergeUserChains merges rules from the source chain into the destination chain
 // produces list of rules that combines rules from both chains with order
 // preserved as much as possible.
 func MergeUserChains(dstChain, srcChain *IPchain) []*IPrule {
@@ -467,7 +517,7 @@ func MergeChains(dstChain, srcChain *IPchain) []*IPrule {
 }
 
 // removeRuleFromList removes IPrule from the list of IPrules
-// by it's id, returns new list.
+// by its id, returns new list.
 func removeRuleFromList(i int, dst []*IPrule) []*IPrule {
 	copy(dst[i:], dst[i+1:])
 	dst[len(dst)-1] = nil
@@ -477,9 +527,9 @@ func removeRuleFromList(i int, dst []*IPrule) []*IPrule {
 }
 
 // DiffRules compares 2 lists of iptables rules and returns 3 new lists,
-// 1 return argument, rules that only found in first list
-// 2 return argument, rules that only found in second list
-// 3 return argumant, rules that found in bouth input lists
+// 1. return argument, rules that only found in first list
+// 2. return argument, rules that only found in second list
+// 3. return argumant, rules that found in bouth input lists
 func DiffRules(dstRules, srcRules []*IPrule) (uniqDest, uniqSrc, common []*IPrule) {
 	var unique bool
 
@@ -537,11 +587,21 @@ func ParseRule(input io.Reader) *IPchain {
 	return chain
 }
 
+// parseRule initializes IPchain with name and assembles a rule
+// in the chain out of items.
 func (c *IPchain) parseRule(item Item) error {
 	switch item.Type {
 	case itemRule:
+		// If item is a beginning of a new rule then use
+		// chain name from the rule to initialize current IPchain.
 		c.Name = item.Body
+
 	case itemRuleMatch:
+		// If item is a rule match then add a new match to the rule
+		// in IPchain and initialize currentRule.
+
+		// If chain name is not initialized yet it means we are getting,
+		// invalid rule. Chain name always a first item of the rule.
 		if c.Name == "" {
 			panic("Rule match before chain name")
 		}
@@ -554,6 +614,10 @@ func (c *IPchain) parseRule(item Item) error {
 
 		currentRule.Match = append(currentRule.Match, &Match{Body: item.Body})
 	case itemAction:
+		// If item is a rule action then add a new action to the currentRule.
+
+		// If chain name is not initialized yet it means we are getting,
+		// invalid rule. Chain name always a first item of the rule.
 		if c.Name == "" {
 			panic("Rule match before chain name")
 		}
@@ -581,6 +645,8 @@ const (
 	ActionOther
 )
 
+// detectActionType detects if action is one of iptables reserved keywords
+// or it is a jump to a use-chain.
 func (ia *IPtablesAction) detectActionType() {
 	defaultActions := []string{"DROP", "ACCEPT", "RETURN", "QUEUE", "NFQUEUE", "REJECT", "LOG", "MARK", "MASQUERADE"}
 	ia.Type = ActionOther

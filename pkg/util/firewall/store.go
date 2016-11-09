@@ -100,7 +100,8 @@ func (firewallStore *firewallStore) addIPtablesRule(rule *IPtablesRule) error {
 	return err
 }
 
-// addIPtablesRuleUnsafe is a non thread safe implementation of addIPtablesRule
+// addIPtablesRuleUnsafe is a non thread safe implementation of addIPtablesRule.
+// Unsafe implementation is needed for a functions which are already managing same mutex.
 func (firewallStore *firewallStore) addIPtablesRuleUnsafe(rule *IPtablesRule) error {
 
 	db := firewallStore.DbStore.Db
@@ -127,6 +128,7 @@ func (firewallStore *firewallStore) addIPtablesRuleUnsafe(rule *IPtablesRule) er
 
 }
 
+// listIPtablesRules returns a list of all firewall rules in a database.
 func (firewallStore *firewallStore) listIPtablesRules() ([]IPtablesRule, error) {
 	glog.Info("Acquiring store mutex for listIPtablesRules")
 	firewallStore.mu.Lock()
@@ -145,6 +147,7 @@ func (firewallStore *firewallStore) listIPtablesRules() ([]IPtablesRule, error) 
 	return iPtablesRule, nil
 }
 
+// ensureIPtablesRule checks if given rule exists in a database and if not, creates it.
 func (firewallStore *firewallStore) ensureIPtablesRule(rule *IPtablesRule) error {
 	glog.Info("Acquiring store mutex for listIPtablesRules")
 	firewallStore.mu.Lock()
@@ -168,6 +171,7 @@ func (firewallStore *firewallStore) ensureIPtablesRule(rule *IPtablesRule) error
 	return nil
 }
 
+// deleteIPtablesRule deletes firewall rules from database.
 func (firewallStore *firewallStore) deleteIPtablesRule(rule *IPtablesRule) error {
 	glog.Info("Acquiring store mutex for deleteIPtablesRule")
 	firewallStore.mu.Lock()
