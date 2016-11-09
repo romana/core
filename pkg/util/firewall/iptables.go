@@ -221,7 +221,7 @@ func (fw *IPtables) isChainExistByName(chainName string) bool {
 // Returns true if rule exists.
 func (fw *IPtables) isRuleExist(rule FirewallRule) bool {
 	body := strings.Split(rule.GetBody(), " ")
-	args := append([]string{"-C"}, body...)
+	args := append([]string{"-w", "-C"}, body...)
 	_, err := fw.os.Exec(iptablesCmd, args)
 	if err != nil {
 		return false

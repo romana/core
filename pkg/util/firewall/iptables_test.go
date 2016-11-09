@@ -40,7 +40,7 @@ func TestCreateChains(t *testing.T) {
 		Store:         firewallStore{},
 		networkConfig: mockNetworkConfig{},
 	}
-	fw.Init(mockFirewallEndpoint{"eth0", "A", net.ParseIP("127.0.0.1")})
+	fw.SetEndpoint(mockFirewallEndpoint{"eth0", "A", net.ParseIP("127.0.0.1")})
 	_ = fw.CreateChains(fw.chains)
 
 	expect := strings.Join([]string{"/sbin/iptables -w -L ROMANA-INPUT",
@@ -71,7 +71,7 @@ func TestDivertTraffic(t *testing.T) {
 		Store:         mockStore,
 		networkConfig: mockNetworkConfig{},
 	}
-	fw.Init(mockFirewallEndpoint{"eth0", "A", net.ParseIP("127.0.0.1")})
+	fw.SetEndpoint(mockFirewallEndpoint{"eth0", "A", net.ParseIP("127.0.0.1")})
 	fw.DivertTrafficToRomanaIPtablesChain(fw.chains[InputChainIndex], installDivertRules)
 
 	expect := "/sbin/iptables -w -C INPUT -i eth0 -j ROMANA-INPUT\n/sbin/iptables -A INPUT -i eth0 -j ROMANA-INPUT"
@@ -97,7 +97,7 @@ func TestCreateDefaultRules(t *testing.T) {
 		Store:         mockStore,
 		networkConfig: mockNetworkConfig{},
 	}
-	fw.Init(mockFirewallEndpoint{"eth0", "A", ip})
+	fw.SetEndpoint(mockFirewallEndpoint{"eth0", "A", ip})
 	fw.CreateDefaultRule(InputChainIndex, targetDrop)
 
 	// expect
@@ -121,7 +121,7 @@ func TestCreateDefaultRules(t *testing.T) {
 		Store:         mockStore,
 		networkConfig: mockNetworkConfig{},
 	}
-	fw.Init(mockFirewallEndpoint{"eth0", "A", ip})
+	fw.SetEndpoint(mockFirewallEndpoint{"eth0", "A", ip})
 	fw.CreateDefaultRule(InputChainIndex, targetAccept)
 
 	// expect
@@ -146,7 +146,7 @@ func TestCreateRules(t *testing.T) {
 		Store:         mockStore,
 		networkConfig: mockNetworkConfig{},
 	}
-	fw.Init(mockFirewallEndpoint{"eth0", "A", net.ParseIP("127.0.0.1")})
+	fw.SetEndpoint(mockFirewallEndpoint{"eth0", "A", net.ParseIP("127.0.0.1")})
 
 	rule := NewFirewallRule()
 	rule.SetBody("ROMANA-INPUT -d 255.255.255.255/32 -p udp -m udp --sport 68 --dport 67 -j ACCEPT")
@@ -194,7 +194,7 @@ func TestCreateU32Rules(t *testing.T) {
 		Store:         mockStore,
 		networkConfig: mockNetworkConfig{},
 	}
-	fw.Init(mockFirewallEndpoint{"eth0", "A", net.ParseIP("127.0.0.1")})
+	fw.SetEndpoint(mockFirewallEndpoint{"eth0", "A", net.ParseIP("127.0.0.1")})
 	fw.CreateU32Rules(InputChainIndex)
 
 	expect := strings.Join([]string{"/sbin/iptables -w -A ROMANA-INPUT -m u32 --u32 12&0xFF00FF00=0x7F000000&&16&0xFF00FF00=0x7F000000 -j ACCEPT"}, "\n")
