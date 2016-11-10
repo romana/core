@@ -268,7 +268,7 @@ func (i IPTsaveFirewall) createNewDbRules(ruleList []*IPtablesRule) error {
 		glog.V(3).Infof("In createNewDbRules() storing rule %p", rule)
 		err0 := i.Store.ensureIPtablesRule(rule)
 		if err0 != nil {
-			glog.Errorf("In createNewDbRules() failed to store rule %s", rule)
+			glog.Errorf("In createNewDbRules() failed to store rule %v", rule)
 			return err0
 		}
 	}
@@ -285,7 +285,7 @@ func (i IPTsaveFirewall) enableNewDbRules(ruleList []*IPtablesRule) error {
 		glog.V(3).Infof("In switchIPtablesRule() activating rule %p", rule)
 		err0 := i.Store.switchIPtablesRule(rule, setRuleActive)
 		if err0 != nil {
-			glog.Errorf("In enableNewDbRules() failed to enable rule %s", rule)
+			glog.Errorf("In enableNewDbRules() failed to enable rule %v", rule)
 			return err0
 		}
 	}
@@ -302,7 +302,7 @@ func (i IPTsaveFirewall) deleteDbRules(ruleList []*IPtablesRule) error {
 		glog.V(3).Infof("In deleteDbRules() deleting rule %p", rule)
 		err0 := i.Store.deleteIPtablesRule(rule)
 		if err0 != nil {
-			glog.Errorf("In deleteDbRules() failed to enable rule %s", rule)
+			glog.Errorf("In deleteDbRules() failed to enable rule %v", rule)
 			return err0
 		}
 	}

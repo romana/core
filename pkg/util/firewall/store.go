@@ -161,7 +161,7 @@ func (firewallStore *firewallStore) ensureIPtablesRule(rule *IPtablesRule) error
 		glog.V(2).Infof("In ensureIPtablesRule(), rule %s not found in db - creating", rule.Body)
 		err0 := firewallStore.addIPtablesRuleUnsafe(rule)
 		if err0 != nil {
-			glog.Errorf("In ensureIPtablesRule() failed to store rule %s", rule)
+			glog.Errorf("In ensureIPtablesRule() failed to store rule %v", rule)
 			return err0
 		}
 	} else {

@@ -64,15 +64,15 @@ func TestDiffRules(t *testing.T) {
 	}
 
 	if len(uniqSrc) != 1 {
-		t.Errorf("Expecting exactly 1 entry in source chain, got %s", len(uniqSrc))
+		t.Errorf("Expecting exactly 1 entry in source chain, got %d", len(uniqSrc))
 	}
 
 	if len(uniqDest) != 1 {
-		t.Errorf("Expecting exactly 1 entry in dest chain, got %s", len(uniqDest))
+		t.Errorf("Expecting exactly 1 entry in dest chain, got %d", len(uniqDest))
 	}
 
 	if len(common) != 2 {
-		t.Errorf("Expecting exactly 2 entries in common chain, got %s", len(common))
+		t.Errorf("Expecting exactly 2 entries in common chain, got %d", len(common))
 	}
 
 }
@@ -90,7 +90,7 @@ func TestMergeRules(t *testing.T) {
 	}
 
 	if len(dstChain.Rules) != 4 {
-		t.Errorf("Expecting exactly 4 entries in dest chain, got %s", len(dstChain.Rules))
+		t.Errorf("Expecting exactly 4 entries in dest chain, got %d", len(dstChain.Rules))
 	}
 
 }
