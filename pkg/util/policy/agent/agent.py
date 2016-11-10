@@ -178,6 +178,7 @@ class AgentHandler(BaseHTTPRequestHandler):
             tenant  = peer.get('tenant_network_id')
             segment = peer.get('segment_network_id')
             peer_t  = peer.get('peer')
+            cidr    = peer.get('cidr')
 
             if not None in [ tenant, segment ]:
                 peer_type = "full_tenant"
@@ -185,6 +186,8 @@ class AgentHandler(BaseHTTPRequestHandler):
                 peer_type = "only_tenant"
             elif peer_t is not None:
                 peer_type = "peer_%s" % peer_t
+            elif cidr is not None:
+                peer_type = "cidr"
             else:
                 raise Exception("Unsupported value of peers %s" % peer)
 
