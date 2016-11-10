@@ -68,11 +68,11 @@ func (it IPtable) String() string {
 }
 
 // IPtables save-restore format for IPtable
-// 
+//
 // --------------------------------------------+---------
-// *filter                                     |         
+// *filter                                     |
 // :Chain1                                     | Header
-// :Chain2                                     |         
+// :Chain2                                     |
 // --------------------------------------------+---------
 // -A Chain1 -m ruleMatch -j ruleAction        | Rules
 // -A Chain2 -m ruleMatch -j ruleAction        |
@@ -212,11 +212,11 @@ func (ic IPchain) IsBuiltin() bool {
 type IPrule struct {
 	RenderState RenderState
 
-	// From iptables man page. 
+	// From iptables man page.
 	// rule-specification = [matches...] [target]
 	// match = -m matchname [per-match-options]
-	Match       []*Match
-	Action      IPtablesAction
+	Match  []*Match
+	Action IPtablesAction
 }
 
 type RenderState int

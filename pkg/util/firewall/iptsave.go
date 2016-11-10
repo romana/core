@@ -174,10 +174,10 @@ func (i *IPTsaveFirewall) EnsureRule(rule FirewallRule, opType RuleState) error 
 // The implementation iterates over the provided rules and ensures that each of them is present.
 func (i *IPTsaveFirewall) SetDefaultRules(rules []FirewallRule) error {
 	// Walking backwards to preserve original order
-	for ruleNum := len(rules)-1; ruleNum >= 0; ruleNum-- {
-	    if err := i.EnsureRule(rules[ruleNum], EnsureFirst); err != nil {
-		return err
-	    }
+	for ruleNum := len(rules) - 1; ruleNum >= 0; ruleNum-- {
+		if err := i.EnsureRule(rules[ruleNum], EnsureFirst); err != nil {
+			return err
+		}
 	}
 
 	return nil
