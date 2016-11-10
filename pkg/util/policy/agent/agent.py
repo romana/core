@@ -175,18 +175,18 @@ class AgentHandler(BaseHTTPRequestHandler):
             target_types.append(target_type)
 
         for peer in policy_def['peers']:
-            tenant         = peer.get('tenant_network_id')
+            tenant  = peer.get('tenant_network_id')
             segment = peer.get('segment_network_id')
-            peer           = peer.get('peer')
+            peer_t  = peer.get('peer')
 
             if not None in [ tenant, segment ]:
                 peer_type = "full_tenant"
             elif tenant is not None:
                 peer_type = "only_tenant"
-            elif peer is not None:
-                peer_type = "peer_%s" % peer
+            elif peer_t is not None:
+                peer_type = "peer_%s" % peer_t
             else:
-                raise Exception("Unsupported value of peers %s" % target)
+                raise Exception("Unsupported value of peers %s" % peer)
 
             peer_types.append(peer_type)
 
