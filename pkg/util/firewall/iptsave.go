@@ -347,13 +347,6 @@ func (i *IPTsaveFirewall) deleteIPtablesRulesBySubstring(substring string) error
 			return err
 		}
 
-		// If rule exists in current state then we want to delete it
-		// in order to do so we will generate an `undo` rule and schedule
-		// the `undo` rule for installation by putting it in desired state.
-		// e.g. current rule
-		// "-A INPUT -j DROP"
-		// `undo` rule in desired state is
-		// "-D INPUT -j DROP"
 		makeUndoRule(&rule, tableCurrent, tableDesired)
 
 	}
@@ -364,6 +357,13 @@ func (i *IPTsaveFirewall) deleteIPtablesRulesBySubstring(substring string) error
 // makeUndoRule checks if given rule is present in current state and if so it generates
 // an undo rule in desired state.
 func makeUndoRule(rule FirewallRule, tableCurrent, tableDesired *iptsave.IPtable) {
+	// If rule exists in current state then we want to delete it
+	// in order to do so we will generate an `undo` rule and schedule
+	// the `undo` rule for installation by putting it in desired state.
+	// e.g. current rule
+	// "-A INPUT -j DROP"
+	// `undo` rule in desired state is
+	// "-D INPUT -j DROP"
 
 	// convert iptables rule from Firewall interface into iptsave.IPrule
 	tempChain := iptsave.ParseRule(bytes.NewReader([]byte(rule.GetBody())))
@@ -415,7 +415,7 @@ func (i *IPTsaveFirewall) applyRules(iptables *iptsave.IPtables) error {
 	glog.V(3).Infof("In applyRules allocating stdin pipe")
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
-		panic(fmt.Sprintf("Failed to allocate stdin for iptables-restore - %s", err))
+		return fmt.Errorf("Failed to allocate stdin for iptables-restore - %s", err)
 	}
 
 	glog.V(3).Infof("In applyRules starting the command")
@@ -440,7 +440,8 @@ func (i *IPTsaveFirewall) applyRules(iptables *iptsave.IPtables) error {
 	return nil
 }
 
-// makeDivertRules creates iptables "filter" table with rules for the given endpoint.
+// makeDivertRules creates iptables "filter" table with rules to divert traffic
+// to/from given endpoint into romana chains.
 func makeDivertRules(netif FirewallEndpoint) *iptsave.IPtable {
 	glog.V(3).Infof("In makeDivertRules() with %s", netif.GetName())
 	divertTable := iptsave.IPtable{

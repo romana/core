@@ -12,6 +12,11 @@
 // WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
 // License for the specific language governing permissions and limitations
 // under the License.
+
+// IPTsave is a library that provides IPtables type that can read
+// iptables-save output and create a tokenized representation
+// of it. Also it can render current tree into output suiteable
+// for iptables-restore.
 package iptsave
 
 import (
