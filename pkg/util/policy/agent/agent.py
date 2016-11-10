@@ -656,6 +656,10 @@ def _make_u32_match(addr_scheme,
     network_width = int(addr_scheme["cidr"].split("/")[-1])
 
     # Full match on net portion.
+    # NOTE: 'port_bits' are the equivalent of 'host bits'. This value comes
+    # from the 'datacenter' structure, which uses port-bits as identifiers
+    # for ports in ToRs. Therefore, the port and host bits are in fact the
+    # same.
     shift_by = ( addr_scheme['tenant_bits']
                + addr_scheme['segment_bits']
                + addr_scheme['endpoint_bits']
