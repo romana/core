@@ -10,12 +10,13 @@
         "protocol": "TCP"
     }],
     "peers": [{
+        "tenant_network_id": 1,
         "segment_network_id": 2
     }],
     "direction": "ingress",
     "applied_to": [{
-        "segment_network_id": 1,
-        "tenant_network_id": 1
+        "tenant_network_id": 1,
+        "segment_network_id": 1
     }],
     "datacenter": {
         "ip_version": 4,
