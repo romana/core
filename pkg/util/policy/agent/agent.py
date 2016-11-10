@@ -19,6 +19,7 @@ from optparse import OptionParser
 import subprocess
 import logging
 import simplejson
+import netaddr
 from mimetools import Message
 from StringIO import StringIO
 HTTP_Unprocessable_Entity = 422
@@ -654,20 +655,20 @@ def _make_u32_match(addr_scheme,
     #                                                   ^
     network_width = int(addr_scheme["cidr"].split("/")[-1])
 
-    # Take first octet of Romana network e.g. 10.0.0.0/8
-    #                                         ^^
-    network_value = int(addr_scheme["cidr"].split(".")[0])
-
-
     # Full match on net portion.
     shift_by = ( addr_scheme['tenant_bits']
                + addr_scheme['segment_bits']
                + addr_scheme['endpoint_bits']
                + addr_scheme['port_bits'] )
-    src_mask = ((1<<network_width)-1) << shift_by
-    dst_mask = ((1<<network_width)-1) << shift_by
-    src  = network_value << shift_by
-    dst  = network_value << shift_by
+    net_portion_mask    = ((1<<network_width)-1) << shift_by
+    src_mask = dst_mask = net_portion_mask  # both start out the same
+
+    cidr_as_num = int(netaddr.IPAddress(addr_scheme["cidr"].split("/")[0]))
+
+    # Take first bits of the address to get the network
+    # value from the IP address: e.g. 10.128.0.0/9 -> just the first 9 bits
+    # src and dst start out the same and will subsequently be modified.
+    src = dst = cidr_as_num & net_portion_mask
 
     # Leaving the host portion empty...
 
@@ -693,7 +694,7 @@ def _make_u32_match(addr_scheme,
     to_rule   = "0x10&0x%(mask)x=0x%(dst)x" % { "mask" : dst_mask, "dst" : dst }
 
     if not None in [ to_tenant, from_tenant ]:
-        res = "%(from)&&%(to)" % { "from" : from_rule, "to" : to_rule }
+        res = "%(from)s&&%(to)s" % { "from" : from_rule, "to" : to_rule }
     elif to_tenant is not None:
         res = to_rule
     elif from_tenant is not None:
