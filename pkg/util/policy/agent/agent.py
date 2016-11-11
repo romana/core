@@ -209,6 +209,7 @@ class AgentHandler(BaseHTTPRequestHandler):
             elif cidr is not None:
                 peer_type = "cidr"
             else:
+                # supported peer types are local, host and any as in L543-L553
                 raise Exception("Unsupported value of peers %s" % peer)
 
             peer_types.append(peer_type)
