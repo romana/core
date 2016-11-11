@@ -2,7 +2,6 @@
     "name": "pa-pol",
     "description": "Policy Service <--> Agent policy example.",
     "rules": [{
-        "is_stateful": true,
         "ports": [
             80,
             443
@@ -14,6 +13,7 @@
         "segment_network_id": 2
     }],
     "direction": "ingress",
+    "external_id": "external_id_1",
     "applied_to": [{
         "tenant_network_id": 1,
         "segment_network_id": 1
@@ -21,7 +21,7 @@
     "datacenter": {
         "ip_version": 4,
         "cidr": "10.0.0.0/8",
-        "host_bits": 8,
+        "port_bits": 8,
         "tenant_bits": 4,
         "segment_bits": 4,
         "endpoint_space_bits": 0,
