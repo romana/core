@@ -25,12 +25,30 @@ HTTP_Unprocessable_Entity = 422
 
 addr_scheme = {}
 
-parser = OptionParser(usage="%prog --port --debug")
+parser = OptionParser(usage="%prog --port --debug --dry-run")
 parser.add_option('--port', default=9630, dest="port", type="int",
                   help="Port number to listen for incoming requests")
 parser.add_option('--debug', default=False, dest="debug", action="store_true",
                   help="Enable debug output in the log")
+parser.add_option('--dry-run', default=False, dest="dry_run", action="store_true",
+                  help="Enable dry run instead of applying iptable rules.")
 (options, args) = parser.parse_args()
+
+
+"""
+how to use dry-run:
+* download policy json file using:
+    wget https://raw.githubusercontent.com/romana/core/master/policy/examples/policy-service-agent.json
+* run agent using following command:
+    sudo agent.py --dry-run
+* use curl to post using following command:
+    curl -X POST -H 'Content-Type: application/json' -d @policy-service-agent.json localhost:9630
+* This shows all the rules which are supposed to be installed if it wasn't a dry-run.
+"""
+if options.dry_run:
+    logging.basicConfig(level=logging.DEBUG,
+                        format='%(asctime)s %(levelname)-8s %(message)s',
+                        datefmt='%a, %d %b %Y %H:%M:%S')
 
 if options.debug:
     logging.basicConfig(level=logging.DEBUG,
@@ -83,8 +101,8 @@ class AgentHandler(BaseHTTPRequestHandler):
         if self.path=="/":
             self.do_NP_update()
         else:
-	    self.send_header('Content-type','text/html')
-	    self.end_headers()
+            self.send_header('Content-type','text/html')
+            self.end_headers()
             self.send_response(401)
             self.wfile.write(""" Not Found """)
 
@@ -130,7 +148,9 @@ class AgentHandler(BaseHTTPRequestHandler):
             else:
                 logging.warning("Creating policy %s" % policy_def)
 
-            policy_update(addr_scheme, policy_def, delete_policy = ( self.http_method == "DELETE" ))
+            policy_update(addr_scheme, policy_def,
+                          delete_policy=(self.http_method == "DELETE"),
+                          dry_run=options.dry_run)
 
             return
         else:
@@ -217,7 +237,10 @@ class AgentHandler(BaseHTTPRequestHandler):
             return
 
 
-def policy_update(romana_address_scheme, policy_definition, delete_policy=False):
+def policy_update(romana_address_scheme,
+                  policy_definition,
+                  delete_policy=False,
+                  dry_run=False):
     """
     Using the romana address scheme and a policy definition as input,
     create a new set of iptables rules and apply them.
@@ -257,13 +280,15 @@ def policy_update(romana_address_scheme, policy_definition, delete_policy=False)
                                 policy_definition['applied_to'])
 
     if delete_policy:
-        apply_new_ruleset(clean_rules)
+        if not dry_run:
+            apply_new_ruleset(clean_rules)
         return
 
     # Create a new rule set that can be applied to iptables
     rules = make_new_full_ruleset(clean_rules, new_rules)
 
-    apply_new_ruleset(rules)
+    if not dry_run:
+        apply_new_ruleset(rules)
 
 
 def make_new_full_ruleset(current_rules, new_rules):
