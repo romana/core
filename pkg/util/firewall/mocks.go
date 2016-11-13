@@ -92,7 +92,7 @@ func makeMockStore() firewallStore {
 	mockStore.ServiceStore = &mockStore
 	mockStore.SetConfig(storeConfig.ServiceSpecific)
 	mockStore.CreateSchema(true) // overwrite
-	mockStore.mu = new(sync.Mutex)
+	mockStore.mu = new(sync.RWMutex)
 
 	return mockStore
 }

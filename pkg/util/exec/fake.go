@@ -17,6 +17,7 @@ package exec
 
 import (
 	"fmt"
+	"io"
 	"strings"
 )
 
@@ -26,6 +27,28 @@ type FakeExecutor struct {
 	Output   []byte
 	Error    error
 	Commands *string
+}
+
+// FakeCmd implement Cmd interface for testing purposes.
+type FakeCmd struct{}
+
+func (FakeCmd) StdinPipe() (io.WriteCloser, error) {
+	// TODO
+	return nil, nil
+}
+
+func (FakeCmd) CombinedOutput() ([]byte, error) {
+	// TODO
+	var empty []byte
+	return empty, nil
+}
+
+func (FakeCmd) Start() error {
+	return nil
+}
+
+func (FakeCmd) Wait() error {
+	return nil
 }
 
 // Exec is a method of fake executor that will record all incoming commands
@@ -39,4 +62,8 @@ func (x *FakeExecutor) Exec(cmd string, args []string) ([]byte, error) {
 	}
 	x.Commands = &c
 	return x.Output, x.Error
+}
+
+func (x *FakeExecutor) Cmd(cmd string, args []string) Cmd {
+	return FakeCmd{}
 }

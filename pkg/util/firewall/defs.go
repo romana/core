@@ -24,22 +24,25 @@ import (
 	utilexec "github.com/romana/core/pkg/util/exec"
 )
 
-// Firewall interface allows different implementation to be used with
+// Firewall interface allows different implementations to be used with
 // romana agent.
 type Firewall interface {
-	// Init prepares firewall instance for using ProvisionEndpoint method.
-	Init(FirewallEndpoint) error
+	// Init initializes firewall.
+	Init(utilexec.Executable, FirewallStore, NetConfig) error
+
+	// SetEndpoint prepares firewall instance for using ProvisionEndpoint method.
+	SetEndpoint(FirewallEndpoint) error
 
 	// SetDefaultRules allows to inject a set of rules to be installed during
 	// ProvisionEndpoint run.
 	SetDefaultRules([]FirewallRule) error
 
 	// ProvisionEndpoint generates and applies rules for given endpoint.
-	// Make sure to run Init first.
+	// Make sure to run SetEndpoint first.
 	ProvisionEndpoint() error
 
 	// EnsureRule checks if specified rule in desired state.
-	EnsureRule(*IPtablesRule, RuleState) error
+	EnsureRule(FirewallRule, RuleState) error
 
 	// Metadata provides access to the metadata associated with current instance of firewall.
 	// Access method, does not require Init.
@@ -60,31 +63,58 @@ type Firewall interface {
 	Cleanup(netif FirewallEndpoint) error
 }
 
-// NetConfig is for agent.NetworkConfig.
+// NetConfig exposes agent runtime configuration to the consumers outside
+// of the agent who can't have a dependency on the agent (e.g. pkg/utils/firewall).
 type NetConfig interface {
+
+	// Returns romana network cidr.
 	PNetCIDR() (cidr *net.IPNet, err error)
+
+	// Returns tenant bits from romana network config.
 	TenantBits() uint
+
+	// Returns segment bits from romana network config.
 	SegmentBits() uint
+
+	// Returns endpoint bits from romana network config.
 	EndpointBits() uint
+
+	// Returns EndpointNetmaskSize bits from romana network config.
 	EndpointNetmaskSize() uint64
+
+	// Returns IP address of romana-gw interface on the host
+	// where agent is running.
 	RomanaGW() net.IP
 }
 
-// NewFirewall returns fully initialized firewall struct, with rules and chains
-// configured for given endpoint.
-func NewFirewall(executor utilexec.Executable, store FirewallStore, nc NetConfig) (Firewall, error) {
+// NewFirewall returns instance of Firewall backed by requested provider
+func NewFirewall(provider Provider) (Firewall, error) {
+	var fw Firewall
 
-	fwstore := firewallStore{}
-	fwstore.DbStore = store.GetDb()
-	fwstore.mu = store.GetMutex()
-
-	fw := new(IPtables)
-	fw.Store = fwstore
-	fw.os = executor
-	fw.networkConfig = nc
+	switch provider {
+	case IPTsaveProvider:
+		fw = new(IPTsaveFirewall)
+	case ShellexProvider:
+		fw = new(IPtables)
+	default:
+		return nil, fmt.Errorf("NewFirewall() failed with unknown provider type %d", provider)
+	}
 
 	return fw, nil
 }
+
+// Provider represents a type of firewall implementation.
+type Provider int
+
+const (
+	// shellex is a default firewall implementation
+	// based on line-by-line firewall provisioning
+	ShellexProvider Provider = iota
+
+	// iptsave is an implementation of firewall
+	// based on iptables-save/iptabels-restore
+	IPTsaveProvider
+)
 
 // ChainState is a parameter for ensureIPtablesChain function
 // which describes desired state of firewall rule.
@@ -114,19 +144,26 @@ func (i chainState) String() string {
 type RuleState int
 
 const (
-	ensureLast RuleState = iota
-	ensureFirst
-	ensureAbsent
+	// Indicates that rule should be placed at the
+	// bottom of the chain/list.
+	EnsureLast RuleState = iota
+
+	// Indicates that rule should be placed at the
+	// top of the chain/list.
+	EnsureFirst
+
+	// Indicates that rule must be removed.
+	EnsureAbsent
 )
 
 func (i RuleState) String() string {
 	var result string
 	switch i {
-	case ensureLast:
+	case EnsureLast:
 		result = "Ensuring rule at the bottom"
-	case ensureFirst:
+	case EnsureFirst:
 		result = "Ensuring rule at the top"
-	case ensureAbsent:
+	case EnsureAbsent:
 		result = "Ensuring rule is absent"
 	}
 
