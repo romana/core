@@ -137,6 +137,54 @@ func (l *Translator) getOrAddSegment(namespace string, kubeSegmentName string) (
 	}
 }
 
+// TranslateGroup represent a state of translation of kubernetes policy
+// into romana policy.
+type TranslateGroup struct {
+	kubePolicy   *KubeObject
+	romanaPolicy *common.Policy
+}
+
+// makeTarget analizes kubePolicy and fills romanaPolicy.AppliedTo field.
+func (tg *TranslateGroup) makeTarget(translator *Translator) error {
+
+	// Translate kubernetes namespace into romana tenant. Must be defined.
+	tenantCacheEntry := translator.checkTenantInCache(tg.kubePolicy.Metadata.Namespace)
+	if tenantCacheEntry == nil {
+		glog.Error("Tenant not not found when translating policy %v", tg.romanaPolicy)
+		return TranslatorError{ErrorTenantNotIntCache, nil}
+	}
+
+	// Empty PodSelector means policy applied to the entire namespace.
+	if len(tg.kubePolicy.Spec.PodSelector.MatchLabels) == 0 {
+		tg.romanaPolicy.AppliedTo = []common.Endpoint{
+			common.Endpoint{TenantID: tenantCacheEntry.Tenant.ID},
+		}
+
+		glog.V(2).Infof("Segment not found when translating policy %v, assuming target is a namespace", tg.romanaPolicy)
+		return nil
+	}
+
+	// If PodSelector is not empty then segment label must be defined.
+	kubeSegmentID, ok := tg.kubePolicy.Spec.PodSelector.MatchLabels[translator.segmentLabelName]
+	if !ok || kubeSegmentID == "" {
+		glog.Errorf("Expected segment to be specified in podSelector part as %s", translator.segmentLabelName)
+		return common.NewError("Expected segment to be specified in podSelector part as '%s'", translator.segmentLabelName)
+	}
+
+	// Translate kubernetes segment label into romana segment.
+	segment, err := translator.getOrAddSegment(tg.kubePolicy.Metadata.Namespace, kubeSegmentID)
+	if err != nil {
+		glog.Errorf("DEBUG error in translate while calling l.getOrAddSegment with %s and %s - error %s", tg.kubePolicy.Metadata.Namespace, kubeSegmentID, err)
+		return err
+	}
+
+	tg.romanaPolicy.AppliedTo = []common.Endpoint{
+		common.Endpoint{TenantID: tenantCacheEntry.Tenant.ID, SegmentID: segment.ID},
+	}
+
+	return nil
+}
+
 // translateNetworkPolicy translates a Kubernetes policy into
 // Romana policy (see common.Policy) with the following rules:
 // 1. Kubernetes Namespace corresponds to Romana Tenant
@@ -145,6 +193,10 @@ func (l *Translator) getOrAddSegment(namespace string, kubeSegmentName string) (
 func (l *Translator) translateNetworkPolicy(kubePolicy *KubeObject) (common.Policy, error) {
 	policyName := fmt.Sprintf("kube.%s.%s", kubePolicy.Metadata.Namespace, kubePolicy.Metadata.Name)
 	romanaPolicy := &common.Policy{Direction: common.PolicyDirectionIngress, Name: policyName, ExternalID: kubePolicy.Metadata.Uid}
+	translateGroup := &TranslateGroup{kubePolicy, romanaPolicy}
+
+	err := translateGroup.makeTarget(l)
+
 	ns := kubePolicy.Metadata.Namespace
 	// TODO actually look up tenant K8S ID.
 	tenantCacheEntry := l.checkTenantInCache(ns)
