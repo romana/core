@@ -345,7 +345,7 @@ func (tg *TranslateGroup) translateTarget(translator *Translator) error {
 	// Translate kubernetes namespace into romana tenant. Must be defined.
 	tenantCacheEntry := translator.checkTenantInCache(tg.kubePolicy.Metadata.Namespace)
 	if tenantCacheEntry == nil {
-		glog.Error("Tenant not not found when translating policy %v", tg.romanaPolicy)
+		glog.Errorf("Tenant not not found when translating policy %v", tg.romanaPolicy)
 		return TranslatorError{ErrorTenantNotIntCache, nil}
 	}
 
@@ -389,7 +389,7 @@ func (tg *TranslateGroup) makeNextSource(translator *Translator) error {
 	// NamespaceSelector defined in current Ingress rule. Stas.
 	tenantCacheEntry := translator.checkTenantInCache(tg.kubePolicy.Metadata.Namespace)
 	if tenantCacheEntry == nil {
-		glog.Error("Tenant not not found when translating policy %v", tg.romanaPolicy)
+		glog.Errorf("Tenant not not found when translating policy %v", tg.romanaPolicy)
 		return TranslatorError{ErrorTenantNotIntCache, nil}
 	}
 
