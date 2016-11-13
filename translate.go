@@ -185,6 +185,7 @@ func (tg *TranslateGroup) translateTarget(translator *Translator) error {
 
 	return nil
 }
+
 /// makeNextSource analizes current Ingress rule and adds new Peer to romanaPolicy.Peers.
 func (tg *TranslateGroup) makeNextSource(translator *Translator) error {
 	ingress := tg.kubePolicy.Spec.Ingress[tg.ingressIndex]
@@ -226,6 +227,20 @@ func (tg *TranslateGroup) makeNextSource(translator *Translator) error {
 			common.Endpoint{TenantID: tenantCacheEntry.Tenant.ID, TenantExternalID: tenantCacheEntry.Tenant.ExternalID, SegmentID: segment.ID})
 
 	}
+	return nil
+}
+
+// makeNextRule analizes current ingress rule and adds a new Rule to romanaPolicy.Rules.
+func (tg *TranslateGroup) makeNextRule (translator *Translator) error {
+	ingress := tg.kubePolicy.Spec.Ingress[tg.ingressIndex]
+
+	for _, toPort := range ingress.ToPorts {
+		proto := strings.ToLower(toPort.Protocol)
+		ports := []uint{toPort.Port}
+		rule := common.Rule{Protocol: proto, Ports: ports}
+		tg.romanaPolicy.Rules = append(tg.romanaPolicy.Rules, rule)
+	}
+
 	return nil
 }
 

@@ -6,7 +6,6 @@ import (
 	"github.com/romana/core/tenant"
 	"sync"
 	//	"bytes"
-	"fmt"
 	"testing"
 )
 
@@ -177,6 +176,66 @@ func TestMakeNextSource(t *testing.T) {
 		tg.kubePolicy.Spec.Ingress[tg.ingressIndex].From = testCase.From
 		tg.romanaPolicy = &testCase.RomanaPolicy
 		err := tg.makeNextSource(&translator)
+		if err != nil {
+			t.Errorf("%s", err)
+		}
+
+		if !testCase.expected(tg.romanaPolicy) {
+			t.Errorf("Failed to translate romana policy %s", tg.romanaPolicy.Name)
+		}
+	}
+}
+
+func TestMakeNextRule(t *testing.T) {
+	tg := TranslateGroup{
+		kubePolicy: &KubeObject{
+			Spec: Spec{
+				Ingress: []Ingress{
+					Ingress{},
+				},
+			},
+		},
+		romanaPolicy: &common.Policy{
+			Name: "TestPolicy",
+		},
+		ingressIndex: 0,
+	}
+
+	translator := Translator{
+		cacheMu: &sync.Mutex{},
+		segmentLabelName: "role",
+	}
+
+	testCases := []struct {
+		ToPorts	[]ToPort
+		RomanaPolicy common.Policy
+		expected     func(*common.Policy) bool
+	}{
+		{
+			ToPorts: []ToPort{
+				ToPort{
+					Port: 80,
+					Protocol: "TCP",
+				},
+				ToPort{
+					Port: 53,
+					Protocol: "UDP",
+				},
+
+			},
+			RomanaPolicy: common.Policy{
+				Name: "TestPolicyWithPorts",
+			},
+			expected: func(p *common.Policy) bool {
+				return p.Rules[0].Ports[0] == 80 && p.Rules[0].Protocol == "tcp" && p.Rules[1].Ports[0] == 53 && p.Rules[1].Protocol == "udp"
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		tg.kubePolicy.Spec.Ingress[tg.ingressIndex].ToPorts = testCase.ToPorts
+		tg.romanaPolicy = &testCase.RomanaPolicy
+		err := tg.makeNextRule(&translator)
 		if err != nil {
 			t.Errorf("%s", err)
 		}
