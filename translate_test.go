@@ -86,7 +86,7 @@ func TestTranslateTarget(t *testing.T) {
 	}
 }
 
-func TestMakeNextSource(t *testing.T) {
+func TestMakeNextIngressPeer(t *testing.T) {
 	tg := TranslateGroup{
 		kubePolicy: &KubeObject{
 			Metadata: Metadata{
@@ -175,7 +175,7 @@ func TestMakeNextSource(t *testing.T) {
 	for _, testCase := range testCases {
 		tg.kubePolicy.Spec.Ingress[tg.ingressIndex].From = testCase.From
 		tg.romanaPolicy = &testCase.RomanaPolicy
-		err := tg.makeNextSource(&translator)
+		err := tg.makeNextIngressPeer(&translator)
 		if err != nil {
 			t.Errorf("%s", err)
 		}

@@ -345,7 +345,7 @@ func (tg *TranslateGroup) translateTarget(translator *Translator) error {
 	// Translate kubernetes namespace into romana tenant. Must be defined.
 	tenantCacheEntry := translator.checkTenantInCache(tg.kubePolicy.Metadata.Namespace)
 	if tenantCacheEntry == nil {
-		glog.Errorf("Tenant not not found when translating policy %v", tg.romanaPolicy)
+		glog.Errorf("Tenant not found when translating policy %v", tg.romanaPolicy)
 		return TranslatorError{ErrorTenantNotIntCache, nil}
 	}
 
@@ -355,7 +355,7 @@ func (tg *TranslateGroup) translateTarget(translator *Translator) error {
 			common.Endpoint{TenantID: tenantCacheEntry.Tenant.ID, TenantExternalID: tenantCacheEntry.Tenant.ExternalID},
 		}
 
-		glog.V(2).Infof("Segment not found when translating policy %v, assuming target is a namespace", tg.romanaPolicy)
+		glog.V(2).Infof("Segment was not specified in policy %v, assuming target is a namespace", tg.kubePolicy)
 		return nil
 	}
 
@@ -380,8 +380,8 @@ func (tg *TranslateGroup) translateTarget(translator *Translator) error {
 	return nil
 }
 
-/// makeNextSource analizes current Ingress rule and adds new Peer to romanaPolicy.Peers.
-func (tg *TranslateGroup) makeNextSource(translator *Translator) error {
+/// makeNextIngressPeer analyzes current Ingress rule and adds new Peer to romanaPolicy.Peers.
+func (tg *TranslateGroup) makeNextIngressPeer(translator *Translator) error {
 	ingress := tg.kubePolicy.Spec.Ingress[tg.ingressIndex]
 
 	// Translate kubernetes namespace into romana tenant. Must be defined.
@@ -399,7 +399,7 @@ func (tg *TranslateGroup) makeNextSource(translator *Translator) error {
 			tg.romanaPolicy.Peers = append(tg.romanaPolicy.Peers,
 				common.Endpoint{TenantID: tenantCacheEntry.Tenant.ID, TenantExternalID: tenantCacheEntry.Tenant.ExternalID})
 
-			glog.Infof("DEBUG2 Segment not found when translating ingress rule %v", tg.kubePolicy.Spec.Ingress[tg.ingressIndex])
+			glog.Errorf("No segment specified when translating ingress rule %v", tg.kubePolicy.Spec.Ingress[tg.ingressIndex])
 			return nil
 		}
 
@@ -438,7 +438,7 @@ func (tg *TranslateGroup) makeNextRule (translator *Translator) error {
 	return nil
 }
 
-// translateNextIngress translates next Ingrss object from kubePolicy into romanaPolicy
+// translateNextIngress translates next Ingress object from kubePolicy into romanaPolicy
 // Peer and Rule fields.
 func (tg *TranslateGroup) translateNextIngress(translator *Translator) error {
 
@@ -447,7 +447,7 @@ func (tg *TranslateGroup) translateNextIngress(translator *Translator) error {
 	}
 
 	// Translate Ingress.From into romanaPolicy.ToPorts.
-	err := tg.makeNextSource(translator)
+	err := tg.makeNextIngressPeer(translator)
 	if err != nil {
 		return err
 	}
