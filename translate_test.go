@@ -1,7 +1,7 @@
 package kubernetes
 
 import (
-//	"encoding/json"
+	//	"encoding/json"
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
 	"sync"
@@ -33,12 +33,12 @@ func TestTranslateTarget(t *testing.T) {
 				Segments: []tenant.Segment{
 					tenant.Segment{
 						Name: "TestSegment",
-						ID: 2,
+						ID:   2,
 					},
 				},
 			},
 		},
-		cacheMu: &sync.Mutex{},
+		cacheMu:          &sync.Mutex{},
 		segmentLabelName: "role",
 	}
 
@@ -57,10 +57,10 @@ func TestTranslateTarget(t *testing.T) {
 			expected: func(p *common.Policy) bool {
 				return p.AppliedTo[0].TenantID == 3
 			},
-		},{
+		}, {
 			PodSelector: PodSelector{
 				MatchLabels: map[string]string{
-					"role" : "TestSegment",
+					"role": "TestSegment",
 				},
 			},
 			RomanaPolicy: common.Policy{
@@ -114,21 +114,21 @@ func TestMakeNextIngressPeer(t *testing.T) {
 				Segments: []tenant.Segment{
 					tenant.Segment{
 						Name: "TestSegment",
-						ID: 2,
+						ID:   2,
 					},
 					tenant.Segment{
 						Name: "AnotherTestSegment",
-						ID: 3,
+						ID:   3,
 					},
 				},
 			},
 		},
-		cacheMu: &sync.Mutex{},
+		cacheMu:          &sync.Mutex{},
 		segmentLabelName: "role",
 	}
 
 	testCases := []struct {
-		From	[]FromEntry
+		From         []FromEntry
 		RomanaPolicy common.Policy
 		expected     func(*common.Policy) bool
 	}{
@@ -146,19 +146,19 @@ func TestMakeNextIngressPeer(t *testing.T) {
 			expected: func(p *common.Policy) bool {
 				return p.Peers[0].TenantID == 3
 			},
-		},{
+		}, {
 			From: []FromEntry{
 				FromEntry{
 					Pods: PodSelector{
 						MatchLabels: map[string]string{
-							"role" : "TestSegment",
+							"role": "TestSegment",
 						},
 					},
 				},
 				FromEntry{
 					Pods: PodSelector{
 						MatchLabels: map[string]string{
-							"role" : "AnotherTestSegment",
+							"role": "AnotherTestSegment",
 						},
 					},
 				},
@@ -202,26 +202,25 @@ func TestMakeNextRule(t *testing.T) {
 	}
 
 	translator := Translator{
-		cacheMu: &sync.Mutex{},
+		cacheMu:          &sync.Mutex{},
 		segmentLabelName: "role",
 	}
 
 	testCases := []struct {
-		ToPorts	[]ToPort
+		ToPorts      []ToPort
 		RomanaPolicy common.Policy
 		expected     func(*common.Policy) bool
 	}{
 		{
 			ToPorts: []ToPort{
 				ToPort{
-					Port: 80,
+					Port:     80,
 					Protocol: "TCP",
 				},
 				ToPort{
-					Port: 53,
+					Port:     53,
 					Protocol: "UDP",
 				},
-
 			},
 			RomanaPolicy: common.Policy{
 				Name: "TestPolicyWithPorts",
