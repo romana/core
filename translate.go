@@ -441,7 +441,8 @@ func (tg *TranslateGroup) makeNextRule (translator *Translator) error {
 // translateNextIngress translates next Ingrss object from kubePolicy into romanaPolicy
 // Peer and Rule fields.
 func (tg *TranslateGroup) translateNextIngress(translator *Translator) error {
-	if tg.ingressIndex >= len(tg.kubePolicy.Spec.Ingress) -1 {
+
+	if tg.ingressIndex > len(tg.kubePolicy.Spec.Ingress) -1 {
 		return NoMoreIngressEntities{}
 	}
 
