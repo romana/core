@@ -425,7 +425,7 @@ func (tg *TranslateGroup) makeNextIngressPeer(translator *Translator) error {
 }
 
 // makeNextRule analizes current ingress rule and adds a new Rule to romanaPolicy.Rules.
-func (tg *TranslateGroup) makeNextRule (translator *Translator) error {
+func (tg *TranslateGroup) makeNextRule(translator *Translator) error {
 	ingress := tg.kubePolicy.Spec.Ingress[tg.ingressIndex]
 
 	for _, toPort := range ingress.ToPorts {
@@ -442,7 +442,7 @@ func (tg *TranslateGroup) makeNextRule (translator *Translator) error {
 // Peer and Rule fields.
 func (tg *TranslateGroup) translateNextIngress(translator *Translator) error {
 
-	if tg.ingressIndex > len(tg.kubePolicy.Spec.Ingress) -1 {
+	if tg.ingressIndex > len(tg.kubePolicy.Spec.Ingress)-1 {
 		return NoMoreIngressEntities{}
 	}
 
@@ -465,8 +465,8 @@ func (tg *TranslateGroup) translateNextIngress(translator *Translator) error {
 
 // NoMoreIngressEntities is an error that indicates that translateNextIngress
 // went through all Ingress entries in TranslateGroup.kubePolicy.
-type NoMoreIngressEntities struct {}
+type NoMoreIngressEntities struct{}
+
 func (e NoMoreIngressEntities) Error() string {
 	return "Done translating"
 }
-
