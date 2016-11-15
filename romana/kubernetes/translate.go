@@ -144,7 +144,7 @@ func (l *Translator) resolveTenantByName(tenantName string) (*tenant.Tenant, err
 func (l *Translator) getOrAddSegment(namespace string, kubeSegmentName string) (*tenant.Segment, error) {
 	tenantCacheEntry := l.checkTenantInCache(namespace)
 	if tenantCacheEntry == nil {
-		return nil, TranslatorError{ErrorTenantNotIntCache, fmt.Errorf("Tenant not found in cache while resolving segment")}
+		return nil, TranslatorError{ErrorTenantNotInCache, fmt.Errorf("Tenant not found in cache while resolving segment")}
 	}
 
 	segment := l.checkSegmentInCache(tenantCacheEntry, kubeSegmentName)
@@ -324,7 +324,7 @@ type TranslatorErrorType int
 
 const (
 	ErrorCacheUpdate TranslatorErrorType = iota
-	ErrorTenantNotIntCache
+	ErrorTenantNotInCache
 	ErrorTranslatingPolicyTarget
 	ErrorTranslatingPolicyIngress
 )
@@ -346,7 +346,7 @@ func (tg *TranslateGroup) translateTarget(translator *Translator) error {
 	tenantCacheEntry := translator.checkTenantInCache(tg.kubePolicy.Metadata.Namespace)
 	if tenantCacheEntry == nil {
 		glog.Errorf("Tenant not found when translating policy %v", tg.romanaPolicy)
-		return TranslatorError{ErrorTenantNotIntCache, nil}
+		return TranslatorError{ErrorTenantNotInCache, nil}
 	}
 
 	// Empty PodSelector means policy applied to the entire namespace.
@@ -390,7 +390,7 @@ func (tg *TranslateGroup) makeNextIngressPeer(translator *Translator) error {
 	tenantCacheEntry := translator.checkTenantInCache(tg.kubePolicy.Metadata.Namespace)
 	if tenantCacheEntry == nil {
 		glog.Errorf("Tenant not not found when translating policy %v", tg.romanaPolicy)
-		return TranslatorError{ErrorTenantNotIntCache, nil}
+		return TranslatorError{ErrorTenantNotInCache, nil}
 	}
 
 	for _, fromEntry := range ingress.From {
@@ -399,7 +399,7 @@ func (tg *TranslateGroup) makeNextIngressPeer(translator *Translator) error {
 			tg.romanaPolicy.Peers = append(tg.romanaPolicy.Peers,
 				common.Endpoint{TenantID: tenantCacheEntry.Tenant.ID, TenantExternalID: tenantCacheEntry.Tenant.ExternalID})
 
-			glog.Errorf("No segment specified when translating ingress rule %v", tg.kubePolicy.Spec.Ingress[tg.ingressIndex])
+			glog.V(2).Infof("No segment specified when translating ingress rule %v", tg.kubePolicy.Spec.Ingress[tg.ingressIndex])
 			return nil
 		}
 
