@@ -67,7 +67,7 @@ func (c *NetworkConfig) RomanaGW() net.IP {
 	return c.romanaGW
 }
 
-// RomanaGW returns current romana gateway.
+// RomanaGWMask returns current romana gateway mask.
 func (c *NetworkConfig) RomanaGWMask() net.IPMask {
 	return c.romanaGWMask
 }
