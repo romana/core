@@ -34,6 +34,9 @@ func main() {
 	username := flag.String("username", "", "Username")
 	password := flag.String("password", "", "Password")
 
+	// redirect log to stderr instead of going to a
+	// /tmp/agent.INFO file as glog does by default.
+	flag.Set("logtostderr", "true")
 	flag.Parse()
 
 	if *version {
