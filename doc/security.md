@@ -97,12 +97,18 @@ Permissions as in table above marked with "Tenant" role as follows:
 When list/find operations may return multiple results, only entities belonging to the authenticated tenant are displayed with a 404 NOT FOUND error in case no entities belonging to the authenticated tenant are found. (This applies to /find{First,Last,ExactlyOne,All} methods)
  * This also has implications for creating policies -- a tenant may not create purely CIDR-based policy for now (but an Admin or Agent can). 
 
+## Flow
+
+This is how it works. Currently, Romana uses [Negroni](https://github.com/urfave/negroni) for its REST services, which allows for chaining of multiple middlewares. This chain is constructed in [InitializeService method](https://godoc.org/github.com/romana/core/common#InitializeService). The Authentication middleware is added [almost at the top of the chain](https://github.com/romana/core/blob/master/common/service.go#L229) - below only the content negotiation module. Thereafter the flow is like this:
+
 ## Out of scope
 
 For this iteration, we will not provide:
 
  * Ability to restrict permissions to individual segments - that is, a tenant user is able to operate on all its segments. 
  * Ability for a user being able to manage multiple tenants
+
+## Alternative
 
 
 
