@@ -101,9 +101,9 @@ func main() {
 		&v1.Node{},
 		time.Minute,
 		cache.ResourceEventHandlerFuncs{
-			AddFunc:    romanaAddNode,
-			UpdateFunc: romanaUpdateNode,
-			DeleteFunc: romanaDeleteNode,
+			AddFunc:    kubernetesAddNodeEventHandler,
+			UpdateFunc: kubernetesUpdateNodeEventHandler,
+			DeleteFunc: kubernetesDeleteNodeEventHandler,
 		},
 	)
 
@@ -126,7 +126,7 @@ func main() {
 
 // romanaAddNode connects to romana REST API and
 // add romana node to the romana cluster
-func romanaAddNode(n interface{}) {
+func kubernetesAddNodeEventHandler(n interface{}) {
 	node, ok := n.(*v1.Node)
 	if !ok {
 		log.Printf("Error processing Add Event received for node(%s) ", n)
@@ -148,7 +148,7 @@ func romanaAddNode(n interface{}) {
 // romanaUpdateNode currently doesn't do anything yet.
 // TODO: If node shows up with new IP or romana CIDR,
 //       then accommodate it if possible.
-func romanaUpdateNode(o, n interface{}) {
+func kubernetesUpdateNodeEventHandler(o, n interface{}) {
 	// node, ok := n.(*v1.Node)
 	_, ok := n.(*v1.Node)
 	if !ok {
@@ -164,7 +164,7 @@ func romanaUpdateNode(o, n interface{}) {
 
 // romanaDeleteNode connects to romana REST API and
 // deletes romana node from the romana cluster.
-func romanaDeleteNode(n interface{}) {
+func kubernetesDeleteNodeEventHandler(n interface{}) {
 	node, ok := n.(*v1.Node)
 	if !ok {
 		log.Printf("Error processing Delete Event received for node(%s) ", n)
