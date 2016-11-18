@@ -25,15 +25,15 @@ import (
 // Pass build information to the executable using go run as below:
 //
 // go run -ldflags \
-// "-X github.com/romana/core/common.buildInfo=`git describe --always` \
-// -X github.com/romana/core/common.buildTimeStamp=`date -u '+%Y-%m-%d_%I:%M:%S%p'`" \
+// "-X github.com/romana/kube/common.buildInfo=`git describe --always` \
+// -X github.com/romana/kube/common.buildTimeStamp=`date -u '+%Y-%m-%d_%I:%M:%S%p'`" \
 // main.go -version
 //
 // or using go build as below:
 //
 // go build -ldflags \
-// "-X github.com/romana/core/common.buildInfo=`git describe --always` \
-// -X github.com/romana/core/common.buildTimeStamp=`date -u '+%Y-%m-%d_%I:%M:%S%p'`" \
+// "-X github.com/romana/kube/common.buildInfo=`git describe --always` \
+// -X github.com/romana/kube/common.buildTimeStamp=`date -u '+%Y-%m-%d_%I:%M:%S%p'`" \
 // main.go
 //
 var buildInfo = "No Build Information Provided"
