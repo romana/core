@@ -125,8 +125,9 @@ func main() {
 	log.Println("Stopped watching node events and quitting watchnodes.")
 }
 
-// kubernetesAddNodeEventHandler connects to romana REST API and
-// add romana node to the romana cluster
+// kubernetesAddNodeEventHandler is called when Kubernetes reports an
+// add-node event It connects to the Romana REST API and adds the node
+// to the Romana cluster.
 func kubernetesAddNodeEventHandler(n interface{}) {
 	node, ok := n.(*v1.Node)
 	if !ok {
@@ -163,8 +164,9 @@ func kubernetesUpdateNodeEventHandler(o, n interface{}) {
 	// log.Printf("Update Event received for node(%s) ",node.Name)
 }
 
-// kubernetesDeleteNodeEventHandler connects to romana REST API and
-// deletes romana node from the romana cluster.
+// kubernetesDeleteNodeEventHandler is called when Kubernetes reports a
+// delete-node event It connects to the Romana REST API and deletes the
+// node from the Romana cluster.
 func kubernetesDeleteNodeEventHandler(n interface{}) {
 	node, ok := n.(*v1.Node)
 	if !ok {
