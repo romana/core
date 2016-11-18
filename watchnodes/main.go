@@ -1,4 +1,4 @@
-// Copyright (c) 2016Pani Networks Inc
+// Copyright (c) 2016 Pani Networks Inc
 // All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -15,8 +15,8 @@
 
 // Package main contains a subset of listener functionality where
 // it connects to kubernetes using kubernetes client-go and watches
-// node creation/deletion events and then adds/deletes the nodes from
-// romana cluster appropriately.
+// node creation/deletion events and then adds/deletes the nodes
+// to/from romana cluster appropriately.
 package main
 
 import (
@@ -69,7 +69,8 @@ func main() {
 	// Since romana config was successful above, now set rootURL from config.
 	setRomanaRootURL()
 
-	// Try generating config for kubernetes from flags passed.
+	// Try generating config for kubernetes client-go from flags passed,
+	// so that we can connect to kubernetes using them.
 	kConfig, err := clientcmd.BuildConfigFromFlags("", *kubeConfig)
 	if err != nil {
 		log.Println("Error: ", err.Error())
@@ -124,7 +125,7 @@ func main() {
 	log.Println("Stopped watching node events and quitting watchnodes.")
 }
 
-// romanaAddNode connects to romana REST API and
+// kubernetesAddNodeEventHandler connects to romana REST API and
 // add romana node to the romana cluster
 func kubernetesAddNodeEventHandler(n interface{}) {
 	node, ok := n.(*v1.Node)
@@ -145,7 +146,7 @@ func kubernetesAddNodeEventHandler(n interface{}) {
 	log.Printf("Node (%s) successful added to romana cluster.", node.Name)
 }
 
-// romanaUpdateNode currently doesn't do anything yet.
+// kubernetesUpdateNodeEventHandler currently doesn't do anything yet.
 // TODO: If node shows up with new IP or romana CIDR,
 //       then accommodate it if possible.
 func kubernetesUpdateNodeEventHandler(o, n interface{}) {
@@ -162,7 +163,7 @@ func kubernetesUpdateNodeEventHandler(o, n interface{}) {
 	// log.Printf("Update Event received for node(%s) ",node.Name)
 }
 
-// romanaDeleteNode connects to romana REST API and
+// kubernetesDeleteNodeEventHandler connects to romana REST API and
 // deletes romana node from the romana cluster.
 func kubernetesDeleteNodeEventHandler(n interface{}) {
 	node, ok := n.(*v1.Node)
@@ -230,7 +231,9 @@ func romanaHostRemove(host string) error {
 	return nil
 }
 
-// setRomanaRootURL sanitizes URLs and sets up config with URLs.
+// setRomanaRootURL sanitizes rootURL and rootPort and also
+// sets baseURL which is needed to connect to other romana
+// services.
 func setRomanaRootURL() {
 	// Variables used for configuration and flags.
 	var baseURL string
