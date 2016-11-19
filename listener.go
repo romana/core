@@ -25,6 +25,10 @@ import (
 	"github.com/romana/core/tenant"
 	"net/http"
 	"strings"
+
+	"k8s.io/client-go/1.5/kubernetes"
+	"k8s.io/client-go/1.5/tools/cache"
+	"k8s.io/client-go/1.5/tools/clientcmd"
 )
 
 type networkPolicyAction int
@@ -57,6 +61,9 @@ type kubeListener struct {
 	segmentLabelName              string
 	lastEventPerNamespace         map[string]uint64
 	namespaceBufferSize           uint64
+
+	kubeClient		      *kubernetes.Clientset
+	Watchers		      map[string]cache.ListerWatcher
 }
 
 // Routes returns various routes used in the service.
@@ -103,6 +110,23 @@ func (l *kubeListener) SetConfig(config common.ServiceConfig) error {
 	} else {
 		l.namespaceBufferSize = uint64(m["namespace_buffer_size"].(float64))
 	}
+
+	if m["kubernetes_config"] == nil {
+		// return errors.New("kubernetes_config required")
+		m["kubernetes_config"] = "/etc/romana/kuberconfig"
+	}
+
+	// TODO, this loads kubernetes config from flags provided in main
+	// should be loading from path provided by romana-root. Stas.
+	kubeClientConfig, err := clientcmd.BuildConfigFromFlags("", m["kubernetes_config"].(string))
+	if err != nil {
+		return errors.New(fmt.Sprintf("Failed to load kubernetes kubeClientConfig %s", err))
+	}
+	clientset, err := kubernetes.NewForConfig(kubeClientConfig)
+	if err != nil {
+		return errors.New(fmt.Sprintf("Failed to make kubernetes client %s", err))
+	}
+	l.kubeClient = clientset
 
 	// TODO, find a better place to initialize
 	// the translator. Stas.
@@ -317,14 +341,16 @@ func (l *kubeListener) Initialize() error {
 		return err
 	}
 	glog.Infof("Starting to listen on %s", nsURL)
-	done := make(chan Done)
-	nsEvents, err := l.nsWatch(done, nsURL)
+	done := make(chan struct{})
+	eventc, err := l.nsWatch(done, nsURL)
 	if err != nil {
 		glog.Fatal("Namespace watcher failed to start", err)
 	}
 
-	events := l.conductor(nsEvents, done)
-	l.process(events, done)
+	ProduceNewPolicyEvents(eventc, done, l)
+
+	// events := l.conductor(nsEvents, done)
+	l.process(eventc, done)
 
 	glog.Infoln("All routines started")
 	return nil

@@ -17,15 +17,22 @@ package kubernetes
 
 import (
 	"github.com/golang/glog"
+	"k8s.io/client-go/1.5/pkg/api/v1"
 )
 
 // manageResources manages map of termination channels and fires up new
 // per-namespace goroutines when needed.
-func (l *kubeListener) manageResources(ns Event, terminators map[string]chan Done, out chan Event) {
-	uid := ns.Object.Metadata.Uid
-	glog.Infof("kubeListener: manageResources(): Received event %s", ns.Type)
-	if ns.Type == KubeEventAdded {
-		glog.Infof("kubeListener: manageResources(): ADDED event for %s (%s)", uid, ns.Object.Metadata.Name)
+func (l *kubeListener) manageResources(event Event, terminators map[string]chan Done, out chan Event) {
+	namespace, ok := event.Object.(v1.Namespace)
+	if !ok {
+		panic("Failed to cast namespace in conductor")
+	}
+
+	// TODO, use UID as a key - no need to convert. Stas.
+	uid := string(namespace.ObjectMeta.UID)
+	glog.Infof("kubeListener: manageResources(): Received event %s", event.Type)
+	if event.Type == KubeEventAdded {
+		glog.Infof("kubeListener: manageResources(): ADDED event for %s (%s)", uid, namespace.ObjectMeta.Name)
 
 		if _, ok := terminators[uid]; ok {
 			glog.Infoln("kubeListener: manageResources(): Received ADDED event for uid %s that is already known, ignoring ", uid)
@@ -34,8 +41,8 @@ func (l *kubeListener) manageResources(ns Event, terminators map[string]chan Don
 		done := make(chan Done)
 		terminators[uid] = done
 
-		go ProduceNewPolicyEvents(out, terminators[uid], ns.Object.Metadata.Name, l)
-	} else if ns.Type == KubeEventDeleted {
+		// go ProduceNewPolicyEvents(out, terminators[uid], namespace.ObjectMeta.Name, l)
+	} else if event.Type == KubeEventDeleted {
 		if _, ok := terminators[uid]; !ok {
 			glog.Infoln("kubeListener: manageResources(): Received DELETED event for uid %s that is not known, ignoring ", uid)
 			return
@@ -51,7 +58,7 @@ func (l *kubeListener) manageResources(ns Event, terminators map[string]chan Don
 		// Delete resource version counter for the namespace.
 		delete(l.lastEventPerNamespace, uid)
 
-	} else if ns.Type == InternalEventDeleteAll {
+	} else if event.Type == InternalEventDeleteAll {
 		// Terminate all per-namespace goroutines
 		// clean associated resources.
 		for uid, c := range terminators {
@@ -74,18 +81,18 @@ func (l *kubeListener) conductor(in <-chan Event, done <-chan Done) <-chan Event
 	// to terminater related goroutine.
 	terminators := map[string]chan Done{}
 
-	ns := Event{}
+	// ns := Event{}
 	out := make(chan Event, l.namespaceBufferSize)
 	glog.Infof("kubeListener: conductor(): entered with in: %v, done: %v", in, done)
 	go func() {
 		for {
 			select {
-			case ns = <-in:
+			case event := <-in:
 				glog.Infof("kubeListener: conductor(): calling manageResources")
-				l.manageResources(ns, terminators, out)
+				l.manageResources(event, terminators, out)
 				// ADDED, DELETED events for namespace handled here
-				glog.Infof("kubeListener: conductor(): calling handle on %+v", ns)
-				ns.handleNamespaceEvent(l)
+				glog.Infof("kubeListener: conductor(): calling handle on %+v", event)
+				handleNamespaceEvent(event, l)
 			case <-done:
 				glog.Infof("kubeListener: conductor(): got done on %v", done)
 				return

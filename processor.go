@@ -16,6 +16,8 @@
 package kubernetes
 
 import (
+	"k8s.io/client-go/1.5/pkg/api/v1"
+	"k8s.io/client-go/1.5/pkg/apis/extensions/v1beta1"
 	"github.com/golang/glog"
 	"time"
 )
@@ -33,7 +35,7 @@ const (
 //    b. If the Object Kind is Namespace, attempts to add a new Tenant to Romana with that name.
 //       Logs an error if not possible.
 // 2. On receiving a done event, exit the goroutine
-func (l *kubeListener) process(in <-chan Event, done chan Done) {
+func (l *kubeListener) process(in <-chan Event, done chan struct{}) {
 	glog.Infof("kubeListener: process(): Entered with in %v, done %v", in, done)
 
 	timer := time.Tick(processorTickTime * time.Second)
@@ -50,16 +52,16 @@ func (l *kubeListener) process(in <-chan Event, done chan Done) {
 				}
 			case e := <-in:
 				glog.V(1).Infof("kubeListener: process(): Got %v", e)
-				switch e.Object.Kind {
-				case "NetworkPolicy":
+				switch obj := e.Object.(type) {
+				case v1beta1.NetworkPolicy:
 					glog.Infof("DEBUG scheduing network policy action, now scheduled %d actions", len(networkPolicyEvents))
 					networkPolicyEvents = append(networkPolicyEvents, e)
-				case "Namespace":
-					e.handleNamespaceEvent(l)
-				case "":
-					glog.V(3).Infof("Processor received an event with empty Object.Kind field, ignoring")
+				case v1.Namespace:
+					handleNamespaceEvent(e, l)
+//				case "":
+//					glog.V(3).Infof("Processor received an event with empty Object.Kind field, ignoring")
 				default:
-					glog.Errorf("Processor received an event with unknown Object.Kind field %s, ignoring", e.Object.Kind)
+					glog.Errorf("Processor received an event with unknown Object.Kind field %s, ignoring", obj)
 				}
 			case <-done:
 				glog.Infof("kubeListener: process(): Got done")

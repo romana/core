@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"github.com/golang/glog"
 	"github.com/romana/core/common"
+	"k8s.io/client-go/1.5/pkg/apis/extensions/v1beta1"
 	"github.com/romana/core/tenant"
 	"net/http"
 	"strings"
@@ -36,7 +37,7 @@ type PolicyTranslator interface {
 	// Translates number of kubernetes policies into romana format.
 	// Returns a list of translated policies, list of original policies
 	// that failed to translate and an error.
-	Kube2RomanaBulk([]KubeObject) ([]common.Policy, []KubeObject, error)
+	Kube2RomanaBulk([]KubeObject) ([]common.Policy, []v1beta1.NetworkPolicy, error)
 }
 
 type Translator struct {
@@ -71,10 +72,10 @@ func (t Translator) Kube2Romana(kubePolicy KubeObject) (common.Policy, error) {
 // Kube2RomanaBulk attempts to translate a list of kubernetes policies into
 // romana representation, returns a list of translated policies and a list
 // of policies that can't be translated in original format.
-func (t Translator) Kube2RomanaBulk(kubePolicies []KubeObject) ([]common.Policy, []KubeObject, error) {
+func (t Translator) Kube2RomanaBulk(kubePolicies []v1beta1.NetworkPolicy) ([]common.Policy, []v1beta1.NetworkPolicy, error) {
 	glog.Info("In Kube2RomanaBulk")
 	var returnRomanaPolicy []common.Policy
-	var returnKubePolicy []KubeObject
+	var returnKubePolicy []v1beta1.NetworkPolicy
 
 	err := t.updateCache()
 	if err != nil {
@@ -100,9 +101,9 @@ func (t Translator) Kube2RomanaBulk(kubePolicies []KubeObject) ([]common.Policy,
 // 1. Kubernetes Namespace corresponds to Romana Tenant
 // 2. If Romana Tenant does not exist it is an error (a tenant should
 //    automatically have been created when the namespace was added)
-func (l *Translator) translateNetworkPolicy(kubePolicy *KubeObject) (common.Policy, error) {
-	policyName := fmt.Sprintf("kube.%s.%s", kubePolicy.Metadata.Namespace, kubePolicy.Metadata.Name)
-	romanaPolicy := &common.Policy{Direction: common.PolicyDirectionIngress, Name: policyName, ExternalID: kubePolicy.Metadata.Uid}
+func (l *Translator) translateNetworkPolicy(kubePolicy *v1beta1.NetworkPolicy) (common.Policy, error) {
+	policyName := fmt.Sprintf("kube.%s.%s", kubePolicy.ObjectMeta.Namespace, kubePolicy.ObjectMeta.Name)
+	romanaPolicy := &common.Policy{Direction: common.PolicyDirectionIngress, Name: policyName, ExternalID: string(kubePolicy.ObjectMeta.UID)}
 
 	// Prepare translate group with original kubernetes policy and empty romana policy.
 	translateGroup := &TranslateGroup{kubePolicy, romanaPolicy, TranslateGroupStartIndex}
@@ -332,7 +333,7 @@ const (
 // TranslateGroup represent a state of translation of kubernetes policy
 // into romana policy.
 type TranslateGroup struct {
-	kubePolicy   *KubeObject
+	kubePolicy   *v1beta1.NetworkPolicy
 	romanaPolicy *common.Policy
 	ingressIndex int
 }
@@ -343,7 +344,7 @@ const TranslateGroupStartIndex = 0
 func (tg *TranslateGroup) translateTarget(translator *Translator) error {
 
 	// Translate kubernetes namespace into romana tenant. Must be defined.
-	tenantCacheEntry := translator.checkTenantInCache(tg.kubePolicy.Metadata.Namespace)
+	tenantCacheEntry := translator.checkTenantInCache(tg.kubePolicy.ObjectMeta.Namespace)
 	if tenantCacheEntry == nil {
 		glog.Errorf("Tenant not found when translating policy %v", tg.romanaPolicy)
 		return TranslatorError{ErrorTenantNotInCache, nil}
@@ -367,9 +368,9 @@ func (tg *TranslateGroup) translateTarget(translator *Translator) error {
 	}
 
 	// Translate kubernetes segment label into romana segment.
-	segment, err := translator.getOrAddSegment(tg.kubePolicy.Metadata.Namespace, kubeSegmentID)
+	segment, err := translator.getOrAddSegment(tg.kubePolicy.ObjectMeta.Namespace, kubeSegmentID)
 	if err != nil {
-		glog.Errorf("Error in translate while calling l.getOrAddSegment with %s and %s - error %s", tg.kubePolicy.Metadata.Namespace, kubeSegmentID, err)
+		glog.Errorf("Error in translate while calling l.getOrAddSegment with %s and %s - error %s", tg.kubePolicy.ObjectMeta.Namespace, kubeSegmentID, err)
 		return err
 	}
 
@@ -387,7 +388,7 @@ func (tg *TranslateGroup) makeNextIngressPeer(translator *Translator) error {
 	// Translate kubernetes namespace into romana tenant. Must be defined.
 	// TODO instead of relying on target tenant we should first check if
 	// NamespaceSelector defined in current Ingress rule. Stas.
-	tenantCacheEntry := translator.checkTenantInCache(tg.kubePolicy.Metadata.Namespace)
+	tenantCacheEntry := translator.checkTenantInCache(tg.kubePolicy.ObjectMeta.Namespace)
 	if tenantCacheEntry == nil {
 		glog.Errorf("Tenant not not found when translating policy %v", tg.romanaPolicy)
 		return TranslatorError{ErrorTenantNotInCache, nil}
@@ -395,7 +396,7 @@ func (tg *TranslateGroup) makeNextIngressPeer(translator *Translator) error {
 
 	for _, fromEntry := range ingress.From {
 		// Empty PodSelector means traffic is allowed from any pod in a namespace.
-		if len(fromEntry.Pods.MatchLabels) == 0 {
+		if len(fromEntry.PodSelector.MatchLabels) == 0 {
 			tg.romanaPolicy.Peers = append(tg.romanaPolicy.Peers,
 				common.Endpoint{TenantID: tenantCacheEntry.Tenant.ID, TenantExternalID: tenantCacheEntry.Tenant.ExternalID})
 
@@ -404,7 +405,7 @@ func (tg *TranslateGroup) makeNextIngressPeer(translator *Translator) error {
 		}
 
 		// If PodSelector is not empty then segment label must be defined.
-		kubeSegmentID, ok := fromEntry.Pods.MatchLabels[translator.segmentLabelName]
+		kubeSegmentID, ok := fromEntry.PodSelector.MatchLabels[translator.segmentLabelName]
 		if !ok || kubeSegmentID == "" {
 			glog.Errorf("Expected segment to be specified in podSelector part as %s", translator.segmentLabelName)
 			return common.NewError("Expected segment to be specified in podSelector part as '%s'", translator.segmentLabelName)
@@ -428,9 +429,9 @@ func (tg *TranslateGroup) makeNextIngressPeer(translator *Translator) error {
 func (tg *TranslateGroup) makeNextRule(translator *Translator) error {
 	ingress := tg.kubePolicy.Spec.Ingress[tg.ingressIndex]
 
-	for _, toPort := range ingress.ToPorts {
-		proto := strings.ToLower(toPort.Protocol)
-		ports := []uint{toPort.Port}
+	for _, toPort := range ingress.Ports {
+		proto := strings.ToLower(string(*toPort.Protocol))
+		ports := []uint{uint(toPort.Port.IntValue())}
 		rule := common.Rule{Protocol: proto, Ports: ports}
 		tg.romanaPolicy.Rules = append(tg.romanaPolicy.Rules, rule)
 	}
