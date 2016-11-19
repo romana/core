@@ -17,10 +17,10 @@ services = $$GOPATH/bin/root\
 UPX_VERSION := $(shell upx --version 2>/dev/null)
 
 install:
-	go install -ldflags \
+	go list -f '{{.ImportPath}}' "./..." | \
+		grep -v /vendor/ | xargs go install -ldflags \
 		"-X github.com/romana/core/common.buildInfo=`git describe --always` \
-		-X github.com/romana/core/common.buildTimeStamp=`date -u '+%Y-%m-%d_%I:%M:%S%p'`" \
-		"./..."
+		-X github.com/romana/core/common.buildTimeStamp=`date -u '+%Y-%m-%d_%I:%M:%S%p'`"
 
 all: install fmt test lint vet
 
