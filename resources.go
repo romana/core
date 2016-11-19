@@ -163,7 +163,7 @@ func handleNetworkPolicyEvents(events []Event, l *kubeListener) {
 
 // handleNamespaceEvent by creating or deleting romana tenants.
 func handleNamespaceEvent(e Event, l *kubeListener) {
-	namespace, ok := e.Object.(v1.Namespace)
+	namespace, ok := e.Object.(*v1.Namespace)
 	if !ok {
 		panic("Failed to cast namespace in handleNamespaceEvent")
 	}
@@ -201,18 +201,20 @@ func handleNamespaceEvent(e Event, l *kubeListener) {
 }
 
 // handleAnnotations on a namespace by implementing extra features requested through the annotation
-func handleAnnotations(o v1.Namespace, l *kubeListener) {
+func handleAnnotations(o *v1.Namespace, l *kubeListener) {
 	glog.Infof("In handleAnnotations")
 
+	/*
 	if o.Kind != "Namespace" {
 		glog.Infof("Error handling annotations on a namespace - object is not a namespace %s \n", o.Kind)
 		return
 	}
+	*/
 
 	CreateDefaultPolicy(o, l)
 }
 
-func CreateDefaultPolicy(o v1.Namespace, l *kubeListener) {
+func CreateDefaultPolicy(o *v1.Namespace, l *kubeListener) {
 	glog.Infof("In CreateDefaultPolicy for %v\n", o)
 	tenant, err := l.resolveTenantByName(o.ObjectMeta.Name)
 	if err != nil {
@@ -317,6 +319,8 @@ func (l *kubeListener) watchEvents(done <-chan Done, url string, resp *http.Resp
 func (l *kubeListener) nsWatch(done <-chan struct{}, url string) (chan Event, error) {
 	out := make(chan Event, l.namespaceBufferSize)
 
+	glog.Info("DEBUG in nsWatch with buffer size %d", l.namespaceBufferSize)
+
 	// watcher watches all namespaces.
 	watcher := cache.NewListWatchFromClient(
 		l.kubeClient.CoreClient,
@@ -331,18 +335,21 @@ func (l *kubeListener) nsWatch(done <-chan struct{}, url string) (chan Event, er
 		0,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func (obj interface{}) {
+				glog.Info("DEBUG Namespace informer ADD")
 				out <- Event{
 					Type: KubeEventAdded,
 					Object: obj,
 				}
 			},
 			UpdateFunc: func (old, obj interface{}) {
+				glog.Info("DEBUG Namespace informer update")
 				out <- Event{
 					Type: KubeEventModified,
 					Object: obj,
 				}
 			},
 			DeleteFunc: func (obj interface{}) {
+				glog.Info("DEBUG Namespace informer delete")
 				out <- Event{
 					Type: KubeEventDeleted,
 					Object: obj,
@@ -352,6 +359,7 @@ func (l *kubeListener) nsWatch(done <-chan struct{}, url string) (chan Event, er
 
 	go controller.Run(done)
 
+	glog.Info("DEBUG in nsWatch exiting")
 	return out, nil
 }
 
@@ -410,8 +418,10 @@ func ProduceNewPolicyEvents(out chan Event, done <-chan struct{}, kubeListener *
 			},
 		})
 
-	controller.Run(done)
+	go controller.Run(done)
+	glog.Infof("DEBUG ProduceNewPolicyEvents before sleep")
 	time.Sleep(sleepTime)
+	glog.Infof("DEBUG ProduceNewPolicyEvents after sleep")
 
 	var kubePolicyList []v1beta1.NetworkPolicy
 	for _, kp := range store.List() {
@@ -451,6 +461,8 @@ func ProduceNewPolicyEvents(out chan Event, done <-chan struct{}, kubeListener *
 		fmt.Printf("%s\n", np.Name, reflect.TypeOf(np))
 	}
 */
+
+	glog.Infof("DEBUG ProduceNewPolicyEvents exitin")
 }
 
 // httpGet is a wraps http.Get for the purpose of unit testing.

@@ -105,11 +105,13 @@ func (l *kubeListener) SetConfig(config common.ServiceConfig) error {
 	}
 	l.segmentLabelName = m["segment_label_name"].(string)
 
+	// TODO, what is `wait_for_iface_try` and why namespaceBufferSize is set instead ? Stas.
 	if m["wait_for_iface_try"] == nil {
 		l.namespaceBufferSize = 10
 	} else {
 		l.namespaceBufferSize = uint64(m["namespace_buffer_size"].(float64))
 	}
+	l.namespaceBufferSize = 1000
 
 	if m["kubernetes_config"] == nil {
 		// return errors.New("kubernetes_config required")
@@ -347,10 +349,10 @@ func (l *kubeListener) Initialize() error {
 		glog.Fatal("Namespace watcher failed to start", err)
 	}
 
-	ProduceNewPolicyEvents(eventc, done, l)
-
 	// events := l.conductor(nsEvents, done)
 	l.process(eventc, done)
+
+	ProduceNewPolicyEvents(eventc, done, l)
 
 	glog.Infoln("All routines started")
 	return nil

@@ -19,6 +19,7 @@ import (
 	"k8s.io/client-go/1.5/pkg/api/v1"
 	"k8s.io/client-go/1.5/pkg/apis/extensions/v1beta1"
 	"github.com/golang/glog"
+	"reflect"
 	"time"
 )
 
@@ -53,15 +54,17 @@ func (l *kubeListener) process(in <-chan Event, done chan struct{}) {
 			case e := <-in:
 				glog.V(1).Infof("kubeListener: process(): Got %v", e)
 				switch obj := e.Object.(type) {
-				case v1beta1.NetworkPolicy:
+				case *v1beta1.NetworkPolicy:
+					glog.Info("DEBUG processor received network policy")
 					glog.Infof("DEBUG scheduing network policy action, now scheduled %d actions", len(networkPolicyEvents))
 					networkPolicyEvents = append(networkPolicyEvents, e)
-				case v1.Namespace:
+				case *v1.Namespace:
+					glog.Info("DEBUG processor received namespace")
 					handleNamespaceEvent(e, l)
 //				case "":
 //					glog.V(3).Infof("Processor received an event with empty Object.Kind field, ignoring")
 				default:
-					glog.Errorf("Processor received an event with unknown Object.Kind field %s, ignoring", obj)
+					glog.Errorf("Processor received an event of unkonwn type %s, ignoring object %s", reflect.TypeOf(obj), obj)
 				}
 			case <-done:
 				glog.Infof("kubeListener: process(): Got done")
