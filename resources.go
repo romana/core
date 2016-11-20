@@ -122,9 +122,9 @@ func handleNetworkPolicyEvents(events []Event, l *kubeListener) {
 	for _, event := range events {
 		switch event.Type {
 		case KubeEventAdded:
-			createEvents = append(createEvents, event.Object.(v1beta1.NetworkPolicy))
+			createEvents = append(createEvents, *event.Object.(*v1beta1.NetworkPolicy))
 		case KubeEventDeleted:
-			deleteEvents = append(deleteEvents, event.Object.(v1beta1.NetworkPolicy))
+			deleteEvents = append(deleteEvents, *event.Object.(*v1beta1.NetworkPolicy))
 		default:
 			glog.V(3).Info("Ignoring %s event in handleNetworkPolicyEvents", event.Type)
 		}

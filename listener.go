@@ -114,8 +114,7 @@ func (l *kubeListener) SetConfig(config common.ServiceConfig) error {
 	l.namespaceBufferSize = 1000
 
 	if m["kubernetes_config"] == nil {
-		// return errors.New("kubernetes_config required")
-		m["kubernetes_config"] = "/etc/romana/kuberconfig"
+		m["kubernetes_config"] = "/etc/romana/kubeconfig"
 	}
 
 	// TODO, this loads kubernetes config from flags provided in main
