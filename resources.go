@@ -474,34 +474,6 @@ func httpGet(url string) (io.Reader, error) {
 // watchKubernetesResource dependencies
 var httpGetFunc = httpGet
 
-// watchKubernetesResource retrieves a list of kubernetes objects
-// associated with particular resource and channel of events.
-func (l *kubeListener) watchKubernetesResource(url string, done <-chan Done) ([]KubeObject, <-chan Event, error) {
-	// 1. list current objects in a resource
-	// curl -s http://192.168.99.10:8080/apis/extensions/v1beta1/namespaces/http-tests/networkpolicies
-	// 1.1 if error then return
-	// 1.2 store resourceVersion from request in 1
-	// 1.3 store objects found in a resource
-	// curl -s http://192.168.99.10:8080/apis/extensions/v1beta1/namespaces/http-tests/networkpolicies | jq -r '.metadata.resourceVersion'
-	// 2. subscribe for events starting from resourceVersion acquired in 1.1
-	// curl -s "http://192.168.99.10:8080/apis/extensions/v1beta1/namespaces/http-tests/networkpolicies/?watch=true&resourceVersion=100"
-	// 2.1 make json decoder for events
-	// 2.1 make out channel
-	// >> loop goroutine start
-	// >> 3. decode event
-	// >> 3.1 Check for errors
-	// >> 3.2 if error code 410 then log, close out channel and return
-	// {"type":"ERROR","object":{"kind":"Status","apiVersion":"v1","metadata":{},"status":"Failure","message":"too old resource version: 100 (7520)","reason":"Gone","code":410}}
-	// >> 3.3 if error then log, close out channel and return
-	// >> 3.6 if channel Done is closed while watching resource, close events channel and return
-	// << loop goroutine end
-	// 3. Return out channel and a items
-	out := make(chan Event)
-
-	return nil, out, nil
-
-}
-
 // getAllPoliciesFunc wraps request to Policy for the purpose of unit testing.
 func getAllPolicies(restClient *common.RestClient) ([]common.Policy, error) {
 	policyUrl, err := restClient.GetServiceUrl("policy")
@@ -542,10 +514,11 @@ func (l *kubeListener) syncNetworkPolicies(kubePolicies []v1beta1.NetworkPolicy)
 	accountedRomanaPolicies := make(map[int]bool)
 
 	for kn, kubePolicy := range kubePolicies {
-		namespacePolicyNamePrefix := fmt.Sprintf("kube.%s.", kubePolicy.ObjectMeta.Namespace)
+		namespacePolicyNamePrefix := fmt.Sprintf("kube.default.")
 		found = false
 		for pn, policy := range policies {
 			fullPolicyName := fmt.Sprintf("%s%s", namespacePolicyNamePrefix, kubePolicy.ObjectMeta.Name)
+			glog.Infof("DEBUG %s == %s = %t", fullPolicyName, policy.Name, fullPolicyName == policy.Name)
 			if fullPolicyName == policy.Name {
 				found = true
 				accountedRomanaPolicies[pn] = true
@@ -554,6 +527,7 @@ func (l *kubeListener) syncNetworkPolicies(kubePolicies []v1beta1.NetworkPolicy)
 		}
 
 		if !found {
+			glog.Infof("DEBUG %s not found", kubePolicy.ObjectMeta.Name)
 			glog.V(3).Infof("Sync policies detected new kube policy %v", kubePolicies[kn])
 			kubernetesEvents = append(kubernetesEvents, Event{KubeEventAdded, kubePolicies[kn]})
 		}
@@ -564,6 +538,7 @@ func (l *kubeListener) syncNetworkPolicies(kubePolicies []v1beta1.NetworkPolicy)
 	// Ignore policies that don't have "kube." prefix in the name.
 	for k, _ := range policies {
 		if !strings.HasPrefix(policies[k].Name, "kube.") {
+			glog.Infof("DEBUG Sync policies skipping policy %s since it doesn't match the prefix `kube.`", policies[k].Name)
 			glog.V(4).Infof("Sync policies skipping policy %s since it doesn't match the prefix `kube.`", policies[k].Name)
 			continue
 		}

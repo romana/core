@@ -4,6 +4,9 @@ import (
 	//	"encoding/json"
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
+	"k8s.io/client-go/1.5/pkg/apis/extensions/v1beta1"
+	"k8s.io/client-go/1.5/pkg/util/intstr"
+	"k8s.io/client-go/1.5/pkg/api/v1"
 	"sync"
 	//	"bytes"
 	"testing"
@@ -13,8 +16,8 @@ import (
 
 func TestTranslateTarget(t *testing.T) {
 	tg := TranslateGroup{
-		kubePolicy: &KubeObject{
-			Metadata: Metadata{
+		kubePolicy: &v1beta1.NetworkPolicy{
+			ObjectMeta: v1.ObjectMeta{
 				Namespace: "default",
 			},
 		},
@@ -43,12 +46,12 @@ func TestTranslateTarget(t *testing.T) {
 	}
 
 	testCases := []struct {
-		PodSelector  PodSelector
+		PodSelector  v1beta1.LabelSelector
 		RomanaPolicy common.Policy
 		expected     func(*common.Policy) bool
 	}{
 		{
-			PodSelector: PodSelector{
+			PodSelector: v1beta1.LabelSelector{
 				MatchLabels: map[string]string{},
 			},
 			RomanaPolicy: common.Policy{
@@ -58,7 +61,7 @@ func TestTranslateTarget(t *testing.T) {
 				return p.AppliedTo[0].TenantID == 3
 			},
 		}, {
-			PodSelector: PodSelector{
+			PodSelector: v1beta1.LabelSelector{
 				MatchLabels: map[string]string{
 					"role": "TestSegment",
 				},
@@ -88,13 +91,13 @@ func TestTranslateTarget(t *testing.T) {
 
 func TestMakeNextIngressPeer(t *testing.T) {
 	tg := TranslateGroup{
-		kubePolicy: &KubeObject{
-			Metadata: Metadata{
+		kubePolicy: &v1beta1.NetworkPolicy{
+			ObjectMeta: v1.ObjectMeta{
 				Namespace: "default",
 			},
-			Spec: Spec{
-				Ingress: []Ingress{
-					Ingress{},
+			Spec: v1beta1.NetworkPolicySpec{
+				Ingress: []v1beta1.NetworkPolicyIngressRule{
+					v1beta1.NetworkPolicyIngressRule{},
 				},
 			},
 		},
@@ -128,15 +131,14 @@ func TestMakeNextIngressPeer(t *testing.T) {
 	}
 
 	testCases := []struct {
-		From         []FromEntry
+		From         []v1beta1.NetworkPolicyPeer
 		RomanaPolicy common.Policy
 		expected     func(*common.Policy) bool
 	}{
 		{
-			From: []FromEntry{
-				FromEntry{
-					Pods: PodSelector{
-						MatchLabels: map[string]string{},
+			From: []v1beta1.NetworkPolicyPeer{
+				v1beta1.NetworkPolicyPeer{
+					PodSelector: &v1beta1.LabelSelector{
 					},
 				},
 			},
@@ -147,16 +149,16 @@ func TestMakeNextIngressPeer(t *testing.T) {
 				return p.Peers[0].TenantID == 3
 			},
 		}, {
-			From: []FromEntry{
-				FromEntry{
-					Pods: PodSelector{
+			From: []v1beta1.NetworkPolicyPeer{
+				v1beta1.NetworkPolicyPeer{
+					PodSelector: &v1beta1.LabelSelector{
 						MatchLabels: map[string]string{
 							"role": "TestSegment",
 						},
 					},
 				},
-				FromEntry{
-					Pods: PodSelector{
+				v1beta1.NetworkPolicyPeer{
+					PodSelector: &v1beta1.LabelSelector{
 						MatchLabels: map[string]string{
 							"role": "AnotherTestSegment",
 						},
@@ -188,10 +190,10 @@ func TestMakeNextIngressPeer(t *testing.T) {
 
 func TestMakeNextRule(t *testing.T) {
 	tg := TranslateGroup{
-		kubePolicy: &KubeObject{
-			Spec: Spec{
-				Ingress: []Ingress{
-					Ingress{},
+		kubePolicy: &v1beta1.NetworkPolicy{
+			Spec: v1beta1.NetworkPolicySpec{
+				Ingress: []v1beta1.NetworkPolicyIngressRule{
+					v1beta1.NetworkPolicyIngressRule{},
 				},
 			},
 		},
@@ -206,20 +208,25 @@ func TestMakeNextRule(t *testing.T) {
 		segmentLabelName: "role",
 	}
 
+	var portTCP v1.Protocol = "TCP"
+	var portUDP v1.Protocol = "UDP"
+	var port53 intstr.IntOrString = intstr.FromInt(53)
+	var port80 intstr.IntOrString = intstr.FromInt(80)
+
 	testCases := []struct {
-		ToPorts      []ToPort
+		ToPorts      []v1beta1.NetworkPolicyPort
 		RomanaPolicy common.Policy
 		expected     func(*common.Policy) bool
 	}{
 		{
-			ToPorts: []ToPort{
-				ToPort{
-					Port:     80,
-					Protocol: "TCP",
+			ToPorts: []v1beta1.NetworkPolicyPort{
+				v1beta1.NetworkPolicyPort{
+					Port:     &port80,
+					Protocol: &portTCP,
 				},
-				ToPort{
-					Port:     53,
-					Protocol: "UDP",
+				v1beta1.NetworkPolicyPort{
+					Port:     &port53,
+					Protocol: &portUDP,
 				},
 			},
 			RomanaPolicy: common.Policy{
@@ -232,7 +239,7 @@ func TestMakeNextRule(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		tg.kubePolicy.Spec.Ingress[tg.ingressIndex].ToPorts = testCase.ToPorts
+		tg.kubePolicy.Spec.Ingress[tg.ingressIndex].Ports = testCase.ToPorts
 		tg.romanaPolicy = &testCase.RomanaPolicy
 		err := tg.makeNextRule(&translator)
 		if err != nil {
