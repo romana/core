@@ -15,6 +15,10 @@
 
 package kubernetes
 
+
+/* disabled since it tries to mimic kubernets which
+   and now we are using k8s.io/client-go which is would
+   make us to mimic tooo much of kubernetes to pass the test.
 import (
 	"encoding/json"
 	"fmt"
@@ -668,3 +672,4 @@ const (
 	 						},
 	 				"spec":{"finalizers":["kubernetes"]},"status":{"phase":"Active"}}}`
 )
+*/

@@ -1,21 +1,20 @@
 package kubernetes
 
 import (
-	"bytes"
 	"github.com/romana/core/common"
-	"io"
+	"k8s.io/client-go/1.5/pkg/apis/extensions/v1beta1"
+	"k8s.io/client-go/1.5/pkg/api/v1"
 	"testing"
 )
 
 func TestSyncNetworkPolicies(t *testing.T) {
+
 	var allRomanaPolicies []common.Policy
-	var kubePolicies []KubeObject
-	var namespace string
+	var kubePolicies []v1beta1.NetworkPolicy
 	getAllPoliciesFunc = func(none *common.RestClient) ([]common.Policy, error) {
 		return allRomanaPolicies, nil
 	}
 
-	namespace = "default"
 	allRomanaPolicies = []common.Policy{
 		common.Policy{
 			Name: "donotdelete",
@@ -28,17 +27,17 @@ func TestSyncNetworkPolicies(t *testing.T) {
 		},
 	}
 
-	kubePolicies = []KubeObject{
-		KubeObject{
-			Metadata: Metadata{Name: "newPolicy1"},
+	kubePolicies = []v1beta1.NetworkPolicy{
+		v1beta1.NetworkPolicy{
+			ObjectMeta: v1.ObjectMeta{Name: "newPolicy1"},
 		},
-		KubeObject{
-			Metadata: Metadata{Name: "newPolicy2"},
+		v1beta1.NetworkPolicy{
+			ObjectMeta: v1.ObjectMeta{Name: "newPolicy2"},
 		},
 	}
 
 	l := &kubeListener{}
-	newKubePolicies, oldRomanaPolicies, _ := l.syncNetworkPolicies(namespace, kubePolicies)
+	newKubePolicies, oldRomanaPolicies, _ := l.syncNetworkPolicies(kubePolicies)
 
 	if len(oldRomanaPolicies) != 1 || len(newKubePolicies) != 1 {
 		t.Errorf("Received %d newKubePolicies (expect 1) and %d oldRomanaPolicies (expect 1)", len(newKubePolicies), len(oldRomanaPolicies))
@@ -48,61 +47,12 @@ func TestSyncNetworkPolicies(t *testing.T) {
 		t.Errorf("Wrong romana policy scheduled for deletion %s - expected kube.default.deleteme", oldRomanaPolicies[0])
 	}
 
-	if newKubePolicies[0].Object.Metadata.Name != "newPolicy2" {
-		t.Errorf("Wrong kube policy scheduled for creation %s - expected newPolicy2", newKubePolicies[0].Object.Metadata.Name)
-	}
-}
-
-func TestWatchKubernetesResource(t *testing.T) {
-	kubernetesResponse := []byte(`
-	{
-	  "kind": "NetworkPolicyList",
-	  "metadata": { "resourceVersion": "1" },
-	  "items": [
-	    {
-	      "metadata": {
-		"name": "po9",
-		"namespace": "http-tests",
-		"uid": "5b4664e8-a0a5-11e6-825a-06d535b27c66"
-	      }
-	    }
-	  ]
-	}
-	`)
-
-	kubernetesStream := []byte(`
-		{"type":"ADDED","object":{"kind":"NetworkPolicy","metadata":{"name":"po10","namespace":"http-tests"}}}
-	`)
-
-	httpGetFunc = func(url string) (io.Reader, error) {
-		if url == "http://dummy:8080" {
-			return bytes.NewReader(kubernetesResponse), nil
-		} else if url == "http://dummy:8080?watch=true&resourceVersion=1" {
-			return bytes.NewReader(kubernetesStream), nil
-		} else {
-			t.Errorf("Unexpected url called %s", url)
-		}
-		return bytes.NewReader([]byte(`{}`)), nil
+	newKubePolicy, ok := newKubePolicies[0].Object.(v1beta1.NetworkPolicy)
+	if !ok {
+		t.Error("Failed to cast v1beta1.NetworkPolicy")
 	}
 
-	done := make(chan Done)
-	l := &kubeListener{}
-
-	items, in, err := l.watchKubernetesResource("http://dummy:8080", done)
-	if err != nil {
-		t.Errorf("Unexpected error %s", err)
-	}
-
-	if len(items) != 1 {
-		t.Errorf("Received %d items from kubernetes (expect 1)", len(items))
-	}
-
-	if items[0].Metadata.Name != "po9" {
-		t.Errorf("Received policy %s from kubernetes (expect po9)", items[0].Metadata.Name)
-	}
-
-	e := <-in
-	if e.Object.Metadata.Name != "po10" {
-		t.Errorf("Received policy %s from kubernetes (expect p10)", e.Object.Metadata.Name)
+	if newKubePolicy.ObjectMeta.Name != "newPolicy2" {
+		t.Errorf("Wrong kube policy scheduled for creation %s - expected newPolicy2", newKubePolicy.ObjectMeta.Name)
 	}
 }
