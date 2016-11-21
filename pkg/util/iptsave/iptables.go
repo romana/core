@@ -36,13 +36,13 @@ type IPtables struct {
 
 // lastTable returns pointer to the last IPtable in IPtables.
 func (i *IPtables) lastTable() *IPtable {
-	glog.V(1).Info("In lastTable()")
+	glog.V(3).Info("In lastTable()")
 	if len(i.Tables) == 0 {
 		return nil
 	}
 
 	t := i.Tables[len(i.Tables)-1]
-	glog.V(2).Info("In lastTable returning with ", t.Name)
+	glog.V(3).Info("In lastTable returning with ", t.Name)
 	return t
 }
 
@@ -101,7 +101,7 @@ func (it IPtable) RenderFooter() string {
 
 // lastChain returns pointer to the last IPchain in IPtable.
 func (i *IPtable) lastChain() *IPchain {
-	glog.V(1).Info("In lastChain()")
+	glog.V(3).Info("In lastChain()")
 	if len(i.Chains) == 0 {
 		return nil
 	}
@@ -112,7 +112,7 @@ func (i *IPtable) lastChain() *IPchain {
 
 // ChainByName looks for IPchain with corresponding name and returns a pointer to it.
 func (i *IPtable) ChainByName(name string) *IPchain {
-	glog.V(1).Info("In ChainByName()")
+	glog.V(3).Info("In ChainByName()")
 
 	for n, c := range i.Chains {
 		if c.Name == name {
@@ -420,7 +420,7 @@ func MergeTables(dstTable, srcTable *IPtable) []*IPchain {
 				newChainFound = false
 				var newRules []*IPrule
 
-				glog.V(3).Infof("In MergeTables, merging chain %s into table %s", srcChain.Name, dstTable.Name)
+				glog.V(2).Infof("In MergeTables, merging chain %s into table %s", srcChain.Name, dstTable.Name)
 
 				// iptables-restore with --noflush flag works differently with
 				// default builtin chains and user-defined chains.
@@ -439,7 +439,7 @@ func MergeTables(dstTable, srcTable *IPtable) []*IPchain {
 		}
 
 		if newChainFound {
-			glog.V(3).Infof("In MergeTables, adding chain %s into table %s", srcChain.Name, dstTable.Name)
+			glog.V(2).Infof("In MergeTables, adding chain %s into table %s", srcChain.Name, dstTable.Name)
 			newChains = append(newChains, srcTable.Chains[srcChainNum])
 		}
 	}
@@ -480,7 +480,7 @@ func MergeUserChains(dstChain, srcChain *IPchain) []*IPrule {
 	// if rules match then one of them added to the result, otherwise both are.
 	for i := 0; i < maxLen; i++ {
 		if i <= dstLen && i <= srcLen {
-			glog.V(3).Infof("In MergeUserTables, counter=%d, src table len=%d, dst table len=%d", i, srcLen, dstLen)
+			glog.V(2).Infof("In MergeUserTables, counter=%d, src table len=%d, dst table len=%d", i, srcLen, dstLen)
 			if dstChain.Rules[i].String() == srcChain.Rules[i].String() {
 				retRules = append(retRules, dstChain.Rules[i])
 			} else {
