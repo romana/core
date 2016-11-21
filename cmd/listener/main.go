@@ -20,7 +20,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/romana/core/common"
-	"github.com/romana/core/romana/kubernetes"
+	kubernetes "github.com/romana/kube/kubernetes/listener"
 )
 
 func main() {
