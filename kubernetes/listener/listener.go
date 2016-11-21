@@ -114,7 +114,7 @@ func (l *kubeListener) SetConfig(config common.ServiceConfig) error {
 	l.namespaceBufferSize = 1000
 
 	if m["kubernetes_config"] == nil {
-		m["kubernetes_config"] = "/etc/romana/kubeconfig"
+		m["kubernetes_config"] = "/home/ubuntu/.kube/config""
 	}
 
 	// TODO, this loads kubernetes config from flags provided in main
