@@ -402,7 +402,9 @@ func makeUndoRule(rule FirewallRule, tableCurrent, tableDesired *iptsave.IPtable
 		// otherwise assume the call to custom module.
 		targetChain := tableCurrent.ChainByName(ipRule.Action.Body)
 		if targetChain != nil {
-			tableDesired.Chains = append(tableDesired.Chains, &iptsave.IPchain{Name: ipRule.Action.Body, Policy: "-"})
+			if inDesiredStateAlready := tableDesired.ChainByName(ipRule.Action.Body); inDesiredStateAlready == nil {
+				tableDesired.Chains = append(tableDesired.Chains, targetChain)
+			}
 		}
 	}
 }
