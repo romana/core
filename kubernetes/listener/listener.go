@@ -134,7 +134,7 @@ func (l *kubeListener) SetConfig(config common.ServiceConfig) error {
 	PTranslator.Init(l.restClient, l.segmentLabelName)
 	tc := PTranslator.GetClient()
 	if tc == nil {
-		glog.Fatal("DEBUG Translator has nil client after Init")
+		glog.Fatal("Failed to initialize rest client for policy translator.")
 	}
 
 	return nil

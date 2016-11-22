@@ -30,10 +30,10 @@ const (
 
 // Process is a goroutine that consumes resource update events and:
 // 1. On receiving an added or deleted event:
-//    a. If the Object Kind is NetworkPolicy, translates the body (Object of the event)
+//    a. If the Object is NetworkPolicy, translates the body (Object of the event)
 //       to romana policy (common.Policy) using translateNetworkPolicy, and then
 //       calls applyNetworkPolicy with the appropriate action (add or delete)
-//    b. If the Object Kind is Namespace, attempts to add a new Tenant to Romana with that name.
+//    b. If the Object is Namespace, attempts to add a new Tenant to Romana with that name.
 //       Logs an error if not possible.
 // 2. On receiving a done event, exit the goroutine
 func (l *kubeListener) process(in <-chan Event, done chan struct{}) {
@@ -55,14 +55,11 @@ func (l *kubeListener) process(in <-chan Event, done chan struct{}) {
 				glog.V(1).Infof("kubeListener: process(): Got %v", e)
 				switch obj := e.Object.(type) {
 				case *v1beta1.NetworkPolicy:
-					glog.Info("DEBUG processor received network policy")
-					glog.Infof("DEBUG scheduing network policy action, now scheduled %d actions", len(networkPolicyEvents))
+					glog.V(3).Infof("Scheduing network policy action, now scheduled %d actions", len(networkPolicyEvents))
 					networkPolicyEvents = append(networkPolicyEvents, e)
 				case *v1.Namespace:
-					glog.Info("DEBUG processor received namespace")
+					glog.V(3).Info("Processor received namespace")
 					handleNamespaceEvent(e, l)
-//				case "":
-//					glog.V(3).Infof("Processor received an event with empty Object.Kind field, ignoring")
 				default:
 					glog.Errorf("Processor received an event of unkonwn type %s, ignoring object %s", reflect.TypeOf(obj), obj)
 				}

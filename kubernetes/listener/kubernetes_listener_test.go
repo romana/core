@@ -213,7 +213,7 @@ func (s *mockSvc) Routes() common.Routes {
 			}
 			var ret *common.Policy
 			for n, _ := range s.policies {
-				glog.Infof("DEBUG delete policy by id, comparing %d and %d", s.policies[n].ID, id)
+				glog.V(4).Infof("Delete policy by id, comparing %d and %d", s.policies[n].ID, id)
 				if s.policies[n].ID == id {
 					ret = &s.policies[n]
 					s.policies = delete(n, s.policies)

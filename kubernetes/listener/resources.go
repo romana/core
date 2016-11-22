@@ -46,7 +46,6 @@ type Done struct{}
 type Event struct {
 	Type   string     `json:"Type"`
 	Object interface{}
-//	Object KubeObject `json:"object"`
 }
 
 const (
@@ -319,8 +318,6 @@ func (l *kubeListener) watchEvents(done <-chan Done, url string, resp *http.Resp
 func (l *kubeListener) nsWatch(done <-chan struct{}, url string) (chan Event, error) {
 	out := make(chan Event, l.namespaceBufferSize)
 
-	glog.Info("DEBUG in nsWatch with buffer size %d", l.namespaceBufferSize)
-
 	// watcher watches all namespaces.
 	watcher := cache.NewListWatchFromClient(
 		l.kubeClient.CoreClient,
@@ -335,21 +332,18 @@ func (l *kubeListener) nsWatch(done <-chan struct{}, url string) (chan Event, er
 		0,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func (obj interface{}) {
-				glog.Info("DEBUG Namespace informer ADD")
 				out <- Event{
 					Type: KubeEventAdded,
 					Object: obj,
 				}
 			},
 			UpdateFunc: func (old, obj interface{}) {
-				glog.Info("DEBUG Namespace informer update")
 				out <- Event{
 					Type: KubeEventModified,
 					Object: obj,
 				}
 			},
 			DeleteFunc: func (obj interface{}) {
-				glog.Info("DEBUG Namespace informer delete")
 				out <- Event{
 					Type: KubeEventDeleted,
 					Object: obj,
@@ -359,7 +353,6 @@ func (l *kubeListener) nsWatch(done <-chan struct{}, url string) (chan Event, er
 
 	go controller.Run(done)
 
-	glog.Info("DEBUG in nsWatch exiting")
 	return out, nil
 }
 
@@ -419,9 +412,7 @@ func ProduceNewPolicyEvents(out chan Event, done <-chan struct{}, kubeListener *
 		})
 
 	go controller.Run(done)
-	glog.Infof("DEBUG ProduceNewPolicyEvents before sleep")
 	time.Sleep(sleepTime)
-	glog.Infof("DEBUG ProduceNewPolicyEvents after sleep")
 
 	var kubePolicyList []v1beta1.NetworkPolicy
 	for _, kp := range store.List() {
@@ -454,15 +445,6 @@ func ProduceNewPolicyEvents(out chan Event, done <-chan struct{}, kubeListener *
                         glog.Errorf("Sync policies detected obsolete policy %d but failed to delete, %s", oldPolicies[k].ID, err)
                 }
         }
-
-/*
-	for _, obj := range store.List() {
-		np := obj.(*v1beta1.NetworkPolicy)
-		fmt.Printf("%s\n", np.Name, reflect.TypeOf(np))
-	}
-*/
-
-	glog.Infof("DEBUG ProduceNewPolicyEvents exitin")
 }
 
 // httpGet is a wraps http.Get for the purpose of unit testing.
@@ -518,7 +500,6 @@ func (l *kubeListener) syncNetworkPolicies(kubePolicies []v1beta1.NetworkPolicy)
 		found = false
 		for pn, policy := range policies {
 			fullPolicyName := fmt.Sprintf("%s%s", namespacePolicyNamePrefix, kubePolicy.ObjectMeta.Name)
-			glog.Infof("DEBUG %s == %s = %t", fullPolicyName, policy.Name, fullPolicyName == policy.Name)
 			if fullPolicyName == policy.Name {
 				found = true
 				accountedRomanaPolicies[pn] = true
@@ -527,7 +508,6 @@ func (l *kubeListener) syncNetworkPolicies(kubePolicies []v1beta1.NetworkPolicy)
 		}
 
 		if !found {
-			glog.Infof("DEBUG %s not found", kubePolicy.ObjectMeta.Name)
 			glog.V(3).Infof("Sync policies detected new kube policy %v", kubePolicies[kn])
 			kubernetesEvents = append(kubernetesEvents, Event{KubeEventAdded, kubePolicies[kn]})
 		}
@@ -538,7 +518,6 @@ func (l *kubeListener) syncNetworkPolicies(kubePolicies []v1beta1.NetworkPolicy)
 	// Ignore policies that don't have "kube." prefix in the name.
 	for k, _ := range policies {
 		if !strings.HasPrefix(policies[k].Name, "kube.") {
-			glog.Infof("DEBUG Sync policies skipping policy %s since it doesn't match the prefix `kube.`", policies[k].Name)
 			glog.V(4).Infof("Sync policies skipping policy %s since it doesn't match the prefix `kube.`", policies[k].Name)
 			continue
 		}
