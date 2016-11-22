@@ -32,12 +32,12 @@ type PolicyTranslator interface {
 	Init(*common.RestClient, string)
 
 	// Translates kubernetes policy into romana format.
-	Kube2Romana(KubeObject) (common.Policy, error)
+	Kube2Romana(v1beta1.NetworkPolicy) (common.Policy, error)
 
 	// Translates number of kubernetes policies into romana format.
 	// Returns a list of translated policies, list of original policies
 	// that failed to translate and an error.
-	Kube2RomanaBulk([]KubeObject) ([]common.Policy, []v1beta1.NetworkPolicy, error)
+	Kube2RomanaBulk([]v1beta1.NetworkPolicy) ([]common.Policy, []v1beta1.NetworkPolicy, error)
 }
 
 type Translator struct {
@@ -65,7 +65,7 @@ func (t Translator) GetClient() *common.RestClient {
 }
 
 // Kube2Romana reserved for future use.
-func (t Translator) Kube2Romana(kubePolicy KubeObject) (common.Policy, error) {
+func (t Translator) Kube2Romana(kubePolicy v1beta1.NetworkPolicy) (common.Policy, error) {
 	return common.Policy{}, nil
 }
 

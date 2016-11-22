@@ -24,7 +24,6 @@ import (
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
 	"net/http"
-	"strings"
 
 	"k8s.io/client-go/1.5/kubernetes"
 	"k8s.io/client-go/1.5/tools/cache"
@@ -114,7 +113,7 @@ func (l *kubeListener) SetConfig(config common.ServiceConfig) error {
 	l.namespaceBufferSize = 1000
 
 	if m["kubernetes_config"] == nil {
-		m["kubernetes_config"] = "/home/ubuntu/.kube/config""
+		m["kubernetes_config"] = "/home/ubuntu/.kube/config"
 	}
 
 	// TODO, this loads kubernetes config from flags provided in main
@@ -234,78 +233,6 @@ func (l *kubeListener) resolveTenantByName(tenantName string) (*tenant.Tenant, e
 		return t, err
 	}
 	return t, nil
-}
-
-// translateNetworkPolicy translates a Kubernetes policy into
-// Romana policy (see common.Policy) with the following rules:
-// 1. Kubernetes Namespace corresponds to Romana Tenant
-// 2. If Romana Tenant does not exist it is an error (a tenant should
-//    automatically have been created when the namespace was added)
-func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Policy, error) {
-	policyName := kubePolicy.Metadata.Name
-	romanaPolicy := &common.Policy{Direction: common.PolicyDirectionIngress, Name: policyName, ExternalID: kubePolicy.Metadata.Uid}
-	ns := kubePolicy.Metadata.Namespace
-	// TODO actually look up tenant K8S ID.
-	t, err := l.resolveTenantByName(ns)
-	if err != nil {
-		return *romanaPolicy, err
-	}
-	glog.Infof("translateNetworkPolicy(): For namespace %s got %+v / %+v", ns, t, err)
-	tenantID := t.ID
-	tenantExternalID := t.ExternalID
-
-	kubeSegmentID := kubePolicy.Spec.PodSelector.MatchLabels[l.segmentLabelName]
-	if kubeSegmentID == "" {
-		return *romanaPolicy, common.NewError("Expected segment to be specified in podSelector part as '%s'", l.segmentLabelName)
-	}
-
-	segment, err := l.getOrAddSegment(ns, kubeSegmentID)
-	//	log.Printf("XXXX getOrAddSegment %s %s: %+v %v", ns, kubeSegmentID, segment, err)
-	if err != nil {
-		return *romanaPolicy, err
-	}
-	segmentID := segment.ID
-	appliedTo := common.Endpoint{TenantID: tenantID, SegmentID: segmentID}
-	//	log.Printf("XXXX 0 %+v %d %d", appliedTo, tenantID, segmentID)
-	//	log.Printf("XXXX 1 %+v", romanaPolicy.AppliedTo)
-	romanaPolicy.AppliedTo = make([]common.Endpoint, 1)
-	romanaPolicy.AppliedTo[0] = appliedTo
-	//	log.Printf("XXXX 2 %+v %d expecting %+v", romanaPolicy.AppliedTo, len(romanaPolicy.AppliedTo), appliedTo)
-	romanaPolicy.Peers = make([]common.Endpoint, 0)
-	romanaPolicy.Rules = make([]common.Rule, 0)
-	// TODO range
-	// from := kubePolicy.Spec.Ingress[0].From
-	// This is subject to change once the network specification in Kubernetes is finalized.
-	// Right now it is a work in progress.
-	glog.Infof("YYYYY For %s processing %+v", kubePolicy.Metadata.Name, kubePolicy.Spec.Ingress)
-	for _, ingress := range kubePolicy.Spec.Ingress {
-		for _, entry := range ingress.From {
-			pods := entry.Pods
-			fromKubeSegmentID := pods.MatchLabels[l.segmentLabelName]
-			if fromKubeSegmentID == "" {
-				return *romanaPolicy, common.NewError("Expected segment to be specified in podSelector part as '%s'", l.segmentLabelName)
-			}
-			fromSegment, err := l.getOrAddSegment(ns, fromKubeSegmentID)
-			if err != nil {
-				return *romanaPolicy, err
-			}
-			peer := common.Endpoint{TenantID: tenantID, TenantExternalID: tenantExternalID, SegmentID: fromSegment.ID, SegmentExternalID: fromSegment.ExternalID}
-			romanaPolicy.Peers = append(romanaPolicy.Peers, peer)
-		}
-		for _, toPort := range ingress.ToPorts {
-			proto := strings.ToLower(toPort.Protocol)
-			ports := []uint{toPort.Port}
-			rule := common.Rule{Protocol: proto, Ports: ports}
-			romanaPolicy.Rules = append(romanaPolicy.Rules, rule)
-			glog.Infof("YYYYY %+v", romanaPolicy.Rules)
-		}
-	}
-	glog.Infof("translateNetworkPolicy(): Validating %+v", romanaPolicy)
-	err = romanaPolicy.Validate()
-	if err != nil {
-		return *romanaPolicy, err
-	}
-	return *romanaPolicy, nil
 }
 
 func (l *kubeListener) applyNetworkPolicy(action networkPolicyAction, romanaNetworkPolicy common.Policy) error {

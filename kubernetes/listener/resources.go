@@ -22,7 +22,6 @@ import (
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
 	"io"
-	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -38,10 +37,6 @@ const (
 	selector = "podSelector"
 )
 
-// Done is an alias for empty struct, used to make broadcast channels
-// for terminating goroutines.
-type Done struct{}
-
 // Event is a representation of a structure that we receive from kubernetes API.
 type Event struct {
 	Type   string     `json:"Type"`
@@ -52,63 +47,7 @@ const (
 	KubeEventAdded    = "ADDED"
 	KubeEventDeleted  = "DELETED"
 	KubeEventModified = "MODIFIED"
-
-	// Signal used to terminate all goroutines
-	// if connection to k8s API is lost.
-	// Does not carry a valid .Object field.
-	InternalEventDeleteAll = "_DELETE_ALL"
 )
-
-// KubeObject is a representation of object in kubernetes.
-type KubeObject struct {
-	Kind       string            `json:"kind"`
-	Spec       Spec              `json:"spec"`
-	ApiVersion string            `json:"apiVersion"`
-	Metadata   Metadata          `json:"metadata"`
-	Status     map[string]string `json:"status,omitempty"`
-}
-
-// makeId makes id to identify kube object.
-func (o KubeObject) makeId() string {
-	id := o.Metadata.Name + "/" + o.Metadata.Namespace
-	return id
-}
-
-type PodSelector struct {
-	MatchLabels map[string]string `json:"matchLabels"`
-}
-
-type FromEntry struct {
-	Pods PodSelector `json:"podSelector"`
-}
-
-type Ingress struct {
-	From    []FromEntry `json:"from"`
-	ToPorts []ToPort    `json:"ports"`
-}
-
-type ToPort struct {
-	Port     uint   `json:"port"`
-	Protocol string `json:"protocol"`
-}
-
-// TODO need to find a way to use different specs for different resources.
-type Spec struct {
-	Ingress     []Ingress   `json:"ingress"`
-	PodSelector PodSelector `json:"podSelector"`
-}
-
-// Metadata is a representation of metadata in kubernetes object
-type Metadata struct {
-	Name              string            `json:"name"`
-	Namespace         string            `json:"namespace"`
-	SelfLink          string            `json:"selfLink"`
-	Uid               string            `json:"uid"`
-	ResourceVersion   string            `json:"resourceVersion"`
-	CreationTimestamp string            `json:"creationTimestamp"`
-	Labels            map[string]string `json:"labels"`
-	Annotations       map[string]string `json:"annotations,omitempty"`
-}
 
 // handleNetworkPolicyEvents by creating or deleting romana policies.
 func handleNetworkPolicyEvents(events []Event, l *kubeListener) {
@@ -203,16 +142,12 @@ func handleNamespaceEvent(e Event, l *kubeListener) {
 func handleAnnotations(o *v1.Namespace, l *kubeListener) {
 	glog.Infof("In handleAnnotations")
 
-	/*
-	if o.Kind != "Namespace" {
-		glog.Infof("Error handling annotations on a namespace - object is not a namespace %s \n", o.Kind)
-		return
-	}
-	*/
-
+	// We only care about one annotation for now.
 	CreateDefaultPolicy(o, l)
 }
 
+// CreateDefaultPolicy handles isolation flag on a namespace by creating/deleting
+// default network policy.
 func CreateDefaultPolicy(o *v1.Namespace, l *kubeListener) {
 	glog.Infof("In CreateDefaultPolicy for %v\n", o)
 	tenant, err := l.resolveTenantByName(o.ObjectMeta.Name)
@@ -265,54 +200,6 @@ func CreateDefaultPolicy(o *v1.Namespace, l *kubeListener) {
 	}
 }
 
-// watchEvents maintains goroutine fired by NsWatch, restarts it in case HTTP GET times out.
-func (l *kubeListener) watchEvents(done <-chan Done, url string, resp *http.Response, out chan Event) {
-	glog.Infoln("kubeListener.watchEvents(): Received namespace related event from kubernetes")
-
-	// Uncomment and use if needed for debugging.
-	//	buf := new(bytes.Buffer)
-	//	treader := io.TeeReader(resp.Body, buf)
-	//	dec := json.NewDecoder(treader)
-
-	dec := json.NewDecoder(resp.Body)
-	var e Event
-
-	for {
-		select {
-		case <-done:
-			return
-		default:
-			// Flush e to ensure nothing gets carried over
-			e = Event{}
-
-			// Attempting to read event from HTTP connection
-			err := dec.Decode(&e)
-			log.Printf("kubeListener.watchEvents(): Decoded event %v, error %v", e, err)
-			if err != nil {
-				// If fail
-				glog.Infof("Failed to decode message from connection %s due to %s\n. Attempting to re-establish", url, err)
-				// Then stop all goroutines
-				out <- Event{Type: InternalEventDeleteAll}
-
-				// And try to re-establish HTTP connection
-				resp, err2 := http.Get(url)
-				if err2 != nil {
-					glog.Infof("kubeListener.watchEvents(): Failed establish connection %s due to %s\n.", url, err)
-				} else if err2 == nil {
-					//					buf = new(bytes.Buffer)
-					//					treader = io.TeeReader(resp.Body, buf)
-					//					dec = json.NewDecoder(treader)
-					dec = json.NewDecoder(resp.Body)
-				}
-			} else {
-				// Else submit event
-				out <- e
-			}
-		}
-
-	}
-}
-
 // NsWatch is a generator that watches namespace related events in
 // kubernetes API and publishes this events to a channel.
 func (l *kubeListener) nsWatch(done <-chan struct{}, url string) (chan Event, error) {
@@ -359,23 +246,7 @@ func (l *kubeListener) nsWatch(done <-chan struct{}, url string) (chan Event, er
 // ProduceNewPolicyEvents produces kubernetes network policy events that arent applied
 // in romana policy service yet.
 func ProduceNewPolicyEvents(out chan Event, done <-chan struct{}, kubeListener *kubeListener) {
-	// >> loop goroutine start
-	// >> 1. fire up watchKubernetesResource
-	// >> 1.1 if watchKubernetesResource returns error, repeat with incremental delay
-	// >> 2. compare policies returned from watchKubernetesResource
-	// >> with policies registered with romana policy service.
-	// >> see syncNetworkPolicies, pass events received from syncNetworkPolicies
-	// >> into the out channel
-	// >> >> loop select
-	// >> >> 3. if event is received on channel from watchKubernetesResource
-	// >> >> pass it into the out channel
-	// >> >> 4. if channel from watchKubernetesResource is closed, repeat from 1
-	// >> >> 5. if done channel closed then return
-	// << << loop select end
-	// << loop goroutine end
-
 	var sleepTime time.Duration = 1
-//	url := fmt.Sprintf("%s/%s/%s/%s", kubeListener.kubeURL, kubeListener.policyNotificationPathPrefix, kubeListener.policyNotificationPathPostfix)
 	glog.Infof("Listening for kubernetes network policies")
 
 	// watcher watches all network policy.
@@ -436,7 +307,6 @@ func ProduceNewPolicyEvents(out chan Event, done <-chan struct{}, kubeListener *
         policyUrl, err := kubeListener.restClient.GetServiceUrl("policy")
         if err != nil {
                 glog.Errorf("Failed to discover policy url before deleting outdated romana policies")
-                // return nil, err
         }
 
         for k, _ := range oldPolicies {
@@ -530,12 +400,4 @@ func (l *kubeListener) syncNetworkPolicies(kubePolicies []v1beta1.NetworkPolicy)
 	}
 
 	return
-}
-
-// KubernetesResource represents kubernetes response
-// to `GET /resource` request.
-type KubernetesResource struct {
-	Kind     string       `json:"kind"`
-	Metadata Metadata     `json:"metadata"`
-	Items    []KubeObject `json:"items"`
 }
