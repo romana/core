@@ -26,11 +26,11 @@ import (
 	"strings"
 	"time"
 
-	"k8s.io/client-go/1.5/tools/cache"
 	"k8s.io/client-go/1.5/pkg/api"
 	"k8s.io/client-go/1.5/pkg/api/v1"
 	"k8s.io/client-go/1.5/pkg/apis/extensions/v1beta1"
 	"k8s.io/client-go/1.5/pkg/fields"
+	"k8s.io/client-go/1.5/tools/cache"
 )
 
 const (
@@ -39,7 +39,7 @@ const (
 
 // Event is a representation of a structure that we receive from kubernetes API.
 type Event struct {
-	Type   string     `json:"Type"`
+	Type   string `json:"Type"`
 	Object interface{}
 }
 
@@ -218,21 +218,21 @@ func (l *kubeListener) nsWatch(done <-chan struct{}, url string) (chan Event, er
 		&v1.Namespace{},
 		0,
 		cache.ResourceEventHandlerFuncs{
-			AddFunc: func (obj interface{}) {
+			AddFunc: func(obj interface{}) {
 				out <- Event{
-					Type: KubeEventAdded,
+					Type:   KubeEventAdded,
 					Object: obj,
 				}
 			},
-			UpdateFunc: func (old, obj interface{}) {
+			UpdateFunc: func(old, obj interface{}) {
 				out <- Event{
-					Type: KubeEventModified,
+					Type:   KubeEventModified,
 					Object: obj,
 				}
 			},
-			DeleteFunc: func (obj interface{}) {
+			DeleteFunc: func(obj interface{}) {
 				out <- Event{
-					Type: KubeEventDeleted,
+					Type:   KubeEventDeleted,
 					Object: obj,
 				}
 			},
@@ -262,21 +262,21 @@ func ProduceNewPolicyEvents(out chan Event, done <-chan struct{}, kubeListener *
 		&v1beta1.NetworkPolicy{},
 		0,
 		cache.ResourceEventHandlerFuncs{
-			AddFunc: func (obj interface{}) {
+			AddFunc: func(obj interface{}) {
 				out <- Event{
-					Type: KubeEventAdded,
+					Type:   KubeEventAdded,
 					Object: obj,
 				}
 			},
-			UpdateFunc: func (old, obj interface{}) {
+			UpdateFunc: func(old, obj interface{}) {
 				out <- Event{
-					Type: KubeEventModified,
+					Type:   KubeEventModified,
 					Object: obj,
 				}
 			},
-			DeleteFunc: func (obj interface{}) {
+			DeleteFunc: func(obj interface{}) {
 				out <- Event{
-					Type: KubeEventDeleted,
+					Type:   KubeEventDeleted,
 					Object: obj,
 				}
 			},
@@ -295,26 +295,26 @@ func ProduceNewPolicyEvents(out chan Event, done <-chan struct{}, kubeListener *
 		glog.Errorf("Failed to sync romana policies with kube policies, sync failed with %s", err)
 	}
 
-        glog.Infof("Produce policies detected %d new kubernetes policies and %d old romana policies", len(newEvents), len(oldPolicies))
+	glog.Infof("Produce policies detected %d new kubernetes policies and %d old romana policies", len(newEvents), len(oldPolicies))
 
-        // Create new kubernetes policies
-        for en, _ := range newEvents {
-                out <- newEvents[en]
-        }
+	// Create new kubernetes policies
+	for en, _ := range newEvents {
+		out <- newEvents[en]
+	}
 
-        // Delete old romana policies.
-        // TODO find a way to remove policy deletion from this function. Stas.
-        policyUrl, err := kubeListener.restClient.GetServiceUrl("policy")
-        if err != nil {
-                glog.Errorf("Failed to discover policy url before deleting outdated romana policies")
-        }
+	// Delete old romana policies.
+	// TODO find a way to remove policy deletion from this function. Stas.
+	policyUrl, err := kubeListener.restClient.GetServiceUrl("policy")
+	if err != nil {
+		glog.Errorf("Failed to discover policy url before deleting outdated romana policies")
+	}
 
-        for k, _ := range oldPolicies {
-                err = kubeListener.restClient.Delete(fmt.Sprintf("%s/policies/%d", policyUrl, oldPolicies[k].ID), nil, &oldPolicies)
-                if err != nil {
-                        glog.Errorf("Sync policies detected obsolete policy %d but failed to delete, %s", oldPolicies[k].ID, err)
-                }
-        }
+	for k, _ := range oldPolicies {
+		err = kubeListener.restClient.Delete(fmt.Sprintf("%s/policies/%d", policyUrl, oldPolicies[k].ID), nil, &oldPolicies)
+		if err != nil {
+			glog.Errorf("Sync policies detected obsolete policy %d but failed to delete, %s", oldPolicies[k].ID, err)
+		}
+	}
 }
 
 // httpGet is a wraps http.Get for the purpose of unit testing.

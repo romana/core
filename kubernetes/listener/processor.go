@@ -16,9 +16,9 @@
 package kubernetes
 
 import (
+	"github.com/golang/glog"
 	"k8s.io/client-go/1.5/pkg/api/v1"
 	"k8s.io/client-go/1.5/pkg/apis/extensions/v1beta1"
-	"github.com/golang/glog"
 	"reflect"
 	"time"
 )

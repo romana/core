@@ -15,7 +15,6 @@
 
 package kubernetes
 
-
 /* disabled since it tries to mimic kubernets which
    and now we are using k8s.io/client-go which is would
    make us to mimic tooo much of kubernetes to pass the test.
@@ -438,7 +437,7 @@ func (s *mockSvc) Routes() common.Routes {
 			{"Href":"/config/policy","Rel":"policy-config"},
 			{"Href":"/config/kubernetesListener","Rel":"kubernetesListener-config"},
 			{"Href":"SERVICE_URL","Rel":"self"}
-			], 
+			],
 			"Services":
 			[
 			{"Name":"root","Links":[{"Href":"SERVICE_URL","Rel":"service"}]},
@@ -637,7 +636,7 @@ const (
 						    [
 							{
 								"from": [
-										    { "podSelector": { "matchLabels" : 
+										    { "podSelector": { "matchLabels" :
 										    	{"tier":"frontend"}
 										    	}
 											}
@@ -646,10 +645,10 @@ const (
 											{
 												"port":80,
 												"protocol":"TCP"
-											
+
 											}
 											]
-											
+
 							}
 							],
 						"podSelector": {

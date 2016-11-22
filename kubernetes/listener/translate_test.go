@@ -18,9 +18,9 @@ package kubernetes
 import (
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
+	"k8s.io/client-go/1.5/pkg/api/v1"
 	"k8s.io/client-go/1.5/pkg/apis/extensions/v1beta1"
 	"k8s.io/client-go/1.5/pkg/util/intstr"
-	"k8s.io/client-go/1.5/pkg/api/v1"
 	"sync"
 	"testing"
 )
@@ -151,8 +151,7 @@ func TestMakeNextIngressPeer(t *testing.T) {
 		{
 			From: []v1beta1.NetworkPolicyPeer{
 				v1beta1.NetworkPolicyPeer{
-					PodSelector: &v1beta1.LabelSelector{
-					},
+					PodSelector: &v1beta1.LabelSelector{},
 				},
 			},
 			RomanaPolicy: common.Policy{
