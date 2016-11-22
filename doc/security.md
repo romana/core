@@ -98,6 +98,10 @@ When list/find operations may return multiple results, only entities belonging t
  * This also has implications for creating policies -- a tenant may not create purely CIDR-based policy for now (but an Admin or Agent can). 
 
 
+## Flow
+
+This is how it works. Currently, Romana uses [Negroni](https://github.com/urfave/negroni) for its REST services, which allows for chaining of multiple middlewares. This chain is constructed in [InitializeService method](https://godoc.org/github.com/romana/core/common#InitializeService). The Authentication middleware is added [almost at the top of the chain](https://github.com/romana/core/blob/master/common/service.go#L229) - below only the content negotiation module. Authentication middleware will get the roles an authentication token represents and store it in the context. Thereafter the check for permissions will happen in [wrapHandler](https://github.com/paninetworks/core/blob/master/common/middleware.go#L220) method, which can compare the route (that is, the URL pattern) and roles that are allowed access to it with roles that are provided from the authorization backend.
+
 ## Out of scope
 
 For this iteration, we will not provide:
