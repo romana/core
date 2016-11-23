@@ -19,7 +19,9 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/romana/core/common"
+
+	rcommon "github.com/romana/core/common"
+	kcommon "github.com/romana/kube/common"
 	kubernetes "github.com/romana/kube/kubernetes/listener"
 )
 
@@ -32,14 +34,14 @@ func main() {
 	flag.Parse()
 
 	if *version {
-		fmt.Println(common.BuildInfo())
+		fmt.Println(kcommon.BuildInfo())
 		return
 	}
 	if *rootURL == "" {
 		fmt.Println("Must specify rootURL.")
 		return
 	}
-	cred := common.MakeCredentialFromCliArgs(*username, *password)
+	cred := rcommon.MakeCredentialFromCliArgs(*username, *password)
 	svcInfo, err := kubernetes.Run(*rootURL, cred)
 	if err != nil {
 		panic(err)
