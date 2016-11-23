@@ -8,6 +8,9 @@
 	path = vendor/k8s.io/client-go
 	url = https://github.com/kubernetes/client-go
 	branch = release-1.5
+[submodule "vendor/github.com/golang/glog"]
+	path = vendor/github.com/golang/glog
+	url = https://github.com/golang/glog
 [submodule "vendor/github.com/K-Phoen/negotiation"]
 	path = vendor/github.com/K-Phoen/negotiation
 	url = https://github.com/K-Phoen/negotiation
@@ -38,9 +41,15 @@
 [submodule "vendor/github.com/mattn/go-sqlite3"]
 	path = vendor/github.com/mattn/go-sqlite3
 	url = https://github.com/mattn/go-sqlite3
-[submodule "vendor/github.com/pborman/uuid"]
-	path = vendor/github.com/pborman/uuid
-	url = https://github.com/pborman/uuid
 [submodule "vendor/golang.org/x/net"]
 	path = vendor/golang.org/x/net
 	url = https://go.googlesource.com/net
+[submodule "vendor/github.com/pborman/uuid"]
+	path = vendor/github.com/pborman/uuid
+	url = https://github.com/pborman/uuid
+[submodule "vendor/github.com/spf13/cobra"]
+	path = vendor/github.com/spf13/cobra
+	url = https://github.com/spf13/cobra
+[submodule "vendor/github.com/spf13/pflag"]
+	path = vendor/github.com/spf13/pflag
+	url = https://github.com/spf13/pflag
