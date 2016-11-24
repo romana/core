@@ -1,22 +1,18 @@
 {
-  "rules": [
-    {
+  "ingress": [{
+    "rules": [{
       "ports": [
         22
       ],
       "protocol": "TCP"
-    }
-  ],
-  "peers": [
-    {
-      "peer": "host"
-    }
-  ],
-  "applied_to": [
-    {
+    }],
+    "applied_to": [{
       "dest": "local"
-    }
-  ],
+    }]
+  }],
+  "peers": [{
+    "peer": "host"
+  }],
   "name": "pol-ssh-vm",
   "direction": "ingress"
 }

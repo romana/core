@@ -1,19 +1,15 @@
 {
-  "rules": [
-    {
+  "ingress": [{
+    "rules": [{
       "protocol": "ICMP"
-    }
-  ],
-  "peers": [
-    {
+    }],
+    "peers": [{
       "peer": "host"
-    }
-  ],
-  "applied_to": [
-    {
-      "dest": "local"
-    }
-  ],
+    }]
+  }],
+  "applied_to": [{
+    "dest": "local"
+  }],
   "name": "pol-icmp-vm",
   "direction": "ingress"
 }
