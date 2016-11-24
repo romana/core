@@ -203,11 +203,6 @@ func (policy *PolicySvc) augmentPolicy(policyDoc *common.Policy) error {
 	log.Printf("Policy server received datacenter information from topology service: %+v\n", dc)
 	policyDoc.Datacenter = dc
 
-	for i, _ := range policyDoc.Rules {
-		rule := &policyDoc.Rules[i]
-		rule.Protocol = strings.ToUpper(rule.Protocol)
-	}
-
 	for i, _ := range policyDoc.AppliedTo {
 		endpoint := &policyDoc.AppliedTo[i]
 		err = policy.augmentEndpoint(endpoint)
@@ -216,11 +211,18 @@ func (policy *PolicySvc) augmentPolicy(policyDoc *common.Policy) error {
 		}
 	}
 
-	for i, _ := range policyDoc.Peers {
-		endpoint := &policyDoc.Peers[i]
-		err = policy.augmentEndpoint(endpoint)
-		if err != nil {
-			return err
+	for j, _ := range policyDoc.Ingress {
+		for i, _ := range policyDoc.Ingress[j].Rules {
+			rule := &policyDoc.Ingress[j].Rules[i]
+			rule.Protocol = strings.ToUpper(rule.Protocol)
+		}
+
+		for i, _ := range policyDoc.Ingress[j].Peers {
+			endpoint := &policyDoc.Ingress[j].Peers[i]
+			err = policy.augmentEndpoint(endpoint)
+			if err != nil {
+				return err
+			}
 		}
 	}
 	return nil

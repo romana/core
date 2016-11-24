@@ -107,7 +107,11 @@ func TestPolicyValidation(t *testing.T) {
 	}
 
 	// 2. Test no applied to
-	policy := Policy{Rules: rules, Direction: PolicyDirectionEgress}
+	policy := Policy{
+		Ingress: []RomanaIngress{
+			RomanaIngress{Rules : rules},
+		},
+		Direction: PolicyDirectionEgress}
 	err := policy.Validate()
 	if err == nil {
 		t.Error("Unexpected nil")
@@ -115,11 +119,16 @@ func TestPolicyValidation(t *testing.T) {
 	err2 := err.(HttpError)
 	log.Printf("Bad ports/ranges: %v", err2)
 	det := (err2.Details).([]string)
-	expect(t, det[0], "Rule #1: The following ports are invalid: 65536, 100000.")
-	expect(t, det[1], "Rule #2: The following port ranges are invalid: 3-65536, 10-4.")
-	expect(t, det[2], "Required 'applied_to' entry missing.")
+	expect(t, det[1], "Rule #1: The following ports are invalid: 65536, 100000.")
+	expect(t, det[2], "Rule #2: The following port ranges are invalid: 3-65536, 10-4.")
+	expect(t, det[0], "Required 'applied_to' entry missing.")
 
-	policy = Policy{Rules: rules, Direction: PolicyDirectionEgress, AppliedTo: goodAppliedTo}
+	policy = Policy{
+		Ingress: []RomanaIngress{
+			RomanaIngress{Rules: rules},
+		},
+		Direction: PolicyDirectionEgress,
+		AppliedTo: goodAppliedTo}
 	err = policy.Validate()
 	if err == nil {
 		t.Error("Unexpected nil")
@@ -135,7 +144,12 @@ func TestPolicyValidation(t *testing.T) {
 		Rule{},
 		Rule{Protocol: "xxxx"},
 	}
-	policy = Policy{Rules: rules, Direction: "bla", AppliedTo: goodAppliedTo}
+	policy = Policy{
+		Ingress: []RomanaIngress{
+			RomanaIngress{Rules: rules},
+		},
+		Direction: "bla",
+		AppliedTo: goodAppliedTo}
 	err = policy.Validate()
 	if err == nil {
 		t.Error("Unexpected nil")
@@ -153,7 +167,12 @@ func TestPolicyValidation(t *testing.T) {
 		Rule{IcmpType: 1, Protocol: "udp"},
 		Rule{IcmpType: 3, IcmpCode: 33, Protocol: "icmp"},
 	}
-	policy = Policy{Rules: rules, Direction: PolicyDirectionEgress, AppliedTo: goodAppliedTo}
+	policy = Policy{
+		Ingress: []RomanaIngress{
+			RomanaIngress{Rules: rules},
+		},
+		Direction: PolicyDirectionEgress,
+		AppliedTo: goodAppliedTo}
 	err = policy.Validate()
 	if err == nil {
 		t.Error("Unexpected nil")
@@ -173,7 +192,12 @@ func TestPolicyValidation(t *testing.T) {
 		Endpoint{TenantID: uint64(33)},
 		Endpoint{},
 	}
-	policy = Policy{Rules: rules, Direction: PolicyDirectionEgress, AppliedTo: badAppliedTo}
+	policy = Policy{
+		Ingress: []RomanaIngress{
+			RomanaIngress{Rules: rules},
+		},
+		Direction: PolicyDirectionEgress,
+		AppliedTo: badAppliedTo}
 	err = policy.Validate()
 	if err == nil {
 		t.Error("Unexpected nil")
