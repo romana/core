@@ -156,9 +156,12 @@ func TestMakeNextIngressPeer(t *testing.T) {
 			},
 			RomanaPolicy: common.Policy{
 				Name: "TestPolicyWithoutSegment",
+				Ingress: []common.RomanaIngress{
+					common.RomanaIngress{},
+				},
 			},
 			expected: func(p *common.Policy) bool {
-				return p.Peers[0].TenantID == 3
+				return p.Ingress[0].Peers[0].TenantID == 3
 			},
 		}, {
 			From: []v1beta1.NetworkPolicyPeer{
@@ -179,9 +182,12 @@ func TestMakeNextIngressPeer(t *testing.T) {
 			},
 			RomanaPolicy: common.Policy{
 				Name: "TestPolicyWithSegments",
+				Ingress: []common.RomanaIngress{
+					common.RomanaIngress{},
+				},
 			},
 			expected: func(p *common.Policy) bool {
-				return p.Peers[0].TenantID == 3 && p.Peers[0].SegmentID == 2 && p.Peers[1].TenantID == 3 && p.Peers[1].SegmentID == 3
+				return p.Ingress[0].Peers[0].TenantID == 3 && p.Ingress[0].Peers[0].SegmentID == 2 && p.Ingress[0].Peers[1].TenantID == 3 && p.Ingress[0].Peers[1].SegmentID == 3
 			},
 		},
 	}
@@ -243,9 +249,12 @@ func TestMakeNextRule(t *testing.T) {
 			},
 			RomanaPolicy: common.Policy{
 				Name: "TestPolicyWithPorts",
+				Ingress: []common.RomanaIngress{
+					common.RomanaIngress{},
+				},
 			},
 			expected: func(p *common.Policy) bool {
-				return p.Rules[0].Ports[0] == 80 && p.Rules[0].Protocol == "tcp" && p.Rules[1].Ports[0] == 53 && p.Rules[1].Protocol == "udp"
+				return p.Ingress[0].Rules[0].Ports[0] == 80 && p.Ingress[0].Rules[0].Protocol == "tcp" && p.Ingress[0].Rules[1].Ports[0] == 53 && p.Ingress[0].Rules[1].Protocol == "udp"
 			},
 		},
 	}

@@ -399,7 +399,7 @@ func (tg *TranslateGroup) makeNextIngressPeer(translator *Translator) error {
 	for _, fromEntry := range ingress.From {
 		// Empty PodSelector means traffic is allowed from any pod in a namespace.
 		if len(fromEntry.PodSelector.MatchLabels) == 0 {
-			tg.romanaPolicy.Peers = append(tg.romanaPolicy.Peers,
+			tg.romanaPolicy.Ingress[tg.ingressIndex].Peers = append(tg.romanaPolicy.Ingress[tg.ingressIndex].Peers,
 				common.Endpoint{TenantID: tenantCacheEntry.Tenant.ID, TenantExternalID: tenantCacheEntry.Tenant.ExternalID})
 
 			log.Tracef(2, "No segment specified when translating ingress rule %v", tg.kubePolicy.Spec.Ingress[tg.ingressIndex])
@@ -420,7 +420,7 @@ func (tg *TranslateGroup) makeNextIngressPeer(translator *Translator) error {
 			return err
 		}
 
-		tg.romanaPolicy.Peers = append(tg.romanaPolicy.Peers,
+		tg.romanaPolicy.Ingress[tg.ingressIndex].Peers = append(tg.romanaPolicy.Ingress[tg.ingressIndex].Peers,
 			common.Endpoint{TenantID: tenantCacheEntry.Tenant.ID, TenantExternalID: tenantCacheEntry.Tenant.ExternalID, SegmentID: segment.ID})
 
 	}
@@ -435,7 +435,7 @@ func (tg *TranslateGroup) makeNextRule(translator *Translator) error {
 		proto := strings.ToLower(string(*toPort.Protocol))
 		ports := []uint{uint(toPort.Port.IntValue())}
 		rule := common.Rule{Protocol: proto, Ports: ports}
-		tg.romanaPolicy.Rules = append(tg.romanaPolicy.Rules, rule)
+		tg.romanaPolicy.Ingress[tg.ingressIndex].Rules = append(tg.romanaPolicy.Ingress[tg.ingressIndex].Rules, rule)
 	}
 
 	return nil
@@ -448,6 +448,8 @@ func (tg *TranslateGroup) translateNextIngress(translator *Translator) error {
 	if tg.ingressIndex > len(tg.kubePolicy.Spec.Ingress)-1 {
 		return NoMoreIngressEntities{}
 	}
+
+	tg.romanaPolicy.Ingress = append(tg.romanaPolicy.Ingress, common.RomanaIngress{})
 
 	// Translate Ingress.From into romanaPolicy.ToPorts.
 	err := tg.makeNextIngressPeer(translator)
