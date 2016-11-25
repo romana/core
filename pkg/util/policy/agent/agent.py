@@ -521,7 +521,7 @@ def make_rules(addr_scheme, policy_def, policy_id):
             rules[tenant_wide_policy_vector_chain].append(
                 _make_rule(tenant_wide_policy_vector_chain, '-m comment --comment POLICY_CHAIN_HEADER -j RETURN'))
 
-        for ingress_count, ingress in enumerate(policy_defs['ingress']):
+        for ingress_count, ingress in enumerate(policy_def['ingress']):
 
           # Policy chain only hosts match conditions, rules themselves are
           # applied in this auxiliary chain
