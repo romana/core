@@ -170,9 +170,11 @@ class AgentHandler(BaseHTTPRequestHandler):
 
 
         # Validating compatibility across applied_to and peers list.
+
+        #        Target type  |   valid source types for given target type.
         valid = {
-                "full_tenant" : [ "peer_any", "full_tenant", "cidr" ],
-                "only_tenant" : [ "peer_any", "full_tenant", "cidr" ],
+                "full_tenant" : [ "peer_any", "full_tenant", "only_tenant", "cidr" ],
+                "only_tenant" : [ "peer_any", "full_tenant", "only_tenant", "cidr" ],
                 "dest_host"        : [ "peer_local", "peer_any" ],
                 "dest_local"       : [ "peer_host", "peer_any"  ],
                 }
@@ -562,7 +564,7 @@ def make_rules(addr_scheme, policy_def, policy_id):
               elif cidr:
                   jump_rules = [ _make_rule(policy_chain_name, "-s %s -j %s") % (cidr, in_chain_name) ]
   
-              elif not None in [ from_segment, from_tenant ]:
+              elif from_tenant is not None:
                   u32_in_match = _make_u32_match(addr_scheme, from_tenant=from_tenant, from_segment=from_segment)
                   jump_rules = [
                       _make_rule(policy_chain_name, '-m u32 --u32 "%s" -j %s' %
