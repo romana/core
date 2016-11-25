@@ -18,6 +18,7 @@ package cmd
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"text/tabwriter"
 
@@ -241,6 +242,12 @@ func tenantShow(cmd *cli.Command, args []string) error {
 	tenants := []tenantData{}
 	err = client.Get(tenantURL+"/tenants", &data)
 	if err != nil {
+		httpErr, ok := err.(common.HttpError)
+		// A 404 here means that no tenants have been defined, yet. That's not
+		// an error.
+		if ok && httpErr.StatusCode == http.StatusNotFound {
+			fmt.Println("No tenants are currently defined")
+		}
 		return err
 	}
 
@@ -250,7 +257,14 @@ func tenantShow(cmd *cli.Command, args []string) error {
 				seg := []tenant.Segment{}
 				err = client.Get(tenantURL+"/tenants/"+t.ExternalID+"/segments", &seg)
 				if err != nil {
-					return err
+					httpErr, ok := err.(common.HttpError)
+					// A 404 just means that there are no segments defined yet.
+					// That's not an error. That's why we only return an error
+					// here if it's a non-HTTP error or the HTTP status code is
+					// something besides 404.
+					if !ok || httpErr.StatusCode != http.StatusNotFound {
+						return err
+					}
 				}
 				tenants = append(tenants, tenantData{t, seg})
 			}
@@ -274,8 +288,12 @@ func tenantShow(cmd *cli.Command, args []string) error {
 		for _, t := range tenants {
 			fmt.Fprintf(w, "%d \t %s \t %s \t", t.Tenant.ID,
 				t.Tenant.Name, t.Tenant.ExternalID)
-			for _, s := range t.Segments {
-				fmt.Fprintf(w, "%s, ", s.Name)
+			if len(t.Segments) > 0 {
+				for _, s := range t.Segments {
+					fmt.Fprintf(w, "%s, ", s.Name)
+				}
+			} else {
+				fmt.Fprintf(w, "(no segments defined)")
 			}
 			fmt.Fprintf(w, "\n")
 		}
