@@ -60,6 +60,7 @@ type kubeListener struct {
 	policyNotificationPathPrefix  string
 	policyNotificationPathPostfix string
 	segmentLabelName              string
+	tenantLabelName              string
 	lastEventPerNamespace         map[string]uint64
 	namespaceBufferSize           uint64
 
@@ -106,6 +107,11 @@ func (l *kubeListener) SetConfig(config common.ServiceConfig) error {
 	}
 	l.segmentLabelName = m["segment_label_name"].(string)
 
+	if m["tenant_label_name"] == "" {
+		return errors.New("segment_label_name required")
+	}
+	l.tenantLabelName = m["tenant_label_name"].(string)
+
 	// TODO, what is `wait_for_iface_try` and why namespaceBufferSize is set instead ? Stas.
 	if m["wait_for_iface_try"] == nil {
 		l.namespaceBufferSize = 10
@@ -132,7 +138,7 @@ func (l *kubeListener) SetConfig(config common.ServiceConfig) error {
 
 	// TODO, find a better place to initialize
 	// the translator. Stas.
-	PTranslator.Init(l.restClient, l.segmentLabelName)
+	PTranslator.Init(l.restClient, l.segmentLabelName, l.tenantLabelName)
 	tc := PTranslator.GetClient()
 	if tc == nil {
 		log.Critical("Failed to initialize rest client for policy translator.")
