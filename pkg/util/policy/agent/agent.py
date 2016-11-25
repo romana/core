@@ -213,7 +213,6 @@ class AgentHandler(BaseHTTPRequestHandler):
               elif cidr is not None:
                   peer_type = "cidr"
               else:
-                  # supported peer types are local, host and any as in L543-L553
                   raise Exception("Unsupported value of peers %s" % peer)
 
               peer_types.append(peer_type)
@@ -407,9 +406,7 @@ def make_rules(addr_scheme, policy_def, policy_id):
 
     rules = {}
 
-    # We really need a list of chains but using dict here
-    # to avoid extra checks for item in list.
-    policy_chains = {}
+    policy_chains = set()
 
     # Create chain names for each target and stuff them with default rules
     name = policy_def['external_id']
@@ -468,8 +465,7 @@ def make_rules(addr_scheme, policy_def, policy_id):
 
 
         # The name for the new policy's chain(s).
-        policy_chain_name = "ROMANA-P-%s_" % \
-            name
+        policy_chain_name = "ROMANA-P-%s_" % name
 
         # There could be either 1 or 2 jumps.
         # When crating a policy for tenant there will be a jump from ingress chain
@@ -525,16 +521,15 @@ def make_rules(addr_scheme, policy_def, policy_id):
             rules[tenant_wide_policy_vector_chain].append(
                 _make_rule(tenant_wide_policy_vector_chain, '-m comment --comment POLICY_CHAIN_HEADER -j RETURN'))
 
-        ingress_count = 0
-        for ingress in policy_def['ingress']:
-          ingress_count += 1
+        for ingress_count, ingress in enumerate(policy_defs['ingress']):
 
           # Policy chain only hosts match conditions, rules themselves are
           # applied in this auxiliary chain
           in_chain_name  = policy_chain_name[:-1] + "-IN_" + str(ingress_count)
   
           # Chain names are going to be used later to fill in the rules. Store them.
-          policy_chains[in_chain_name] = True
+          policy_chains.add(in_chain_name)
+
   
   
           # Loop over peers and fill top level policy chains with source matching rules
