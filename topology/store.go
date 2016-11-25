@@ -83,6 +83,9 @@ func (topoStore *topoStore) listHosts() ([]common.Host, error) {
 // use the same subnet in process, since subnet is
 // generated based on id as shown in getNetworkFromID.
 func findFirstAvaiableID(arr []uint64) uint64 {
+	if len(arr) == 0 {
+		return 1
+	}
 	for i := 0; i < len(arr)-1; i++ {
 		if arr[i+1]-arr[i] > 1 {
 			return arr[i] + 1
