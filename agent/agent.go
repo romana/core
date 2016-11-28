@@ -17,8 +17,8 @@
 package agent
 
 import (
-	"github.com/golang/glog"
 	"github.com/romana/core/common"
+	log "github.com/romana/rlog"
 )
 
 // Agent provides access to configuration and helper functions, shared across
@@ -54,7 +54,7 @@ type Agent struct {
 
 // SetConfig implements SetConfig function of the Service interface.
 func (a *Agent) SetConfig(config common.ServiceConfig) error {
-	glog.Infoln(config)
+	log.Info(config)
 	a.config = config
 	leaseFileName := config.ServiceSpecific["lease_file"].(string)
 	lf := NewLeaseFile(leaseFileName, a)
@@ -65,7 +65,7 @@ func (a *Agent) SetConfig(config common.ServiceConfig) error {
 
 	a.store = *NewStore(config)
 
-	glog.Infof("Agent.SetConfig() finished.")
+	log.Info("Agent.SetConfig() finished.")
 	return nil
 }
 
@@ -153,7 +153,7 @@ func Run(rootServiceURL string, cred *common.Credential, testMode bool) (*common
 	agent := &Agent{testMode: testMode}
 	helper := NewAgentHelper(agent)
 	agent.Helper = &helper
-	glog.Infof("Agent: Getting configuration from %s", rootServiceURL)
+	log.Infof("Agent: Getting configuration from %s", rootServiceURL)
 
 	config, err := client.GetServiceConfig(agent.Name())
 	if err != nil {
@@ -170,23 +170,23 @@ func (a *Agent) Name() string {
 // Initialize implements the Initialize method of common.Service
 // interface.
 func (a *Agent) Initialize() error {
-	glog.Infof("Entering Agent.Initialize()")
+	log.Info("Entering Agent.Initialize()")
 	err := a.store.Connect()
 	if err != nil {
-		glog.Error("Agent.Initialize() : Failed to connect to database.")
+		log.Error("Agent.Initialize() : Failed to connect to database.")
 		return err
 	}
 
-	glog.Infof("Attempting to identify current host.")
+	log.Info("Attempting to identify current host.")
 	if err := a.identifyCurrentHost(); err != nil {
-		glog.Error("Agent: ", agentError(err))
+		log.Error("Agent: ", agentError(err))
 		return agentError(err)
 	}
 
 	// Ensure we have all the routes to our neighbours
-	glog.Info("Agent: ensuring interhost routes exist")
+	log.Info("Agent: ensuring interhost routes exist")
 	if err := a.Helper.ensureInterHostRoutes(); err != nil {
-		glog.Error("Agent: ", agentError(err))
+		log.Error("Agent: ", agentError(err))
 		return agentError(err)
 	}
 	return nil
@@ -194,7 +194,7 @@ func (a *Agent) Initialize() error {
 
 // CreateSchema creates database schema.
 func CreateSchema(rootServiceUrl string, overwrite bool) error {
-	glog.V(1).Infoln("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
+	log.Infof("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
 	a := &Agent{}
 
 	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootServiceUrl))
