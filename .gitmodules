@@ -82,3 +82,6 @@
 [submodule "vendor/github.com/go-check/check"]
 	path = vendor/github.com/go-check/check
 	url = https://github.com/go-check/check
+[submodule "vendor/github.com/romana/rlog"]
+	path = vendor/github.com/romana/rlog
+	url = https://github.com/romana/rlog
