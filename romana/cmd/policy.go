@@ -471,30 +471,34 @@ func policyListShow(listOnly bool, args []string) error {
 						)
 					}
 				}
-				if len(p.Peers) > 0 {
-					fmt.Fprintln(w, "Peers:")
-					for _, peer := range p.Peers {
-						fmt.Fprintln(w,
-							"\tPeer:\t", peer.Peer, "\n",
-							"\tCidr:\t", peer.Cidr, "\n",
-							"\tTenantID:\t", peer.TenantID, "\n",
-							"\tTenantName:\t", peer.TenantName, "\n",
-							"\tSegmentID:\t", peer.SegmentID, "\n",
-							"\tSegmentName:\t", peer.SegmentName,
-						)
-					}
-				}
-				if len(p.Rules) > 0 {
-					fmt.Fprintln(w, "Rules:")
-					for _, rule := range p.Rules {
-						fmt.Fprintln(w,
-							"\tProtocol:\t", rule.Protocol, "\n",
-							"\tIsStateful:\t", rule.IsStateful, "\n",
-							"\tPorts:\t", rule.Ports, "\n",
-							"\tPortRanges:\t", rule.PortRanges, "\n",
-							"\tIcmpType:\t", rule.IcmpType, "\n",
-							"\tIcmpCode:\t", rule.IcmpCode,
-						)
+				if len(p.Ingress) > 0 {
+					for _, ingress := range p.Ingress {
+						if len(ingress.Peers) > 0 {
+							fmt.Fprintln(w, "Peers:")
+							for _, peer := range ingress.Peers {
+								fmt.Fprintln(w,
+									"\tPeer:\t", peer.Peer, "\n",
+									"\tCidr:\t", peer.Cidr, "\n",
+									"\tTenantID:\t", peer.TenantID, "\n",
+									"\tTenantName:\t", peer.TenantName, "\n",
+									"\tSegmentID:\t", peer.SegmentID, "\n",
+									"\tSegmentName:\t", peer.SegmentName,
+								)
+							}
+						}
+						if len(ingress.Rules) > 0 {
+							fmt.Fprintln(w, "Rules:")
+							for _, rule := range ingress.Rules {
+								fmt.Fprintln(w,
+									"\tProtocol:\t", rule.Protocol, "\n",
+									"\tIsStateful:\t", rule.IsStateful, "\n",
+									"\tPorts:\t", rule.Ports, "\n",
+									"\tPortRanges:\t", rule.PortRanges, "\n",
+									"\tIcmpType:\t", rule.IcmpType, "\n",
+									"\tIcmpCode:\t", rule.IcmpCode,
+								)
+							}
+						}
 					}
 				}
 				fmt.Fprintln(w, "")
