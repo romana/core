@@ -16,7 +16,7 @@
 package kubernetes
 
 import (
-	"github.com/golang/glog"
+	log "github.com/romana/rlog"
 	"time"
 )
 
@@ -34,7 +34,7 @@ const (
 //       Logs an error if not possible.
 // 2. On receiving a done event, exit the goroutine
 func (l *kubeListener) process(in <-chan Event, done chan Done) {
-	glog.Infof("kubeListener: process(): Entered with in %v, done %v", in, done)
+	log.Infof("kubeListener: process(): Entered with in %v, done %v", in, done)
 
 	timer := time.Tick(processorTickTime * time.Second)
 	var networkPolicyEvents []Event
@@ -44,25 +44,25 @@ func (l *kubeListener) process(in <-chan Event, done chan Done) {
 			select {
 			case <-timer:
 				if len(networkPolicyEvents) > 0 {
-					glog.V(1).Infof("Calling network policy handler for scheduled %d events", len(networkPolicyEvents))
+					log.Infof("Calling network policy handler for scheduled %d events", len(networkPolicyEvents))
 					handleNetworkPolicyEvents(networkPolicyEvents, l)
 					networkPolicyEvents = nil
 				}
 			case e := <-in:
-				glog.V(1).Infof("kubeListener: process(): Got %v", e)
+				log.Infof("kubeListener: process(): Got %v", e)
 				switch e.Object.Kind {
 				case "NetworkPolicy":
-					glog.Infof("DEBUG scheduing network policy action, now scheduled %d actions", len(networkPolicyEvents))
+					log.Infof("DEBUG scheduing network policy action, now scheduled %d actions", len(networkPolicyEvents))
 					networkPolicyEvents = append(networkPolicyEvents, e)
 				case "Namespace":
 					e.handleNamespaceEvent(l)
 				case "":
-					glog.V(3).Infof("Processor received an event with empty Object.Kind field, ignoring")
+					log.Tracef(3, "Processor received an event with empty Object.Kind field, ignoring")
 				default:
-					glog.Errorf("Processor received an event with unknown Object.Kind field %s, ignoring", e.Object.Kind)
+					log.Errorf("Processor received an event with unknown Object.Kind field %s, ignoring", e.Object.Kind)
 				}
 			case <-done:
-				glog.Infof("kubeListener: process(): Got done")
+				log.Infof("kubeListener: process(): Got done")
 				return
 			}
 		}

@@ -21,9 +21,9 @@ import (
 	"errors"
 	"fmt"
 	"github.com/go-sql-driver/mysql"
-	"github.com/golang/glog"
 	"github.com/jinzhu/gorm"
 	"github.com/mattn/go-sqlite3"
+	log "github.com/romana/rlog"
 	"net/http"
 	"net/url"
 	"os"
@@ -56,24 +56,24 @@ func DbToHttpError(err error) error {
 	case sqlite3.Error:
 		if err.Code == sqlite3.ErrConstraint {
 			if err.ExtendedCode == sqlite3.ErrConstraintUnique || err.ExtendedCode == sqlite3.ErrConstraintPrimaryKey {
-				glog.V(1).Infof("Error: %s", err)
+				log.Infof("Error: %s", err)
 				return HttpError{StatusCode: http.StatusConflict}
 			}
 		} else if err.Code == sqlite3.ErrCantOpen {
-			glog.V(1).Infof("Cannot open database file.")
+			log.Infof("Cannot open database file.")
 			return NewError500("Database error.")
 		}
-		glog.V(1).Infof("DbToHttpError(): Unknown sqlite3 error: %d|%d|%s", err.Code, err.ExtendedCode, err.Error())
+		log.Infof("DbToHttpError(): Unknown sqlite3 error: %d|%d|%s", err.Code, err.ExtendedCode, err.Error())
 		return err
 	case *mysql.MySQLError:
 		if err.Number == MySQLUniqueConstraintErrorCode {
-			glog.V(1).Infof("Error: %s", err)
+			log.Infof("Error: %s", err)
 			return HttpError{StatusCode: http.StatusConflict}
 		}
-		glog.V(1).Infof("DbToHttpError(): Unknown MySQL error: %d %s", err.Number, err.Message)
+		log.Infof("DbToHttpError(): Unknown MySQL error: %d %s", err.Number, err.Message)
 		return err
 	default:
-		glog.V(1).Infof("DbToHttpError(): Unknown error: [%T] %+v", err, err)
+		log.Infof("DbToHttpError(): Unknown error: [%T] %+v", err, err)
 		return err
 	}
 }
@@ -196,11 +196,11 @@ func (dbStore *DbStore) Find(query url.Values, entities interface{}, flag FindFl
 		if fieldTag == "" {
 			// If there is no tag, then query variable is just the same as
 			// the fieldName...
-			glog.V(1).Infof("No tag for %s", fieldName)
+			log.Infof("No tag for %s", fieldName)
 		} else {
 			jTag := fieldTag.Get("json")
 			if jTag == "" {
-				glog.V(1).Infof("No JSON tag for %s", fieldName)
+				log.Infof("No JSON tag for %s", fieldName)
 			} else {
 				jTagElts := strings.Split(jTag, ",")
 				// This takes care of ",omitempty"
@@ -211,7 +211,7 @@ func (dbStore *DbStore) Find(query url.Values, entities interface{}, flag FindFl
 				}
 			}
 			gormTag := fieldTag.Get("gorm")
-			//			glog.V(1).Infof("Gorm tag for %s: %s (%v)", fieldName, gormTag, fieldTag)
+			//			log.Infof("Gorm tag for %s: %s (%v)", fieldName, gormTag, fieldTag)
 			if gormTag != "" {
 				// See model_struct.go:parseTagSetting
 				gormVals := strings.Split(gormTag, ";")
@@ -232,7 +232,7 @@ func (dbStore *DbStore) Find(query url.Values, entities interface{}, flag FindFl
 				}
 			}
 		}
-		//		glog.V(1).Infof("For %s, query string field %s, struct field %s, DB field %s", t, queryStringField, fieldName, dbField)
+		//		log.Infof("For %s, query string field %s, struct field %s, DB field %s", t, queryStringField, fieldName, dbField)
 		queryStringFieldToDbField[queryStringField] = dbField
 	}
 	whereMap := make(map[string]interface{})
@@ -249,7 +249,7 @@ func (dbStore *DbStore) Find(query url.Values, entities interface{}, flag FindFl
 		whereMap[dbFieldName] = v[0]
 	}
 
-	//	glog.V(1).Infof("Store: Querying with %+v - %T", whereMap, newEntities)
+	//	log.Infof("Store: Querying with %+v - %T", whereMap, newEntities)
 
 	var db *gorm.DB
 
@@ -365,7 +365,7 @@ func (dbStore *DbStore) getConnStrings() []string {
 	switch info.Type {
 	case "sqlite3":
 		connStr = append(connStr, info.Database)
-		glog.V(1).Infof("DB: Connection string: %s", info.Database)
+		log.Infof("DB: Connection string: %s", info.Database)
 	default:
 		portStr := fmt.Sprintf(":%d", info.Port)
 		if info.Port == 0 {
@@ -373,15 +373,15 @@ func (dbStore *DbStore) getConnStrings() []string {
 		}
 		connStr = append(connStr, fmt.Sprintf("%s:%s@tcp(%s%s)/%s?parseTime=true",
 			info.Username, info.Password, info.Host, portStr, info.Database))
-		glog.V(1).Infof("DB: Connection string: ****:****@tcp(%s%s)/%s?parseTime=true",
+		log.Infof("DB: Connection string: ****:****@tcp(%s%s)/%s?parseTime=true",
 			info.Host, portStr, info.Database)
 		connStr = append(connStr, fmt.Sprintf("%s:%s@unix(/var/run/mysqld/mysqld.sock)/%s?parseTime=true",
 			info.Username, info.Password, info.Database))
-		glog.V(1).Infof("DB: Connection string: ****:****@unix(/var/run/mysqld/mysqld.sock))/%s?parseTime=true",
+		log.Infof("DB: Connection string: ****:****@unix(/var/run/mysqld/mysqld.sock))/%s?parseTime=true",
 			info.Database)
 		connStr = append(connStr, fmt.Sprintf("%s:%s@unix(/tmp/mysqld.sock)/%s?parseTime=true",
 			info.Username, info.Password, info.Database))
-		glog.V(1).Infof("DB: Connection string: ****:****@unix(/tmp/mysqld.sock))/%s?parseTime=true",
+		log.Infof("DB: Connection string: ****:****@unix(/tmp/mysqld.sock))/%s?parseTime=true",
 			info.Database)
 	}
 	return connStr
@@ -406,12 +406,12 @@ func (dbStore *DbStore) CreateSchema(force bool) error {
 // createSchemaSqlite3 creates schema for a sqlite3 db
 func createSchemaSqlite3(dbStore *DbStore, force bool) error {
 	schemaName := dbStore.Config.Database
-	glog.V(1).Infof("Entering createSchemaSqlite3() with %s", schemaName)
+	log.Infof("Entering createSchemaSqlite3() with %s", schemaName)
 	var err error
 	if force {
 		finfo, err := os.Stat(schemaName)
 		exist := finfo != nil || os.IsExist(err)
-		glog.V(1).Infof("Before attempting to drop %s, exists: %t, stat: [%v] ... [%v]", schemaName, exist, finfo, err)
+		log.Infof("Before attempting to drop %s, exists: %t, stat: [%v] ... [%v]", schemaName, exist, finfo, err)
 		if exist {
 			err = os.Remove(schemaName)
 			if err != nil {
@@ -425,9 +425,9 @@ func createSchemaSqlite3(dbStore *DbStore, force bool) error {
 	}
 
 	entities := dbStore.ServiceStore.Entities()
-	glog.V(1).Infof("Creating tables for %v", entities)
+	log.Infof("Creating tables for %v", entities)
 	for _, entity := range entities {
-		glog.V(1).Infof("sqlite3: Creating table for %T", entity)
+		log.Infof("sqlite3: Creating table for %T", entity)
 		db := dbStore.Db.CreateTable(entity)
 		if db.Error != nil {
 			return db.Error
@@ -435,7 +435,7 @@ func createSchemaSqlite3(dbStore *DbStore, force bool) error {
 	}
 
 	errs := dbStore.Db.GetErrors()
-	glog.V(1).Infof("sqlite3: Errors: %v", errs)
+	log.Infof("sqlite3: Errors: %v", errs)
 	err2 := MakeMultiError(errs)
 
 	if err2 != nil {
@@ -446,7 +446,7 @@ func createSchemaSqlite3(dbStore *DbStore, force bool) error {
 
 // createSchemaMysql creates schema for a MySQL db
 func createSchemaMysql(dbStore *DbStore, force bool) error {
-	glog.V(1).Infof("in createSchema(%t)", force)
+	log.Infof("in createSchema(%t)", force)
 
 	schemaName := dbStore.Config.Database
 	dbStore.Config.Database = "mysql"

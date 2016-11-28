@@ -22,8 +22,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/golang/glog"
-	"github.com/pborman/uuid"
 	"io/ioutil"
 	"math"
 	"net/http"
@@ -31,6 +29,10 @@ import (
 	"reflect"
 	"strings"
 	"time"
+
+	log "github.com/romana/rlog"
+
+	"github.com/pborman/uuid"
 )
 
 // Rest Client for the Romana services. Incorporates facilities to deal with
@@ -122,13 +124,13 @@ func (rc *RestClient) log(arg interface{}) {
 	rc.logf("%+v", arg)
 }
 
-// logf is same as glog.V(1).Infof but adds a prefix to the line
+// logf is same as log.Infof but adds a prefix to the line
 // with the ID of this RestClient instance and the number
 // of the call.
 func (rc *RestClient) logf(s string, args ...interface{}) {
 	// TODO of course using GetCaller() here is
 	s1 := fmt.Sprintf("RestClient.%p.%d: %s: %s\n", rc, rc.callNum, GetCaller2(2), s)
-	glog.V(1).Infof(s1, args...)
+	log.Infof(s1, args...)
 }
 
 // NewUrl sets the client's new URL (yes, it mutates) to dest.
@@ -428,7 +430,7 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 			} else {
 				reqBodyReader = bytes.NewReader(reqBody)
 				req, err = http.NewRequest(method, rc.url.String(), reqBodyReader)
-				glog.V(1).Infof("RestClient.execMethod(): Calling %s %s with %d bytes\n", method, rc.url.String(), reqBodyReader.Len())
+				log.Infof("RestClient.execMethod(): Calling %s %s with %d bytes\n", method, rc.url.String(), reqBodyReader.Len())
 			}
 			if err != nil {
 				return err

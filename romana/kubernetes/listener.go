@@ -20,11 +20,13 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/golang/glog"
+	"net/http"
+	"os"
+	"strings"
+
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
-	"net/http"
-	"strings"
+	log "github.com/romana/rlog"
 )
 
 type networkPolicyAction int
@@ -109,7 +111,8 @@ func (l *kubeListener) SetConfig(config common.ServiceConfig) error {
 	PTranslator.Init(l.restClient, l.segmentLabelName)
 	tc := PTranslator.GetClient()
 	if tc == nil {
-		glog.Fatal("DEBUG Translator has nil client after Init")
+		log.Critical("DEBUG Translator has nil client after Init")
+		os.Exit(255)
 	}
 
 	return nil
@@ -225,7 +228,7 @@ func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Po
 	if err != nil {
 		return *romanaPolicy, err
 	}
-	glog.Infof("translateNetworkPolicy(): For namespace %s got %+v / %+v", ns, t, err)
+	log.Infof("translateNetworkPolicy(): For namespace %s got %+v / %+v", ns, t, err)
 	tenantID := t.ID
 	tenantExternalID := t.ExternalID
 
@@ -252,7 +255,7 @@ func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Po
 	// from := kubePolicy.Spec.Ingress[0].From
 	// This is subject to change once the network specification in Kubernetes is finalized.
 	// Right now it is a work in progress.
-	glog.Infof("YYYYY For %s processing %+v", kubePolicy.Metadata.Name, kubePolicy.Spec.Ingress)
+	log.Infof("YYYYY For %s processing %+v", kubePolicy.Metadata.Name, kubePolicy.Spec.Ingress)
 	for _, ingress := range kubePolicy.Spec.Ingress {
 		for _, entry := range ingress.From {
 			pods := entry.Pods
@@ -272,10 +275,10 @@ func (l *kubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Po
 			ports := []uint{toPort.Port}
 			rule := common.Rule{Protocol: proto, Ports: ports}
 			romanaPolicy.Rules = append(romanaPolicy.Rules, rule)
-			glog.Infof("YYYYY %+v", romanaPolicy.Rules)
+			log.Infof("YYYYY %+v", romanaPolicy.Rules)
 		}
 	}
-	glog.Infof("translateNetworkPolicy(): Validating %+v", romanaPolicy)
+	log.Infof("translateNetworkPolicy(): Validating %+v", romanaPolicy)
 	err = romanaPolicy.Validate()
 	if err != nil {
 		return *romanaPolicy, err
@@ -292,13 +295,13 @@ func (l *kubeListener) applyNetworkPolicy(action networkPolicyAction, romanaNetw
 	policyStr, _ := json.Marshal(romanaNetworkPolicy)
 	switch action {
 	case networkPolicyActionAdd:
-		glog.Infof("Applying policy %s", policyStr)
+		log.Infof("Applying policy %s", policyStr)
 		err := l.restClient.Post(policyURL, romanaNetworkPolicy, &romanaNetworkPolicy)
 		if err != nil {
 			return err
 		}
 	case networkPolicyActionDelete:
-		glog.Infof("Deleting policy policy %s", policyStr)
+		log.Infof("Deleting policy policy %s", policyStr)
 		err := l.restClient.Delete(policyURL, romanaNetworkPolicy, &romanaNetworkPolicy)
 		if err != nil {
 			return err
@@ -311,22 +314,23 @@ func (l *kubeListener) applyNetworkPolicy(action networkPolicyAction, romanaNetw
 
 func (l *kubeListener) Initialize() error {
 	l.lastEventPerNamespace = make(map[string]uint64)
-	glog.Infof("%s: Starting server", l.Name())
+	log.Infof("%s: Starting server", l.Name())
 	nsURL, err := common.CleanURL(fmt.Sprintf("%s/%s/?%s", l.kubeURL, l.namespaceNotificationPath, HttpGetParamWatch))
 	if err != nil {
 		return err
 	}
-	glog.Infof("Starting to listen on %s", nsURL)
+	log.Infof("Starting to listen on %s", nsURL)
 	done := make(chan Done)
 	nsEvents, err := l.nsWatch(done, nsURL)
 	if err != nil {
-		glog.Fatal("Namespace watcher failed to start", err)
+		log.Critical("Namespace watcher failed to start", err)
+		os.Exit(255)
 	}
 
 	events := l.conductor(nsEvents, done)
 	l.process(events, done)
 
-	glog.Infoln("All routines started")
+	log.Info("All routines started")
 	return nil
 }
 
