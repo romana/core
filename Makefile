@@ -26,6 +26,10 @@ all: install fmt test lint vet
 
 test:
 	go list -f '{{.ImportPath}}' "./..." | \
+		grep -v /vendor/ | xargs go test -timeout=30s -cover
+
+testv:
+	go list -f '{{.ImportPath}}' "./..." | \
 		grep -v /vendor/ | xargs go test -v -timeout=30s -cover
 
 vet:
@@ -71,4 +75,4 @@ swagger:
 	echo Latest doc uploaded to http://swagger.romana.io.s3-website-us-west-1.amazonaws.com/romana/index.html
 	rm -rf $(swagger_dir_tmp)
 
-.PHONY: test vet lint all install clean fmt upx
+.PHONY: test vet lint all install clean fmt upx testv
