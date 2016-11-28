@@ -316,7 +316,7 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 //    because the Handler used will be the n Negroni object.
 func RunNegroni(n *negroni.Negroni, addr string, timeout time.Duration) (*RestServiceInfo, error) {
 	svr := &http.Server{Addr: addr, ReadTimeout: timeout, WriteTimeout: timeout}
-	l := clog.New(os.Stdout, "[negroni] ", 0)
+	l := clog.New(os.Stderr, "[negroni] ", 0)
 	svr.Handler = n
 	svr.ErrorLog = l
 	log.Infof("Calling ListenAndServe(%p)", svr)
@@ -360,7 +360,7 @@ func ListenAndServe(svr *http.Server) (*RestServiceInfo, error) {
 	channel := make(chan ServiceMessage)
 	l := svr.ErrorLog
 	if l == nil {
-		l = clog.New(os.Stdout, "[negroni] ", 0)
+		l = clog.New(os.Stderr, "[negroni] ", 0)
 	}
 	go func() {
 		channel <- Starting
