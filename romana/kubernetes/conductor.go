@@ -16,19 +16,19 @@
 package kubernetes
 
 import (
-	"github.com/golang/glog"
+	log "github.com/romana/rlog"
 )
 
 // manageResources manages map of termination channels and fires up new
 // per-namespace goroutines when needed.
 func (l *kubeListener) manageResources(ns Event, terminators map[string]chan Done, out chan Event) {
 	uid := ns.Object.Metadata.Uid
-	glog.Infof("kubeListener: manageResources(): Received event %s", ns.Type)
+	log.Infof("kubeListener: manageResources(): Received event %s", ns.Type)
 	if ns.Type == KubeEventAdded {
-		glog.Infof("kubeListener: manageResources(): ADDED event for %s (%s)", uid, ns.Object.Metadata.Name)
+		log.Infof("kubeListener: manageResources(): ADDED event for %s (%s)", uid, ns.Object.Metadata.Name)
 
 		if _, ok := terminators[uid]; ok {
-			glog.Infoln("kubeListener: manageResources(): Received ADDED event for uid %s that is already known, ignoring ", uid)
+			log.Info("kubeListener: manageResources(): Received ADDED event for uid %s that is already known, ignoring ", uid)
 			return
 		}
 		done := make(chan Done)
@@ -37,10 +37,10 @@ func (l *kubeListener) manageResources(ns Event, terminators map[string]chan Don
 		go ProduceNewPolicyEvents(out, terminators[uid], ns.Object.Metadata.Name, l)
 	} else if ns.Type == KubeEventDeleted {
 		if _, ok := terminators[uid]; !ok {
-			glog.Infoln("kubeListener: manageResources(): Received DELETED event for uid %s that is not known, ignoring ", uid)
+			log.Info("kubeListener: manageResources(): Received DELETED event for uid %s that is not known, ignoring ", uid)
 			return
 		}
-		glog.Infof("kubeListener: manageResources(): DELETED event for %s", uid)
+		log.Infof("kubeListener: manageResources(): DELETED event for %s", uid)
 
 		// Send shutdown signal to the goroutine that handles given namespace.
 		close(terminators[uid])
@@ -60,7 +60,7 @@ func (l *kubeListener) manageResources(ns Event, terminators map[string]chan Don
 			delete(l.lastEventPerNamespace, uid)
 		}
 	} else {
-		glog.Infof("kubeListener: manageResources(): Unknown event.")
+		log.Infof("kubeListener: manageResources(): Unknown event.")
 	}
 }
 
@@ -76,18 +76,18 @@ func (l *kubeListener) conductor(in <-chan Event, done <-chan Done) <-chan Event
 
 	ns := Event{}
 	out := make(chan Event, l.namespaceBufferSize)
-	glog.Infof("kubeListener: conductor(): entered with in: %v, done: %v", in, done)
+	log.Infof("kubeListener: conductor(): entered with in: %v, done: %v", in, done)
 	go func() {
 		for {
 			select {
 			case ns = <-in:
-				glog.Infof("kubeListener: conductor(): calling manageResources")
+				log.Infof("kubeListener: conductor(): calling manageResources")
 				l.manageResources(ns, terminators, out)
 				// ADDED, DELETED events for namespace handled here
-				glog.Infof("kubeListener: conductor(): calling handle on %+v", ns)
+				log.Infof("kubeListener: conductor(): calling handle on %+v", ns)
 				ns.handleNamespaceEvent(l)
 			case <-done:
-				glog.Infof("kubeListener: conductor(): got done on %v", done)
+				log.Infof("kubeListener: conductor(): got done on %v", done)
 				return
 			}
 		}

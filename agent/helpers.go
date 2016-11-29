@@ -21,7 +21,6 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/golang/glog"
 	"io"
 	"net"
 	"os"
@@ -33,6 +32,7 @@ import (
 
 	utilexec "github.com/romana/core/pkg/util/exec"
 	utilos "github.com/romana/core/pkg/util/os"
+	log "github.com/romana/rlog"
 )
 
 // NewAgentHelper returns Helper with initialized default implementations
@@ -103,7 +103,7 @@ func (h Helper) isRouteExist(ip net.IP, netmask string) error {
 
 // createRoute creates IP route, returns nil if success and error otherwise.
 func (h Helper) createRoute(ip net.IP, netmask string, via string, dest string, extraArgs ...string) error {
-	glog.Info("Helper: creating route")
+	log.Info("Helper: creating route")
 	cmd := "/sbin/ip"
 	targetIP := fmt.Sprintf("%s/%v", ip, netmask)
 	args := []string{"ro", "add", targetIP, via, dest}
@@ -118,14 +118,14 @@ func (h Helper) createRoute(ip net.IP, netmask string, via string, dest string, 
 // Error if failed, nil if success.
 func (h Helper) ensureRouteToEndpoint(netif *NetIf) error {
 	mask := fmt.Sprintf("%d", h.Agent.networkConfig.EndpointNetmaskSize())
-	glog.V(1).Infoln("Ensuring routes for ", netif.IP, " ", netif.Name)
-	glog.V(1).Info("Acquiring mutex ensureRouteToEndpoint")
+	log.Info("Ensuring routes for ", netif.IP, " ", netif.Name)
+	log.Info("Acquiring mutex ensureRouteToEndpoint")
 	h.ensureRouteToEndpointMutex.Lock()
 	defer func() {
-		glog.V(1).Info("Releasing mutex ensureRouteToEndpoint")
+		log.Info("Releasing mutex ensureRouteToEndpoint")
 		h.ensureRouteToEndpointMutex.Unlock()
 	}()
-	glog.V(1).Info("Acquired mutex ensureRouteToEndpoint")
+	log.Info("Acquired mutex ensureRouteToEndpoint")
 	// If route not exist
 	if err := h.isRouteExist(netif.IP.IP, mask); err != nil {
 
@@ -238,13 +238,13 @@ func (h Helper) ensureLine(path string, token string, op leaseOp) error {
 	}
 
 	// wait until no one using the file
-	glog.V(1).Info("Acquiring mutex ensureLine")
+	log.Info("Acquiring mutex ensureLine")
 	h.ensureLineMutex.Lock()
 	defer func() {
-		glog.V(1).Info("Releasing mutex ensureLine")
+		log.Info("Releasing mutex ensureLine")
 		h.ensureLineMutex.Unlock()
 	}()
-	glog.V(1).Info("Acquired mutex ensureLine")
+	log.Info("Acquired mutex ensureLine")
 	lineInFile, err := h.isLineInFile(path, token)
 	if err != nil {
 		return ensureLineError(err)
@@ -273,18 +273,18 @@ func (h Helper) ensureLine(path string, token string, op leaseOp) error {
 
 // ensureInterHostRoutes ensures we have routes to every other host.
 func (h Helper) ensureInterHostRoutes() error {
-	glog.V(1).Info("Acquiring mutex ensureInterhostRoutes")
+	log.Info("Acquiring mutex ensureInterhostRoutes")
 	h.ensureInterHostRoutesMutex.Lock()
 	defer func() {
-		glog.V(1).Info("Releasing mutex ensureInterhostRoutes")
+		log.Info("Releasing mutex ensureInterhostRoutes")
 		h.ensureInterHostRoutesMutex.Unlock()
 	}()
-	glog.V(1).Info("Acquired mutex ensureInterhostRoutes")
+	log.Info("Acquired mutex ensureInterhostRoutes")
 
 	via := "via"
-	glog.V(1).Infof("In ensureInterHostRoutes over %v\n", h.Agent.networkConfig.otherHosts)
+	log.Infof("In ensureInterHostRoutes over %v\n", h.Agent.networkConfig.otherHosts)
 	for _, host := range h.Agent.networkConfig.otherHosts {
-		glog.V(2).Infof("In ensureInterHostRoutes ensuring route for %v\n", host)
+		log.Tracef(2, "In ensureInterHostRoutes ensuring route for %v\n", host)
 		_, romanaCidr, err := net.ParseCIDR(host.RomanaIp)
 		if err != nil {
 			return failedToParseOtherHosts(host.RomanaIp)
@@ -310,11 +310,11 @@ func (h Helper) ensureInterHostRoutes() error {
 // waitForIface waits for network interface to become available in the system.
 func (h Helper) waitForIface(expectedIface string) bool {
 	for i := 0; i <= h.Agent.waitForIfaceTry; i++ {
-		glog.Infof("Helper: Waiting for interface %s, %d attempt", expectedIface, i)
+		log.Infof("Helper: Waiting for interface %s, %d attempt", expectedIface, i)
 		ifaceList, err := net.Interfaces()
-		glog.V(1).Info("Agent: Entering podUpHandlerAsync()")
+		log.Info("Agent: Entering podUpHandlerAsync()")
 		if err != nil {
-			glog.Warningln("Warning:Helper: failed to read net.Interfaces()")
+			log.Warn("Warning:Helper: failed to read net.Interfaces()")
 		}
 		for iface := range ifaceList {
 			if ifaceList[iface].Name == expectedIface {

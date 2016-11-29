@@ -19,20 +19,18 @@ import (
 	"bufio"
 	"database/sql"
 	"errors"
-	"flag"
 	"fmt"
-	"github.com/golang/glog"
-	"github.com/pborman/uuid"
-	"strconv"
-
 	"io/ioutil"
-	"log"
 	"os"
 	"reflect"
 	"runtime/debug"
 	"strings"
 	"sync"
 	"sync/atomic"
+
+	log "github.com/romana/rlog"
+
+	"github.com/pborman/uuid"
 )
 
 const (
@@ -73,16 +71,16 @@ type RomanaTestSuite struct {
 // 2. Replacing all database instance names with the result of GetMockDbName
 //    and write it out to /tmp/romana.yaml
 func (rts *RomanaTestSuite) MockConfig(romanaConfigFile string) error {
-	glog.V(1).Infof("MockConfig():")
+	log.Infof("MockConfig():")
 	overrideConfigFile := os.ExpandEnv("${ROMANA_CONFIG_FILE}")
 	if overrideConfigFile != "" {
-		glog.V(1).Infof("\tOverriding %s with value of ROMANA_CONFIG_FILE: %s", romanaConfigFile, overrideConfigFile)
+		log.Infof("\tOverriding %s with value of ROMANA_CONFIG_FILE: %s", romanaConfigFile, overrideConfigFile)
 		romanaConfigFile = overrideConfigFile
 	}
-	glog.V(1).Infof("\tWill use config file %s", romanaConfigFile)
+	log.Infof("\tWill use config file %s", romanaConfigFile)
 	var err error
 	location := GetCaller()
-	glog.V(1).Infof("\tCalled from %s", location)
+	log.Infof("\tCalled from %s", location)
 	config, err := ReadConfig(romanaConfigFile)
 	if err != nil {
 		return err
@@ -91,7 +89,7 @@ func (rts *RomanaTestSuite) MockConfig(romanaConfigFile string) error {
 
 	for _, svc := range services {
 		svcConfig := config.Services[svc]
-		glog.V(1).Infof("\tMocking for service %s:", svc)
+		log.Infof("\tMocking for service %s:", svc)
 		svcConfig.Common.Api.Port = 0
 		if svc != "root" {
 			storeConfig := svcConfig.ServiceSpecific["store"].(map[string]interface{})
@@ -103,14 +101,14 @@ func (rts *RomanaTestSuite) MockConfig(romanaConfigFile string) error {
 				// TODO add this to RomanaTestSuite list of resources to destroy
 				storeConfig["database"] = GetMockDbName(svc)
 			}
-			glog.V(1).Infof("\t\tDB config: %v", storeConfig["database"])
+			log.Infof("\t\tDB config: %v", storeConfig["database"])
 		}
 	}
 
 	outFile := fmt.Sprintf("/tmp/romana_%s.yaml", getUniqueMockNameComponent())
 	err = WriteConfig(config, outFile)
 	if err != nil {
-		glog.V(1).Infof("\tRead %s, trying to write %s: %v", romanaConfigFile, outFile, err)
+		log.Infof("\tRead %s, trying to write %s: %v", romanaConfigFile, outFile, err)
 		return err
 	}
 	wrote, _ := ioutil.ReadFile(outFile)
@@ -119,18 +117,18 @@ func (rts *RomanaTestSuite) MockConfig(romanaConfigFile string) error {
 		return err
 	}
 	rts.ConfigFile = outFile
-	glog.V(1).Infof("\tRead %s, wrote to %s:\n%s\n------------------------", romanaConfigFile, outFile, string(wrote))
+	log.Infof("\tRead %s, wrote to %s:\n%s\n------------------------", romanaConfigFile, outFile, string(wrote))
 	return nil
 }
 
 func (rts *RomanaTestSuite) CleanUp() {
-	glog.V(1).Infof("CleanUp(): Cleaning up the following temporary files: %v", rts.tmpFiles)
+	log.Infof("CleanUp(): Cleaning up the following temporary files: %v", rts.tmpFiles)
 	for _, f := range rts.tmpFiles {
 		err := os.Remove(f)
 		if err == nil {
-			glog.V(1).Infof("CleanUp(): Removed %s.", f)
+			log.Infof("CleanUp(): Removed %s.", f)
 		} else {
-			glog.V(1).Infof("CleanUp(): Failed removing %s: %v", f, err)
+			log.Infof("CleanUp(): Failed removing %s: %v", f, err)
 		}
 	}
 }
@@ -164,38 +162,8 @@ func IsZeroValue(val interface{}) bool {
 		return valVal.Len() == 0
 	}
 	zeroVal := reflect.Zero(valType).Interface()
-	//	glog.V(1).Infof("Zero value of %+v (type %T, kind %s) is %+v", val, val, valKind, zeroVal)
+	log.Tracef(5, "Zero value of %+v (type %T, kind %s) is %+v", val, val, valKind, zeroVal)
 	return val == zeroVal
-}
-
-// glogWriter implements io.Writer
-type glogWriter struct {
-	severity glog.Level
-}
-
-func (g *glogWriter) Write(p []byte) (n int, err error) {
-	glog.V(g.severity).Info(string(p))
-	return len(p), nil
-}
-
-// NewGlogAdapter returns a Logger that is actually using glog
-// underneath, to satisfy http.Server. It uses the command-line
-// value of -v from glog's CLI arguments. If not sets, it uses
-// the default value. If it cannot be parsed, defaults to 0.
-// It is assumed this is called after flag.Parse().
-func NewGlogAdapter() *log.Logger {
-	vFlag := flag.Lookup("v")
-	var severity uint64
-	if vFlag != nil {
-		vFlagStr := vFlag.DefValue
-		if vFlag.Value != nil {
-			vFlagStr = vFlag.Value.String()
-		}
-		severity, _ = strconv.ParseUint(vFlagStr, 10, 32)
-	}
-	out := glogWriter{severity: glog.Level(severity)}
-	l := log.New(&out, "", 0)
-	return l
 }
 
 // CleanURL is similar to path.Clean() but to work on URLs

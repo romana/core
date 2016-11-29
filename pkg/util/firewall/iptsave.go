@@ -20,9 +20,9 @@ package firewall
 import (
 	"bytes"
 	"fmt"
-	"github.com/golang/glog"
 	utilexec "github.com/romana/core/pkg/util/exec"
 	"github.com/romana/core/pkg/util/iptsave"
+	log "github.com/romana/rlog"
 )
 
 const (
@@ -49,7 +49,7 @@ type IPTsaveFirewall struct {
 
 // Init implements Firewall interface
 func (i *IPTsaveFirewall) Init(exec utilexec.Executable, store FirewallStore, nc NetConfig) error {
-	glog.V(1).Infof("In Init()")
+	log.Infof("In Init()")
 
 	fwstore := firewallStore{}
 	fwstore.DbStore = store.GetDb()
@@ -62,7 +62,7 @@ func (i *IPTsaveFirewall) Init(exec utilexec.Executable, store FirewallStore, nc
 	// Read current iptables config.
 	output, err := i.os.Exec(iptablesSaveBin, []string{})
 	if err != nil {
-		glog.V(1).Infof("In Init(), failed to call iptables-save, %s", err)
+		log.Infof("In Init(), failed to call iptables-save, %s", err)
 		return err
 	}
 
@@ -73,7 +73,7 @@ func (i *IPTsaveFirewall) Init(exec utilexec.Executable, store FirewallStore, nc
 	// Inirialize desired state filter table.
 	i.DesiredState = &iptsave.IPtables{}
 	i.DesiredState.Tables = append(i.DesiredState.Tables, &iptsave.IPtable{Name: "filter"})
-	glog.V(4).Infof("In Init(), iptables rules loaded\n, %s", i.CurrentState.Render())
+	log.Tracef(4, "In Init(), iptables rules loaded\n, %s", i.CurrentState.Render())
 
 	return nil
 }
@@ -81,7 +81,7 @@ func (i *IPTsaveFirewall) Init(exec utilexec.Executable, store FirewallStore, nc
 // SetEndpoint implements Firewall interface. It initializes
 // endpoint dependend values of firewall.
 func (i *IPTsaveFirewall) SetEndpoint(netif FirewallEndpoint) error {
-	glog.Infof("In SetEndpoint() with endpoint <iface=%s, ip=%s, mac=%s>", netif.GetName(), netif.GetIP(), netif.GetMac())
+	log.Infof("In SetEndpoint() with endpoint <iface=%s, ip=%s, mac=%s>", netif.GetName(), netif.GetIP(), netif.GetMac())
 
 	var err error
 	i.interfaceName = netif.GetName()
@@ -94,7 +94,7 @@ func (i *IPTsaveFirewall) SetEndpoint(netif FirewallEndpoint) error {
 	// Assemble firewall rules needed to divert traffic
 	// to/from the endpoint.
 	divertFilter := makeDivertRules(netif)
-	glog.V(3).Infof("In SetEndpoint() after divertFilter with\n%s", divertFilter.RenderFooter())
+	log.Tracef(3, "In SetEndpoint() after divertFilter with\n%s", divertFilter.RenderFooter())
 
 	// compare list of divert rules and list of current rules
 	// make a list of chains filled with divert rules that need
@@ -106,7 +106,7 @@ func (i *IPTsaveFirewall) SetEndpoint(netif FirewallEndpoint) error {
 	newFilter := i.DesiredState.TableByName("filter")
 	newFilter.Chains = append(newFilter.Chains, newChains...)
 
-	glog.V(4).Infof("In SetEndpoint after merge\n%s", i.CurrentState.Render())
+	log.Tracef(4, "In SetEndpoint after merge\n%s", i.CurrentState.Render())
 
 	return err
 }
@@ -114,7 +114,7 @@ func (i *IPTsaveFirewall) SetEndpoint(netif FirewallEndpoint) error {
 // EnsureRule implements Firewall interface. It schedules given rule for
 // transition in given state and stores it in firewall store.
 func (i *IPTsaveFirewall) EnsureRule(rule FirewallRule, opType RuleState) error {
-	glog.Infof("In EnsureRule() with firewall rule %s %s", opType.String(), rule.GetBody())
+	log.Infof("In EnsureRule() with firewall rule %s %s", opType.String(), rule.GetBody())
 
 	var ruleExists bool
 
@@ -150,20 +150,20 @@ func (i *IPTsaveFirewall) EnsureRule(rule FirewallRule, opType RuleState) error 
 	if ruleExists {
 		switch opType {
 		case EnsureAbsent:
-			glog.Infof("In EnsureRule - rule %s exists in current state, removing", rule.GetBody())
+			log.Infof("In EnsureRule - rule %s exists in current state, removing", rule.GetBody())
 			chain.DeleteRule(ipRule)
 		default:
-			glog.Infof("In EnsureRule - nothing to do %s", rule.GetBody())
+			log.Infof("In EnsureRule - nothing to do %s", rule.GetBody())
 		}
 	} else {
-		glog.Infof("In EnsureRule - rule %s doesn't exist is current state, %s", rule.GetBody(), opType.String())
+		log.Infof("In EnsureRule - rule %s doesn't exist is current state, %s", rule.GetBody(), opType.String())
 		switch opType {
 		case EnsureLast:
 			chain.AppendRule(ipRule)
 		case EnsureFirst:
 			chain.InsertRule(0, ipRule)
 		default:
-			glog.Infof("In EnsureRule - nothing to do %s", rule.GetBody())
+			log.Infof("In EnsureRule - nothing to do %s", rule.GetBody())
 		}
 	}
 
@@ -224,13 +224,13 @@ func (i *IPTsaveFirewall) Cleanup(netif FirewallEndpoint) error {
 		return err
 	}
 
-	glog.V(4).Infof("In Cleanup \n%s", i.DesiredState.Render())
+	log.Tracef(4, "In Cleanup \n%s", i.DesiredState.Render())
 	return nil
 }
 
 // ProvisionEndpoint implements Firewall interface.
 func (i *IPTsaveFirewall) ProvisionEndpoint() error {
-	glog.V(4).Infof("In ProvisionEndpoint\n%s", i.DesiredState.Render())
+	log.Tracef(4, "In ProvisionEndpoint\n%s", i.DesiredState.Render())
 
 	// Generate a list of rules for firewall store.
 	ruleList, err := makeDbRules(i.DesiredState)
@@ -265,10 +265,10 @@ func (i IPTsaveFirewall) createNewDbRules(ruleList []*IPtablesRule) error {
 
 	for ruleNum, _ := range ruleList {
 		rule := ruleList[ruleNum]
-		glog.V(3).Infof("In createNewDbRules() storing rule %p", rule)
+		log.Tracef(3, "In createNewDbRules() storing rule %p", rule)
 		err0 := i.Store.ensureIPtablesRule(rule)
 		if err0 != nil {
-			glog.Errorf("In createNewDbRules() failed to store rule %v", rule)
+			log.Errorf("In createNewDbRules() failed to store rule %v", rule)
 			return err0
 		}
 	}
@@ -282,10 +282,10 @@ func (i IPTsaveFirewall) enableNewDbRules(ruleList []*IPtablesRule) error {
 
 	for ruleNum, _ := range ruleList {
 		rule := ruleList[ruleNum]
-		glog.V(3).Infof("In switchIPtablesRule() activating rule %p", rule)
+		log.Tracef(3, "In switchIPtablesRule() activating rule %p", rule)
 		err0 := i.Store.switchIPtablesRule(rule, setRuleActive)
 		if err0 != nil {
-			glog.Errorf("In enableNewDbRules() failed to enable rule %v", rule)
+			log.Errorf("In enableNewDbRules() failed to enable rule %v", rule)
 			return err0
 		}
 	}
@@ -299,10 +299,10 @@ func (i IPTsaveFirewall) deleteDbRules(ruleList []*IPtablesRule) error {
 
 	for ruleNum, _ := range ruleList {
 		rule := ruleList[ruleNum]
-		glog.V(3).Infof("In deleteDbRules() deleting rule %p", rule)
+		log.Tracef(3, "In deleteDbRules() deleting rule %p", rule)
 		err0 := i.Store.deleteIPtablesRule(rule)
 		if err0 != nil {
-			glog.Errorf("In deleteDbRules() failed to enable rule %v", rule)
+			log.Errorf("In deleteDbRules() failed to enable rule %v", rule)
 			return err0
 		}
 	}
@@ -318,7 +318,7 @@ func (i *IPTsaveFirewall) deleteIPtablesRulesBySubstring(substring string) error
 	if err != nil {
 		return err
 	}
-	glog.V(2).Infof("In Cleanup - found %d rules for interface %s", len(*rulesPtr), substring)
+	log.Tracef(2, "In Cleanup - found %d rules for interface %s", len(*rulesPtr), substring)
 
 	// This function operates on "filter" table.
 	tableDesired := i.DesiredState.TableByName("filter")
@@ -334,7 +334,7 @@ func (i *IPTsaveFirewall) deleteIPtablesRulesBySubstring(substring string) error
 	// walk through rules from database, check if they are present
 	// in current iptables config and schedule them for deletion if necessary.
 	for _, rule := range *rulesPtr {
-		glog.V(3).Infof("In Cleanup - deleting rule %s", rule.GetBody())
+		log.Tracef(3, "In Cleanup - deleting rule %s", rule.GetBody())
 
 		// ignore inactive rules, they shouldn't be
 		// in current state anyway
@@ -415,18 +415,18 @@ func (i *IPTsaveFirewall) applyRules(iptables *iptsave.IPtables) error {
 	cmd := i.os.Cmd(iptablesRestoreBin, []string{"--noflush"})
 	reader := bytes.NewReader([]byte(iptables.Render()))
 
-	glog.V(3).Infof("In applyRules allocating stdin pipe")
+	log.Tracef(3, "In applyRules allocating stdin pipe")
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
 		return fmt.Errorf("Failed to allocate stdin for iptables-restore - %s", err)
 	}
 
-	glog.V(3).Infof("In applyRules starting the command")
+	log.Tracef(3, "In applyRules starting the command")
 	if err := cmd.Start(); err != nil {
 		return err
 	}
 
-	glog.V(3).Infof("In applyRules sending the rules")
+	log.Tracef(3, "In applyRules sending the rules")
 	_, err = reader.WriteTo(stdin)
 	if err != nil {
 		return err
@@ -434,9 +434,9 @@ func (i *IPTsaveFirewall) applyRules(iptables *iptsave.IPtables) error {
 
 	stdin.Close()
 
-	glog.V(3).Infof("In applyRules waiting for command to complete")
+	log.Tracef(3, "In applyRules waiting for command to complete")
 	if err := cmd.Wait(); err != nil {
-		glog.V(3).Infof("In applyRules failed to apply")
+		log.Tracef(3, "In applyRules failed to apply")
 		return err
 	}
 
@@ -446,7 +446,7 @@ func (i *IPTsaveFirewall) applyRules(iptables *iptsave.IPtables) error {
 // makeDivertRules creates iptables "filter" table with rules to divert traffic
 // to/from given endpoint into romana chains.
 func makeDivertRules(netif FirewallEndpoint) *iptsave.IPtable {
-	glog.V(3).Infof("In makeDivertRules() with %s", netif.GetName())
+	log.Tracef(3, "In makeDivertRules() with %s", netif.GetName())
 	divertTable := iptsave.IPtable{
 		Name: "filter",
 		Chains: []*iptsave.IPchain{

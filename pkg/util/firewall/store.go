@@ -18,8 +18,8 @@
 package firewall
 
 import (
-	"github.com/golang/glog"
 	"github.com/romana/core/common"
+	log "github.com/romana/rlog"
 	"sync"
 )
 
@@ -84,17 +84,17 @@ func (r *IPtablesRule) SetBody(body string) {
 }
 
 func (firewallStore *firewallStore) addIPtablesRule(rule *IPtablesRule) error {
-	glog.Info("Acquiring store mutex for addIPtablesRule")
+	log.Info("Acquiring store mutex for addIPtablesRule")
 	if rule == nil {
 		panic("In addIPtablesRule(), received nil rule")
 	}
 
 	firewallStore.mu.Lock()
 	defer func() {
-		glog.Info("Releasing store mutex for addIPtablesRule")
+		log.Info("Releasing store mutex for addIPtablesRule")
 		firewallStore.mu.Unlock()
 	}()
-	glog.Info("Acquired store mutex for addIPtablesRule")
+	log.Info("Acquired store mutex for addIPtablesRule")
 
 	err := firewallStore.addIPtablesRuleUnsafe(rule)
 	return err
@@ -106,13 +106,13 @@ func (firewallStore *firewallStore) addIPtablesRuleUnsafe(rule *IPtablesRule) er
 
 	db := firewallStore.DbStore.Db
 	// db := firewallStore.GetDb()
-	glog.Info("In addIPtablesRule() after GetDb")
+	log.Info("In addIPtablesRule() after GetDb")
 	if db == nil {
 		panic("In addIPtablesRule(), db is nil")
 	}
 
 	firewallStore.DbStore.Db.Create(rule)
-	glog.Info("In addIPtablesRule() after Db.Create")
+	log.Info("In addIPtablesRule() after Db.Create")
 	if db.Error != nil {
 		return db.Error
 	}
@@ -130,13 +130,13 @@ func (firewallStore *firewallStore) addIPtablesRuleUnsafe(rule *IPtablesRule) er
 
 // listIPtablesRules returns a list of all firewall rules in a database.
 func (firewallStore *firewallStore) listIPtablesRules() ([]IPtablesRule, error) {
-	glog.Info("Acquiring store mutex for listIPtablesRules")
+	log.Info("Acquiring store mutex for listIPtablesRules")
 	firewallStore.mu.Lock()
 	defer func() {
-		glog.Info("Releasing store mutex for listIPtablesRules")
+		log.Info("Releasing store mutex for listIPtablesRules")
 		firewallStore.mu.Unlock()
 	}()
-	glog.Info("Acquired store mutex for listIPtablesRules")
+	log.Info("Acquired store mutex for listIPtablesRules")
 
 	var iPtablesRule []IPtablesRule
 	firewallStore.DbStore.Db.Find(&iPtablesRule)
@@ -149,23 +149,23 @@ func (firewallStore *firewallStore) listIPtablesRules() ([]IPtablesRule, error) 
 
 // ensureIPtablesRule checks if given rule exists in a database and if not, creates it.
 func (firewallStore *firewallStore) ensureIPtablesRule(rule *IPtablesRule) error {
-	glog.Info("Acquiring store mutex for listIPtablesRules")
+	log.Info("Acquiring store mutex for listIPtablesRules")
 	firewallStore.mu.Lock()
 	defer func() {
-		glog.Info("Releasing store mutex for listIPtablesRules")
+		log.Info("Releasing store mutex for listIPtablesRules")
 		firewallStore.mu.Unlock()
 	}()
-	glog.Info("Acquired store mutex for listIPtablesRules")
+	log.Info("Acquired store mutex for listIPtablesRules")
 
 	if firewallStore.DbStore.Db.Where("body = ?", rule.Body).First(rule).RecordNotFound() {
-		glog.V(2).Infof("In ensureIPtablesRule(), rule %s not found in db - creating", rule.Body)
+		log.Tracef(2, "In ensureIPtablesRule(), rule %s not found in db - creating", rule.Body)
 		err0 := firewallStore.addIPtablesRuleUnsafe(rule)
 		if err0 != nil {
-			glog.Errorf("In ensureIPtablesRule() failed to store rule %v", rule)
+			log.Errorf("In ensureIPtablesRule() failed to store rule %v", rule)
 			return err0
 		}
 	} else {
-		glog.V(2).Infof("In ensureIPtablesRule(), rule %s already in db - nothing to do", rule.Body)
+		log.Tracef(2, "In ensureIPtablesRule(), rule %s already in db - nothing to do", rule.Body)
 	}
 
 	return nil
@@ -173,13 +173,13 @@ func (firewallStore *firewallStore) ensureIPtablesRule(rule *IPtablesRule) error
 
 // deleteIPtablesRule deletes firewall rules from database.
 func (firewallStore *firewallStore) deleteIPtablesRule(rule *IPtablesRule) error {
-	glog.Info("Acquiring store mutex for deleteIPtablesRule")
+	log.Info("Acquiring store mutex for deleteIPtablesRule")
 	firewallStore.mu.Lock()
 	defer func() {
-		glog.Info("Releasing store mutex for deleteIPtablesRule")
+		log.Info("Releasing store mutex for deleteIPtablesRule")
 		firewallStore.mu.Unlock()
 	}()
-	glog.Info("Acquired store mutex for deleteIPtablesRule")
+	log.Info("Acquired store mutex for deleteIPtablesRule")
 
 	db := firewallStore.DbStore.Db
 	firewallStore.DbStore.Db.Delete(rule)
@@ -195,13 +195,13 @@ func (firewallStore *firewallStore) deleteIPtablesRule(rule *IPtablesRule) error
 }
 
 func (firewallStore *firewallStore) findIPtablesRules(subString string) (*[]IPtablesRule, error) {
-	glog.Info("Acquiring store mutex for findIPtablesRule")
+	log.Info("Acquiring store mutex for findIPtablesRule")
 	firewallStore.mu.Lock()
 	defer func() {
-		glog.Info("Releasing store mutex for findIPtablesRule")
+		log.Info("Releasing store mutex for findIPtablesRule")
 		firewallStore.mu.Unlock()
 	}()
-	glog.Info("Acquired store mutex for findIPtablesRule")
+	log.Info("Acquired store mutex for findIPtablesRule")
 
 	var rules []IPtablesRule
 	db := firewallStore.DbStore.Db
@@ -246,17 +246,17 @@ func (firewallStore *firewallStore) switchIPtablesRule(rule *IPtablesRule, op op
 
 	// Fast track return if nothing to be done
 	if rule.State == op.String() {
-		glog.Infof("switchIPtablesRule nothing to be done for %s", rule.State)
+		log.Infof("switchIPtablesRule nothing to be done for %s", rule.State)
 		return nil
 	}
 
-	glog.Info("Acquiring store mutex for switchIPtablesRule")
+	log.Info("Acquiring store mutex for switchIPtablesRule")
 	firewallStore.mu.Lock()
 	defer func() {
-		glog.Info("Releasing store mutex for switchIPtablesRule")
+		log.Info("Releasing store mutex for switchIPtablesRule")
 		firewallStore.mu.Unlock()
 	}()
-	glog.Info("Acquired store mutex for switchIPtablesRule")
+	log.Info("Acquired store mutex for switchIPtablesRule")
 
 	// if toggle requested then reverse current state
 	if op == toggleRule {

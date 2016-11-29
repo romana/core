@@ -18,9 +18,9 @@ package agent
 
 import (
 	"fmt"
-	"github.com/golang/glog"
 	"github.com/romana/core/common"
 	"github.com/romana/core/pkg/util/firewall"
+	log "github.com/romana/rlog"
 	"sync"
 )
 
@@ -89,13 +89,13 @@ func (agentStore *agentStore) CreateSchemaPostProcess() error {
 }
 
 func (agentStore *agentStore) deleteRoute(route *Route) error {
-	glog.V(1).Info("Acquiring store mutex for deleteRoute")
+	log.Info("Acquiring store mutex for deleteRoute")
 	agentStore.mu.Lock()
 	defer func() {
-		glog.V(1).Info("Releasing store mutex for deleteRoute")
+		log.Info("Releasing store mutex for deleteRoute")
 		agentStore.mu.Unlock()
 	}()
-	glog.V(1).Info("Acquired store mutex for deleteRoute")
+	log.Info("Acquired store mutex for deleteRoute")
 
 	db := agentStore.DbStore.Db
 	agentStore.DbStore.Db.Delete(route)
@@ -111,13 +111,13 @@ func (agentStore *agentStore) deleteRoute(route *Route) error {
 }
 
 func (agentStore *agentStore) findRouteByIface(routeIface string) (*Route, error) {
-	glog.V(1).Info("Acquiring store mutex for findRoute")
+	log.Info("Acquiring store mutex for findRoute")
 	agentStore.mu.Lock()
 	defer func() {
-		glog.V(1).Info("Releasing store mutex for findRoute")
+		log.Info("Releasing store mutex for findRoute")
 		agentStore.mu.Unlock()
 	}()
-	glog.V(1).Info("Acquired store mutex for findRoute")
+	log.Info("Acquired store mutex for findRoute")
 
 	var route Route
 	db := agentStore.DbStore.Db
@@ -178,13 +178,13 @@ func (agentStore *agentStore) deleteNetIf(netif *NetIf) error {
 }
 
 func (agentStore *agentStore) addRoute(route *Route) error {
-	glog.V(1).Info("Acquiring store mutex for addRoute")
+	log.Info("Acquiring store mutex for addRoute")
 	agentStore.mu.Lock()
 	defer func() {
-		glog.V(1).Info("Releasing store mutex for addRoute")
+		log.Info("Releasing store mutex for addRoute")
 		agentStore.mu.Unlock()
 	}()
-	glog.V(1).Info("Acquired store mutex for addRoute")
+	log.Info("Acquired store mutex for addRoute")
 
 	db := agentStore.DbStore.Db
 	agentStore.DbStore.Db.Create(route)
@@ -203,13 +203,13 @@ func (agentStore *agentStore) addRoute(route *Route) error {
 }
 
 func (agentStore *agentStore) listRoutes() ([]Route, error) {
-	glog.V(1).Info("Acquiring store mutex for listRoutes")
+	log.Info("Acquiring store mutex for listRoutes")
 	agentStore.mu.Lock()
 	defer func() {
-		glog.V(1).Info("Releasing store mutex for listRoutes")
+		log.Info("Releasing store mutex for listRoutes")
 		agentStore.mu.Unlock()
 	}()
-	glog.V(1).Info("Acquired store mutex for listRoutes")
+	log.Info("Acquired store mutex for listRoutes")
 
 	var routes []Route
 	agentStore.DbStore.Db.Find(&routes)

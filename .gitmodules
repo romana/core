@@ -40,9 +40,6 @@
 [submodule "vendor/github.com/rackspace/gophercloud"]
 	path = vendor/github.com/rackspace/gophercloud
 	url = https://github.com/rackspace/gophercloud
-[submodule "vendor/github.com/golang/glog"]
-	path = vendor/github.com/golang/glog
-	url = https://github.com/golang/glog
 [submodule "vendor/github.com/hashicorp/hcl"]
 	path = vendor/github.com/hashicorp/hcl
 	url = https://github.com/hashicorp/hcl
@@ -85,3 +82,6 @@
 [submodule "vendor/github.com/go-check/check"]
 	path = vendor/github.com/go-check/check
 	url = https://github.com/go-check/check
+[submodule "vendor/github.com/romana/rlog"]
+	path = vendor/github.com/romana/rlog
+	url = https://github.com/romana/rlog
