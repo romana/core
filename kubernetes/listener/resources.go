@@ -18,7 +18,7 @@ package kubernetes
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/golang/glog"
+	log "github.com/romana/rlog"
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
 	"io"
@@ -64,17 +64,17 @@ func handleNetworkPolicyEvents(events []Event, l *kubeListener) {
 		case KubeEventDeleted:
 			deleteEvents = append(deleteEvents, *event.Object.(*v1beta1.NetworkPolicy))
 		default:
-			glog.V(3).Info("Ignoring %s event in handleNetworkPolicyEvents", event.Type)
+			log.Tracef(2,"Ignoring %s event in handleNetworkPolicyEvents", event.Type)
 		}
 	}
 
 	// Translate new network policies into romana policies.
 	createPolicyList, kubePolicy, err := PTranslator.Kube2RomanaBulk(createEvents)
 	if err != nil {
-		glog.Errorf("Not all kubernetes policies could be translated to Romana policies. Attempted %d, succes %d, fail %d, error %s", len(createEvents), len(createPolicyList), len(kubePolicy), err)
+		log.Errorf("Not all kubernetes policies could be translated to Romana policies. Attempted %d, succes %d, fail %d, error %s", len(createEvents), len(createPolicyList), len(kubePolicy), err)
 	}
 	for kn, _ := range kubePolicy {
-		glog.Errorf("Failed to translate kubernetes policy %v", kubePolicy[kn])
+		log.Errorf("Failed to translate kubernetes policy %v", kubePolicy[kn])
 	}
 
 	// Translate old network policies into romana policies.
@@ -82,10 +82,10 @@ func handleNetworkPolicyEvents(events []Event, l *kubeListener) {
 	// for deletion. Stas.
 	deletePolicyList, kubePolicy, err := PTranslator.Kube2RomanaBulk(deleteEvents)
 	if err != nil {
-		glog.Errorf("Not all kubernetes policies could be translated to Romana policies. Attempted %d, succes %d, fail %d, error %s", len(createEvents), len(deletePolicyList), len(kubePolicy), err)
+		log.Errorf("Not all kubernetes policies could be translated to Romana policies. Attempted %d, succes %d, fail %d, error %s", len(createEvents), len(deletePolicyList), len(kubePolicy), err)
 	}
 	for kn, _ := range kubePolicy {
-		glog.Errorf("Failed to translate kubernetes policy %v", kubePolicy[kn])
+		log.Errorf("Failed to translate kubernetes policy %v", kubePolicy[kn])
 	}
 
 	// Create new policies.
@@ -106,21 +106,21 @@ func handleNamespaceEvent(e Event, l *kubeListener) {
 		panic("Failed to cast namespace in handleNamespaceEvent")
 	}
 
-	glog.Infof("KubeEvent: Processing namespace event == %v and phase %v", e.Type, namespace.Status)
+	log.Infof("KubeEvent: Processing namespace event == %v and phase %v", e.Type, namespace.Status)
 
 	if e.Type == KubeEventAdded {
 		tenantReq := tenant.Tenant{Name: namespace.ObjectMeta.Name, ExternalID: string(namespace.ObjectMeta.UID)}
 		tenantResp := tenant.Tenant{}
-		glog.Infof("KubeEventAdded: Posting to /tenants: %+v", tenantReq)
+		log.Infof("KubeEventAdded: Posting to /tenants: %+v", tenantReq)
 		tenantUrl, err := l.restClient.GetServiceUrl("tenant")
 		if err != nil {
-			glog.Infof("KubeEventAdded:Error adding tenant %s: %+v", tenantReq.Name, err)
+			log.Infof("KubeEventAdded:Error adding tenant %s: %+v", tenantReq.Name, err)
 		} else {
 			err := l.restClient.Post(fmt.Sprintf("%s/tenants", tenantUrl), tenantReq, &tenantResp)
 			if err != nil {
-				glog.Infof("KubeEventAdded: Error adding tenant %s: %+v", tenantReq.Name, err)
+				log.Infof("KubeEventAdded: Error adding tenant %s: %+v", tenantReq.Name, err)
 			} else {
-				glog.Infof("KubeEventAdded: Added tenant: %+v", tenantResp)
+				log.Infof("KubeEventAdded: Added tenant: %+v", tenantResp)
 			}
 		}
 	} else if e.Type == KubeEventDeleted {
@@ -140,7 +140,7 @@ func handleNamespaceEvent(e Event, l *kubeListener) {
 
 // handleAnnotations on a namespace by implementing extra features requested through the annotation
 func handleAnnotations(o *v1.Namespace, l *kubeListener) {
-	glog.Infof("In handleAnnotations")
+	log.Infof("In handleAnnotations")
 
 	// We only care about one annotation for now.
 	CreateDefaultPolicy(o, l)
@@ -149,10 +149,10 @@ func handleAnnotations(o *v1.Namespace, l *kubeListener) {
 // CreateDefaultPolicy handles isolation flag on a namespace by creating/deleting
 // default network policy.
 func CreateDefaultPolicy(o *v1.Namespace, l *kubeListener) {
-	glog.Infof("In CreateDefaultPolicy for %v\n", o)
+	log.Infof("In CreateDefaultPolicy for %v\n", o)
 	tenant, err := l.resolveTenantByName(o.ObjectMeta.Name)
 	if err != nil {
-		glog.Infof("In CreateDefaultPolicy :: Error :: failed to resolve tenant %s \n", err)
+		log.Infof("In CreateDefaultPolicy :: Error :: failed to resolve tenant %s \n", err)
 		return
 	}
 
@@ -166,12 +166,12 @@ func CreateDefaultPolicy(o *v1.Namespace, l *kubeListener) {
 		Rules:     []common.Rule{{Protocol: common.Wildcard}},
 	}
 
-	glog.Infof("In CreateDefaultPolicy with policy %v\n", romanaPolicy)
+	log.Infof("In CreateDefaultPolicy with policy %v\n", romanaPolicy)
 
 	var desiredAction networkPolicyAction
 
 	if np, ok := o.ObjectMeta.Annotations["net.beta.kubernetes.io/networkpolicy"]; ok {
-		glog.Infof("Handling default policy on a namespace %s, policy is now %s \n", o.ObjectMeta.Name, np)
+		log.Infof("Handling default policy on a namespace %s, policy is now %s \n", o.ObjectMeta.Name, np)
 		policy := struct {
 			Ingress struct {
 				Isolation string `json:"isolation"`
@@ -179,24 +179,24 @@ func CreateDefaultPolicy(o *v1.Namespace, l *kubeListener) {
 		}{}
 		err := json.NewDecoder(strings.NewReader(np)).Decode(&policy)
 		if err != nil {
-			glog.Infof("In CreateDefaultPolicy :: Error decoding network policy: %s", err)
+			log.Infof("In CreateDefaultPolicy :: Error decoding network policy: %s", err)
 			return
 		}
 
-		glog.Infoln("Decoded to policy:", policy)
+		log.Info("Decoded to policy:", policy)
 		if policy.Ingress.Isolation == "DefaultDeny" {
-			glog.Infoln("Isolation enabled")
+			log.Info("Isolation enabled")
 			desiredAction = networkPolicyActionDelete
 		} else {
 			desiredAction = networkPolicyActionAdd
 		}
 	} else {
-		glog.Infof("Handling default policy on a namespace, no annotation detected assuming non isolated namespace\n")
+		log.Infof("Handling default policy on a namespace, no annotation detected assuming non isolated namespace\n")
 		desiredAction = networkPolicyActionAdd
 	}
 
 	if err2 := l.applyNetworkPolicy(desiredAction, *romanaPolicy); err2 != nil {
-		glog.Infof("In CreateDefaultPolicy :: Error :: failed to apply %v to the policy %s \n", desiredAction, err2)
+		log.Infof("In CreateDefaultPolicy :: Error :: failed to apply %v to the policy %s \n", desiredAction, err2)
 	}
 }
 
@@ -247,7 +247,7 @@ func (l *kubeListener) nsWatch(done <-chan struct{}, url string) (chan Event, er
 // in romana policy service yet.
 func ProduceNewPolicyEvents(out chan Event, done <-chan struct{}, kubeListener *kubeListener) {
 	var sleepTime time.Duration = 1
-	glog.Infof("Listening for kubernetes network policies")
+	log.Infof("Listening for kubernetes network policies")
 
 	// watcher watches all network policy.
 	watcher := cache.NewListWatchFromClient(
@@ -292,10 +292,10 @@ func ProduceNewPolicyEvents(out chan Event, done <-chan struct{}, kubeListener *
 
 	newEvents, oldPolicies, err := kubeListener.syncNetworkPolicies(kubePolicyList)
 	if err != nil {
-		glog.Errorf("Failed to sync romana policies with kube policies, sync failed with %s", err)
+		log.Errorf("Failed to sync romana policies with kube policies, sync failed with %s", err)
 	}
 
-	glog.Infof("Produce policies detected %d new kubernetes policies and %d old romana policies", len(newEvents), len(oldPolicies))
+	log.Infof("Produce policies detected %d new kubernetes policies and %d old romana policies", len(newEvents), len(oldPolicies))
 
 	// Create new kubernetes policies
 	for en, _ := range newEvents {
@@ -306,13 +306,13 @@ func ProduceNewPolicyEvents(out chan Event, done <-chan struct{}, kubeListener *
 	// TODO find a way to remove policy deletion from this function. Stas.
 	policyUrl, err := kubeListener.restClient.GetServiceUrl("policy")
 	if err != nil {
-		glog.Errorf("Failed to discover policy url before deleting outdated romana policies")
+		log.Errorf("Failed to discover policy url before deleting outdated romana policies")
 	}
 
 	for k, _ := range oldPolicies {
 		err = kubeListener.restClient.Delete(fmt.Sprintf("%s/policies/%d", policyUrl, oldPolicies[k].ID), nil, &oldPolicies)
 		if err != nil {
-			glog.Errorf("Sync policies detected obsolete policy %d but failed to delete, %s", oldPolicies[k].ID, err)
+			log.Errorf("Sync policies detected obsolete policy %d but failed to delete, %s", oldPolicies[k].ID, err)
 		}
 	}
 }
@@ -348,14 +348,14 @@ var getAllPoliciesFunc = getAllPolicies
 // it returns a list of kubernetes policies that don't have corresponding kubernetes network policy for them,
 // and a list of romana policies that used to represent kubernetes policy but corresponding kubernetes policy is gone.
 func (l *kubeListener) syncNetworkPolicies(kubePolicies []v1beta1.NetworkPolicy) (kubernetesEvents []Event, romanaPolicies []common.Policy, err error) {
-	glog.V(1).Infof("In syncNetworkPolicies with %v", kubePolicies)
+	log.Infof("In syncNetworkPolicies with %v", kubePolicies)
 
 	policies, err := getAllPoliciesFunc(l.restClient)
 	if err != nil {
 		return
 	}
 
-	glog.V(1).Infof("In syncNetworkPolicies fetched %d romana policies", len(policies))
+	log.Infof("In syncNetworkPolicies fetched %d romana policies", len(policies))
 
 	// Compare kubernetes policies and all romana policies by name.
 	// TODO Coparing by name is fragile should be `external_id == UID`. Stas.
@@ -378,7 +378,7 @@ func (l *kubeListener) syncNetworkPolicies(kubePolicies []v1beta1.NetworkPolicy)
 		}
 
 		if !found {
-			glog.V(3).Infof("Sync policies detected new kube policy %v", kubePolicies[kn])
+			log.Tracef(2,"Sync policies detected new kube policy %v", kubePolicies[kn])
 			kubernetesEvents = append(kubernetesEvents, Event{KubeEventAdded, kubePolicies[kn]})
 		}
 	}
@@ -388,13 +388,13 @@ func (l *kubeListener) syncNetworkPolicies(kubePolicies []v1beta1.NetworkPolicy)
 	// Ignore policies that don't have "kube." prefix in the name.
 	for k, _ := range policies {
 		if !strings.HasPrefix(policies[k].Name, "kube.") {
-			glog.V(4).Infof("Sync policies skipping policy %s since it doesn't match the prefix `kube.`", policies[k].Name)
+			log.Tracef(4,"Sync policies skipping policy %s since it doesn't match the prefix `kube.`", policies[k].Name)
 			continue
 		}
 
 		if !accountedRomanaPolicies[k] {
-			glog.Infof("Sync policies detected that romana policy %d is obsolete - scheduling for deletion", policies[k].ID)
-			glog.V(3).Infof("Sync policies detected that romana policy %d is obsolete - scheduling for deletion", policies[k].ID)
+			log.Infof("Sync policies detected that romana policy %d is obsolete - scheduling for deletion", policies[k].ID)
+			log.Tracef(2,"Sync policies detected that romana policy %d is obsolete - scheduling for deletion", policies[k].ID)
 			romanaPolicies = append(romanaPolicies, policies[k])
 		}
 	}

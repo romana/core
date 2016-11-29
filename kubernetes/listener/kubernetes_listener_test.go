@@ -22,12 +22,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/go-check/check"
-	"github.com/golang/glog"
+	log "github.com/romana/rlog"
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
 	"net/http"
 	"net/url"
-
 	"strconv"
 	"strings"
 	"testing"
@@ -55,36 +54,36 @@ type kubeSimulator struct {
 func (ks *kubeSimulator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	//	w.Header().Set("Connection", "Keep-Alive")
 	//	w.Header().Set("Transfer-Encoding", "chunked")
-	glog.Infoln("Test: Entered kubeSimulator ServeHTTP()")
+	log.Info("Test: Entered kubeSimulator ServeHTTP()")
 	// flusher, _ := w.(http.Flusher)
 
 	//	flusher, _ := w.(http.Flusher)
 	reqURI, _ := url.Parse(r.RequestURI)
 	path := fmt.Sprintf("%s?%s", reqURI.Path, reqURI.RawQuery)
-	glog.Infof("KubeSimulator: At %s", path)
+	log.Infof("KubeSimulator: At %s", path)
 
 	var ns Event
 	err := json.Unmarshal([]byte(addNamespace1), &ns)
 	if err != nil {
-		glog.Infof("KubeSimulator: At %s: failed to unmarshall kube event %s", path, err)
+		log.Infof("KubeSimulator: At %s: failed to unmarshall kube event %s", path, err)
 		return
 	}
 
 	var pol Event
 	err = json.Unmarshal([]byte(addPolicy1), &pol)
 	if err != nil {
-		glog.Infof("KubeSimulator: At %s: failed to unmarshall kube event %sl", path, err)
+		log.Infof("KubeSimulator: At %s: failed to unmarshall kube event %sl", path, err)
 		return
 	}
 
 	if path == "/api/v1/namespaces/?watch=true" {
-		glog.Infof("KubeSimulator: At %s: Sending namespace event %s", path, addNamespace1)
+		log.Infof("KubeSimulator: At %s: Sending namespace event %s", path, addNamespace1)
 		//		fmt.Fprintf(w, addNamespace1)
 		enc := json.NewEncoder(w)
 		for {
 			err = enc.Encode(ns)
 			if err != nil {
-				glog.Infof("KubeSimulator: At %s: failed to encode namespace event %s", path, err)
+				log.Infof("KubeSimulator: At %s: failed to encode namespace event %s", path, err)
 				return
 			}
 			time.Sleep(100 * time.Millisecond)
@@ -92,7 +91,7 @@ func (ks *kubeSimulator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if strings.HasPrefix(path, "/apis/extensions/v1beta1/namespaces/") && strings.HasSuffix(path, "/networkpolicies?") {
-		glog.Infof("KubeSimulator: At %s", path)
+		log.Infof("KubeSimulator: At %s", path)
 		flusher, _ := w.(http.Flusher)
 		w.Write([]byte("{ \"metadata\" : { \"resourceVersion\" : \"1\" } }"))
 		flusher.Flush()
@@ -103,20 +102,20 @@ func (ks *kubeSimulator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	m := make(map[string]string)
 	m["x"] = "y"
 	if strings.HasPrefix(path, "/apis/extensions/v1beta1/namespaces/") && strings.HasSuffix(path, "/networkpolicies?watch=true&resourceVersion=1") {
-		glog.Infof("KubeSimulator: At %s", path)
+		log.Infof("KubeSimulator: At %s", path)
 		uriArr := strings.Split(path, "/")
 		if len(uriArr) != 7 {
-			glog.Infof("KubeSimulator: At %s, exiting expected 8 parts in url, got %d", path, len(uriArr))
+			log.Infof("KubeSimulator: At %s, exiting expected 8 parts in url, got %d", path, len(uriArr))
 			w.WriteHeader(http.StatusNotFound)
 			w.Write([]byte(fmt.Sprintf("{\"error\" : \"Not found: %s (expected 9, got %d parts of the URL: %v)\"}", path, len(uriArr), uriArr)))
 			return
 		}
 
 		for {
-			glog.Infof("KubeSimulator: At %s: have %d tenants", path, len(ks.mockSvc.tenants))
+			log.Infof("KubeSimulator: At %s: have %d tenants", path, len(ks.mockSvc.tenants))
 			// Wait until sentNamespaceEvent is true
 			if len(ks.mockSvc.tenants) == 1 {
-				glog.Infof("KubeSimulator: At %s: tenants[1]: %+v", path, *ks.mockSvc.tenants[1])
+				log.Infof("KubeSimulator: At %s: tenants[1]: %+v", path, *ks.mockSvc.tenants[1])
 				break
 			}
 
@@ -125,7 +124,7 @@ func (ks *kubeSimulator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			flusher.Flush()
 
 			if err != nil {
-				glog.Infof("KubeSimulator: At %s: failed to encode empty event %s", path, err)
+				log.Infof("KubeSimulator: At %s: failed to encode empty event %s", path, err)
 				return
 			}
 			time.Sleep(100 * time.Millisecond)
@@ -135,7 +134,7 @@ func (ks *kubeSimulator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		for {
 			err = enc.Encode(pol)
 			if err != nil {
-				glog.Infof("KubeSimulator: At %s: failed to encode policy event %s", path, err)
+				log.Infof("KubeSimulator: At %s: failed to encode policy event %s", path, err)
 				return
 			}
 			time.Sleep(100 * time.Millisecond)
@@ -178,9 +177,9 @@ func (s *mockSvc) Routes() common.Routes {
 		Method:  "POST",
 		Pattern: "/policies",
 		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
-			glog.Infof("MockService: Entering POST /policies\n")
+			log.Infof("MockService: Entering POST /policies\n")
 			j, _ := json.Marshal(input)
-			glog.Infof("Mock policy received: %T %s", input, j)
+			log.Infof("Mock policy received: %T %s", input, j)
 			switch input := input.(type) {
 			case *common.Policy:
 				for _, p := range s.policies {
@@ -202,7 +201,7 @@ func (s *mockSvc) Routes() common.Routes {
 		Pattern: "/policies/{policyID}",
 		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
 			idStr := ctx.PathVariables["policyID"]
-			glog.Infof("MockService: Entering DELETE /policies/%s\n", idStr)
+			log.Infof("MockService: Entering DELETE /policies/%s\n", idStr)
 			id, err := strconv.ParseUint(idStr, 10, 64)
 			if err != nil {
 				return nil, common.NewError400(fmt.Sprintf("Bad ID %s", idStr))
@@ -212,7 +211,7 @@ func (s *mockSvc) Routes() common.Routes {
 			}
 			var ret *common.Policy
 			for n, _ := range s.policies {
-				glog.V(4).Infof("Delete policy by id, comparing %d and %d", s.policies[n].ID, id)
+				log.Tracef(4,"Delete policy by id, comparing %d and %d", s.policies[n].ID, id)
 				if s.policies[n].ID == id {
 					ret = &s.policies[n]
 					s.policies = delete(n, s.policies)
@@ -231,7 +230,7 @@ func (s *mockSvc) Routes() common.Routes {
 		Method:  "GET",
 		Pattern: "/policies",
 		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
-			glog.Infof("MockService: Entering GET /policies\n")
+			log.Infof("MockService: Entering GET /policies\n")
 
 			return s.policies, nil
 		},
@@ -241,7 +240,7 @@ func (s *mockSvc) Routes() common.Routes {
 		Method:  "GET",
 		Pattern: "/findLast/tenants",
 		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
-			glog.Infof("MockService: Entering GET /findLast/tenants with %+v\n", ctx.QueryVariables)
+			log.Infof("MockService: Entering GET /findLast/tenants with %+v\n", ctx.QueryVariables)
 			name := ctx.QueryVariables["name"][0]
 			var found *tenant.Tenant
 			for _, v := range s.tenants {
@@ -261,7 +260,7 @@ func (s *mockSvc) Routes() common.Routes {
 		Method:  "GET",
 		Pattern: "/findExactlyOne/segments",
 		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
-			glog.Infof("MockService: Entering GET /findExactlyOne/segments with %+v\n", ctx.QueryVariables)
+			log.Infof("MockService: Entering GET /findExactlyOne/segments with %+v\n", ctx.QueryVariables)
 			name := ctx.QueryVariables["name"][0]
 			var found *tenant.Segment
 			for _, v := range s.segments {
@@ -284,7 +283,7 @@ func (s *mockSvc) Routes() common.Routes {
 		Method:  "GET",
 		Pattern: "/config/kubernetesListener",
 		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
-			glog.Infof("MockService: Entering GET /config/kubernetesListener\n")
+			log.Infof("MockService: Entering GET /config/kubernetesListener\n")
 			json := `{"common":{"api":{"host":"0.0.0.0","port":9606}},
 			"config":{"kubernetes_url":"http://localhost",
 			"segment_label_name":"tier",
@@ -300,7 +299,7 @@ func (s *mockSvc) Routes() common.Routes {
 		Method:  "POST",
 		Pattern: "/tenants",
 		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
-			glog.Infoln("MockService: Entering POST /tenants with %+v\n", input)
+			log.Info("MockService: Entering POST /tenants with %+v\n", input)
 			newTenant := input.(*tenant.Tenant)
 			for _, v := range s.tenants {
 				if v.ExternalID == newTenant.ExternalID {
@@ -314,7 +313,7 @@ func (s *mockSvc) Routes() common.Routes {
 			for k, v := range s.tenants {
 				str += fmt.Sprintf("\t%d => %+v\n", k, v)
 			}
-			glog.Infof("MockService: Have tenants: %s", str)
+			log.Infof("MockService: Have tenants: %s", str)
 			return newTenant, nil
 		},
 		MakeMessage: func() interface{} { return &tenant.Tenant{} },
@@ -325,7 +324,7 @@ func (s *mockSvc) Routes() common.Routes {
 		Pattern: "/tenants/{tenantID}",
 		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
 			idStr := ctx.PathVariables["tenantID"]
-			glog.Infof("MockService: Entering GET /tenants/%s\n", idStr)
+			log.Infof("MockService: Entering GET /tenants/%s\n", idStr)
 			id, err := strconv.ParseUint(idStr, 10, 64)
 			if err != nil {
 				return nil, common.NewError400(fmt.Sprintf("Bad ID %s", idStr))
@@ -342,7 +341,7 @@ func (s *mockSvc) Routes() common.Routes {
 		Method:  "GET",
 		Pattern: "/tenants",
 		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
-			glog.Infof("MockService: Entering GET /tenants")
+			log.Infof("MockService: Entering GET /tenants")
 			var tr []tenant.Tenant
 			for tk, _ := range s.tenants {
 				tr = append(tr, *s.tenants[tk])
@@ -359,7 +358,7 @@ func (s *mockSvc) Routes() common.Routes {
 		Pattern: "/tenants/{tenantID}/segments",
 		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
 			tenantIDStr := ctx.PathVariables["tenantID"]
-			glog.Infoln("MockService: Entering POST /tenants/%s/segment\n", tenantIDStr)
+			log.Info("MockService: Entering POST /tenants/%s/segment\n", tenantIDStr)
 			newSegment := input.(*tenant.Segment)
 			tenantID, _ := strconv.Atoi(tenantIDStr)
 			newSegment.TenantID = uint64(tenantID)
@@ -376,7 +375,7 @@ func (s *mockSvc) Routes() common.Routes {
 			for k, v := range s.segments {
 				str += fmt.Sprintf("\t%d => %+v\n", k, v)
 			}
-			glog.Infof("MockService: Have segments: %s", str)
+			log.Infof("MockService: Have segments: %s", str)
 			return newSegment, nil
 		},
 		MakeMessage: func() interface{} { return &tenant.Segment{} },
@@ -408,7 +407,7 @@ func (s *mockSvc) Routes() common.Routes {
 		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
 			tenantIDStr := ctx.PathVariables["tenantID"]
 			segmentIDStr := ctx.PathVariables["segmentID"]
-			glog.Infof("MockService: Entering GET /tenants/%s/segment/%s\n", tenantIDStr, segmentIDStr)
+			log.Infof("MockService: Entering GET /tenants/%s/segment/%s\n", tenantIDStr, segmentIDStr)
 			segmentID, err := strconv.ParseUint(segmentIDStr, 10, 64)
 			if err != nil {
 				return nil, common.NewError400(fmt.Sprintf("Bad ID %s", segmentIDStr))
@@ -425,7 +424,7 @@ func (s *mockSvc) Routes() common.Routes {
 		Method:  "GET",
 		Pattern: "/",
 		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
-			glog.Infof("MockService: Entering GET /\n")
+			log.Infof("MockService: Entering GET /\n")
 			json := `{"serviceName":"root",
 			"Links":
 			[
@@ -451,7 +450,7 @@ func (s *mockSvc) Routes() common.Routes {
 			}
 			`
 			retval := fmt.Sprintf(strings.Replace(json, "SERVICE_URL", s.mySuite.serviceURL, -1))
-			//			glog.Infof("Using %s->SERVICE_URL, replaced\n\t%swith\n\t%s", s.mySuite.serviceURL, json, retval)
+			//			log.Infof("Using %s->SERVICE_URL, replaced\n\t%swith\n\t%s", s.mySuite.serviceURL, json, retval)
 			return common.Raw{Body: retval}, nil
 		},
 	}
@@ -460,7 +459,7 @@ func (s *mockSvc) Routes() common.Routes {
 		Method:  "POST",
 		Pattern: "/config/kubernetes-listener/port",
 		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
-			glog.Infof("Received %+v", input)
+			log.Infof("Received %+v", input)
 			return "OK", nil
 		},
 	}
@@ -481,7 +480,7 @@ func (s *mockSvc) Routes() common.Routes {
 		findExactlyOneSegmentRoute,
 		findLastTenantRoute,
 	}
-	glog.Infof("mockService: Set up routes: %+v", routes)
+	log.Infof("mockService: Set up routes: %+v", routes)
 	return routes
 }
 
@@ -499,7 +498,7 @@ func (s *MySuite) getKubeListenerServiceConfig() *common.ServiceConfig {
 	kubeListenerConfig["segment_label_name"] = "tier"
 
 	svcConfig := common.ServiceConfig{Common: commonConfig, ServiceSpecific: kubeListenerConfig}
-	glog.Infof("Test: Returning KubernetesListener config %+v", svcConfig.ServiceSpecific)
+	log.Infof("Test: Returning KubernetesListener config %+v", svcConfig.ServiceSpecific)
 	return &svcConfig
 
 }
@@ -526,13 +525,13 @@ func (s *MySuite) startListener() error {
 	// DEBUG </
 	tc := PTranslator.GetClient()
 	if tc == nil {
-		glog.Error("DEBUG Translator has nil client before Init")
+		log.Error("DEBUG Translator has nil client before Init")
 	}
 
 	PTranslator.Init(client, kubeListener.segmentLabelName)
 	tc = PTranslator.GetClient()
 	if tc == nil {
-		glog.Fatal("DEBUG Translator has nil client after Init")
+		log.Fatal("DEBUG Translator has nil client after Init")
 	}
 
 	// DEBUG />
@@ -543,7 +542,7 @@ func (s *MySuite) startListener() error {
 func (s *MySuite) TestListener(c *check.C) {
 	var err error
 	cfg := &common.ServiceConfig{Common: common.CommonConfig{Api: &common.Api{Port: 0, RestTimeoutMillis: 100}}}
-	glog.Infof("Test: Mock service config:\n\t%+v\n\t%+v\n", cfg.Common.Api, cfg.ServiceSpecific)
+	log.Infof("Test: Mock service config:\n\t%+v\n\t%+v\n", cfg.Common.Api, cfg.ServiceSpecific)
 	svc := &mockSvc{mySuite: s}
 	svc.tenants = make(map[uint64]*tenant.Tenant)
 	svc.segments = make(map[uint64]*tenant.Segment)
@@ -554,31 +553,31 @@ func (s *MySuite) TestListener(c *check.C) {
 		c.Error(err)
 	}
 	msg := <-svcInfo.Channel
-	glog.Infof("Test: Mock service says %s\n", msg)
+	log.Infof("Test: Mock service says %s\n", msg)
 	s.serviceURL = fmt.Sprintf("http://%s", svcInfo.Address)
-	glog.Infof("Test: Mock service listens at %s\n", s.serviceURL)
+	log.Infof("Test: Mock service listens at %s\n", s.serviceURL)
 
 	// Start Kubernetes simulator
 	svr := &http.Server{}
 	svr.Handler = &kubeSimulator{mockSvc: svc}
-	glog.Infof("TestListener: Calling ListenAndServe(%p)", svr)
+	log.Infof("TestListener: Calling ListenAndServe(%p)", svr)
 	svcInfo, err = common.ListenAndServe(svr)
 	if err != nil {
 		c.Error(err)
 	}
 	msg = <-svcInfo.Channel
-	glog.Infof("TestListener: Kubernetes said %s", msg)
+	log.Infof("TestListener: Kubernetes said %s", msg)
 	s.kubeURL = fmt.Sprintf("http://%s", svcInfo.Address)
-	glog.Infof("Test: Kubernetes listening on %s (%s)", s.kubeURL, svcInfo.Address)
+	log.Infof("Test: Kubernetes listening on %s (%s)", s.kubeURL, svcInfo.Address)
 
 	// Start listener
 	err = s.startListener()
 	if err != nil {
 		c.Error(err)
 	}
-	glog.Infof("Test: KubeListener started\n")
+	log.Infof("Test: KubeListener started\n")
 	time.Sleep(5 * time.Second)
-	glog.Infof("Policies: %+v\n", svc.policies)
+	log.Infof("Policies: %+v\n", svc.policies)
 	c.Assert(len(svc.policies), check.Equals, 2)
 	c.Assert(svc.policies[0].Name, check.Equals, "ns0")
 	c.Assert(svc.policies[1].Name, check.Equals, "kube.default.pol1")

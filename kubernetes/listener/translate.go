@@ -19,7 +19,8 @@ package kubernetes
 
 import (
 	"fmt"
-	"github.com/golang/glog"
+	"os"
+	log "github.com/romana/rlog"
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
 	"k8s.io/client-go/1.5/pkg/apis/extensions/v1beta1"
@@ -53,9 +54,9 @@ func (t *Translator) Init(client *common.RestClient, segmentLabelName string) {
 	t.restClient = client
 	err := t.updateCache()
 	if err == nil {
-		glog.Infof("Translator cache updated - have %d tenant entries", len(t.tenantsCache))
+		log.Infof("Translator cache updated - have %d tenant entries", len(t.tenantsCache))
 	} else {
-		glog.Errorf("Translator cache update failed, %s", err)
+		log.Errorf("Translator cache update failed, %s", err)
 	}
 	t.segmentLabelName = segmentLabelName
 }
@@ -73,7 +74,7 @@ func (t Translator) Kube2Romana(kubePolicy v1beta1.NetworkPolicy) (common.Policy
 // romana representation, returns a list of translated policies and a list
 // of policies that can't be translated in original format.
 func (t Translator) Kube2RomanaBulk(kubePolicies []v1beta1.NetworkPolicy) ([]common.Policy, []v1beta1.NetworkPolicy, error) {
-	glog.Info("In Kube2RomanaBulk")
+	log.Info("In Kube2RomanaBulk")
 	var returnRomanaPolicy []common.Policy
 	var returnKubePolicy []v1beta1.NetworkPolicy
 
@@ -85,7 +86,7 @@ func (t Translator) Kube2RomanaBulk(kubePolicies []v1beta1.NetworkPolicy) ([]com
 	for kubePolicyNumber, _ := range kubePolicies {
 		romanaPolicy, err := t.translateNetworkPolicy(&kubePolicies[kubePolicyNumber])
 		if err != nil {
-			glog.Errorf("Error during policy translation %s", err)
+			log.Errorf("Error during policy translation %s", err)
 			returnKubePolicy = append(returnKubePolicy, kubePolicies[kubePolicyNumber])
 		} else {
 			returnRomanaPolicy = append(returnRomanaPolicy, romanaPolicy)
@@ -162,7 +163,7 @@ func (l *Translator) getOrAddSegment(namespace string, kubeSegmentName string) (
 	defer func() {
 		err := l.updateCache()
 		if err != nil {
-			glog.Error("Failed to update cache in translator during getOrAddSegment().")
+			log.Error("Failed to update cache in translator during getOrAddSegment().")
 		}
 	}()
 
@@ -257,7 +258,7 @@ func (t Translator) checkSegmentInCache(cacheEntry *TenantCacheEntry, segmentId 
 // updateCache contacts romana Tenant service, lists
 // all resources and loads them into memory.
 func (t *Translator) updateCache() error {
-	glog.Info("In updateCache")
+	log.Info("In updateCache")
 
 	tenantURL, err := t.restClient.GetServiceUrl("tenant")
 	if err != nil {
@@ -271,7 +272,8 @@ func (t *Translator) updateCache() error {
 	}
 
 	if t.restClient == nil {
-		glog.Fatal("REST client is nil")
+		log.Critical("REST client is nil")
+        os.Exit(255)
 	}
 
 	// tenants := []tenant.Tenant{}
@@ -279,7 +281,7 @@ func (t *Translator) updateCache() error {
 
 	t.cacheMu.Lock()
 	defer func() {
-		glog.Infof("Exiting updateCache with %d tenants", len(t.tenantsCache))
+		log.Infof("Exiting updateCache with %d tenants", len(t.tenantsCache))
 		t.cacheMu.Unlock()
 	}()
 
@@ -346,7 +348,7 @@ func (tg *TranslateGroup) translateTarget(translator *Translator) error {
 	// Translate kubernetes namespace into romana tenant. Must be defined.
 	tenantCacheEntry := translator.checkTenantInCache(tg.kubePolicy.ObjectMeta.Namespace)
 	if tenantCacheEntry == nil {
-		glog.Errorf("Tenant not found when translating policy %v", tg.romanaPolicy)
+		log.Errorf("Tenant not found when translating policy %v", tg.romanaPolicy)
 		return TranslatorError{ErrorTenantNotInCache, nil}
 	}
 
@@ -356,21 +358,21 @@ func (tg *TranslateGroup) translateTarget(translator *Translator) error {
 			common.Endpoint{TenantID: tenantCacheEntry.Tenant.ID, TenantExternalID: tenantCacheEntry.Tenant.ExternalID},
 		}
 
-		glog.V(2).Infof("Segment was not specified in policy %v, assuming target is a namespace", tg.kubePolicy)
+		log.Tracef(2,"Segment was not specified in policy %v, assuming target is a namespace", tg.kubePolicy)
 		return nil
 	}
 
 	// If PodSelector is not empty then segment label must be defined.
 	kubeSegmentID, ok := tg.kubePolicy.Spec.PodSelector.MatchLabels[translator.segmentLabelName]
 	if !ok || kubeSegmentID == "" {
-		glog.Errorf("Expected segment to be specified in podSelector part as %s", translator.segmentLabelName)
+		log.Errorf("Expected segment to be specified in podSelector part as %s", translator.segmentLabelName)
 		return common.NewError("Expected segment to be specified in podSelector part as '%s'", translator.segmentLabelName)
 	}
 
 	// Translate kubernetes segment label into romana segment.
 	segment, err := translator.getOrAddSegment(tg.kubePolicy.ObjectMeta.Namespace, kubeSegmentID)
 	if err != nil {
-		glog.Errorf("Error in translate while calling l.getOrAddSegment with %s and %s - error %s", tg.kubePolicy.ObjectMeta.Namespace, kubeSegmentID, err)
+		log.Errorf("Error in translate while calling l.getOrAddSegment with %s and %s - error %s", tg.kubePolicy.ObjectMeta.Namespace, kubeSegmentID, err)
 		return err
 	}
 
@@ -390,7 +392,7 @@ func (tg *TranslateGroup) makeNextIngressPeer(translator *Translator) error {
 	// NamespaceSelector defined in current Ingress rule. Stas.
 	tenantCacheEntry := translator.checkTenantInCache(tg.kubePolicy.ObjectMeta.Namespace)
 	if tenantCacheEntry == nil {
-		glog.Errorf("Tenant not not found when translating policy %v", tg.romanaPolicy)
+		log.Errorf("Tenant not not found when translating policy %v", tg.romanaPolicy)
 		return TranslatorError{ErrorTenantNotInCache, nil}
 	}
 
@@ -400,21 +402,21 @@ func (tg *TranslateGroup) makeNextIngressPeer(translator *Translator) error {
 			tg.romanaPolicy.Peers = append(tg.romanaPolicy.Peers,
 				common.Endpoint{TenantID: tenantCacheEntry.Tenant.ID, TenantExternalID: tenantCacheEntry.Tenant.ExternalID})
 
-			glog.V(2).Infof("No segment specified when translating ingress rule %v", tg.kubePolicy.Spec.Ingress[tg.ingressIndex])
+			log.Tracef(2,"No segment specified when translating ingress rule %v", tg.kubePolicy.Spec.Ingress[tg.ingressIndex])
 			return nil
 		}
 
 		// If PodSelector is not empty then segment label must be defined.
 		kubeSegmentID, ok := fromEntry.PodSelector.MatchLabels[translator.segmentLabelName]
 		if !ok || kubeSegmentID == "" {
-			glog.Errorf("Expected segment to be specified in podSelector part as %s", translator.segmentLabelName)
+			log.Errorf("Expected segment to be specified in podSelector part as %s", translator.segmentLabelName)
 			return common.NewError("Expected segment to be specified in podSelector part as '%s'", translator.segmentLabelName)
 		}
 
 		// Translate kubernetes segment label into romana segment.
 		segment, err := translator.getOrAddSegment(tenantCacheEntry.Tenant.Name, kubeSegmentID)
 		if err != nil {
-			glog.Errorf("Error in translate while calling l.getOrAddSegment with %s and %s - error %s", tenantCacheEntry.Tenant.Name, kubeSegmentID, err)
+			log.Errorf("Error in translate while calling l.getOrAddSegment with %s and %s - error %s", tenantCacheEntry.Tenant.Name, kubeSegmentID, err)
 			return err
 		}
 
