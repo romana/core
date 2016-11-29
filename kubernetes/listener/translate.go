@@ -19,14 +19,16 @@ package kubernetes
 
 import (
 	"fmt"
-	"github.com/romana/core/common"
-	"github.com/romana/core/tenant"
-	log "github.com/romana/rlog"
-	"k8s.io/client-go/1.5/pkg/apis/extensions/v1beta1"
 	"net/http"
 	"os"
 	"strings"
 	"sync"
+
+	"github.com/romana/core/common"
+	"github.com/romana/core/tenant"
+	log "github.com/romana/rlog"
+
+	"k8s.io/client-go/1.5/pkg/apis/extensions/v1beta1"
 )
 
 type PolicyTranslator interface {
@@ -47,9 +49,10 @@ type Translator struct {
 	tenantsCache     []TenantCacheEntry
 	cacheMu          *sync.Mutex
 	segmentLabelName string
+	tenantLabelName  string
 }
 
-func (t *Translator) Init(client *common.RestClient, segmentLabelName string) {
+func (t *Translator) Init(client *common.RestClient, segmentLabelName, tenantLabelName string) {
 	t.cacheMu = &sync.Mutex{}
 	t.restClient = client
 	err := t.updateCache()
@@ -59,6 +62,7 @@ func (t *Translator) Init(client *common.RestClient, segmentLabelName string) {
 		log.Errorf("Translator cache update failed, %s", err)
 	}
 	t.segmentLabelName = segmentLabelName
+	t.tenantLabelName = tenantLabelName
 }
 
 func (t Translator) GetClient() *common.RestClient {
@@ -387,41 +391,74 @@ func (tg *TranslateGroup) translateTarget(translator *Translator) error {
 func (tg *TranslateGroup) makeNextIngressPeer(translator *Translator) error {
 	ingress := tg.kubePolicy.Spec.Ingress[tg.ingressIndex]
 
-	// Translate kubernetes namespace into romana tenant. Must be defined.
-	// TODO instead of relying on target tenant we should first check if
-	// NamespaceSelector defined in current Ingress rule. Stas.
-	tenantCacheEntry := translator.checkTenantInCache(tg.kubePolicy.ObjectMeta.Namespace)
-	if tenantCacheEntry == nil {
-		log.Errorf("Tenant not not found when translating policy %v", tg.romanaPolicy)
-		return TranslatorError{ErrorTenantNotInCache, nil}
-	}
-
 	for _, fromEntry := range ingress.From {
-		// Empty PodSelector means traffic is allowed from any pod in a namespace.
-		if len(fromEntry.PodSelector.MatchLabels) == 0 {
-			tg.romanaPolicy.Peers = append(tg.romanaPolicy.Peers,
+		tenantCacheEntry := &TenantCacheEntry{}
+
+		// Exactly one of From.PodSelector or From.NamespaceSelector must be specified.
+		if fromEntry.PodSelector == nil && fromEntry.NamespaceSelector == nil {
+			log.Errorf("Either PodSElector or NamespacesSelector must be specified")
+			return common.NewError("Either PodSElector or NamespacesSelector must be specified")
+		} else if fromEntry.PodSelector != nil && fromEntry.NamespaceSelector != nil {
+			log.Errorf("Exactly one of PodSElector or NamespacesSelector must be specified")
+			return common.NewError("Exactly on of PodSElector or NamespacesSelector must be specified")
+		}
+
+		// This ingress field matching a namespace which will be our source tenant.
+		if fromEntry.NamespaceSelector != nil {
+			tenantName, ok := fromEntry.NamespaceSelector.MatchLabels[translator.tenantLabelName]
+			if !ok || tenantName == "" {
+				log.Errorf("Expected tenant name to be specified in NamespaceSelector field with a key %s", translator.tenantLabelName)
+				return common.NewError("Expected tenant name to be specified in NamespaceSelector field with a key %s", translator.tenantLabelName)
+			}
+
+			tenantCacheEntry = translator.checkTenantInCache(tenantName)
+			if tenantCacheEntry == nil {
+				log.Errorf("Tenant not not found when translating policy %v", tg.romanaPolicy)
+				return TranslatorError{ErrorTenantNotInCache, nil}
+			}
+
+			// Found a source tenant, let's register it as romana Peeer.
+			tg.romanaPolicy.Ingress[tg.ingressIndex].Peers = append(tg.romanaPolicy.Ingress[tg.ingressIndex].Peers,
 				common.Endpoint{TenantID: tenantCacheEntry.Tenant.ID, TenantExternalID: tenantCacheEntry.Tenant.ExternalID})
-
-			log.Tracef(2, "No segment specified when translating ingress rule %v", tg.kubePolicy.Spec.Ingress[tg.ingressIndex])
-			return nil
 		}
 
-		// If PodSelector is not empty then segment label must be defined.
-		kubeSegmentID, ok := fromEntry.PodSelector.MatchLabels[translator.segmentLabelName]
-		if !ok || kubeSegmentID == "" {
-			log.Errorf("Expected segment to be specified in podSelector part as %s", translator.segmentLabelName)
-			return common.NewError("Expected segment to be specified in podSelector part as '%s'", translator.segmentLabelName)
-		}
+		// This ingress field matches a segment and source tenant is a same as target tenant.
+		if fromEntry.PodSelector != nil {
 
-		// Translate kubernetes segment label into romana segment.
-		segment, err := translator.getOrAddSegment(tenantCacheEntry.Tenant.Name, kubeSegmentID)
-		if err != nil {
-			log.Errorf("Error in translate while calling l.getOrAddSegment with %s and %s - error %s", tenantCacheEntry.Tenant.Name, kubeSegmentID, err)
-			return err
-		}
+			// Check if source/target tenant in cache.
+			tenantCacheEntry = translator.checkTenantInCache(tg.kubePolicy.ObjectMeta.Namespace)
+			if tenantCacheEntry == nil {
+				log.Errorf("Tenant not not found when translating policy %v", tg.romanaPolicy)
+				return TranslatorError{ErrorTenantNotInCache, nil}
+			}
 
-		tg.romanaPolicy.Peers = append(tg.romanaPolicy.Peers,
-			common.Endpoint{TenantID: tenantCacheEntry.Tenant.ID, TenantExternalID: tenantCacheEntry.Tenant.ExternalID, SegmentID: segment.ID})
+			// If podSelector is empty match all traffic from the tenant.
+			if len(fromEntry.PodSelector.MatchLabels) == 0 {
+				tg.romanaPolicy.Ingress[tg.ingressIndex].Peers = append(tg.romanaPolicy.Ingress[tg.ingressIndex].Peers,
+					common.Endpoint{TenantID: tenantCacheEntry.Tenant.ID, TenantExternalID: tenantCacheEntry.Tenant.ExternalID})
+
+				log.Tracef(2, "No segment specified when translating ingress rule %v", tg.kubePolicy.Spec.Ingress[tg.ingressIndex])
+				return nil
+			}
+
+			// Get segment name from podSelector.
+			kubeSegmentID, ok := fromEntry.PodSelector.MatchLabels[translator.segmentLabelName]
+			if !ok || kubeSegmentID == "" {
+				log.Errorf("Expected segment to be specified in podSelector part as %s", translator.segmentLabelName)
+				return common.NewError("Expected segment to be specified in podSelector part as '%s'", translator.segmentLabelName)
+			}
+
+			// Translate kubernetes segment name into romana segment.
+			segment, err := translator.getOrAddSegment(tenantCacheEntry.Tenant.Name, kubeSegmentID)
+			if err != nil {
+				log.Errorf("Error in translate while calling l.getOrAddSegment with %s and %s - error %s", tenantCacheEntry.Tenant.Name, kubeSegmentID, err)
+				return err
+			}
+
+			// Register source tenant/segment as a romana Peer.
+			tg.romanaPolicy.Ingress[tg.ingressIndex].Peers = append(tg.romanaPolicy.Ingress[tg.ingressIndex].Peers,
+				common.Endpoint{TenantID: tenantCacheEntry.Tenant.ID, TenantExternalID: tenantCacheEntry.Tenant.ExternalID, SegmentID: segment.ID})
+		}
 
 	}
 	return nil
@@ -435,7 +472,7 @@ func (tg *TranslateGroup) makeNextRule(translator *Translator) error {
 		proto := strings.ToLower(string(*toPort.Protocol))
 		ports := []uint{uint(toPort.Port.IntValue())}
 		rule := common.Rule{Protocol: proto, Ports: ports}
-		tg.romanaPolicy.Rules = append(tg.romanaPolicy.Rules, rule)
+		tg.romanaPolicy.Ingress[tg.ingressIndex].Rules = append(tg.romanaPolicy.Ingress[tg.ingressIndex].Rules, rule)
 	}
 
 	return nil
@@ -448,6 +485,8 @@ func (tg *TranslateGroup) translateNextIngress(translator *Translator) error {
 	if tg.ingressIndex > len(tg.kubePolicy.Spec.Ingress)-1 {
 		return NoMoreIngressEntities{}
 	}
+
+	tg.romanaPolicy.Ingress = append(tg.romanaPolicy.Ingress, common.RomanaIngress{})
 
 	// Translate Ingress.From into romanaPolicy.ToPorts.
 	err := tg.makeNextIngressPeer(translator)

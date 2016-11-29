@@ -25,8 +25,6 @@ import (
 	"testing"
 )
 
-// const A = `{ "Spec" :{ "podSelector" : { "MatchLabels" : { "Key1" : "Val1", "Key2" : "Val2" } } } }`
-
 func TestTranslateTarget(t *testing.T) {
 	tg := TranslateGroup{
 		kubePolicy: &v1beta1.NetworkPolicy{
@@ -138,9 +136,16 @@ func TestMakeNextIngressPeer(t *testing.T) {
 					},
 				},
 			},
+			TenantCacheEntry{
+				Tenant: tenant.Tenant{
+					Name: "source-tenant",
+					ID:   4,
+				},
+			},
 		},
 		cacheMu:          &sync.Mutex{},
 		segmentLabelName: "role",
+		tenantLabelName:  "tenantName",
 	}
 
 	testCases := []struct {
@@ -156,9 +161,31 @@ func TestMakeNextIngressPeer(t *testing.T) {
 			},
 			RomanaPolicy: common.Policy{
 				Name: "TestPolicyWithoutSegment",
+				Ingress: []common.RomanaIngress{
+					common.RomanaIngress{},
+				},
 			},
 			expected: func(p *common.Policy) bool {
-				return p.Peers[0].TenantID == 3
+				return p.Ingress[0].Peers[0].TenantID == 3
+			},
+		}, {
+			From: []v1beta1.NetworkPolicyPeer{
+				v1beta1.NetworkPolicyPeer{
+					NamespaceSelector: &v1beta1.LabelSelector{
+						MatchLabels: map[string]string{
+							"tenantName": "source-tenant",
+						},
+					},
+				},
+			},
+			RomanaPolicy: common.Policy{
+				Name: "TestPolicyWithoutSegment",
+				Ingress: []common.RomanaIngress{
+					common.RomanaIngress{},
+				},
+			},
+			expected: func(p *common.Policy) bool {
+				return p.Ingress[0].Peers[0].TenantID == 4
 			},
 		}, {
 			From: []v1beta1.NetworkPolicyPeer{
@@ -179,9 +206,12 @@ func TestMakeNextIngressPeer(t *testing.T) {
 			},
 			RomanaPolicy: common.Policy{
 				Name: "TestPolicyWithSegments",
+				Ingress: []common.RomanaIngress{
+					common.RomanaIngress{},
+				},
 			},
 			expected: func(p *common.Policy) bool {
-				return p.Peers[0].TenantID == 3 && p.Peers[0].SegmentID == 2 && p.Peers[1].TenantID == 3 && p.Peers[1].SegmentID == 3
+				return p.Ingress[0].Peers[0].TenantID == 3 && p.Ingress[0].Peers[0].SegmentID == 2 && p.Ingress[0].Peers[1].TenantID == 3 && p.Ingress[0].Peers[1].SegmentID == 3
 			},
 		},
 	}
@@ -243,9 +273,12 @@ func TestMakeNextRule(t *testing.T) {
 			},
 			RomanaPolicy: common.Policy{
 				Name: "TestPolicyWithPorts",
+				Ingress: []common.RomanaIngress{
+					common.RomanaIngress{},
+				},
 			},
 			expected: func(p *common.Policy) bool {
-				return p.Rules[0].Ports[0] == 80 && p.Rules[0].Protocol == "tcp" && p.Rules[1].Ports[0] == 53 && p.Rules[1].Protocol == "udp"
+				return p.Ingress[0].Rules[0].Ports[0] == 80 && p.Ingress[0].Rules[0].Protocol == "tcp" && p.Ingress[0].Rules[1].Ports[0] == 53 && p.Ingress[0].Rules[1].Protocol == "udp"
 			},
 		},
 	}
