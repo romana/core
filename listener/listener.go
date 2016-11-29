@@ -81,46 +81,46 @@ func (l *kubeListener) Name() string {
 
 // SetConfig implements SetConfig function of the Service interface.
 func (l *kubeListener) SetConfig(config common.ServiceConfig) error {
+	confString := "/etc/romana/romana.conf.yml:kubernetesListener:config:"
+	log.Trace(5, confString, config)
+
 	m := config.ServiceSpecific
-	if m["kubernetes_url"] == "" {
-		return errors.New("kubernetes_url required")
+	if kl, ok := m["kubernetes_url"]; !ok || kl == "" {
+		return fmt.Errorf("%s%s", confString, "kubernetes_url required in config.")
 	}
 	l.kubeURL = m["kubernetes_url"].(string)
 
-	if m["namespace_notification_path"] == "" {
-		return errors.New("namespace_notification_path required")
+	if nnp, ok := m["namespace_notification_path"]; !ok || nnp == "" {
+		return fmt.Errorf("%s%s", confString, "namespace_notification_path required in config.")
 	}
 	l.namespaceNotificationPath = m["namespace_notification_path"].(string)
 
-	if m["policy_notification_path_prefix"] == "" {
-		return errors.New("policy_notification_path_prefix required")
+	if pnppre, ok := m["policy_notification_path_prefix"]; !ok || pnppre == "" {
+		return fmt.Errorf("%s%s", confString, "policy_notification_path_prefix required in config.")
 	}
 	l.policyNotificationPathPrefix = m["policy_notification_path_prefix"].(string)
 
-	if m["policy_notification_path_postfix"] == "" {
-		return errors.New("policy_notification_path_postfix required")
+	if pnppost, ok := m["policy_notification_path_prefix"]; !ok || pnppost == "" {
+		return fmt.Errorf("%s%s", confString, "policy_notification_path_postfix required in config.")
 	}
 	l.policyNotificationPathPostfix = m["policy_notification_path_postfix"].(string)
 
-	if m["segment_label_name"] == "" {
-		return errors.New("segment_label_name required")
+	if sln, ok := m["segment_label_name"]; !ok || sln == "" {
+		return fmt.Errorf("%s%s", confString, "segment_label_name required in config.")
 	}
 	l.segmentLabelName = m["segment_label_name"].(string)
 
-	if m["tenant_label_name"] == "" {
-		return errors.New("segment_label_name required")
+	if tln, ok := m["tenant_label_name"]; !ok || tln == "" {
+		return fmt.Errorf("%s%s", confString, "tenant_label_name required in config.")
 	}
 	l.tenantLabelName = m["tenant_label_name"].(string)
 
-	// TODO, what is `wait_for_iface_try` and why namespaceBufferSize is set instead ? Stas.
-	if m["wait_for_iface_try"] == nil {
-		l.namespaceBufferSize = 10
-	} else {
-		l.namespaceBufferSize = uint64(m["namespace_buffer_size"].(float64))
-	}
 	l.namespaceBufferSize = 1000
 
-	if m["kubernetes_config"] == nil {
+	if kc, ok := m["kubernetes_config"]; !ok || kc == "" {
+		// Default kubernetes config location on ubuntu
+		// TODO: this should not be hard coded, other
+		//       distributions may have other user names.
 		m["kubernetes_config"] = "/home/ubuntu/.kube/config"
 	}
 
@@ -132,7 +132,7 @@ func (l *kubeListener) SetConfig(config common.ServiceConfig) error {
 	}
 	clientset, err := kubernetes.NewForConfig(kubeClientConfig)
 	if err != nil {
-		return errors.New(fmt.Sprintf("Failed to make kubernetes client %s", err))
+		return fmt.Errorf("Failed to make kubernetes client %s", err)
 	}
 	l.kubeClient = clientset
 
