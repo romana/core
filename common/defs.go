@@ -200,11 +200,15 @@ type Policy struct {
 	// with Romana in this deployment (e.g., Open Stack).
 	ExternalID string `json:"external_id,omitempty"`
 	// Datacenter describes a Romana deployment.
-	Datacenter *Datacenter `json:"datacenter,omitempty"`
-	AppliedTo  []Endpoint  `json:"applied_to,omitempty"`
-	Peers      []Endpoint  `json:"peers,omitempty"`
-	Rules      []Rule      `json:"rules,omitempty"`
+	Datacenter *Datacenter     `json:"datacenter,omitempty"`
+	AppliedTo  []Endpoint      `json:"applied_to,omitempty"`
+	Ingress    []RomanaIngress `json:"ingress,omitempty"`
 	//	Tags       []Tag      `json:"tags,omitempty"`
+}
+
+type RomanaIngress struct {
+	Peers []Endpoint `json:"peers,omitempty"`
+	Rules []Rule     `json:"rules,omitempty"`
 }
 
 func (p Policy) String() string {
@@ -324,13 +328,8 @@ func (p *Policy) Validate() error {
 		s := fmt.Sprintf("Unknown direction '%s', allowed '%s' or '%s'.", p.Direction, PolicyDirectionEgress, PolicyDirectionIngress)
 		errMsg = append(errMsg, s)
 	}
-	// 2. Validate rules
-	rulesMsg := validateRules(p.Rules)
-	if rulesMsg != nil {
-		errMsg = append(errMsg, rulesMsg...)
-	}
 
-	// 3. Validate AppliedTo
+	// 2. Validate AppliedTo
 	if len(p.AppliedTo) == 0 {
 		errMsg = append(errMsg, fmt.Sprintf("Required 'applied_to' entry missing."))
 	} else {
@@ -348,27 +347,41 @@ func (p *Policy) Validate() error {
 			}
 		}
 	}
-	// 4. Validate peers
-	for i, endpoint := range p.Peers {
-		epNo := i + 1
-		if endpoint.Peer != "" && endpoint.Peer != Wildcard && endpoint.Peer != "host" && endpoint.Peer != "local" {
-			errMsg = append(errMsg, fmt.Sprintf("peers entry #%d: Invalid value for Any: '%s', only '' and %s allowed.", epNo, endpoint.Peer, Wildcard))
-		}
-		if endpoint.SegmentID != 0 || endpoint.SegmentExternalID != "" {
-			if endpoint.TenantExternalID == "" &&
-				endpoint.TenantID == 0 &&
-				endpoint.TenantNetworkID == nil &&
-				endpoint.TenantName == "" {
-				errMsg = append(errMsg,
-					fmt.Sprintf("peers entry #%d: since segment_external_id "+
-						"is specified, at least one of: tenant, tenant_id, "+
-						"tenant_external_id or tenant_network_id must be "+
-						"specified.", epNo))
+
+	// 3 Validate Ingress
+	if p.Ingress == nil {
+		errMsg = append(errMsg, "Ingress field not found")
+	} else {
+		for _, ingress := range p.Ingress {
+			// 2. Validate rules
+			rulesMsg := validateRules(ingress.Rules)
+			if rulesMsg != nil {
+				errMsg = append(errMsg, rulesMsg...)
+			}
+
+			// 4. Validate peers
+			for i, endpoint := range ingress.Peers {
+				epNo := i + 1
+				if endpoint.Peer != "" && endpoint.Peer != Wildcard && endpoint.Peer != "host" && endpoint.Peer != "local" {
+					errMsg = append(errMsg, fmt.Sprintf("peers entry #%d: Invalid value for Any: '%s', only '' and %s allowed.", epNo, endpoint.Peer, Wildcard))
+				}
+				if endpoint.SegmentID != 0 || endpoint.SegmentExternalID != "" {
+					if endpoint.TenantExternalID == "" &&
+						endpoint.TenantID == 0 &&
+						endpoint.TenantNetworkID == nil &&
+						endpoint.TenantName == "" {
+						errMsg = append(errMsg,
+							fmt.Sprintf("peers entry #%d: since segment_external_id "+
+								"is specified, at least one of: tenant, tenant_id, "+
+								"tenant_external_id or tenant_network_id must be "+
+								"specified.", epNo))
+					}
+				}
 			}
 		}
 	}
 
-	// 5. Validate name/external ID
+	// 4. Validate name/external ID
 	// TODO add test
 	if p.Name == "" && p.ExternalID == "" {
 		errMsg = append(errMsg, "At least one of name, external_id must be specified.")

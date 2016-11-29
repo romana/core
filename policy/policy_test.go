@@ -314,7 +314,7 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	c.Assert(policyOut.Name, check.Equals, "pol1")
 	c.Assert(policyOut.ID, check.Equals, uint64(1))
 	c.Assert(len(policyOut.AppliedTo), check.Equals, len(policyIn.AppliedTo))
-	c.Assert(len(policyOut.Peers), check.Equals, len(policyIn.Peers))
+	c.Assert(len(policyOut.Ingress[0].Peers), check.Equals, len(policyIn.Ingress[0].Peers))
 	c.Assert(client.GetStatusCode(), check.Equals, 200)
 
 	pol1ExternalID := policyIn.ExternalID
@@ -352,8 +352,12 @@ func (s *MySuite) TestPolicy(c *check.C) {
 		Name:       "default",
 		ExternalID: "default",
 		AppliedTo:  []common.Endpoint{{TenantNetworkID: &one}},
-		Peers:      []common.Endpoint{{Peer: common.Wildcard}},
-		Rules:      []common.Rule{{Protocol: common.Wildcard}},
+		Ingress: []common.RomanaIngress{
+			common.RomanaIngress{
+				Peers: []common.Endpoint{{Peer: common.Wildcard}},
+				Rules: []common.Rule{{Protocol: common.Wildcard}},
+			},
+		},
 	}
 	err = client.Post(polURL, defPol, &policyOut)
 	if err != nil {
@@ -487,89 +491,79 @@ func (s *MySuite) TestPolicy(c *check.C) {
 
 const (
 	romanaPolicy1 = `{
-	"direction":"ingress",
-	"external_id" : "pol1ExternalID",
-	"name":"pol1",
-	"datacenter":{	"id":0 },
-	"applied_to":[
-					{
-					 "tenant_id":1,
-					 "segment_id":1
-					 }
-				  ],
-  	"peers":[
-     {
-      "tenant_id":1,
-      "tenant_external_id":"default",
-	  "segment_id":2,
-	  "segment_external_id":"frontend"
-	  }
-	],
-  	"rules":[
-            {
-            "protocol":"tcp",
-            "ports":[80]
-            }
-      ]
-   }`
+	"direction": "ingress",
+	"external_id": "pol1ExternalID",
+	"name": "pol1",
+	"datacenter": {
+		"id": 0
+	},
+	"applied_to": [{
+		"tenant_id": 1,
+		"segment_id": 1
+	}],
+	"ingress": [{
+		"peers": [{
+			"tenant_id": 1,
+			"tenant_external_id": "default",
+			"segment_id": 2,
+			"segment_external_id": "frontend"
+		}],
+		"rules": [{
+			"protocol": "tcp",
+			"ports": [80]
+		}]
+	}]
+}`
 
 	romanaPolicy2 = `{
-	"direction":"ingress",
-	"name":"pol2",
-	"datacenter":{	"id":0 },
-	"applied_to":[
-					{
-					 "tenant_id":1,
-					 "segment_id":1
-					 }
-				  ],
-  	"peers":[
-     {
-      "tenant_id":1,
-      "tenant_external_id":"default",
-	  "segment_id":2,
-	  "segment_external_id":"frontend"
-	  }
-	],
-  	"rules":[
-            {
-            "protocol":"tcp",
-            "ports":[80]
-            }
-      ]
-   }`
+	"direction": "ingress",
+	"name": "pol2",
+	"datacenter": {
+		"id": 0
+	},
+	"applied_to": [{
+		"tenant_id": 1,
+		"segment_id": 1
+	}],
+	"ingress": [{
+		"peers": [{
+			"tenant_id": 1,
+			"tenant_external_id": "default",
+			"segment_id": 2,
+			"segment_external_id": "frontend"
+		}],
+		"rules": [{
+			"protocol": "tcp",
+			"ports": [80]
+		}]
+	}]
+}`
 
 	icmpPolicy = `{
-  "direction": "ingress",
-  "name": "os-vm-default",
-  "applied_to": [
-    {
-      "dest": "local"
-    }
-  ],
-  "peers": [
-    {
-      "peer": "host"
-    }
-  ],
-  "rules": [
-    {
-      "protocol": "TCP",
-      "ports": [
-        22
-      ]
-    },
-    {
-      "protocol": "UDP",
-      "ports": [
-        67
-      ]
-    },
-    {
-      "protocol": "ICMP",
-      "icmp_type": 8
-      
-    }
-  ]
+	"direction": "ingress",
+	"name": "os-vm-default",
+	"applied_to": [{
+		"dest": "local"
+	}],
+	"ingress": [{
+		"peers": [{
+			"peer": "host"
+		}],
+		"rules": [{
+			"protocol": "TCP",
+			"ports": [
+				22
+			]
+		}, {
+			"protocol": "UDP",
+			"ports": [
+				67
+			]
+		}, {
+			"protocol": "ICMP",
+			"icmp_type": 8
+
+		}]
+	}]
 }`
 )

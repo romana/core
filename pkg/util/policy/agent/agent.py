@@ -163,16 +163,18 @@ class AgentHandler(BaseHTTPRequestHandler):
         """
         Checks that some top level sections are present in the policy.
         """
-        expected_fields = [ "name", "applied_to", "rules", "peers", "datacenter" ]
+        expected_fields = [ "name", "applied_to", "ingress", "datacenter" ]
         if not all([ policy_def.get(k) for k in expected_fields ]):
             logging.warning("In validate_policy, policy is invalid - some of expected fields are missing, %s" % expected_fields)
             return False
 
 
         # Validating compatibility across applied_to and peers list.
+
+        #        Target type  |   valid source types for given target type.
         valid = {
-                "full_tenant" : [ "peer_any", "full_tenant", "cidr" ],
-                "only_tenant" : [ "peer_any", "full_tenant", "cidr" ],
+                "full_tenant" : [ "peer_any", "full_tenant", "only_tenant", "cidr" ],
+                "only_tenant" : [ "peer_any", "full_tenant", "only_tenant", "cidr" ],
                 "dest_host"        : [ "peer_local", "peer_any" ],
                 "dest_local"       : [ "peer_host", "peer_any"  ],
                 }
@@ -195,25 +197,25 @@ class AgentHandler(BaseHTTPRequestHandler):
 
             target_types.append(target_type)
 
-        for peer in policy_def['peers']:
-            tenant  = peer.get('tenant_network_id')
-            segment = peer.get('segment_network_id')
-            peer_t  = peer.get('peer')
-            cidr    = peer.get('cidr')
+        for ingress in policy_def['ingress']:
+          for peer in ingress['peers']:
+              tenant  = peer.get('tenant_network_id')
+              segment = peer.get('segment_network_id')
+              peer_t  = peer.get('peer')
+              cidr    = peer.get('cidr')
+  
+              if not None in [ tenant, segment ]:
+                  peer_type = "full_tenant"
+              elif tenant is not None:
+                  peer_type = "only_tenant"
+              elif peer_t is not None:
+                  peer_type = "peer_%s" % peer_t
+              elif cidr is not None:
+                  peer_type = "cidr"
+              else:
+                  raise Exception("Unsupported value of peers %s" % peer)
 
-            if not None in [ tenant, segment ]:
-                peer_type = "full_tenant"
-            elif tenant is not None:
-                peer_type = "only_tenant"
-            elif peer_t is not None:
-                peer_type = "peer_%s" % peer_t
-            elif cidr is not None:
-                peer_type = "cidr"
-            else:
-                # supported peer types are local, host and any as in L543-L553
-                raise Exception("Unsupported value of peers %s" % peer)
-
-            peer_types.append(peer_type)
+              peer_types.append(peer_type)
 
         logging.info("In validate_policy with applied_to %s and peers %s" % (target_types, peer_types))
         for target in target_types:
@@ -404,9 +406,7 @@ def make_rules(addr_scheme, policy_def, policy_id):
 
     rules = {}
 
-    # We really need a list of chains but using dict here
-    # to avoid extra checks for item in list.
-    policy_chains = {}
+    policy_chains = set()
 
     # Create chain names for each target and stuff them with default rules
     name = policy_def['external_id']
@@ -465,15 +465,7 @@ def make_rules(addr_scheme, policy_def, policy_id):
 
 
         # The name for the new policy's chain(s).
-        policy_chain_name = "ROMANA-P-%s_" % \
-            name
-
-        # Policy chain only hosts match conditions, rules themselves are
-        # applied in this auxiliary chain
-        in_chain_name  = policy_chain_name[:-1] + "-IN_"
-
-        # Chain names are going to be used later to fill in the rules. Store them.
-        policy_chains[in_chain_name] = True
+        policy_chain_name = "ROMANA-P-%s_" % name
 
         # There could be either 1 or 2 jumps.
         # When crating a policy for tenant there will be a jump from ingress chain
@@ -529,59 +521,73 @@ def make_rules(addr_scheme, policy_def, policy_id):
             rules[tenant_wide_policy_vector_chain].append(
                 _make_rule(tenant_wide_policy_vector_chain, '-m comment --comment POLICY_CHAIN_HEADER -j RETURN'))
 
-        # Loop over peers and fill top level policy chains with source matching rules
-        for peer in policy_def['peers']:
-            # Possible peers are
-            # CIDR - detected by cidr field
-            # peer - detected by peer type
-            # tid/sid - detected by tenant_network_id and segment_network_id
-            pr = peer.get('peer')
-            cidr = peer.get('cidr')
-            from_tenant = peer.get('tenant_network_id')
-            from_segment = peer.get('segment_network_id')
+        for ingress_count, ingress in enumerate(policy_def['ingress']):
 
-            if pr:
-                if pr == "any":
-                    jump_rules = [ _make_rule(policy_chain_name, "-j %s") % in_chain_name ]
+          # Policy chain only hosts match conditions, rules themselves are
+          # applied in this auxiliary chain
+          in_chain_name  = policy_chain_name[:-1] + "-IN_" + str(ingress_count)
+  
+          # Chain names are going to be used later to fill in the rules. Store them.
+          policy_chains.add(in_chain_name)
 
-                elif pr == "host":
-                    jump_rules = [ _make_rule(policy_chain_name, "-s %s -j %s") % (get_romana_gw_ip().split('/')[0], in_chain_name) ]
-
-                elif pr == "local":
-                    jump_rules = [ _make_rule(policy_chain_name, "-j %s") % (in_chain_name) ]
-
-                else:
-                    raise Exception("Unsupported value of peer %s" % pr)
-
-            elif cidr:
-                jump_rules = [ _make_rule(policy_chain_name, "-s %s -j %s") % (cidr, in_chain_name) ]
-
-            elif not None in [ from_segment, from_tenant ]:
-                u32_in_match = _make_u32_match(addr_scheme, from_tenant=from_tenant, from_segment=from_segment)
-                jump_rules = [
-                    _make_rule(policy_chain_name, '-m u32 --u32 "%s" -j %s' %
-                                                       (u32_in_match, in_chain_name))
-                ]
-
-            else:
-                raise Exception("Unknown peer type %s" % peer)
-
-            if not policy_chain_name in rules:
-                rules[policy_chain_name] = []
-                rules[policy_chain_name].append(
-                    _make_rule(policy_chain_name, '-m comment --comment PolicyId=%s -j RETURN' % policy_id))
-
-            for r in jump_rules:
-                rules[policy_chain_name].insert(0,r)
-
-    # Loop over rules and render protocol + action part of each rule
-    for r in _make_rules(policy_def['rules']):
-        for pc in policy_chains:
+  
+  
+          # Loop over peers and fill top level policy chains with source matching rules
+          for peer in ingress['peers']:
+              # Possible peers are
+              # CIDR - detected by cidr field
+              # peer - detected by peer type
+              # tid/sid - detected by tenant_network_id and segment_network_id
+              pr = peer.get('peer')
+              cidr = peer.get('cidr')
+              from_tenant = peer.get('tenant_network_id')
+              from_segment = peer.get('segment_network_id')
+  
+              if pr:
+                  if pr == "any":
+                      jump_rules = [ _make_rule(policy_chain_name, "-j %s") % in_chain_name ]
+  
+                  elif pr == "host":
+                      jump_rules = [ _make_rule(policy_chain_name, "-s %s -j %s") % (get_romana_gw_ip().split('/')[0], in_chain_name) ]
+  
+                  elif pr == "local":
+                      jump_rules = [ _make_rule(policy_chain_name, "-j %s") % (in_chain_name) ]
+  
+                  else:
+                      raise Exception("Unsupported value of peer %s" % pr)
+  
+              elif cidr:
+                  jump_rules = [ _make_rule(policy_chain_name, "-s %s -j %s") % (cidr, in_chain_name) ]
+  
+              elif from_tenant is not None:
+                  u32_in_match = _make_u32_match(addr_scheme, from_tenant=from_tenant, from_segment=from_segment)
+                  jump_rules = [
+                      _make_rule(policy_chain_name, '-m u32 --u32 "%s" -j %s' %
+                                                         (u32_in_match, in_chain_name))
+                  ]
+  
+              else:
+                  raise Exception("Unknown peer type %s" % peer)
+  
+              if not policy_chain_name in rules:
+                  rules[policy_chain_name] = []
+                  rules[policy_chain_name].append(
+                      _make_rule(policy_chain_name, '-m comment --comment PolicyId=%s -j RETURN' % policy_id))
+  
+              for r in jump_rules:
+                  rules[policy_chain_name].insert(0,r)
+  
+          # peer loop above filled policy_chains with chain names,
+          # for each name in policy_chains there need to be a list in rules.
+          for pc in policy_chains:
             if not pc in rules:
-                rules[pc] = []
-        # and stuff copy of the rule into each policy chain
-        rules[pc].append(_make_rule(pc,r))
+              rules[pc] = []
 
+          # Loop over rules and render protocol + action part of each rule
+          for r in _make_rules(ingress['rules']):
+          # and stuff copy of the rule into each policy chain
+            rules[in_chain_name].append(_make_rule(in_chain_name,r))
+  
     return rules
 
 
@@ -779,6 +785,7 @@ def delete_all_rules_for_policy(iptables_rules, policy_name, tenants):
 
 
     return clean_rules
+
 
 def apply_new_ruleset(rules):
     """
