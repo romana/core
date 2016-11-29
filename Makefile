@@ -19,7 +19,7 @@ all: install upx fmt vet test lint
 
 test:
 	go list -f '{{.ImportPath}}' "./..." | \
-		grep -v /vendor/ | xargs go test -v -timeout=30s -cover
+		grep -v /vendor/ | xargs go test -timeout=30s -cover
 
 vet:
 	go list -f '{{.ImportPath}}' "./..." | \
