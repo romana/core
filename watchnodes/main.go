@@ -30,8 +30,7 @@ import (
 	"strings"
 	"time"
 
-	rcommon "github.com/romana/core/common"
-	kcommon "github.com/romana/kube/common"
+	"github.com/romana/core/common"
 
 	config "github.com/spf13/viper"
 	"k8s.io/client-go/1.5/kubernetes"
@@ -52,7 +51,7 @@ func main() {
 	flag.Parse()
 
 	if *version {
-		fmt.Println(kcommon.BuildInfo())
+		fmt.Println(common.BuildInfo())
 		return
 	}
 
@@ -196,7 +195,7 @@ func romanaHostAdd(node *v1.Node) error {
 
 	rootURL := config.GetString("RootURL")
 
-	client, err := rcommon.NewRestClient(rcommon.GetDefaultRestClientConfig(rootURL))
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
 	if err != nil {
 		return err
 	}
@@ -206,18 +205,18 @@ func romanaHostAdd(node *v1.Node) error {
 		return err
 	}
 
-	index := rcommon.IndexResponse{}
+	index := common.IndexResponse{}
 	err = client.Get(topologyURL, &index)
 	if err != nil {
 		return err
 	}
 
-	host := rcommon.Host{
+	host := common.Host{
 		Name: hostname,
 		Ip:   hostIP,
 	}
 
-	data := rcommon.Host{}
+	data := common.Host{}
 	err = client.Post(topologyURL+"/hosts", host, &data)
 	if err != nil {
 		log.Printf("Error adding host (%s).\n", hostname)
