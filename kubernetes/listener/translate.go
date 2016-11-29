@@ -19,12 +19,12 @@ package kubernetes
 
 import (
 	"fmt"
-	"os"
-	log "github.com/romana/rlog"
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
+	log "github.com/romana/rlog"
 	"k8s.io/client-go/1.5/pkg/apis/extensions/v1beta1"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 )
@@ -273,7 +273,7 @@ func (t *Translator) updateCache() error {
 
 	if t.restClient == nil {
 		log.Critical("REST client is nil")
-        os.Exit(255)
+		os.Exit(255)
 	}
 
 	// tenants := []tenant.Tenant{}
@@ -358,7 +358,7 @@ func (tg *TranslateGroup) translateTarget(translator *Translator) error {
 			common.Endpoint{TenantID: tenantCacheEntry.Tenant.ID, TenantExternalID: tenantCacheEntry.Tenant.ExternalID},
 		}
 
-		log.Tracef(2,"Segment was not specified in policy %v, assuming target is a namespace", tg.kubePolicy)
+		log.Tracef(2, "Segment was not specified in policy %v, assuming target is a namespace", tg.kubePolicy)
 		return nil
 	}
 
@@ -402,7 +402,7 @@ func (tg *TranslateGroup) makeNextIngressPeer(translator *Translator) error {
 			tg.romanaPolicy.Peers = append(tg.romanaPolicy.Peers,
 				common.Endpoint{TenantID: tenantCacheEntry.Tenant.ID, TenantExternalID: tenantCacheEntry.Tenant.ExternalID})
 
-			log.Tracef(2,"No segment specified when translating ingress rule %v", tg.kubePolicy.Spec.Ingress[tg.ingressIndex])
+			log.Tracef(2, "No segment specified when translating ingress rule %v", tg.kubePolicy.Spec.Ingress[tg.ingressIndex])
 			return nil
 		}
 

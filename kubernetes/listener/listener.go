@@ -20,8 +20,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"net/http"
+	"os"
 
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
@@ -136,7 +136,7 @@ func (l *kubeListener) SetConfig(config common.ServiceConfig) error {
 	tc := PTranslator.GetClient()
 	if tc == nil {
 		log.Critical("Failed to initialize rest client for policy translator.")
-        os.Exit(255)
+		os.Exit(255)
 	}
 
 	return nil
@@ -276,7 +276,7 @@ func (l *kubeListener) Initialize() error {
 	eventc, err := l.nsWatch(done, nsURL)
 	if err != nil {
 		log.Critical("Namespace watcher failed to start", err)
-        os.Exit(255)
+		os.Exit(255)
 	}
 
 	// events := l.conductor(nsEvents, done)

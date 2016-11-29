@@ -18,9 +18,9 @@ package kubernetes
 import (
 	"encoding/json"
 	"fmt"
-	log "github.com/romana/rlog"
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
+	log "github.com/romana/rlog"
 	"io"
 	"net/http"
 	"strings"
@@ -64,7 +64,7 @@ func handleNetworkPolicyEvents(events []Event, l *kubeListener) {
 		case KubeEventDeleted:
 			deleteEvents = append(deleteEvents, *event.Object.(*v1beta1.NetworkPolicy))
 		default:
-			log.Tracef(2,"Ignoring %s event in handleNetworkPolicyEvents", event.Type)
+			log.Tracef(2, "Ignoring %s event in handleNetworkPolicyEvents", event.Type)
 		}
 	}
 
@@ -378,7 +378,7 @@ func (l *kubeListener) syncNetworkPolicies(kubePolicies []v1beta1.NetworkPolicy)
 		}
 
 		if !found {
-			log.Tracef(2,"Sync policies detected new kube policy %v", kubePolicies[kn])
+			log.Tracef(2, "Sync policies detected new kube policy %v", kubePolicies[kn])
 			kubernetesEvents = append(kubernetesEvents, Event{KubeEventAdded, kubePolicies[kn]})
 		}
 	}
@@ -388,13 +388,13 @@ func (l *kubeListener) syncNetworkPolicies(kubePolicies []v1beta1.NetworkPolicy)
 	// Ignore policies that don't have "kube." prefix in the name.
 	for k, _ := range policies {
 		if !strings.HasPrefix(policies[k].Name, "kube.") {
-			log.Tracef(4,"Sync policies skipping policy %s since it doesn't match the prefix `kube.`", policies[k].Name)
+			log.Tracef(4, "Sync policies skipping policy %s since it doesn't match the prefix `kube.`", policies[k].Name)
 			continue
 		}
 
 		if !accountedRomanaPolicies[k] {
 			log.Infof("Sync policies detected that romana policy %d is obsolete - scheduling for deletion", policies[k].ID)
-			log.Tracef(2,"Sync policies detected that romana policy %d is obsolete - scheduling for deletion", policies[k].ID)
+			log.Tracef(2, "Sync policies detected that romana policy %d is obsolete - scheduling for deletion", policies[k].ID)
 			romanaPolicies = append(romanaPolicies, policies[k])
 		}
 	}
