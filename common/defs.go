@@ -200,15 +200,15 @@ type Policy struct {
 	// with Romana in this deployment (e.g., Open Stack).
 	ExternalID string `json:"external_id,omitempty"`
 	// Datacenter describes a Romana deployment.
-	Datacenter *Datacenter `json:"datacenter,omitempty"`
-	AppliedTo  []Endpoint  `json:"applied_to,omitempty"`
+	Datacenter *Datacenter     `json:"datacenter,omitempty"`
+	AppliedTo  []Endpoint      `json:"applied_to,omitempty"`
 	Ingress    []RomanaIngress `json:"ingress,omitempty"`
 	//	Tags       []Tag      `json:"tags,omitempty"`
 }
 
 type RomanaIngress struct {
-	Peers      []Endpoint  `json:"peers,omitempty"`
-	Rules      []Rule      `json:"rules,omitempty"`
+	Peers []Endpoint `json:"peers,omitempty"`
+	Rules []Rule     `json:"rules,omitempty"`
 }
 
 func (p Policy) String() string {

@@ -352,10 +352,10 @@ func (s *MySuite) TestPolicy(c *check.C) {
 		Name:       "default",
 		ExternalID: "default",
 		AppliedTo:  []common.Endpoint{{TenantNetworkID: &one}},
-		Ingress:	[]common.RomanaIngress{
+		Ingress: []common.RomanaIngress{
 			common.RomanaIngress{
-				Peers:      []common.Endpoint{{Peer: common.Wildcard}},
-				Rules:      []common.Rule{{Protocol: common.Wildcard}},
+				Peers: []common.Endpoint{{Peer: common.Wildcard}},
+				Rules: []common.Rule{{Protocol: common.Wildcard}},
 			},
 		},
 	}

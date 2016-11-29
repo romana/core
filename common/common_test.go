@@ -109,7 +109,7 @@ func TestPolicyValidation(t *testing.T) {
 	// 2. Test no applied to
 	policy := Policy{
 		Ingress: []RomanaIngress{
-			RomanaIngress{Rules : rules},
+			RomanaIngress{Rules: rules},
 		},
 		Direction: PolicyDirectionEgress}
 	err := policy.Validate()
