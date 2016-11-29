@@ -74,6 +74,6 @@
 [submodule "vendor/github.com/spf13/jwalterweatherman"]
 	path = vendor/github.com/spf13/jwalterweatherman
 	url = https://github.com/spf13/jwalterweatherman
-[submodule "vendor/github.com/golang/glog"]
-	path = vendor/github.com/golang/glog
-	url = https://github.com/golang/glog
+[submodule "vendor/github.com/romana/rlog"]
+	path = vendor/github.com/romana/rlog
+	url = https://github.com/romana/rlog

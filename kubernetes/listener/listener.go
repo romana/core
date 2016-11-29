@@ -20,10 +20,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/golang/glog"
+	"net/http"
+	"os"
+
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
-	"net/http"
+	log "github.com/romana/rlog"
 
 	"k8s.io/client-go/1.5/kubernetes"
 	"k8s.io/client-go/1.5/tools/cache"
@@ -133,7 +135,8 @@ func (l *kubeListener) SetConfig(config common.ServiceConfig) error {
 	PTranslator.Init(l.restClient, l.segmentLabelName)
 	tc := PTranslator.GetClient()
 	if tc == nil {
-		glog.Fatal("Failed to initialize rest client for policy translator.")
+		log.Critical("Failed to initialize rest client for policy translator.")
+		os.Exit(255)
 	}
 
 	return nil
@@ -244,13 +247,13 @@ func (l *kubeListener) applyNetworkPolicy(action networkPolicyAction, romanaNetw
 	policyStr, _ := json.Marshal(romanaNetworkPolicy)
 	switch action {
 	case networkPolicyActionAdd:
-		glog.Infof("Applying policy %s", policyStr)
+		log.Infof("Applying policy %s", policyStr)
 		err := l.restClient.Post(policyURL, romanaNetworkPolicy, &romanaNetworkPolicy)
 		if err != nil {
 			return err
 		}
 	case networkPolicyActionDelete:
-		glog.Infof("Deleting policy policy %s", policyStr)
+		log.Infof("Deleting policy policy %s", policyStr)
 		err := l.restClient.Delete(policyURL, romanaNetworkPolicy, &romanaNetworkPolicy)
 		if err != nil {
 			return err
@@ -263,16 +266,17 @@ func (l *kubeListener) applyNetworkPolicy(action networkPolicyAction, romanaNetw
 
 func (l *kubeListener) Initialize() error {
 	l.lastEventPerNamespace = make(map[string]uint64)
-	glog.Infof("%s: Starting server", l.Name())
+	log.Infof("%s: Starting server", l.Name())
 	nsURL, err := common.CleanURL(fmt.Sprintf("%s/%s/?%s", l.kubeURL, l.namespaceNotificationPath, HttpGetParamWatch))
 	if err != nil {
 		return err
 	}
-	glog.Infof("Starting to listen on %s", nsURL)
+	log.Infof("Starting to listen on %s", nsURL)
 	done := make(chan struct{})
 	eventc, err := l.nsWatch(done, nsURL)
 	if err != nil {
-		glog.Fatal("Namespace watcher failed to start", err)
+		log.Critical("Namespace watcher failed to start", err)
+		os.Exit(255)
 	}
 
 	// events := l.conductor(nsEvents, done)
@@ -280,7 +284,7 @@ func (l *kubeListener) Initialize() error {
 
 	ProduceNewPolicyEvents(eventc, done, l)
 
-	glog.Infoln("All routines started")
+	log.Info("All routines started")
 	return nil
 }
 
