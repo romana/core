@@ -162,10 +162,10 @@ func CreateDefaultPolicy(o *v1.Namespace, l *kubeListener) {
 		Direction: common.PolicyDirectionIngress,
 		Name:      policyName,
 		AppliedTo: []common.Endpoint{{TenantNetworkID: &tenant.NetworkID}},
-		Ingress:   []common.RomanaIngress{
+		Ingress: []common.RomanaIngress{
 			common.RomanaIngress{
-				Peers:     []common.Endpoint{{Peer: common.Wildcard}},
-				Rules:     []common.Rule{{Protocol: common.Wildcard}},
+				Peers: []common.Endpoint{{Peer: common.Wildcard}},
+				Rules: []common.Rule{{Protocol: common.Wildcard}},
 			},
 		},
 	}

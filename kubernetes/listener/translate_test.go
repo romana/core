@@ -145,7 +145,7 @@ func TestMakeNextIngressPeer(t *testing.T) {
 		},
 		cacheMu:          &sync.Mutex{},
 		segmentLabelName: "role",
-		tenantLabelName: "tenantName",
+		tenantLabelName:  "tenantName",
 	}
 
 	testCases := []struct {

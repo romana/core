@@ -60,7 +60,7 @@ type kubeListener struct {
 	policyNotificationPathPrefix  string
 	policyNotificationPathPostfix string
 	segmentLabelName              string
-	tenantLabelName              string
+	tenantLabelName               string
 	lastEventPerNamespace         map[string]uint64
 	namespaceBufferSize           uint64
 
