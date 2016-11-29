@@ -19,14 +19,16 @@ package kubernetes
 
 import (
 	"fmt"
-	"github.com/romana/core/common"
-	"github.com/romana/core/tenant"
-	log "github.com/romana/rlog"
-	"k8s.io/client-go/1.5/pkg/apis/extensions/v1beta1"
 	"net/http"
 	"os"
 	"strings"
 	"sync"
+
+	"github.com/romana/core/common"
+	"github.com/romana/core/tenant"
+	log "github.com/romana/rlog"
+
+	"k8s.io/client-go/1.5/pkg/apis/extensions/v1beta1"
 )
 
 type PolicyTranslator interface {
@@ -394,10 +396,10 @@ func (tg *TranslateGroup) makeNextIngressPeer(translator *Translator) error {
 
 		// Exactly one of From.PodSelector or From.NamespaceSelector must be specified.
 		if fromEntry.PodSelector == nil && fromEntry.NamespaceSelector == nil {
-			glog.Errorf("Either PodSElector or NamespacesSelector must be specified")
+			log.Errorf("Either PodSElector or NamespacesSelector must be specified")
 			return common.NewError("Either PodSElector or NamespacesSelector must be specified")
 		} else if fromEntry.PodSelector != nil && fromEntry.NamespaceSelector != nil {
-			glog.Errorf("Exactly one of PodSElector or NamespacesSelector must be specified")
+			log.Errorf("Exactly one of PodSElector or NamespacesSelector must be specified")
 			return common.NewError("Exactly on of PodSElector or NamespacesSelector must be specified")
 		}
 
@@ -405,13 +407,13 @@ func (tg *TranslateGroup) makeNextIngressPeer(translator *Translator) error {
 		if fromEntry.NamespaceSelector != nil {
 			tenantName, ok := fromEntry.NamespaceSelector.MatchLabels[translator.tenantLabelName]
 			if !ok || tenantName == "" {
-				glog.Errorf("Expected tenant name to be specified in NamespaceSelector field with a key %s", translator.tenantLabelName)
+				log.Errorf("Expected tenant name to be specified in NamespaceSelector field with a key %s", translator.tenantLabelName)
 				return common.NewError("Expected tenant name to be specified in NamespaceSelector field with a key %s", translator.tenantLabelName)
 			}
 
 			tenantCacheEntry = translator.checkTenantInCache(tenantName)
 			if tenantCacheEntry == nil {
-				glog.Errorf("Tenant not not found when translating policy %v", tg.romanaPolicy)
+				log.Errorf("Tenant not not found when translating policy %v", tg.romanaPolicy)
 				return TranslatorError{ErrorTenantNotInCache, nil}
 			}
 
@@ -426,7 +428,7 @@ func (tg *TranslateGroup) makeNextIngressPeer(translator *Translator) error {
 			// Check if source/target tenant in cache.
 			tenantCacheEntry = translator.checkTenantInCache(tg.kubePolicy.ObjectMeta.Namespace)
 			if tenantCacheEntry == nil {
-				glog.Errorf("Tenant not not found when translating policy %v", tg.romanaPolicy)
+				log.Errorf("Tenant not not found when translating policy %v", tg.romanaPolicy)
 				return TranslatorError{ErrorTenantNotInCache, nil}
 			}
 
@@ -435,21 +437,21 @@ func (tg *TranslateGroup) makeNextIngressPeer(translator *Translator) error {
 				tg.romanaPolicy.Ingress[tg.ingressIndex].Peers = append(tg.romanaPolicy.Ingress[tg.ingressIndex].Peers,
 					common.Endpoint{TenantID: tenantCacheEntry.Tenant.ID, TenantExternalID: tenantCacheEntry.Tenant.ExternalID})
 
-				glog.V(2).Infof("No segment specified when translating ingress rule %v", tg.kubePolicy.Spec.Ingress[tg.ingressIndex])
+				log.Tracef(2, "No segment specified when translating ingress rule %v", tg.kubePolicy.Spec.Ingress[tg.ingressIndex])
 				return nil
 			}
 
 			// Get segment name from podSelector.
 			kubeSegmentID, ok := fromEntry.PodSelector.MatchLabels[translator.segmentLabelName]
 			if !ok || kubeSegmentID == "" {
-				glog.Errorf("Expected segment to be specified in podSelector part as %s", translator.segmentLabelName)
+				log.Errorf("Expected segment to be specified in podSelector part as %s", translator.segmentLabelName)
 				return common.NewError("Expected segment to be specified in podSelector part as '%s'", translator.segmentLabelName)
 			}
 
 			// Translate kubernetes segment name into romana segment.
 			segment, err := translator.getOrAddSegment(tenantCacheEntry.Tenant.Name, kubeSegmentID)
 			if err != nil {
-				glog.Errorf("Error in translate while calling l.getOrAddSegment with %s and %s - error %s", tenantCacheEntry.Tenant.Name, kubeSegmentID, err)
+				log.Errorf("Error in translate while calling l.getOrAddSegment with %s and %s - error %s", tenantCacheEntry.Tenant.Name, kubeSegmentID, err)
 				return err
 			}
 
