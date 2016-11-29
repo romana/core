@@ -13,9 +13,9 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Package kubernetes implements kubernetes API specific
+// Package listener implements kubernetes API specific
 // helper functions.
-package kubernetes
+package listener
 
 import (
 	"fmt"

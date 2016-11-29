@@ -13,16 +13,18 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-package kubernetes
+package listener
 
 import (
+	"sync"
+	"testing"
+
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
+
 	"k8s.io/client-go/1.5/pkg/api/v1"
 	"k8s.io/client-go/1.5/pkg/apis/extensions/v1beta1"
 	"k8s.io/client-go/1.5/pkg/util/intstr"
-	"sync"
-	"testing"
 )
 
 func TestTranslateTarget(t *testing.T) {

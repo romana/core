@@ -13,18 +13,19 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-package kubernetes
+package listener
 
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/romana/core/common"
-	"github.com/romana/core/tenant"
-	log "github.com/romana/rlog"
 	"io"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/romana/core/common"
+	"github.com/romana/core/tenant"
+	log "github.com/romana/rlog"
 
 	"k8s.io/client-go/1.5/pkg/api"
 	"k8s.io/client-go/1.5/pkg/api/v1"

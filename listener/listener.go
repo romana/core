@@ -13,8 +13,8 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Package kubernetes listens to Kubernetes for policy updates.
-package kubernetes
+// Package listener listens to Kubernetes for policy updates.
+package listener
 
 import (
 	"encoding/json"

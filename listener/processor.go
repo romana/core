@@ -13,14 +13,16 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-package kubernetes
+package listener
 
 import (
-	log "github.com/romana/rlog"
-	"k8s.io/client-go/1.5/pkg/api/v1"
-	"k8s.io/client-go/1.5/pkg/apis/extensions/v1beta1"
 	"reflect"
 	"time"
+
+	log "github.com/romana/rlog"
+
+	"k8s.io/client-go/1.5/pkg/api/v1"
+	"k8s.io/client-go/1.5/pkg/apis/extensions/v1beta1"
 )
 
 const (
