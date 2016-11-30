@@ -89,13 +89,13 @@ func (agentStore *agentStore) CreateSchemaPostProcess() error {
 }
 
 func (agentStore *agentStore) deleteRoute(route *Route) error {
-	log.Info("Acquiring store mutex for deleteRoute")
+	log.Trace(common.TrInside, "Acquiring store mutex for deleteRoute")
 	agentStore.mu.Lock()
 	defer func() {
-		log.Info("Releasing store mutex for deleteRoute")
+		log.Trace(common.TrInside, "Releasing store mutex for deleteRoute")
 		agentStore.mu.Unlock()
 	}()
-	log.Info("Acquired store mutex for deleteRoute")
+	log.Trace(common.TrInside, "Acquired store mutex for deleteRoute")
 
 	db := agentStore.DbStore.Db
 	agentStore.DbStore.Db.Delete(route)
@@ -111,13 +111,13 @@ func (agentStore *agentStore) deleteRoute(route *Route) error {
 }
 
 func (agentStore *agentStore) findRouteByIface(routeIface string) (*Route, error) {
-	log.Info("Acquiring store mutex for findRoute")
+	log.Trace(common.TrInside, "Acquiring store mutex for findRoute")
 	agentStore.mu.Lock()
 	defer func() {
-		log.Info("Releasing store mutex for findRoute")
+		log.Trace(common.TrInside, "Releasing store mutex for findRoute")
 		agentStore.mu.Unlock()
 	}()
-	log.Info("Acquired store mutex for findRoute")
+	log.Trace(common.TrInside, "Acquired store mutex for findRoute")
 
 	var route Route
 	db := agentStore.DbStore.Db
@@ -203,13 +203,13 @@ func (agentStore *agentStore) addRoute(route *Route) error {
 }
 
 func (agentStore *agentStore) listRoutes() ([]Route, error) {
-	log.Info("Acquiring store mutex for listRoutes")
+	log.Trace(common.TrInside, "Acquiring store mutex for listRoutes")
 	agentStore.mu.Lock()
 	defer func() {
-		log.Info("Releasing store mutex for listRoutes")
+		log.Trace(common.TrInside, "Releasing store mutex for listRoutes")
 		agentStore.mu.Unlock()
 	}()
-	log.Info("Acquired store mutex for listRoutes")
+	log.Trace(common.TrInside, "Acquired store mutex for listRoutes")
 
 	var routes []Route
 	agentStore.DbStore.Db.Find(&routes)

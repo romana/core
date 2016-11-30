@@ -54,7 +54,7 @@ type Agent struct {
 
 // SetConfig implements SetConfig function of the Service interface.
 func (a *Agent) SetConfig(config common.ServiceConfig) error {
-	log.Info(config)
+	log.Trace(common.TrPublic, config)
 	a.config = config
 	leaseFileName := config.ServiceSpecific["lease_file"].(string)
 	lf := NewLeaseFile(leaseFileName, a)
@@ -65,7 +65,7 @@ func (a *Agent) SetConfig(config common.ServiceConfig) error {
 
 	a.store = *NewStore(config)
 
-	log.Info("Agent.SetConfig() finished.")
+	log.Trace(common.TrInside, "Agent.SetConfig() finished.")
 	return nil
 }
 
@@ -170,14 +170,14 @@ func (a *Agent) Name() string {
 // Initialize implements the Initialize method of common.Service
 // interface.
 func (a *Agent) Initialize() error {
-	log.Info("Entering Agent.Initialize()")
+	log.Trace(common.TrPublic, "Entering Agent.Initialize()")
 	err := a.store.Connect()
 	if err != nil {
 		log.Error("Agent.Initialize() : Failed to connect to database.")
 		return err
 	}
 
-	log.Info("Attempting to identify current host.")
+	log.Info("Agent: Attempting to identify current host.")
 	if err := a.identifyCurrentHost(); err != nil {
 		log.Error("Agent: ", agentError(err))
 		return agentError(err)
@@ -194,7 +194,7 @@ func (a *Agent) Initialize() error {
 
 // CreateSchema creates database schema.
 func CreateSchema(rootServiceUrl string, overwrite bool) error {
-	log.Infof("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
+	log.Trace(common.TrPublic, "In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
 	a := &Agent{}
 
 	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootServiceUrl))

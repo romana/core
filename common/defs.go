@@ -78,8 +78,14 @@ const (
 
 	// Wildcard
 	Wildcard = "any"
+
 	// Name of root service
 	ServiceRoot = "root"
+
+	// Some pre-defined levels for trace logging
+	TrPublic  = 1 // exported, public functions on entry
+	TrPrivate = 2 // non-exported, private functions on entry
+	TrInside  = 3 // messages within function body
 )
 
 type TokenMessage struct {

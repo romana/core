@@ -48,7 +48,7 @@ type Status struct {
 
 // statusHandler reports operational statistics.
 func (a *Agent) statusHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
-	log.Info("Agent: Entering statusHandler()")
+	log.Trace(common.TrPrivate, "Agent: Entering statusHandler()")
 	fw, err := firewall.NewFirewall(a.getFirewallType())
 	if err != nil {
 		return nil, err
@@ -73,7 +73,7 @@ func (a *Agent) statusHandler(input interface{}, ctx common.RestContext) (interf
 
 // podDownHandler cleans up after pod deleted.
 func (a *Agent) podDownHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
-	log.Info("Agent: Entering podDownHandler()")
+	log.Trace(common.TrPrivate, "Agent: Entering podDownHandler()")
 	netReq := input.(*NetworkRequest)
 	netif := netReq.NetIf
 
@@ -102,7 +102,7 @@ func (a *Agent) podDownHandler(input interface{}, ctx common.RestContext) (inter
 
 // podUpHandler handles HTTP requests for endpoints provisioning.
 func (a *Agent) podUpHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
-	log.Infof("Agent: Entering podUpHandler()")
+	log.Trace(common.TrPrivate, "Agent: Entering podUpHandler()")
 	netReq := input.(*NetworkRequest)
 
 	log.Infof("Agent: Got request for network configuration: %v\n", netReq)
@@ -120,7 +120,7 @@ func (a *Agent) podUpHandler(input interface{}, ctx common.RestContext) (interfa
 
 // vmDownHandler handles HTTP requests for endpoints teardown.
 func (a *Agent) vmDownHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
-	log.Infof("In vmDownHandler() with %T %v", input, input)
+	log.Tracef(common.TrPrivate, "In vmDownHandler() with %T %v", input, input)
 	netif := input.(*NetIf)
 	if netif.Name == "" {
 		// This is a request from OpenStack Mech driver who does not have a name,
@@ -130,9 +130,8 @@ func (a *Agent) vmDownHandler(input interface{}, ctx common.RestContext) (interf
 			return nil, err
 		}
 	}
-	log.Infof("In vmDownHandler() with Name %s, IP %s Mac %s\n", netif.Name, netif.IP, netif.Mac)
+	log.Infof("Agent: Provisioning DHCP for %s, IP %s Mac %s\n", netif.Name, netif.IP, netif.Mac)
 
-	log.Info("Agent: provisioning DHCP")
 	if err := a.leaseFile.provisionLease(netif, leaseRemove); err != nil {
 		log.Error(agentError(err))
 		return "Error removing DHCP lease", agentError(err)
@@ -167,7 +166,7 @@ func (a *Agent) vmUpHandler(input interface{}, ctx common.RestContext) (interfac
 	// Parse out NetIf form the request
 	netif := input.(*NetIf)
 
-	log.Infof("Got interface: Name %s, IP %s Mac %s\n", netif.Name, netif.IP, netif.Mac)
+	log.Infof("Agent: Got interface: Name %s, IP %s Mac %s\n", netif.Name, netif.IP, netif.Mac)
 
 	// Spawn new thread to process the request
 
@@ -187,7 +186,7 @@ func (a *Agent) vmUpHandler(input interface{}, ctx common.RestContext) (interfac
 // 2. Creates ip route pointing new interface
 // 3. Provisions firewall rules
 func (a *Agent) podUpHandlerAsync(netReq NetworkRequest) error {
-	log.Info("Agent: Entering podUpHandlerAsync()")
+	log.Trace(common.TrPrivate, "Agent: Entering podUpHandlerAsync()")
 	currentProvider := a.getFirewallType()
 
 	netif := netReq.NetIf
@@ -199,16 +198,16 @@ func (a *Agent) podUpHandlerAsync(netReq NetworkRequest) error {
 		// retry ? ... considering openstack will give up as well after
 		// timeout
 		msg := fmt.Sprintf("Requested interface not available in time - %s", netif.Name)
-		log.Info("Agent: ", msg)
+		log.Warn("Agent: ", msg)
 		return agentErrorString(msg)
 	}
-	log.Info("Agent: creating endpoint routes")
+	log.Infof("Agent: Creating endpoint routes - %s", netif.Name)
 	if err := a.Helper.ensureRouteToEndpoint(&netif); err != nil {
 		log.Error(agentError(err))
 		return agentError(err)
 	}
 
-	log.Info("Agent: provisioning firewall")
+	log.Infof("Agent: Provisioning firewall - %s", netif.Name)
 	fw, err := firewall.NewFirewall(currentProvider)
 	if err != nil {
 		return err
@@ -246,7 +245,7 @@ func (a *Agent) podUpHandlerAsync(netReq NetworkRequest) error {
 		return agentError(err)
 	}
 
-	log.Info("Agent: All good", netif)
+	log.Trace(common.TrInside, "Agent: All good", netif)
 	return nil
 }
 
@@ -263,7 +262,7 @@ func prepareFirewallRules(fw firewall.Firewall, nc *NetworkConfig, rules RuleSet
 		var chainNames []string = metadata["chains"].([]string)
 
 		for _, rule := range rules {
-			log.Tracef(2, "In prepareFirewallRules(), with %v", rule)
+			log.Tracef(common.TrInside, "In prepareFirewallRules(), with %v", rule)
 
 			var currentChain string
 			switch rule.Direction {
@@ -298,7 +297,7 @@ func prepareFirewallRules(fw firewall.Firewall, nc *NetworkConfig, rules RuleSet
 		}
 	case firewall.IPTsaveProvider:
 		for _, rule := range rules {
-			log.Tracef(2, "In prepareFirewallRules(), with %v", rule)
+			log.Tracef(common.TrInside, "In prepareFirewallRules(), with %v", rule)
 
 			var currentChain string
 			switch rule.Direction {
@@ -348,7 +347,7 @@ func prepareFirewallRules(fw firewall.Firewall, nc *NetworkConfig, rules RuleSet
 // 4. Provisions static DHCP lease for new interface
 // 5. Provisions firewall rules
 func (a *Agent) vmUpHandlerAsync(netif NetIf) error {
-	log.Info("Agent: Entering interfaceHandle()")
+	log.Trace(common.TrPrivate, "Agent: Entering interfaceHandle()")
 	currentProvider := a.getFirewallType()
 
 	if !a.Helper.waitForIface(netif.Name) {
@@ -360,7 +359,7 @@ func (a *Agent) vmUpHandlerAsync(netif NetIf) error {
 
 	// dhcpPid is only needed here for fail fast check
 	// will try to poll the pid again in provisionLease
-	log.Info("Agent: checking if DHCP is running")
+	log.Trace(common.TrInside, "Agent: Checking if DHCP is running")
 	_, err := a.Helper.DhcpPid()
 	if err != nil {
 		log.Error(agentError(err))
@@ -370,18 +369,18 @@ func (a *Agent) vmUpHandlerAsync(netif NetIf) error {
 	if err != nil {
 		return agentError(err)
 	}
-	log.Info("Agent: creating endpoint routes")
+	log.Infof("Agent: Creating endpoint routes - %s", netif.Name)
 	if err := a.Helper.ensureRouteToEndpoint(&netif); err != nil {
 		log.Error(agentError(err))
 		return agentError(err)
 	}
-	log.Info("Agent: provisioning DHCP")
+	log.Infof("Agent: Provisioning DHCP - %s", netif.Name)
 	if err := a.leaseFile.provisionLease(&netif, leaseAdd); err != nil {
 		log.Error(agentError(err))
 		return agentError(err)
 	}
 
-	log.Info("Agent: provisioning firewall")
+	log.Infof("Agent: Provisioning firewall - %s", netif.Name)
 	fw, err := firewall.NewFirewall(currentProvider)
 	if err != nil {
 		return err
@@ -420,7 +419,7 @@ func (a *Agent) vmUpHandlerAsync(netif NetIf) error {
 		return agentError(err)
 	}
 
-	log.Info("All good", netif)
+	log.Trace(common.TrInside, "All good", netif)
 	return nil
 }
 
@@ -437,10 +436,10 @@ func (a Agent) getFirewallType() firewall.Provider {
 	// firewall provider that uses iptables-save/iptables-restore.
 	switch provider {
 	case "shellex":
-		log.Info("Agent: using ShellexProvider firewall provider")
+		log.Trace(common.TrInside, "Agent: using ShellexProvider firewall provider")
 		return firewall.ShellexProvider
 	case "save-restore":
-		log.Info("Agent: using IPTsaveProvider firewall provider")
+		log.Trace(common.TrInside, "Agent: using IPTsaveProvider firewall provider")
 		return firewall.IPTsaveProvider
 	default:
 		panic(fmt.Sprintf("Unsupported firewall type value %s, supported values are 'shellex' and 'save-restore'", provider))
