@@ -25,8 +25,8 @@ import (
 
 func main() {
 	cs := common.NewCliState()
-	ipam := &kubernetes.KubeListener{}
-	svcInfo, err := cs.StartService(ipam)
+	l := &listener.KubeListener{}
+	svcInfo, err := cs.StartService(l)
 	if err != nil {
 		panic(err)
 	}
