@@ -23,7 +23,7 @@ install:
 		"-X github.com/romana/core/common.buildInfo=`git describe --always` \
 		-X github.com/romana/core/common.buildTimeStamp=`date -u '+%Y-%m-%d_%I:%M:%S%p'`"
 
-all: install fmt test lint vet
+all: install fmt vet test
 
 test:
 	go list -f '{{.ImportPath}}' "./..." | \
