@@ -269,7 +269,7 @@ func (s timeoutService) SetConfig(config ServiceConfig) error {
 	return nil
 }
 
-func (s timeoutService) Initialize() error {
+func (s timeoutService) Initialize(c *RestClient) error {
 	return nil
 }
 
@@ -324,7 +324,11 @@ func (s timeoutService) Routes() Routes {
 }
 
 func (s timeoutService) Name() string {
-	return "mock"
+	return "root"
+}
+
+func (s timeoutService) CreateSchema(o bool) error {
+	return nil
 }
 
 const helloWorld = "hello world"
@@ -335,7 +339,7 @@ func TestSleepyServerTimeout(t *testing.T) {
 	cfg := &ServiceConfig{Common: CommonConfig{Api: &Api{Port: 0, RestTimeoutMillis: 100}}}
 	log.Printf("Mock config: %v\n", cfg)
 	svc := &timeoutService{}
-	svcInfo, err := InitializeService(svc, *cfg)
+	svcInfo, err := InitializeService(svc, *cfg, nil)
 	if err != nil {
 		t.Error(err)
 	}
@@ -374,7 +378,7 @@ func TestNormalServerTimeout(t *testing.T) {
 	cfg := &ServiceConfig{Common: CommonConfig{Api: &Api{Port: 0, RestTimeoutMillis: 100}}}
 	log.Printf("Mock config: %v\n", cfg)
 	svc := &timeoutService{}
-	svcInfo, err := InitializeService(svc, *cfg)
+	svcInfo, err := InitializeService(svc, *cfg, nil)
 	if err != nil {
 		t.Error(err)
 	}

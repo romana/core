@@ -262,7 +262,6 @@ func (rc *RestClient) Find(entity interface{}, flag FindFlag) error {
 			}
 			fieldValue := structValue.Field(i).Interface()
 			if omitEmpty && IsZeroValue(fieldValue) {
-				rc.logf("Skipping field %s: %v - empty", fieldName, fieldValue)
 				continue
 			}
 
@@ -442,7 +441,6 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 			if rc.token != "" {
 				req.Header.Set("authorization", rc.token)
 			}
-			rc.logf("Try %d for %s %s", (i + 1), method, rc.url)
 			if i > 0 {
 				switch rc.config.RetryStrategy {
 				case RestRetryStrategyExponential:
@@ -457,7 +455,6 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 						sleepTime += incr
 					}
 				}
-				rc.logf("Sleeping for %v before retrying %d time\n", sleepTime, i)
 				time.Sleep(sleepTime)
 			}
 			if data != nil {

@@ -27,6 +27,7 @@ type TenantSvc struct {
 	store  tenantStore
 	config common.ServiceConfig
 	dc     common.Datacenter
+	client *common.RestClient
 }
 
 const (
@@ -160,38 +161,17 @@ func (tsvc *TenantSvc) SetConfig(config common.ServiceConfig) error {
 	return tsvc.store.SetConfig(storeConfig)
 }
 
-func (tsvc *TenantSvc) createSchema(overwrite bool) error {
+func (tsvc *TenantSvc) CreateSchema(overwrite bool) error {
 	return tsvc.store.CreateSchema(overwrite)
 }
 
-// Run configures and runs tenant service.
-func Run(rootServiceUrl string, cred *common.Credential) (*common.RestServiceInfo, error) {
-	tsvc := &TenantSvc{}
-	clientConfig := common.GetDefaultRestClientConfig(rootServiceUrl)
-	clientConfig.Credential = cred
-	client, err := common.NewRestClient(clientConfig)
-	if err != nil {
-		return nil, err
-	}
-	config, err := client.GetServiceConfig(tsvc.Name())
-	if err != nil {
-		return nil, err
-	}
-	return common.InitializeService(tsvc, *config)
-
-}
-
-func (tsvc *TenantSvc) Initialize() error {
+func (tsvc *TenantSvc) Initialize(client *common.RestClient) error {
 	err := tsvc.store.Connect()
 	if err != nil {
 		return err
 	}
 
-	client, err := common.NewRestClient(common.GetRestClientConfig(tsvc.config))
-	if err != nil {
-		return err
-	}
-
+	tsvc.client = client
 	topologyURL, err := client.GetServiceUrl("topology")
 	if err != nil {
 		return err
@@ -212,26 +192,4 @@ func (tsvc *TenantSvc) Initialize() error {
 	// TODO should this always be queried?
 	tsvc.dc = dc
 	return nil
-}
-
-// CreateSchema runs topology service.
-func CreateSchema(rootServiceUrl string, overwrite bool) error {
-	log.Println("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
-	tsvc := &TenantSvc{}
-
-	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootServiceUrl))
-	if err != nil {
-		return err
-	}
-
-	config, err := client.GetServiceConfig(tsvc.Name())
-	if err != nil {
-		return err
-	}
-
-	err = tsvc.SetConfig(*config)
-	if err != nil {
-		return err
-	}
-	return tsvc.store.CreateSchema(overwrite)
 }

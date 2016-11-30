@@ -84,23 +84,25 @@ func (root *Root) SetConfig(config common.ServiceConfig) error {
 	return nil
 }
 
-func (root *Root) Initialize() error {
+func (root *Root) Initialize(client *common.RestClient) error {
 	return nil
 }
 
-// Handler for the / URL
+// handlePortUpdate updates the Root service's information with real port
+// a service listens on (if it was started with anonymous port 0).
 // See https://github.com/romanaproject/romana/wiki/Root-service-API
 func (root *Root) handlePortUpdate(input interface{}, ctx common.RestContext) (interface{}, error) {
+	pathVars := ctx.PathVariables
+	serviceName := pathVars["serviceName"]
+	log.Printf("RootService.handlePortUpdate: For service %s got %+v\n", serviceName, input)
 	if input == nil {
 		return nil, common.NewError400("Port update message expected, received nothing")
 	}
 	portUpdateMsg := input.(*common.PortUpdateMessage)
-	pathVars := ctx.PathVariables
-	serviceName := pathVars["serviceName"]
 	serviceConfig := root.config.full.Services[serviceName]
 	oldPort := serviceConfig.Common.Api.Port
 	serviceConfig.Common.Api.Port = portUpdateMsg.Port
-	log.Printf("Root service: registering port %d for service %s (was %d)\n", serviceConfig.Common.Api.Port, serviceName, oldPort)
+	log.Printf("RootService: registering port %d for service %s (was %d)\n", serviceConfig.Common.Api.Port, serviceName, oldPort)
 	return nil, nil
 }
 
@@ -157,6 +159,10 @@ func (root *Root) handleIndex(input interface{}, ctx common.RestContext) (interf
 
 func (root *Root) Name() string {
 	return common.ServiceRoot
+}
+
+func (root *Root) CreateSchema(o bool) error {
+	return nil
 }
 
 // Handler for the /config
@@ -219,5 +225,5 @@ func Run(configFileName string) (*common.RestServiceInfo, error) {
 		ServiceSpecific: make(map[string]interface{}),
 	}
 	rootServiceConfig.ServiceSpecific[fullConfigKey] = fullConfig
-	return common.InitializeService(rootService, rootServiceConfig)
+	return common.InitializeService(rootService, rootServiceConfig, nil)
 }

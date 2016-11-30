@@ -89,3 +89,7 @@
 	path = vendor/k8s.io/client-go
 	url = https://github.com/kubernetes/client-go
 	branch = release-1.5
+[submodule "vendor/golang.org/x/crypto"]
+	path = vendor/golang.org/x/crypto
+	url = https://go.googlesource.com/crypto
+

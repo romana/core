@@ -436,34 +436,17 @@ func (policy *PolicySvc) SetConfig(config common.ServiceConfig) error {
 	return policy.store.SetConfig(storeConfig)
 }
 
-func (policy *PolicySvc) createSchema(overwrite bool) error {
-	return nil
+func (policy *PolicySvc) CreateSchema(overwrite bool) error {
+	return policy.store.CreateSchema(overwrite)
 }
 
-// Run mainly runs Policy service.
-func Run(rootServiceUrl string, cred *common.Credential) (*common.RestServiceInfo, error) {
-	clientConfig := common.GetDefaultRestClientConfig(rootServiceUrl)
-	clientConfig.Credential = cred
-	client, err := common.NewRestClient(clientConfig)
-
-	if err != nil {
-		return nil, err
-	}
-	policy := &PolicySvc{client: client}
-	config, err := client.GetServiceConfig(policy.Name())
-	if err != nil {
-		return nil, err
-	}
-	return common.InitializeService(policy, *config)
-
-}
-
-func (policy *PolicySvc) Initialize() error {
+func (policy *PolicySvc) Initialize(client *common.RestClient) error {
 	log.Println("Entering policy.Initialize()")
 	err := policy.store.Connect()
 	if err != nil {
 		return err
 	}
+	policy.client = client
 	return nil
 }
 
@@ -486,23 +469,4 @@ func makeId(allowedTo []common.Endpoint, name string) string {
 
 	// Taking 6 bytes of a hash which is 12 chars length
 	return fmt.Sprint(hex.EncodeToString(sum[:6]))
-}
-
-// CreateSchema creates schema for Policy service.
-func CreateSchema(rootServiceURL string, overwrite bool) error {
-	log.Println("In CreateSchema(", rootServiceURL, ",", overwrite, ")")
-	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootServiceURL))
-	if err != nil {
-		return err
-	}
-	policySvc := &PolicySvc{}
-	config, err := client.GetServiceConfig(policySvc.Name())
-	if err != nil {
-		return err
-	}
-	err = policySvc.SetConfig(*config)
-	if err != nil {
-		return err
-	}
-	return policySvc.store.CreateSchema(overwrite)
 }

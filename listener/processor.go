@@ -40,7 +40,6 @@ const (
 // 2. On receiving a done event, exit the goroutine
 func (l *kubeListener) process(in <-chan Event, done chan struct{}) {
 	log.Infof("kubeListener: process(): Entered with in %v, done %v", in, done)
-
 	timer := time.Tick(processorTickTime * time.Second)
 	var networkPolicyEvents []Event
 

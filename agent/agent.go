@@ -47,10 +47,12 @@ type Agent struct {
 	waitForIfaceTry int
 
 	// Whether this is running in test mode.
-	testMode bool
+	TestMode bool
 
 	// Agent store to keep records about managed resources.
 	store agentStore
+
+	client *common.RestClient
 }
 
 // SetConfig implements SetConfig function of the Service interface.
@@ -140,29 +142,6 @@ func (a *Agent) Routes() common.Routes {
 	return routes
 }
 
-// Run starts the agent service.
-func Run(rootServiceURL string, cred *common.Credential, testMode bool) (*common.RestServiceInfo, error) {
-	clientConfig := common.GetDefaultRestClientConfig(rootServiceURL)
-	clientConfig.TestMode = testMode
-	client, err := common.NewRestClient(clientConfig)
-	clientConfig.Credential = cred
-
-	if err != nil {
-		return nil, err
-	}
-
-	agent := &Agent{testMode: testMode}
-	helper := NewAgentHelper(agent)
-	agent.Helper = &helper
-	log.Infof("Agent: Getting configuration from %s", rootServiceURL)
-
-	config, err := client.GetServiceConfig(agent.Name())
-	if err != nil {
-		return nil, err
-	}
-	return common.InitializeService(agent, *config)
-}
-
 // Name implements method of Service interface.
 func (a *Agent) Name() string {
 	return "agent"
@@ -170,7 +149,7 @@ func (a *Agent) Name() string {
 
 // Initialize implements the Initialize method of common.Service
 // interface.
-func (a *Agent) Initialize() error {
+func (a *Agent) Initialize(client *common.RestClient) error {
 	log.Trace(trace.Public, "Entering Agent.Initialize()")
 	err := a.store.Connect()
 	if err != nil {
@@ -184,6 +163,7 @@ func (a *Agent) Initialize() error {
 		return agentError(err)
 	}
 
+	a.client = client
 	// Ensure we have all the routes to our neighbours
 	log.Info("Agent: ensuring interhost routes exist")
 	if err := a.Helper.ensureInterHostRoutes(); err != nil {
@@ -194,27 +174,6 @@ func (a *Agent) Initialize() error {
 }
 
 // CreateSchema creates database schema.
-func CreateSchema(rootServiceUrl string, overwrite bool) error {
-	log.Trace(trace.Public, "In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
-	a := &Agent{}
-
-	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootServiceUrl))
-	if err != nil {
-		return err
-	}
-
-	config, err := client.GetServiceConfig(a.Name())
-	if err != nil {
-		return err
-	}
-
-	err = a.SetConfig(*config)
-	if err != nil {
-		return err
-	}
-	return a.store.CreateSchema(overwrite)
-}
-
 func (a *Agent) createSchema(overwrite bool) error {
 	return a.store.CreateSchema(overwrite)
 }

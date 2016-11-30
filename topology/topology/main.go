@@ -17,49 +17,23 @@
 package main
 
 import (
-	"flag"
 	"fmt"
-
 	"github.com/romana/core/common"
 	"github.com/romana/core/topology"
 )
 
 // Main entry point for the topology microservice
 func main() {
-	createSchema := flag.Bool("createSchema", false, "Create schema")
-	overwriteSchema := flag.Bool("overwriteSchema", false, "Overwrite schema")
-	rootURL := flag.String("rootURL", "", "Root service URL")
-	version := flag.Bool("version", false, "Build Information.")
-	username := flag.String("username", "", "Username")
-	password := flag.String("password", "", "Password")
-
-	flag.Parse()
-
-	if *version {
-		fmt.Println(common.BuildInfo())
-		return
-	}
-	if *rootURL == "" {
-		fmt.Println("Must specify rootURL.")
-		return
-	}
-	if *createSchema || *overwriteSchema {
-		err := topology.CreateSchema(*rootURL, *overwriteSchema)
-		if err != nil {
-			panic(err)
-		}
-		fmt.Println("Schema created.")
-		return
-	}
-
-	cred := common.MakeCredentialFromCliArgs(*username, *password)
-	svcInfo, err := topology.Run(*rootURL, cred)
+	cs := common.NewCliState()
+	topo := &topology.TopologySvc{}
+	svcInfo, err := cs.StartService(topo)
 	if err != nil {
 		panic(err)
 	}
-
-	for {
-		msg := <-svcInfo.Channel
-		fmt.Println(msg)
+	if svcInfo != nil {
+		for {
+			msg := <-svcInfo.Channel
+			fmt.Println(msg)
+		}
 	}
 }

@@ -26,6 +26,7 @@ import (
 
 // IPAM provides ipam service.
 type IPAM struct {
+	client *common.RestClient
 	config common.ServiceConfig
 	store  ipamStore
 	dc     common.Datacenter
@@ -110,15 +111,10 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 		endpoint.Name = instanceName
 	}
 
-	client, err := common.NewRestClient(common.GetRestClientConfig(ipam.config))
-	if err != nil {
-		log.Printf("IPAM encountered an error: %v", err)
-		return nil, err
-	}
-
 	host := &common.Host{}
 	host.Name = hostName
-	err = client.Find(host, common.FindExactlyOne)
+	var err error
+	err = ipam.client.Find(host, common.FindExactlyOne)
 	if err != nil {
 		log.Printf("IPAM encountered an error finding host for name %s %v", hostName, err)
 		return nil, err
@@ -126,14 +122,14 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 	endpoint.HostId = fmt.Sprintf("%d", host.ID)
 	log.Printf("Host name %s has ID %s", hostName, endpoint.HostId)
 
-	err = client.Find(ten, findFlag)
+	err = ipam.client.Find(ten, findFlag)
 	if err != nil {
 		log.Printf("IPAM encountered an error finding tenants %+v: %v", ten, err)
 		return nil, err
 	}
 	endpoint.TenantID = fmt.Sprintf("%d", ten.ID)
 	seg := &tenant.Segment{Name: segmentName, TenantID: ten.ID}
-	err = client.Find(seg, findFlag)
+	err = ipam.client.Find(seg, findFlag)
 	if err != nil {
 		log.Printf("IPAM encountered an error finding segments: %+v: %v", seg, err)
 		return nil, err
@@ -257,35 +253,18 @@ func (ipam *IPAM) SetConfig(config common.ServiceConfig) error {
 
 }
 
-func (ipam *IPAM) createSchema(overwrite bool) error {
+func (ipam *IPAM) CreateSchema(overwrite bool) error {
 	return ipam.store.CreateSchema(overwrite)
 }
 
-// Run mainly runs IPAM service.
-func Run(rootServiceUrl string, cred *common.Credential) (*common.RestServiceInfo, error) {
-	clientConfig := common.GetDefaultRestClientConfig(rootServiceUrl)
-	clientConfig.Credential = cred
-	client, err := common.NewRestClient(clientConfig)
-	if err != nil {
-		return nil, err
-	}
-	ipam := &IPAM{}
-	config, err := client.GetServiceConfig(ipam.Name())
-	if err != nil {
-		return nil, err
-	}
-	return common.InitializeService(ipam, *config)
-
-}
-
 // Initialize implements Initialize method of Service interface
-func (ipam *IPAM) Initialize() error {
+func (ipam *IPAM) Initialize(client *common.RestClient) error {
 	log.Println("Entering ipam.Initialize()")
 	err := ipam.store.Connect()
 	if err != nil {
 		return err
 	}
-	client, err := common.NewRestClient(common.GetRestClientConfig(ipam.config))
+	ipam.client = client
 	if err != nil {
 		return err
 	}
@@ -296,7 +275,7 @@ func (ipam *IPAM) Initialize() error {
 	}
 
 	index := common.IndexResponse{}
-	err = client.Get(topologyURL, &index)
+	err = ipam.client.Get(topologyURL, &index)
 	if err != nil {
 		return err
 	}
@@ -311,25 +290,4 @@ func (ipam *IPAM) Initialize() error {
 	// TODO should this always be queried?
 	ipam.dc = dc
 	return nil
-}
-
-// CreateSchema creates schema for IPAM service.
-func CreateSchema(rootServiceUrl string, overwrite bool) error {
-	log.Println("In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
-	ipam := &IPAM{}
-
-	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootServiceUrl))
-	if err != nil {
-		return err
-	}
-	config, err := client.GetServiceConfig(ipam.Name())
-	if err != nil {
-		return err
-	}
-
-	err = ipam.SetConfig(*config)
-	if err != nil {
-		return err
-	}
-	return ipam.store.CreateSchema(overwrite)
 }

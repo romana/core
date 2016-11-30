@@ -32,14 +32,25 @@ import (
 
 // Variables used for configuration and flags.
 var (
-	cfgFile  string
-	rootURL  string
-	rootPort string
-	version  bool
-	verbose  bool
-	format   string
-	platform string
+	cfgFile    string
+	rootURL    string
+	rootPort   string
+	version    bool
+	verbose    bool
+	format     string
+	platform   string
+	credential *common.Credential
 )
+
+// getRestClient gets the rest client instance with the
+// configured root URL and the credential object that was
+// built at initalization.
+func getRestClient() (*common.RestClient, error) {
+	rootURL := config.GetString("RootURL")
+	cfg := common.GetDefaultRestClientConfig(rootURL)
+	cfg.Credential = credential
+	return common.NewRestClient(cfg)
+}
 
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cli.Command{
@@ -64,8 +75,9 @@ func Execute() {
 }
 
 func init() {
-	cli.OnInitialize(initConfig)
+	credential = common.NewCredentialCobra(RootCmd)
 
+	cli.OnInitialize(initConfig)
 	RootCmd.AddCommand(hostCmd)
 	RootCmd.AddCommand(tenantCmd)
 	RootCmd.AddCommand(segmentCmd)
@@ -145,6 +157,12 @@ func preConfig(cmd *cli.Command, args []string) {
 	}
 	config.Set("Platform", platform)
 
+	fmt.Println(config.GetString("username"))
+	err := credential.Initialize()
+	if err != nil {
+		log.Printf("Error: %s", err)
+		os.Exit(1)
+	}
 }
 
 // versionInfo displays the build and versioning information.

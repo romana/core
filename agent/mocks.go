@@ -85,7 +85,7 @@ func mockAgent() Agent {
 	agent.store.ServiceStore = &agent.store
 	agent.store.SetConfig(storeConfig.ServiceSpecific)
 
-	agent.createSchema(true) // overwrite
+	agent.CreateSchema(true) // overwrite
 
 	return *agent
 }

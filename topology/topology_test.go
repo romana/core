@@ -22,7 +22,7 @@ import (
 	"github.com/go-check/check"
 	"github.com/romana/core/common"
 	"github.com/romana/core/root"
-	//	"log"
+
 	"os"
 	"reflect"
 	"testing"
@@ -47,6 +47,7 @@ func (s *MySuite) TearDownSuite(c *check.C) {
 }
 
 func (s *MySuite) SetUpTest(c *check.C) {
+
 	myLog(c, "Entering SetUP, services started: ", s.servicesStarted)
 	if !s.servicesStarted {
 		dir, _ := os.Getwd()
@@ -73,7 +74,8 @@ func (s *MySuite) SetUpTest(c *check.C) {
 		myLog(c, "Root service said:", msg)
 
 		myLog(c, "Creating topology schema")
-		err = CreateSchema(s.rootURL, true)
+		topoSvc := &TopologySvc{}
+		err = common.SimpleOverwriteSchema(topoSvc, s.rootURL)
 		myLog(c, "CreateSchema returned err: ", err, "which is of type", reflect.TypeOf(err), "let's compare it to", nil, ": err != nil: ", err != nil)
 		if err != nil {
 			c.Fatal(err)
@@ -147,8 +149,8 @@ func (s *MySuite) TestTopology(c *check.C) {
 	dir, _ := os.Getwd()
 	myLog(c, "In", dir)
 	myLog(c, "Starting topology service")
-
-	svcInfo, err := Run(s.rootURL, nil)
+	topoSvc := &TopologySvc{}
+	svcInfo, err := common.SimpleStartService(topoSvc, s.rootURL)
 	if err != nil {
 		c.Error(err)
 	}

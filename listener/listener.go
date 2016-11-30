@@ -45,14 +45,14 @@ const (
 	HttpGetParamResourceVersion = "resourceVersion"
 )
 
-// kubeListener is a Service that listens to updates
+// KubeListener is a Service that listens to updates
 // from Kubernetes by connecting to the endpoints specified
 // and consuming chunked JSON documents. The endpoints are
 // constructed from kubeURL and the following paths:
 // 1. namespaceNotificationPath for namespace additions/deletions
 // 2. policyNotificationPathPrefix + <namespace name> + policyNotificationPathPostfix
 //    for policy additions/deletions.
-type kubeListener struct {
+type KubeListener struct {
 	config                        common.ServiceConfig
 	restClient                    *common.RestClient
 	kubeURL                       string
@@ -69,21 +69,18 @@ type kubeListener struct {
 }
 
 // Routes returns various routes used in the service.
-func (l *kubeListener) Routes() common.Routes {
+func (l *KubeListener) Routes() common.Routes {
 	routes := common.Routes{}
 	return routes
 }
 
 // Name implements method of Service interface.
-func (l *kubeListener) Name() string {
+func (l *KubeListener) Name() string {
 	return "kubernetesListener"
 }
 
 // SetConfig implements SetConfig function of the Service interface.
-func (l *kubeListener) SetConfig(config common.ServiceConfig) error {
-	confString := "/etc/romana/romana.conf.yml:kubernetesListener:config:"
-	log.Trace(5, confString, config)
-
+func (l *KubeListener) SetConfig(config common.ServiceConfig) error {
 	m := config.ServiceSpecific
 	if kl, ok := m["kubernetes_url"]; !ok || kl == "" {
 		return fmt.Errorf("%s%s", confString, "kubernetes_url required in config.")
@@ -152,27 +149,9 @@ func (l *kubeListener) SetConfig(config common.ServiceConfig) error {
 // then global variable like this one.
 var PTranslator Translator
 
-// Run configures and runs listener service.
-func Run(rootServiceURL string, cred *common.Credential) (*common.RestServiceInfo, error) {
-	clientConfig := common.GetDefaultRestClientConfig(rootServiceURL)
-	clientConfig.Credential = cred
-	client, err := common.NewRestClient(clientConfig)
-	if err != nil {
-		return nil, err
-	}
-	kubeListener := &kubeListener{}
-	kubeListener.restClient = client
-
-	config, err := client.GetServiceConfig(kubeListener.Name())
-	if err != nil {
-		return nil, err
-	}
-	return common.InitializeService(kubeListener, *config)
-}
-
 // getOrAddSegment finds a segment (based on segment selector).
 // If not found, it adds one.
-func (l *kubeListener) getOrAddSegment(namespace string, kubeSegmentName string) (*tenant.Segment, error) {
+func (l *KubeListener) getOrAddSegment(namespace string, kubeSegmentName string) (*tenant.Segment, error) {
 	ten := &tenant.Tenant{}
 	ten.Name = namespace
 	// TODO this should be changed to find EXACTLY one after deletion functionality is implemented
@@ -235,7 +214,7 @@ func (l *kubeListener) getOrAddSegment(namespace string, kubeSegmentName string)
 }
 
 // resolveTenantByName retrieves tenant information from romana.
-func (l *kubeListener) resolveTenantByName(tenantName string) (*tenant.Tenant, error) {
+func (l *KubeListener) resolveTenantByName(tenantName string) (*tenant.Tenant, error) {
 	t := &tenant.Tenant{Name: tenantName}
 	err := l.restClient.Find(t, common.FindLast)
 	if err != nil {
@@ -244,7 +223,79 @@ func (l *kubeListener) resolveTenantByName(tenantName string) (*tenant.Tenant, e
 	return t, nil
 }
 
-func (l *kubeListener) applyNetworkPolicy(action networkPolicyAction, romanaNetworkPolicy common.Policy) error {
+func (l *KubeListener) CreateSchema(overwrite bool) error {
+	return nil
+}
+
+// translateNetworkPolicy translates a Kubernetes policy into
+// Romana policy (see common.Policy) with the following rules:
+// 1. Kubernetes Namespace corresponds to Romana Tenant
+// 2. If Romana Tenant does not exist it is an error (a tenant should
+//    automatically have been created when the namespace was added)
+func (l *KubeListener) translateNetworkPolicy(kubePolicy *KubeObject) (common.Policy, error) {
+	policyName := kubePolicy.Metadata.Name
+	romanaPolicy := &common.Policy{Direction: common.PolicyDirectionIngress, Name: policyName, ExternalID: kubePolicy.Metadata.Uid}
+	ns := kubePolicy.Metadata.Namespace
+	// TODO actually look up tenant K8S ID.
+	t, err := l.resolveTenantByName(ns)
+	if err != nil {
+		return *romanaPolicy, err
+	}
+	glog.Infof("translateNetworkPolicy(): For namespace %s got %+v / %+v", ns, t, err)
+	tenantID := t.ID
+	tenantExternalID := t.ExternalID
+
+	kubeSegmentID := kubePolicy.Spec.PodSelector.MatchLabels[l.segmentLabelName]
+	if kubeSegmentID == "" {
+		return *romanaPolicy, common.NewError("Expected segment to be specified in podSelector part as '%s'", l.segmentLabelName)
+	}
+
+	segment, err := l.getOrAddSegment(ns, kubeSegmentID)
+	if err != nil {
+		return *romanaPolicy, err
+	}
+	segmentID := segment.ID
+	appliedTo := common.Endpoint{TenantID: tenantID, SegmentID: segmentID}
+	romanaPolicy.AppliedTo = make([]common.Endpoint, 1)
+	romanaPolicy.AppliedTo[0] = appliedTo
+	romanaPolicy.Peers = make([]common.Endpoint, 0)
+	romanaPolicy.Rules = make([]common.Rule, 0)
+	// TODO range
+	// from := kubePolicy.Spec.Ingress[0].From
+	// This is subject to change once the network specification in Kubernetes is finalized.
+	// Right now it is a work in progress.
+	glog.Infof("YYYYY For %s processing %+v", kubePolicy.Metadata.Name, kubePolicy.Spec.Ingress)
+	for _, ingress := range kubePolicy.Spec.Ingress {
+		for _, entry := range ingress.From {
+			pods := entry.Pods
+			fromKubeSegmentID := pods.MatchLabels[l.segmentLabelName]
+			if fromKubeSegmentID == "" {
+				return *romanaPolicy, common.NewError("Expected segment to be specified in podSelector part as '%s'", l.segmentLabelName)
+			}
+			fromSegment, err := l.getOrAddSegment(ns, fromKubeSegmentID)
+			if err != nil {
+				return *romanaPolicy, err
+			}
+			peer := common.Endpoint{TenantID: tenantID, TenantExternalID: tenantExternalID, SegmentID: fromSegment.ID, SegmentExternalID: fromSegment.ExternalID}
+			romanaPolicy.Peers = append(romanaPolicy.Peers, peer)
+		}
+		for _, toPort := range ingress.ToPorts {
+			proto := strings.ToLower(toPort.Protocol)
+			ports := []uint{toPort.Port}
+			rule := common.Rule{Protocol: proto, Ports: ports}
+			romanaPolicy.Rules = append(romanaPolicy.Rules, rule)
+			glog.Infof("YYYYY %+v", romanaPolicy.Rules)
+		}
+	}
+	glog.Infof("translateNetworkPolicy(): Validating %+v", romanaPolicy)
+	err = romanaPolicy.Validate()
+	if err != nil {
+		return *romanaPolicy, err
+	}
+	return *romanaPolicy, nil
+}
+
+func (l *KubeListener) applyNetworkPolicy(action networkPolicyAction, romanaNetworkPolicy common.Policy) error {
 	policyURL, err := l.restClient.GetServiceUrl("policy")
 	if err != nil {
 		return err
@@ -270,7 +321,7 @@ func (l *kubeListener) applyNetworkPolicy(action networkPolicyAction, romanaNetw
 	return nil
 }
 
-func (l *kubeListener) Initialize() error {
+func (l *KubeListener) Initialize(client *common.RestClient) error {
 	l.lastEventPerNamespace = make(map[string]uint64)
 	log.Infof("%s: Starting server", l.Name())
 	nsURL, err := common.CleanURL(fmt.Sprintf("%s/%s/?%s", l.kubeURL, l.namespaceNotificationPath, HttpGetParamWatch))
@@ -289,12 +340,6 @@ func (l *kubeListener) Initialize() error {
 	l.process(eventc, done)
 
 	ProduceNewPolicyEvents(eventc, done, l)
-
 	log.Info("All routines started")
-	return nil
-}
-
-// CreateSchema is placeholder for now.
-func CreateSchema(rootServiceURL string, overwrite bool) error {
 	return nil
 }
