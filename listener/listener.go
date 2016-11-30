@@ -81,6 +81,7 @@ func (l *KubeListener) Name() string {
 
 // SetConfig implements SetConfig function of the Service interface.
 func (l *KubeListener) SetConfig(config common.ServiceConfig) error {
+	confString := "/etc/romana/romana.conf.yml:kubernetesListener:config:"
 	m := config.ServiceSpecific
 	if kl, ok := m["kubernetes_url"]; !ok || kl == "" {
 		return fmt.Errorf("%s%s", confString, "kubernetes_url required in config.")

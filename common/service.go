@@ -26,7 +26,6 @@ import (
 	"github.com/golang/glog"
 	config "github.com/spf13/viper"
 	"io/ioutil"
-	"log"
 	clog "log"
 	"net"
 	"net/http"
@@ -37,8 +36,6 @@ import (
 	"time"
 
 	log "github.com/romana/rlog"
-
-	"github.com/codegangsta/negroni"
 )
 
 // ServiceUtils represents functionality common to various services.
@@ -271,7 +268,7 @@ func getTimeoutMillis(config CommonConfig) int64 {
 // service. Messages are of type ServiceMessage above.
 // It can be used for launching service from tests, etc.
 func InitializeService(service Service, config ServiceConfig, credential *Credential) (*RestServiceInfo, error) {
-	log.Printf("Initializing service %s with %v", service.Name(), config.Common.Api)
+	log.Infof("Initializing service %s with %v", service.Name(), config.Common.Api)
 	var err error
 	routes := service.Routes()
 	hooks := config.Common.Api.Hooks
@@ -320,12 +317,12 @@ func InitializeService(service Service, config ServiceConfig, credential *Creden
 			result := make(map[string]interface{})
 			portMsg := PortUpdateMessage{Port: port64}
 			url := fmt.Sprintf("%s/config/%s/port", config.Common.Api.RootServiceUrl, service.Name())
-			log.Printf("For service %s, requested address %s, real %s, registering at %s\n", service.Name(), requestedAddr, realAddr, url)
+			log.Infof("For service %s, requested address %s, real %s, registering at %s\n", service.Name(), requestedAddr, realAddr, url)
 			err = client.Post(url, portMsg, &result)
 			if err != nil {
-				log.Printf("Error attempting to register service %s with root: %+v", service.Name(), err)
+				log.Infof("Error attempting to register service %s with root: %+v", service.Name(), err)
 			} else {
-				log.Printf("Registered service %s with root: %+v: %+v", service.Name(), portMsg, result)
+				log.Infof("Registered service %s with root: %+v: %+v", service.Name(), portMsg, result)
 			}
 		}
 	}
