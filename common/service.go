@@ -426,15 +426,20 @@ func NewCliState() *CliState {
 func (cs *CliState) Init() error {
 	cs.flagSet.Parse(os.Args[1:])
 	config.SetConfigName(".romana") // name of config file (without extension)
-	config.AddConfigPath("$HOME")   // adding home directory as first search path
-	config.AutomaticEnv()           // read in environment variables that match
+	config.SetConfigType("yaml")
+	config.AddConfigPath("$HOME") // adding home directory as first search path
+	config.AutomaticEnv()         // read in environment variables that match
 
 	// If a config file is found, read it in.
 	err := config.ReadInConfig()
 	if err != nil {
 		switch err := err.(type) {
 		case config.ConfigFileNotFoundError:
-		// For now do nothing
+			// For now do nothing
+		case *os.PathError:
+			if err.Error() != "open : no such file or directory" {
+				return err
+			}
 		default:
 			return err
 		}

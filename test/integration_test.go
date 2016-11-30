@@ -133,7 +133,7 @@ func (s *MySuite) SetUpTest(c *check.C) {
 	topo := &topology.TopologySvc{}
 	err = common.SimpleOverwriteSchema(topo, urlInfo.rootURL)
 	if err != nil {
-		c.Fatalf("Error: %v %T", err, err)
+		c.Fatalf("Error: [%s] %T", err, err)
 	}
 
 	c.Log("Creating tenant schema")
