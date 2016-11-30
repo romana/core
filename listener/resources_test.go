@@ -53,7 +53,7 @@ func TestSyncNetworkPolicies(t *testing.T) {
 		},
 	}
 
-	l := &kubeListener{}
+	l := &KubeListener{}
 	newKubePolicies, oldRomanaPolicies, _ := l.syncNetworkPolicies(kubePolicies)
 
 	if len(oldRomanaPolicies) != 1 || len(newKubePolicies) != 1 {
