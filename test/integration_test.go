@@ -47,7 +47,6 @@ var (
 
 // Hook up gocheck into the "go test" runner.
 func Test(t *testing.T) {
-	os.Args = []string{os.Args[0], "-check.vv", "true"}
 	check.TestingT(t)
 }
 
