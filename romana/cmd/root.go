@@ -19,12 +19,12 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
-	"log"
 	"os"
 	"regexp"
 	"strings"
 
 	"github.com/romana/core/common"
+	log "github.com/romana/rlog"
 
 	cli "github.com/spf13/cobra"
 	config "github.com/spf13/viper"
