@@ -25,6 +25,7 @@ import (
 	"sync"
 
 	"github.com/romana/core/common"
+	"github.com/romana/core/common/log/trace"
 	"github.com/romana/core/tenant"
 	log "github.com/romana/rlog"
 
@@ -362,7 +363,7 @@ func (tg *TranslateGroup) translateTarget(translator *Translator) error {
 			common.Endpoint{TenantID: tenantCacheEntry.Tenant.ID, TenantExternalID: tenantCacheEntry.Tenant.ExternalID},
 		}
 
-		log.Tracef(2, "Segment was not specified in policy %v, assuming target is a namespace", tg.kubePolicy)
+		log.Tracef(trace.Inside, "Segment was not specified in policy %v, assuming target is a namespace", tg.kubePolicy)
 		return nil
 	}
 
@@ -437,7 +438,7 @@ func (tg *TranslateGroup) makeNextIngressPeer(translator *Translator) error {
 				tg.romanaPolicy.Ingress[tg.ingressIndex].Peers = append(tg.romanaPolicy.Ingress[tg.ingressIndex].Peers,
 					common.Endpoint{TenantID: tenantCacheEntry.Tenant.ID, TenantExternalID: tenantCacheEntry.Tenant.ExternalID})
 
-				log.Tracef(2, "No segment specified when translating ingress rule %v", tg.kubePolicy.Spec.Ingress[tg.ingressIndex])
+				log.Tracef(trace.Inside, "No segment specified when translating ingress rule %v", tg.kubePolicy.Spec.Ingress[tg.ingressIndex])
 				return nil
 			}
 

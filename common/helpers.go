@@ -28,6 +28,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/romana/core/common/log/trace"
 	log "github.com/romana/rlog"
 
 	"github.com/pborman/uuid"
@@ -162,7 +163,7 @@ func IsZeroValue(val interface{}) bool {
 		return valVal.Len() == 0
 	}
 	zeroVal := reflect.Zero(valType).Interface()
-	log.Tracef(5, "Zero value of %+v (type %T, kind %s) is %+v", val, val, valKind, zeroVal)
+	log.Tracef(trace.Inside, "Zero value of %+v (type %T, kind %s) is %+v", val, val, valKind, zeroVal)
 	return val == zeroVal
 }
 

@@ -19,6 +19,7 @@ package iptsave
 import (
 	"bufio"
 	"fmt"
+	"github.com/romana/core/common/log/trace"
 	log "github.com/romana/rlog"
 	"io"
 )
@@ -52,18 +53,18 @@ func newLexer(input *bufio.Reader) *Lexer {
 
 // NextItem returns next item from input stream.
 func (l *Lexer) NextItem() Item {
-	log.Trace(3, "In NextItem()")
+	log.Trace(trace.Public, "In NextItem()")
 	for {
 		select {
 		case item := <-l.items:
-			log.Trace(4, "In NextItem() returning item ", item)
+			log.Trace(trace.Inside, "In NextItem() returning item ", item)
 			return item
 		default:
 			if l.state == nil {
 				panic("Lexer failed to process input stream")
 			}
 
-			log.Trace(4, "In NextItem(), next state")
+			log.Trace(trace.Inside, "In NextItem(), next state")
 			l.state = l.state(l)
 		}
 	}
@@ -137,7 +138,7 @@ func (l *Lexer) accept(s string) bool {
 
 // rootState is a state at the beginning of the input and outside of any other state.
 func rootState(l *Lexer) stateFn {
-	log.Trace(3, "In root state")
+	log.Trace(trace.Private, "In root state")
 	for {
 		b := l.nextByte()
 
@@ -146,18 +147,18 @@ func rootState(l *Lexer) stateFn {
 		case string(endOfText):
 			return l.errorEof("EOF reached in root section")
 		case "#":
-			log.Trace(4, "In root state, switching into the comment state")
+			log.Trace(trace.Inside, "In root state, switching into the comment state")
 			return stateInComment
 		case "*":
-			log.Trace(4, "In root state, switching into the table state")
+			log.Trace(trace.Inside, "In root state, switching into the table state")
 			return stateInTable
 		case ":":
-			log.Trace(4, "In root state, switching into the chain state")
+			log.Trace(trace.Inside, "In root state, switching into the chain state")
 			return stateInChain
 		case "-":
 			// Checking one byte ahead of reader to detect "-A"
 			if l.accept("A ") {
-				log.Trace(4, "In root state, switching into the rule state")
+				log.Trace(trace.Inside, "In root state, switching into the rule state")
 				return stateInRule
 			}
 		case "C":
@@ -172,7 +173,7 @@ func rootState(l *Lexer) stateFn {
 
 // stateInComment consumes entire line.
 func stateInComment(l *Lexer) stateFn {
-	log.Trace(3, "In comment state")
+	log.Trace(trace.Private, "In comment state")
 
 	item := Item{Type: itemComment}
 	for {
@@ -184,7 +185,7 @@ func stateInComment(l *Lexer) stateFn {
 			return l.errorf("Error: unexpected EOF in comment section")
 		case "\n":
 			l.items <- item
-			log.Trace(4, "In comment state, switching into the root state")
+			log.Trace(trace.Inside, "In comment state, switching into the root state")
 			return rootState
 		default:
 			item.Body += c
@@ -194,7 +195,7 @@ func stateInComment(l *Lexer) stateFn {
 
 // stateInTable consumes entire line.
 func stateInTable(l *Lexer) stateFn {
-	log.Trace(3, "In table state")
+	log.Trace(trace.Private, "In table state")
 
 	item := Item{Type: itemTable}
 	for {
@@ -215,7 +216,7 @@ func stateInTable(l *Lexer) stateFn {
 
 // stateInChain consumes chain name and checks for default policy token.
 func stateInChain(l *Lexer) stateFn {
-	log.Trace(3, "In chain state")
+	log.Trace(trace.Private, "In chain state")
 
 	item := Item{Type: itemChain}
 	for {
@@ -238,7 +239,7 @@ func stateInChain(l *Lexer) stateFn {
 
 // stateInChainPolicy consumes chain deafult policy if any.
 func stateInChainPolicy(l *Lexer) stateFn {
-	log.Trace(3, "In chain policy state")
+	log.Trace(trace.Private, "In chain policy state")
 
 	item := Item{Type: itemChainPolicy}
 
@@ -286,7 +287,7 @@ func stateInChainPolicy(l *Lexer) stateFn {
 }
 
 func stateInChainCounter(l *Lexer) stateFn {
-	log.Trace(3, "In chain counter state")
+	log.Trace(trace.Private, "In chain counter state")
 
 	item := Item{Type: itemChainCounter}
 	for {
@@ -306,7 +307,7 @@ func stateInChainCounter(l *Lexer) stateFn {
 }
 
 func stateInRule(l *Lexer) stateFn {
-	log.Trace(3, "In rule state")
+	log.Trace(trace.Private, "In rule state")
 
 	item := Item{Type: itemRule}
 	for {
@@ -326,7 +327,7 @@ func stateInRule(l *Lexer) stateFn {
 }
 
 func stateRuleMatch(l *Lexer) stateFn {
-	log.Trace(3, "In rule match state")
+	log.Trace(trace.Private, "In rule match state")
 	var exMarkConsumed, matchLiteralConsumed bool
 
 	item := Item{Type: itemRuleMatch}
@@ -334,7 +335,7 @@ func stateRuleMatch(l *Lexer) stateFn {
 		b := l.nextByte()
 		c := string(b)
 
-		log.Trace(4, "In rule match with char ", c)
+		log.Trace(trace.Inside, "In rule match with char ", c)
 
 		switch c {
 		case string(endOfText):
@@ -401,7 +402,7 @@ func stateRuleMatch(l *Lexer) stateFn {
 }
 
 func stateInRuleAction(l *Lexer) stateFn {
-	log.Trace(3, "In rule action state")
+	log.Trace(trace.Private, "In rule action state")
 
 	item := Item{Type: itemAction}
 	for {

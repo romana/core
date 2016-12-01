@@ -19,6 +19,7 @@ package firewall
 
 import (
 	"github.com/romana/core/common"
+	"github.com/romana/core/common/log/trace"
 	log "github.com/romana/rlog"
 	"sync"
 )
@@ -158,14 +159,14 @@ func (firewallStore *firewallStore) ensureIPtablesRule(rule *IPtablesRule) error
 	log.Info("Acquired store mutex for listIPtablesRules")
 
 	if firewallStore.DbStore.Db.Where("body = ?", rule.Body).First(rule).RecordNotFound() {
-		log.Tracef(2, "In ensureIPtablesRule(), rule %s not found in db - creating", rule.Body)
+		log.Tracef(trace.Inside, "In ensureIPtablesRule(), rule %s not found in db - creating", rule.Body)
 		err0 := firewallStore.addIPtablesRuleUnsafe(rule)
 		if err0 != nil {
 			log.Errorf("In ensureIPtablesRule() failed to store rule %v", rule)
 			return err0
 		}
 	} else {
-		log.Tracef(2, "In ensureIPtablesRule(), rule %s already in db - nothing to do", rule.Body)
+		log.Tracef(trace.Inside, "In ensureIPtablesRule(), rule %s already in db - nothing to do", rule.Body)
 	}
 
 	return nil

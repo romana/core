@@ -19,6 +19,7 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/romana/core/common/log/trace"
 	log "github.com/romana/rlog"
 
 	"k8s.io/client-go/1.5/pkg/api/v1"
@@ -57,10 +58,10 @@ func (l *kubeListener) process(in <-chan Event, done chan struct{}) {
 				log.Infof("kubeListener: process(): Got %v", e)
 				switch obj := e.Object.(type) {
 				case *v1beta1.NetworkPolicy:
-					log.Tracef(2, "Scheduing network policy action, now scheduled %d actions", len(networkPolicyEvents))
+					log.Tracef(trace.Inside, "Scheduing network policy action, now scheduled %d actions", len(networkPolicyEvents))
 					networkPolicyEvents = append(networkPolicyEvents, e)
 				case *v1.Namespace:
-					log.Tracef(2, "Processor received namespace")
+					log.Tracef(trace.Inside, "Processor received namespace")
 					handleNamespaceEvent(e, l)
 				default:
 					log.Errorf("Processor received an event of unkonwn type %s, ignoring object %s", reflect.TypeOf(obj), obj)
