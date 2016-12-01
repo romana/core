@@ -78,6 +78,7 @@ const (
 
 	// Wildcard
 	Wildcard = "any"
+
 	// Name of root service
 	ServiceRoot = "root"
 )
