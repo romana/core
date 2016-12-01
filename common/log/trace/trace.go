@@ -21,6 +21,6 @@ package trace
 
 const (
 	Public  int = 1 // Messages on entry of public/exported functions
-	Private         // Messages on entry of private/non-exported functions
-	Inside          // Messages from inside of functions
+	Private int = 2 // Messages on entry of private/non-exported functions
+	Inside  int = 3 // Messages from inside of functions
 )
