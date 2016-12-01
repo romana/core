@@ -410,7 +410,7 @@ func NewCliState() *CliState {
 	cs.flagSet = flag.NewFlagSet("RomanaService", flag.ContinueOnError)
 	cs.CreateSchema = cs.flagSet.Bool("createSchema", false, "Create schema")
 	cs.OverwriteSchema = cs.flagSet.Bool("overwriteSchema", false, "Overwrite schema")
-	cs.RootURL = cs.flagSet.String("RootURL", "", "URL to root service URL")
+	cs.RootURL = cs.flagSet.String("rootURL", "", "URL to root service URL")
 	cs.version = cs.flagSet.Bool("version", false, "Build Information.")
 	// This config file is not the same as one in Romana CLI for now... It is
 	// the config file for Root service.
