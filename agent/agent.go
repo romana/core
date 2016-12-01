@@ -174,6 +174,6 @@ func (a *Agent) Initialize(client *common.RestClient) error {
 }
 
 // CreateSchema creates database schema.
-func (a *Agent) createSchema(overwrite bool) error {
+func (a *Agent) CreateSchema(overwrite bool) error {
 	return a.store.CreateSchema(overwrite)
 }

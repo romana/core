@@ -20,7 +20,6 @@ package agent
 import (
 	"bufio"
 	"bytes"
-
 	"fmt"
 	"io"
 	"net"
