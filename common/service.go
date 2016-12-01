@@ -23,7 +23,6 @@ import (
 	"flag"
 	"fmt"
 	"github.com/codegangsta/negroni"
-	"github.com/golang/glog"
 	config "github.com/spf13/viper"
 	"io/ioutil"
 	clog "log"
@@ -444,7 +443,7 @@ func (cs *CliState) Init() error {
 			return err
 		}
 	}
-	glog.Infof("Using config file: %s", config.ConfigFileUsed())
+	log.Infof("Using config file: %s", config.ConfigFileUsed())
 	err = cs.credential.Initialize()
 	return err
 }
