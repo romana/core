@@ -18,6 +18,7 @@ package agent
 
 import (
 	"github.com/romana/core/common"
+	"github.com/romana/core/common/log/trace"
 	log "github.com/romana/rlog"
 )
 
@@ -54,7 +55,7 @@ type Agent struct {
 
 // SetConfig implements SetConfig function of the Service interface.
 func (a *Agent) SetConfig(config common.ServiceConfig) error {
-	log.Trace(common.TrPublic, config)
+	log.Trace(trace.Public, config)
 	a.config = config
 	leaseFileName := config.ServiceSpecific["lease_file"].(string)
 	lf := NewLeaseFile(leaseFileName, a)
@@ -65,7 +66,7 @@ func (a *Agent) SetConfig(config common.ServiceConfig) error {
 
 	a.store = *NewStore(config)
 
-	log.Trace(common.TrInside, "Agent.SetConfig() finished.")
+	log.Trace(trace.Inside, "Agent.SetConfig() finished.")
 	return nil
 }
 
@@ -170,7 +171,7 @@ func (a *Agent) Name() string {
 // Initialize implements the Initialize method of common.Service
 // interface.
 func (a *Agent) Initialize() error {
-	log.Trace(common.TrPublic, "Entering Agent.Initialize()")
+	log.Trace(trace.Public, "Entering Agent.Initialize()")
 	err := a.store.Connect()
 	if err != nil {
 		log.Error("Agent.Initialize() : Failed to connect to database.")
@@ -194,7 +195,7 @@ func (a *Agent) Initialize() error {
 
 // CreateSchema creates database schema.
 func CreateSchema(rootServiceUrl string, overwrite bool) error {
-	log.Trace(common.TrPublic, "In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
+	log.Trace(trace.Public, "In CreateSchema(", rootServiceUrl, ",", overwrite, ")")
 	a := &Agent{}
 
 	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootServiceUrl))
