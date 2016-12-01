@@ -19,12 +19,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"os"
 	"text/tabwriter"
 
 	"github.com/romana/core/common"
 	"github.com/romana/core/romana/util"
+	log "github.com/romana/rlog"
 
 	ms "github.com/mitchellh/mapstructure"
 	cli "github.com/spf13/cobra"

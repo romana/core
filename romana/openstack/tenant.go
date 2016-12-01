@@ -18,10 +18,10 @@
 package openstack
 
 import (
-	"log"
 	"os"
 
 	"github.com/romana/core/romana/util"
+	log "github.com/romana/rlog"
 
 	"github.com/rackspace/gophercloud"
 	"github.com/rackspace/gophercloud/openstack"
