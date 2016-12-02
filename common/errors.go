@@ -110,6 +110,11 @@ func NewError404(resourceType string, resourceID string) HttpError {
 	return HttpError{StatusCode: http.StatusNotFound, ResourceType: resourceType, ResourceID: resourceID}
 }
 
+// NewError403 creates a 403 FORBIDDEN message.
+func NewError403() HttpError {
+	return HttpError{StatusCode: http.StatusForbidden}
+}
+
 // String returns formatted HTTP error for human consumption.
 func (httpErr HttpError) Error() string {
 	s := fmt.Sprintf("%d %s", httpErr.StatusCode, httpErr.StatusText())

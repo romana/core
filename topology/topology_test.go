@@ -58,7 +58,7 @@ func (s *MySuite) SetUpTest(c *check.C) {
 			panic(err)
 		}
 
-		myLog(c, "Root configuration: ", s.RomanaTestSuite.Config.Services["root"].Common.Api.GetHostPort())
+		myLog(c, "Root configuration: ", s.RomanaTestSuite.Config.Services[common.ServiceNameRoot].Common.Api.GetHostPort())
 		root.Run(s.RomanaTestSuite.ConfigFile)
 
 		// Starting root service
@@ -75,7 +75,7 @@ func (s *MySuite) SetUpTest(c *check.C) {
 
 		myLog(c, "Creating topology schema")
 		topoSvc := &TopologySvc{}
-		err = common.SimpleOverwriteSchema(topoSvc, s.rootURL)
+		err = common.SimpleOverwriteSchema(topoSvc, s.rootURL, nil)
 		myLog(c, "CreateSchema returned err: ", err, "which is of type", reflect.TypeOf(err), "let's compare it to", nil, ": err != nil: ", err != nil)
 		if err != nil {
 			c.Fatal(err)
@@ -150,14 +150,14 @@ func (s *MySuite) TestTopology(c *check.C) {
 	myLog(c, "In", dir)
 	myLog(c, "Starting topology service")
 	topoSvc := &TopologySvc{}
-	svcInfo, err := common.SimpleStartService(topoSvc, s.rootURL)
+	svcInfo, err := common.SimpleStartService(topoSvc, s.rootURL, nil)
 	if err != nil {
 		c.Error(err)
 	}
 	msg := <-svcInfo.Channel
 	myLog(c, "Topology service said:", msg)
 	addr := "http://" + svcInfo.Address
-	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(addr))
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(addr, nil))
 	if err != nil {
 		c.Error(err)
 	}

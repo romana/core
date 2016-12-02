@@ -92,30 +92,26 @@ func (c *NetworkConfig) RomanaGWMask() net.IPMask {
 // If no match is found we assume we are running on host which is not
 // part of the Romana setup and spit error out.
 func (a Agent) identifyCurrentHost() error {
-	client, err := common.NewRestClient(common.GetRestClientConfig(a.config))
 
-	if err != nil {
-		return agentError(err)
-	}
-	topologyURL, err := client.GetServiceUrl("topology")
+	topologyURL, err := a.client.GetServiceUrl("topology")
 	if err != nil {
 		return agentError(err)
 	}
 	index := common.IndexResponse{}
-	err = client.Get(topologyURL, &index)
+	err = a.client.Get(topologyURL, &index)
 	if err != nil {
 		return agentError(err)
 	}
 	dcURL := index.Links.FindByRel("datacenter")
 	a.networkConfig.dc = common.Datacenter{}
-	err = client.Get(dcURL, &a.networkConfig.dc)
+	err = a.client.Get(dcURL, &a.networkConfig.dc)
 	if err != nil {
 		return agentError(err)
 	}
 
 	hostURL := index.Links.FindByRel("host-list")
 	hosts := []common.Host{}
-	err = client.Get(hostURL, &hosts)
+	err = a.client.Get(hostURL, &hosts)
 	if err != nil {
 		return agentError(err)
 	}

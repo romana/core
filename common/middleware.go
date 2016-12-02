@@ -22,7 +22,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/K-Phoen/negotiation"
-	"github.com/dgrijalva/jwt-go"
 	"github.com/gorilla/context"
 	"github.com/gorilla/mux"
 	"github.com/pborman/uuid"
@@ -48,7 +47,7 @@ type RestContext struct {
 	QueryVariables url.Values
 	// Unique identifier for a request.
 	RequestToken string
-	Roles        []Role
+	User         User
 	// Output of the hook if any run before the execution of the handler.
 	HookOutput string
 }
@@ -103,6 +102,8 @@ type Route struct {
 	UseRequestToken bool
 
 	Hook *Hook
+
+	AuthZChecker AuthZChecker
 }
 
 // Routes provided by each service.
@@ -139,6 +140,15 @@ func write500(writer http.ResponseWriter, m Marshaller, err error) {
 func write400(writer http.ResponseWriter, m Marshaller, err error) {
 	writer.WriteHeader(http.StatusInternalServerError)
 	httpErr := NewError400(err)
+	// Should never error out - it's a struct we know.
+	outData, _ := m.Marshal(httpErr)
+	writer.Write(outData)
+}
+
+// write403 writes out a 403 error
+func write403(writer http.ResponseWriter, m Marshaller) {
+	writer.WriteHeader(http.StatusForbidden)
+	httpErr := NewError403()
 	// Should never error out - it's a struct we know.
 	outData, _ := m.Marshal(httpErr)
 	writer.Write(outData)
@@ -222,6 +232,7 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 	// This function is very long. Could we please break it up into a few smaller functions
 	// (with self-documenting names), which are called from within this function?
 	makeMessage := route.MakeMessage
+
 	//	log.Infof("Entering wrapHandler(%v,%v)", restHandler, route)
 	if route.Hook != nil {
 		log.Infof("wrapHandler(): %s %s %s", route.Method, route.Pattern, route.Hook.Executable)
@@ -236,7 +247,8 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 				writer.Write([]byte(err.Error()))
 				return
 			}
-			restContext := RestContext{PathVariables: mux.Vars(request), QueryVariables: request.Form}
+			user := context.Get(request, ContextKeyUser).(User)
+			restContext := RestContext{PathVariables: mux.Vars(request), QueryVariables: request.Form, User: user}
 			respReq := UnwrappedRestHandlerInput{writer, request}
 
 			marshaller := ContentTypeMarshallers["application/json"]
@@ -246,6 +258,23 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 				write500(writer, marshaller, err)
 				return
 			}
+
+			userOk := false
+			if route.AuthZChecker == nil {
+				for _, role := range user.Roles {
+					if role.Name == RoleAdmin || role.Name == RoleService {
+						userOk = true
+						break
+					}
+				}
+			} else {
+				userOk = route.AuthZChecker(restContext)
+			}
+			if !userOk {
+				write403(writer, marshaller)
+				return
+			}
+
 			restContext.HookOutput = out
 			restHandler(respReq, restContext)
 			log.Infof("doHook() will be called after %s %s", route.Method, route.Pattern)
@@ -347,7 +376,29 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 				}
 			}
 		}
-		restContext := RestContext{PathVariables: mux.Vars(request), QueryVariables: request.Form, RequestToken: token}
+		user := context.Get(request, ContextKeyUser).(User)
+		restContext := RestContext{PathVariables: mux.Vars(request),
+			QueryVariables: request.Form,
+			RequestToken:   token,
+			User:           user,
+		}
+
+		userOk := false
+		if route.AuthZChecker == nil {
+			for _, role := range user.Roles {
+				if role.Name == RoleAdmin || role.Name == RoleService {
+					userOk = true
+					break
+				}
+			}
+		} else {
+			userOk = route.AuthZChecker(restContext)
+		}
+		if !userOk {
+			write403(writer, marshaller)
+			return
+		}
+
 		if route.Hook != nil {
 			log.Infof("doHook() will be called before %s %s: %s", route.Method, route.Pattern, route.Hook.Executable)
 		}
@@ -441,7 +492,6 @@ func (n notFoundHandler) ServeHTTP(writer http.ResponseWriter, request *http.Req
 // NewRouter creates router for a new service.
 func newRouter(routes []Route) *mux.Router {
 	router := mux.NewRouter().StrictSlash(true)
-
 	router.NotFoundHandler = notFoundHandler{}
 	for _, route := range routes {
 		handler := route.Handler
@@ -635,51 +685,6 @@ var ContentTypeMarshallers map[string]Marshaller = map[string]Marshaller{
 	"application/vnd.romana+json":       jsonMarshaller{},
 	"application/x-www-form-urlencoded": formMarshaller{},
 	//	"*/*": jsonMarshaller{},
-}
-
-// AuthMiddleware wrapper for auth.
-type AuthMiddleware struct {
-	PublicKey []byte
-}
-
-// If the path of request is common.AuthPath, this does nothing, as
-// the request is for authentication in the first place. Otherwise,
-// checks token from request. If the token is not valid, returns a
-// 403 FORBIDDEN status.
-func (am AuthMiddleware) ServeHTTP(writer http.ResponseWriter, request *http.Request, next http.HandlerFunc) {
-	if request.URL.Path == AuthPath {
-		// Let this one through, no token yet.
-		next(writer, request)
-		return
-	}
-	contentType := writer.Header().Get("Content-Type")
-	marshaller := ContentTypeMarshallers[contentType]
-
-	if am.PublicKey != nil {
-		f := func(token *jwt.Token) (interface{}, error) {
-			return am.PublicKey, nil
-		}
-		log.Infof("Parsing request for auth token\n")
-		token, err := jwt.ParseFromRequest(request, f)
-
-		if err != nil {
-			writer.WriteHeader(http.StatusForbidden)
-			httpErr := NewHttpError(http.StatusForbidden, err.Error())
-			outData, _ := marshaller.Marshal(httpErr)
-			writer.Write(outData)
-			return
-		}
-		if !token.Valid {
-			writer.WriteHeader(http.StatusForbidden)
-			httpErr := NewHttpError(http.StatusForbidden, "Invalid token.")
-			outData, _ := marshaller.Marshal(httpErr)
-			writer.Write(outData)
-			return
-		}
-
-		context.Set(request, ContextKeyRoles, token.Claims["roles"].([]string))
-	}
-	next(writer, request)
 }
 
 type UnmarshallerMiddleware struct {

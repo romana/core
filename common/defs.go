@@ -42,7 +42,7 @@ const (
 	// 	 For passing in Gorilla Mux context the original body data
 	ContextKeyOriginalBody string = "OriginalBody"
 	ContextKeyMarshaller   string = "Marshaller"
-	ContextKeyRoles        string = "Roles"
+	ContextKeyUser         string = "User"
 	// DefaultRestTimeout, in milliseconds.
 	DefaultRestTimeout       = 500
 	DefaultRestRetryStrategy = "fibonacci"
@@ -79,13 +79,11 @@ const (
 	// Wildcard
 	Wildcard = "any"
 
-	// Name of root service
-	ServiceRoot = "root"
+	// Name of main Romana service
+	ServiceNameRoot = "root"
+	ServiceNameTest = "test"
+	FullConfigKey   = "fullConfig"
 )
-
-type TokenMessage struct {
-	Token string
-}
 
 // LinkResponse structure represents the commonly occurring
 // {

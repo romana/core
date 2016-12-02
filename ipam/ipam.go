@@ -149,20 +149,15 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 func (ipam *IPAM) addEndpoint(input interface{}, ctx common.RestContext) (interface{}, error) {
 	endpoint := input.(*Endpoint)
 	log.Printf("IPAM: Request to add endpoint %s, token %s", endpoint.Name, endpoint.RequestToken.String)
-	client, err := common.NewRestClient(common.GetRestClientConfig(ipam.config))
-	if err != nil {
-		log.Printf("IPAM: Encountered an error getting a REST client instance: %v", err)
-		return nil, err
-	}
 	// Get host info from topology service
-	topoUrl, err := client.GetServiceUrl("topology")
+	topoUrl, err := ipam.client.GetServiceUrl("topology")
 	if err != nil {
 		log.Printf("IPAM: Encountered an error getting a topology service URL %v", err)
 		return nil, err
 	}
 
 	index := common.IndexResponse{}
-	err = client.Get(topoUrl, &index)
+	err = ipam.client.Get(topoUrl, &index)
 	if err != nil {
 		log.Printf("IPAM: Encountered an error querying topology: %v", err)
 		return nil, err
@@ -172,14 +167,14 @@ func (ipam *IPAM) addEndpoint(input interface{}, ctx common.RestContext) (interf
 	host := common.Host{}
 
 	hostInfoURL := fmt.Sprintf("%s/%s", hostsURL, endpoint.HostId)
-	err = client.Get(hostInfoURL, &host)
+	err = ipam.client.Get(hostInfoURL, &host)
 
 	if err != nil {
 		log.Printf("IPAM: Encountered an error querying topology for hosts: %v", err)
 		return nil, err
 	}
 
-	tenantUrl, err := client.GetServiceUrl("tenant")
+	tenantUrl, err := ipam.client.GetServiceUrl("tenant")
 	if err != nil {
 		log.Printf("IPAM: Encountered an error getting tenant srevice URL: %v", err)
 		return nil, err
@@ -190,7 +185,7 @@ func (ipam *IPAM) addEndpoint(input interface{}, ctx common.RestContext) (interf
 	t := &tenant.Tenant{}
 	tenantsUrl := fmt.Sprintf("%s/tenants/%s", tenantUrl, endpoint.TenantID)
 	log.Printf("IPAM: Calling %s\n", tenantsUrl)
-	err = client.Get(tenantsUrl, t)
+	err = ipam.client.Get(tenantsUrl, t)
 	if err != nil {
 		log.Printf("IPAM: Encountered an error querying tenant service for tenant %s: %v", endpoint.TenantID, err)
 		return nil, err
@@ -200,7 +195,7 @@ func (ipam *IPAM) addEndpoint(input interface{}, ctx common.RestContext) (interf
 	segmentUrl := fmt.Sprintf("/tenants/%s/segments/%s", endpoint.TenantID, endpoint.SegmentID)
 	log.Printf("IPAM: calling %s\n", segmentUrl)
 	segment := &tenant.Segment{}
-	err = client.Get(segmentUrl, segment)
+	err = ipam.client.Get(segmentUrl, segment)
 	if err != nil {
 		log.Printf("IPAM: Encountered an error querying tenant service for tenant %s and segment %s: %v", endpoint.TenantID, endpoint.SegmentID, err)
 		return nil, err

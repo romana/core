@@ -16,10 +16,9 @@
 package tenant
 
 import (
-	"log"
-	"strconv"
-
 	"github.com/romana/core/common"
+	log "github.com/romana/rlog"
+	"strconv"
 )
 
 // TenantSvc provides tenant service.
@@ -36,6 +35,29 @@ const (
 	tenantNameQueryVar = "tenantName"
 )
 
+// TenantIDChecker implements AuthZChecker function, ensuring that
+// only user that has attribute of tenant corresponding to the
+// tenantId in the path of request is allowed to execute.
+func TenantIDChecker(ctx common.RestContext) bool {
+	idStr := ctx.PathVariables["tenantId"]
+	u := ctx.User
+	for _, role := range u.Roles {
+		if role.Name == common.RoleAdmin || role.Name == common.RoleService {
+			return true
+		}
+	}
+	for _, role := range u.Roles {
+		if role.Name == common.RoleTenant {
+			for _, attr := range u.Attributes {
+				if attr.AttributeKey == "tenant" && attr.AttributeValue == idStr {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 // Routes provides route for tenant service.
 func (tsvc *TenantSvc) Routes() common.Routes {
 	routes := common.Routes{
@@ -46,9 +68,10 @@ func (tsvc *TenantSvc) Routes() common.Routes {
 			MakeMessage: func() interface{} { return &Tenant{} },
 		},
 		common.Route{
-			Method:  "GET",
-			Pattern: tenantsPath + "/{tenantId}",
-			Handler: tsvc.getTenant,
+			Method:       "GET",
+			Pattern:      tenantsPath + "/{tenantId}",
+			Handler:      tsvc.getTenant,
+			AuthZChecker: TenantIDChecker,
 		},
 		common.Route{
 			Method:  "GET",
@@ -56,10 +79,11 @@ func (tsvc *TenantSvc) Routes() common.Routes {
 			Handler: tsvc.listTenants,
 		},
 		common.Route{
-			Method:      "POST",
-			Pattern:     tenantsPath + "/{tenantId}" + segmentsPath,
-			Handler:     tsvc.addSegment,
-			MakeMessage: func() interface{} { return &Segment{} },
+			Method:       "POST",
+			Pattern:      tenantsPath + "/{tenantId}" + segmentsPath,
+			Handler:      tsvc.addSegment,
+			MakeMessage:  func() interface{} { return &Segment{} },
+			AuthZChecker: TenantIDChecker,
 		},
 		common.Route{
 			Method:          "GET",
@@ -67,6 +91,7 @@ func (tsvc *TenantSvc) Routes() common.Routes {
 			Handler:         tsvc.getSegment,
 			MakeMessage:     nil,
 			UseRequestToken: false,
+			AuthZChecker:    TenantIDChecker,
 		},
 		common.Route{
 			Method:          "GET",
@@ -74,6 +99,7 @@ func (tsvc *TenantSvc) Routes() common.Routes {
 			Handler:         tsvc.listSegments,
 			MakeMessage:     nil,
 			UseRequestToken: false,
+			AuthZChecker:    TenantIDChecker,
 		},
 	}
 	var t = []Tenant{}

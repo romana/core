@@ -71,7 +71,7 @@ func (s *mockSvc) SetConfig(config common.ServiceConfig) error {
 }
 
 func (s *mockSvc) Name() string {
-	return common.ServiceRoot
+	return common.ServiceNameRoot
 }
 
 func (s *mockSvc) Initialize(c *common.RestClient) error {
@@ -165,7 +165,8 @@ func (s *mockSvc) Routes() common.Routes {
 			{"Href":"/config/kubernetesListener","Rel":"kubernetesListener-config"},
 			{"Href":"/datacenter","Rel":"datacenter"},
 			{"Href":"/hosts","Rel":"host-list"},
-			{"Href":"SERVICE_URL","Rel":"self"}
+			{"Href":"SERVICE_URL","Rel":"self"},
+			{"Href":"SERVICE_URL/publicKey","Rel":"publicKey"}
 			], 
 			"Services":
 			[
@@ -176,6 +177,7 @@ func (s *mockSvc) Routes() common.Routes {
 			{"Name":"agent","Links":[{"Href":"SERVICE_URL:PORT","Rel":"service"}]},
 			{"Name":"policy","Links":[{"Href":"SERVICE_URL","Rel":"service"}]},
 			{"Name":"kubernetesListener","Links":[{"Href":"SERVICE_URL","Rel":"service"}]}
+			
 			]
 			}
 			`
@@ -215,6 +217,15 @@ func (s *mockSvc) Routes() common.Routes {
 		},
 	}
 
+	publicKeyRoute := common.Route{
+		Method:  "GET",
+		Pattern: "/publicKey",
+		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
+			log.Printf("Received %#v", input)
+			return []byte{}, nil
+		},
+	}
+
 	registerPortRoute := common.Route{
 		Method:  "POST",
 		Pattern: "/config/kubernetes-listener/port",
@@ -234,6 +245,7 @@ func (s *mockSvc) Routes() common.Routes {
 		hostsRoute,
 		agentAddPolicyRoute,
 		agentDeletePolicyRoute,
+		publicKeyRoute,
 	}
 	log.Printf("mockService: Set up routes: %#v", routes)
 	return routes
@@ -254,7 +266,7 @@ func (s *MySuite) TestIcmp(c *check.C) {
 }
 
 func (s *MySuite) TestPolicy(c *check.C) {
-	cfg := &common.ServiceConfig{Common: common.CommonConfig{Api: &common.Api{Port: 0, RestTimeoutMillis: 100}}}
+	cfg := common.GetTestServiceConfig()
 	log.Printf("Test: Mock service config:\n\t%#v\n\t%#v\n", cfg.Common.Api, cfg.ServiceSpecific)
 	svc := &mockSvc{mySuite: s}
 	svc.tenants = make(map[uint64]string)
@@ -280,13 +292,13 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	log.Printf("Test: Mock service listens at %s\n", s.serviceURL)
 
 	polSvc := &PolicySvc{}
-	err = common.SimpleOverwriteSchema(polSvc, s.serviceURL)
+	err = common.SimpleOverwriteSchema(polSvc, s.serviceURL, nil)
 	if err != nil {
 		c.Fatal(err)
 	}
 	log.Printf("Policy schema created.")
 
-	svcInfo, err = common.SimpleStartService(polSvc, s.serviceURL)
+	svcInfo, err = common.SimpleStartService(polSvc, s.serviceURL, nil)
 	if err != nil {
 		c.Fatal(err)
 	}
@@ -294,7 +306,7 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	msg = <-svcInfo.Channel
 	fmt.Printf("Policy service listening %s on said: %s", svcInfo.Address, msg)
 
-	clientConfig := common.GetDefaultRestClientConfig(s.serviceURL)
+	clientConfig := common.GetDefaultRestClientConfig(s.serviceURL, nil)
 	client, err := common.NewRestClient(clientConfig)
 	if err != nil {
 		c.Fatal(err)

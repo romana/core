@@ -149,24 +149,6 @@ func (l *KubeListener) SetConfig(config common.ServiceConfig) error {
 // then global variable like this one.
 var PTranslator Translator
 
-// Run configures and runs listener service.
-func Run(rootServiceURL string, cred *common.Credential) (*common.RestServiceInfo, error) {
-	clientConfig := common.GetDefaultRestClientConfig(rootServiceURL)
-	clientConfig.Credential = cred
-	client, err := common.NewRestClient(clientConfig)
-	if err != nil {
-		return nil, err
-	}
-	KubeListener := &KubeListener{}
-	KubeListener.restClient = client
-
-	config, err := client.GetServiceConfig(KubeListener.Name())
-	if err != nil {
-		return nil, err
-	}
-	return common.InitializeService(KubeListener, *config, cred)
-}
-
 // getOrAddSegment finds a segment (based on segment selector).
 // If not found, it adds one.
 func (l *KubeListener) getOrAddSegment(namespace string, kubeSegmentName string) (*tenant.Segment, error) {
@@ -348,10 +330,5 @@ func (l *KubeListener) Initialize(client *common.RestClient) error {
 	ProduceNewPolicyEvents(eventc, done, l)
 
 	log.Info("All routines started")
-	return nil
-}
-
-// CreateSchema is placeholder for now.
-func CreateSchema(rootServiceURL string, overwrite bool) error {
 	return nil
 }

@@ -215,7 +215,7 @@ func TestPolicyValidation(t *testing.T) {
 // that all attempts to send a packet there fails, no RST or anything
 // ever comes back? Do we wait the full TCP timeout?
 func TestClientNoHost(t *testing.T) {
-	client, err := NewRestClient(GetDefaultRestClientConfig("http://no.such.host.really"))
+	client, err := NewRestClient(GetDefaultRestClientConfig("http://no.such.host.really", nil))
 	if err != nil {
 		t.Error(err)
 	}
@@ -297,6 +297,7 @@ func (s timeoutService) Routes() Routes {
 			},
 			false,
 			nil,
+			nil,
 		},
 		Route{
 			"GET",
@@ -318,6 +319,7 @@ func (s timeoutService) Routes() Routes {
 			},
 			false,
 			nil,
+			nil,
 		},
 	}
 	return routes
@@ -336,7 +338,8 @@ const helloWorld = "hello world"
 // TestSleepyServerTimeout will test server that sleeps --
 // and either TimeoutHandler or read/write timeout would kick in.
 func TestSleepyServerTimeout(t *testing.T) {
-	cfg := &ServiceConfig{Common: CommonConfig{Api: &Api{Port: 0, RestTimeoutMillis: 100}}}
+	cfg := GetTestServiceConfig()
+
 	log.Printf("Mock config: %v\n", cfg)
 	svc := &timeoutService{}
 	svcInfo, err := InitializeService(svc, *cfg, nil)
@@ -375,7 +378,7 @@ func TestSleepyServerTimeout(t *testing.T) {
 
 // This tests purely read/write timeout.
 func TestNormalServerTimeout(t *testing.T) {
-	cfg := &ServiceConfig{Common: CommonConfig{Api: &Api{Port: 0, RestTimeoutMillis: 100}}}
+	cfg := GetTestServiceConfig()
 	log.Printf("Mock config: %v\n", cfg)
 	svc := &timeoutService{}
 	svcInfo, err := InitializeService(svc, *cfg, nil)
@@ -456,7 +459,7 @@ func doTestTimeout(timeout int, t *testing.T) {
 	}
 	url := fmt.Sprintf("http://%s", svcInfo.Address)
 	log.Printf("Listening on %s\n", url)
-	client, err := NewRestClient(GetDefaultRestClientConfig(url))
+	client, err := NewRestClient(GetDefaultRestClientConfig(url, nil))
 	if err != nil {
 		t.Error(err)
 	}

@@ -18,8 +18,13 @@ package common
 import (
 	"bufio"
 	"database/sql"
+	"encoding/pem"
 	"errors"
 	"fmt"
+	"github.com/go-check/check"
+	"github.com/pborman/uuid"
+	"github.com/romana/core/common/log/trace"
+	log "github.com/romana/rlog"
 	"io/ioutil"
 	"os"
 	"reflect"
@@ -27,11 +32,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-
-	"github.com/romana/core/common/log/trace"
-	log "github.com/romana/rlog"
-
-	"github.com/pborman/uuid"
 )
 
 const (
@@ -49,6 +49,19 @@ var environ map[string]string
 func Environ() map[string]string {
 	once.Do(initEnviron)
 	return environ
+}
+
+// ExpectHttp fails if the error is not an HttpError
+// with a specified status code.
+func ExpectHttpError(c *check.C, err error, code int) {
+	switch err := err.(type) {
+	case HttpError:
+		if err.StatusCode != code {
+			c.Fatalf("Expected %d, got %s", code, err)
+		}
+	default:
+		c.Fatalf("Expected %d, got %s", code, err)
+	}
 }
 
 func initEnviron() {
@@ -86,24 +99,23 @@ func (rts *RomanaTestSuite) MockConfig(romanaConfigFile string) error {
 	if err != nil {
 		return err
 	}
-	services := []string{"root", "topology", "ipam", "agent", "tenant", "policy"}
+	services := []string{ServiceNameRoot, "topology", "ipam", "agent", "tenant", "policy"}
 
 	for _, svc := range services {
 		svcConfig := config.Services[svc]
 		log.Infof("\tMocking for service %s:", svc)
 		svcConfig.Common.Api.Port = 0
-		if svc != "root" {
-			storeConfig := svcConfig.ServiceSpecific["store"].(map[string]interface{})
-			if storeConfig["type"] == "sqlite3" {
-				sqliteFile := rts.GetMockSqliteFile(svc)
-				storeConfig["database"] = sqliteFile
-			} else {
-				// For now it's just mysql
-				// TODO add this to RomanaTestSuite list of resources to destroy
-				storeConfig["database"] = GetMockDbName(svc)
-			}
-			log.Infof("\t\tDB config: %v", storeConfig["database"])
+		storeConfig := svcConfig.ServiceSpecific["store"].(map[string]interface{})
+		if storeConfig["type"] == "sqlite3" {
+			sqliteFile := rts.GetMockSqliteFile(svc)
+			storeConfig["database"] = sqliteFile
+		} else {
+			// For now it's just mysql
+			// TODO add this to RomanaTestSuite list of resources to destroy
+			storeConfig["database"] = GetMockDbName(svc)
 		}
+		log.Infof("\t\tDB config: %v", storeConfig["database"])
+
 	}
 
 	outFile := fmt.Sprintf("/tmp/romana_%s.yaml", getUniqueMockNameComponent())
@@ -122,14 +134,28 @@ func (rts *RomanaTestSuite) MockConfig(romanaConfigFile string) error {
 	return nil
 }
 
+// ReadKeyFile reads a key from the provided file.
+func ReadKeyFile(filename string) (*pem.Block, error) {
+	log.Debugf("Reading key file from %s", filename)
+	data, err := ioutil.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	block, _ := pem.Decode(data)
+	if block == nil {
+		return nil, NewError("No key found in %s", filename)
+	}
+	return block, nil
+}
+
 func (rts *RomanaTestSuite) CleanUp() {
-	log.Infof("CleanUp(): Cleaning up the following temporary files: %v", rts.tmpFiles)
+	log.Debugf("CleanUp(): Cleaning up the following temporary files: %v", rts.tmpFiles)
 	for _, f := range rts.tmpFiles {
 		err := os.Remove(f)
 		if err == nil {
-			log.Infof("CleanUp(): Removed %s.", f)
+			log.Debugf("CleanUp(): Removed %s.", f)
 		} else {
-			log.Infof("CleanUp(): Failed removing %s: %v", f, err)
+			log.Debugf("CleanUp(): Failed removing %s: %v", f, err)
 		}
 	}
 }
@@ -234,41 +260,25 @@ func GetCaller() string {
 	return GetCaller2(1)
 }
 
-// toBool is a convenience function that's like ParseBool
+// ToBool is a convenience function that's like ParseBool
 // but allows also "on"/"off" values.
-func ToBool(val string) (bool, error) {
-	s := strings.ToLower(val)
-	switch s {
-	case "yes":
-		return true, nil
-	case "on":
-		return true, nil
-	case "y":
-		return true, nil
-	case "true":
-		return true, nil
-	case "t":
-		return true, nil
-	case "1":
-		return true, nil
-	case "enabled":
-		return true, nil
-	case "no":
-		return false, nil
-	case "off":
-		return false, nil
-	case "n":
-		return false, nil
-	case "false":
-		return false, nil
-	case "f":
-		return false, nil
-	case "0":
-		return false, nil
-	case "disabled":
+func ToBool(val interface{}) (bool, error) {
+	if val == nil {
 		return false, nil
 	}
-	return false, errors.New(fmt.Sprintf("Cannot convert %s to boolean", val))
+	switch val := val.(type) {
+	case bool:
+		return val, nil
+	case string:
+		s := strings.ToLower(val)
+		switch s {
+		case "yes", "on", "y", "true", "t", "1", "enabled":
+			return true, nil
+		case "no", "off", "n", "false", "f", "0", "disabled":
+			return false, nil
+		}
+	}
+	return false, errors.New(fmt.Sprintf("Cannot convert %v (%T) to boolean", val, val))
 }
 
 func MkMap() map[string]interface{} {
@@ -307,4 +317,29 @@ func In(needle string, haystack []string) bool {
 		}
 	}
 	return false
+}
+
+// GetTestServiceConfig builds up configuration for test services that is
+// enough for not erroring out, because real services expect it.
+func GetTestServiceConfig() *ServiceConfig {
+	api := &Api{Port: 0,
+		RootServiceUrl:    "http://localhost",
+		RestTimeoutMillis: 100,
+	}
+
+	// If we call this fake service not root,
+	// it'll try to register it's port with root service which
+	// doesn't currently run. If we call it  root, then it'll try
+	// to get the configuration to check if auth flag is on or not.
+	// If the config is wrong, it'll error out, so we build up this config
+	// as necessary.
+	fullConfig := make(map[string]interface{})
+	svcConfig := make(map[string]ServiceConfig)
+	fullConfig[FullConfigKey] = Config{Services: svcConfig}
+	rootConfig := make(map[string]interface{})
+	svcConfig[ServiceNameRoot] = ServiceConfig{ServiceSpecific: rootConfig}
+	cfg := &ServiceConfig{Common: CommonConfig{Api: api},
+		ServiceSpecific: fullConfig,
+	}
+	return cfg
 }

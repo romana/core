@@ -19,9 +19,11 @@ package common
 
 import (
 	"bytes"
+	"crypto/rsa"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/dgrijalva/jwt-go"
 	"io/ioutil"
 	"math"
 	"net/http"
@@ -46,7 +48,7 @@ type RestClient struct {
 	lastStatusCode int
 }
 
-// RestClientConfig holds configuration for restful client.
+// RestClientConfig holds configuration for the Romana RESTful client.
 type RestClientConfig struct {
 	TimeoutMillis int64
 	Retries       int
@@ -57,16 +59,31 @@ type RestClientConfig struct {
 }
 
 // GetDefaultRestClientConfig gets a RestClientConfig with specified rootURL
-// and other values set to their defaults: DefaultRestTimeout, DefaultRestRetries.
-func GetDefaultRestClientConfig(rootURL string) RestClientConfig {
-	return RestClientConfig{TimeoutMillis: DefaultRestTimeout, Retries: DefaultRestRetries, RootURL: rootURL}
+// and other values set to their defaults, such as
+// DefaultRestTimeout, DefaultRestRetries.
+func GetDefaultRestClientConfig(rootURL string, cred *Credential) RestClientConfig {
+	return RestClientConfig{TimeoutMillis: DefaultRestTimeout,
+		Retries:    DefaultRestRetries,
+		RootURL:    rootURL,
+		Credential: cred,
+	}
 }
 
 // GetRestClientConfig returns a RestClientConfig based on a ServiceConfig. That is,
 // the information provided in the service configuration is used for the client
 // configuration.
-func GetRestClientConfig(config ServiceConfig) RestClientConfig {
-	return RestClientConfig{TimeoutMillis: config.Common.Api.RestTimeoutMillis, Retries: config.Common.Api.RestRetries, RootURL: config.Common.Api.RootServiceUrl}
+func GetRestClientConfig(config ServiceConfig, cred *Credential) RestClientConfig {
+	retries := config.Common.Api.RestRetries
+	if retries <= 0 {
+		retries = DefaultRestRetries
+	}
+	return RestClientConfig{
+		TimeoutMillis: getTimeoutMillis(config.Common),
+		Retries:       retries,
+		RootURL:       config.Common.Api.RootServiceUrl,
+		TestMode:      config.Common.Api.RestTestMode,
+		Credential:    cred,
+	}
 }
 
 // NewRestClient creates a new Romana REST client. It provides convenience
@@ -96,7 +113,11 @@ func NewRestClient(config RestClientConfig) (*RestClient, error) {
 		config.Retries = DefaultRestRetries
 	}
 	var myUrl string
+	// Whether this is to be used in a Romana context or a generic
+	// REST client. In Romana context, authentication will be used.
+	var isRomana bool
 	if config.RootURL == "" {
+		isRomana = false
 		// Default to some URL. This client would not be able to be used
 		// for Romana-related service convenience methods, just as a generic
 		// REST client.
@@ -104,6 +125,7 @@ func NewRestClient(config RestClientConfig) (*RestClient, error) {
 		// trying to resolve things.
 		myUrl = "http://localhost"
 	} else {
+		isRomana = true
 		u, err := url.Parse(config.RootURL)
 		if err != nil {
 			return nil, err
@@ -112,10 +134,17 @@ func NewRestClient(config RestClientConfig) (*RestClient, error) {
 			return nil, NewError("Expected absolute URL for root, received %s", config.RootURL)
 		}
 		myUrl = config.RootURL
+
 	}
 	err := rc.NewUrl(myUrl)
 	if err != nil {
 		return nil, err
+	}
+	if isRomana {
+		err := rc.Authenticate()
+		if err != nil {
+			return rc, err
+		}
 	}
 	return rc, nil
 }
@@ -124,13 +153,13 @@ func (rc *RestClient) log(arg interface{}) {
 	rc.logf("%+v", arg)
 }
 
-// logf is same as log.Infof but adds a prefix to the line
+// logf is same as log.Debugf but adds a prefix to the line
 // with the ID of this RestClient instance and the number
 // of the call.
 func (rc *RestClient) logf(s string, args ...interface{}) {
 	// TODO of course using GetCaller() here is
 	s1 := fmt.Sprintf("RestClient.%p.%d: %s: %s\n", rc, rc.callNum, GetCaller2(2), s)
-	log.Infof(s1, args...)
+	log.Debugf(s1, args...)
 }
 
 // NewUrl sets the client's new URL (yes, it mutates) to dest.
@@ -372,6 +401,7 @@ func (rc *RestClient) modifyUrl(dest string, queryMod url.Values) error {
 func (rc *RestClient) execMethod(method string, dest string, data interface{}, result interface{}) error {
 	// TODO check if token expired, if yes, reauthenticate... But this needs
 	// more state here (knowledge of Root service by Rest client...)
+
 	rc.callNum += 1
 	rc.lastStatusCode = 0
 	var queryMod url.Values
@@ -439,7 +469,8 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 			}
 			req.Header.Set("accept", "application/json")
 			if rc.token != "" {
-				req.Header.Set("authorization", rc.token)
+				rc.logf("Setting token in request to %s: %s", rc.url, rc.token)
+				req.Header.Set("Authorization", rc.token)
 			}
 			if i > 0 {
 				switch rc.config.RetryStrategy {
@@ -587,6 +618,69 @@ func (rc *RestClient) Get(url string, result interface{}) error {
 	return rc.execMethod("GET", url, nil, result)
 }
 
+// Authenticate sends credential information to the Root's authentication
+// URL and stores the token received.
+func (rc *RestClient) Authenticate() error {
+	if rc.config.Credential == nil || rc.config.Credential.Type == CredentialNone {
+		return nil
+	}
+	rootIndexResponse := &RootIndexResponse{}
+	if rc.config.RootURL == "" {
+		return errors.New("RootURL not set")
+	}
+	err := rc.Get(rc.config.RootURL, rootIndexResponse)
+	if err != nil {
+		return err
+	}
+	authUrl := rootIndexResponse.Links.FindByRel("auth")
+	rc.logf("Authenticating to %s as %s", authUrl, rc.config.Credential)
+	tokenMsg := &AuthTokenMessage{}
+	err = rc.Post(authUrl, rc.config.Credential, tokenMsg)
+	if err != nil {
+		return err
+	}
+	// TODO
+	// It would be a good feature if the client itself could decrypt the token (which it can)
+	// and, having figured out the expiration, re-auth when a request comes past
+	// expiration.
+	rc.logf("Received token %s", tokenMsg.Token)
+	rc.token = tokenMsg.Token
+	return nil
+}
+
+// GetPublicKey retrieves public key of root service used ot check
+// auth tokens.
+func (rc *RestClient) GetPublicKey() (*rsa.PublicKey, error) {
+	rootIndexResponse := &RootIndexResponse{}
+	if rc.config.RootURL == "" {
+		return nil, errors.New("RestClient.GetPublicKey(): RootURL not set")
+	}
+	err := rc.Get(rc.config.RootURL, rootIndexResponse)
+	if err != nil {
+		return nil, err
+	}
+
+	relName := "publicKey"
+	keyUrl := rootIndexResponse.Links.FindByRel(relName)
+	if keyUrl == "" {
+		return nil, errors.New(fmt.Sprintf("Could not find %s at %s (%+v)", relName, rc.config.RootURL, *rootIndexResponse))
+	}
+	rc.logf("GetPublicKey(): Found key url %s in %s from %s", keyUrl, rootIndexResponse, relName)
+	var data []byte
+	err = rc.Get(keyUrl, &data)
+	if err != nil {
+		return nil, err
+	}
+	if len(data) == 0 {
+		return nil, nil
+	}
+	key, err := jwt.ParseRSAPublicKeyFromPEM(data)
+	if err != nil {
+		return nil, err
+	}
+	return key, nil
+}
+
 // GetServiceConfig retrieves configuration
 // for the given service from the root service.
 func (rc *RestClient) GetServiceConfig(name string) (*ServiceConfig, error) {
@@ -597,18 +691,6 @@ func (rc *RestClient) GetServiceConfig(name string) (*ServiceConfig, error) {
 	err := rc.Get(rc.config.RootURL, rootIndexResponse)
 	if err != nil {
 		return nil, err
-	}
-
-	if rc.config.Credential != nil && rc.config.Credential.Type != CredentialNone {
-		// First things first - authenticate
-		authUrl := rootIndexResponse.Links.FindByRel("auth")
-		rc.logf("Authenticating to %s", authUrl)
-		tokenMsg := &TokenMessage{}
-		err = rc.Post(authUrl, rc.config.Credential, tokenMsg)
-		if err != nil {
-			return nil, err
-		}
-		rc.token = tokenMsg.Token
 	}
 
 	config := &ServiceConfig{}

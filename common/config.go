@@ -174,7 +174,7 @@ func ReadConfig(fname string) (Config, error) {
 		// Now convert this to map for easier reading...
 		for i := range serviceConfigs {
 			c := serviceConfigs[i]
-			api := Api{Host: c.Api.Host, Port: c.Api.Port, Hooks: c.Api.Hooks}
+			api := Api{Host: c.Api.Host, Port: c.Api.Port, Hooks: c.Api.Hooks, AuthPublic: c.Api.AuthPublic}
 			cleanedConfig := cleanupMap(c.Config)
 			commonConfig := CommonConfig{Api: &api, Credential: nil, PublicKey: nil}
 			config.Services[c.Service] = ServiceConfig{Common: commonConfig, ServiceSpecific: cleanedConfig}

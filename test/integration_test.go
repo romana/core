@@ -131,14 +131,14 @@ func (s *MySuite) SetUpTest(c *check.C) {
 
 	c.Log("Creating topology schema")
 	topo := &topology.TopologySvc{}
-	err = common.SimpleOverwriteSchema(topo, urlInfo.rootURL)
+	err = common.SimpleOverwriteSchema(topo, urlInfo.rootURL, nil)
 	if err != nil {
 		c.Fatalf("Error: [%s] %T", err, err)
 	}
 
 	c.Log("Creating tenant schema")
 	ten := &tenant.TenantSvc{}
-	err = common.SimpleOverwriteSchema(ten, urlInfo.rootURL)
+	err = common.SimpleOverwriteSchema(ten, urlInfo.rootURL, nil)
 
 	if err != nil {
 		c.Fatal(err)
@@ -147,7 +147,7 @@ func (s *MySuite) SetUpTest(c *check.C) {
 
 	c.Log("Creating IPAM schema")
 	ipam := &ipam.IPAM{}
-	err = common.SimpleOverwriteSchema(ipam, urlInfo.rootURL)
+	err = common.SimpleOverwriteSchema(ipam, urlInfo.rootURL, nil)
 
 	if err != nil {
 		c.Fatal(err)
@@ -155,7 +155,7 @@ func (s *MySuite) SetUpTest(c *check.C) {
 
 	// Start topology service
 	myLog(c, "STARTING TOPOLOGY SERVICE")
-	topoInfo, err := common.SimpleStartService(topo, urlInfo.rootURL)
+	topoInfo, err := common.SimpleStartService(topo, urlInfo.rootURL, nil)
 	if err != nil {
 		c.Error(err)
 	}
@@ -165,7 +165,7 @@ func (s *MySuite) SetUpTest(c *check.C) {
 
 	// Start tenant service
 	myLog(c, "STARTING TENANT SERVICE")
-	tenantInfo, err := common.SimpleStartService(ten, urlInfo.rootURL)
+	tenantInfo, err := common.SimpleStartService(ten, urlInfo.rootURL, nil)
 	if err != nil {
 		c.Fatal(err)
 	}
@@ -174,7 +174,7 @@ func (s *MySuite) SetUpTest(c *check.C) {
 	urlInfo.tenantURL = "http://" + tenantInfo.Address
 
 	myLog(c, "STARTING IPAM SERVICE")
-	ipamInfo, err := common.SimpleStartService(ipam, urlInfo.rootURL)
+	ipamInfo, err := common.SimpleStartService(ipam, urlInfo.rootURL, nil)
 	if err != nil {
 		c.Fatal(err)
 	}
@@ -211,7 +211,7 @@ func (s *MySuite) TestAgentStart(c *check.C) {
 		possibleRomanaIps = append(possibleRomanaIps, strAddr)
 	}
 
-	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(urlInfo.topoURL))
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(urlInfo.topoURL, nil))
 	if err != nil {
 		c.Error(err)
 	}
@@ -258,7 +258,7 @@ func (s *MySuite) TestAgentStart(c *check.C) {
 	a := &agent.Agent{TestMode: true}
 	helper := agent.NewAgentHelper(a)
 	a.Helper = &helper
-	agentInfo, err := common.SimpleStartService(a, urlInfo.rootURL)
+	agentInfo, err := common.SimpleStartService(a, urlInfo.rootURL, nil)
 	if err != nil {
 		c.Error(err)
 	}
@@ -269,7 +269,7 @@ func (s *MySuite) TestAgentStart(c *check.C) {
 func (s *MySuite) TestConcurrentReads(c *check.C) {
 	urlInfo := s.urlInfos[c.TestName()]
 	myLog(c, "integration_test: Entering TestConcurrentReads")
-	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(urlInfo.rootURL))
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(urlInfo.rootURL, nil))
 	client.NewUrl(urlInfo.tenantURL)
 	if err != nil {
 		c.Error(err)
@@ -316,7 +316,7 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	myLog(c, "integration_test: Entering TestRootTopoTenantIpamInteraction()")
 
 	// 1. Add some hosts to topology service and test.
-	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(urlInfo.rootURL))
+	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(urlInfo.rootURL, nil))
 	if err != nil {
 		c.Error(err)
 	}
