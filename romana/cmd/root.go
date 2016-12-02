@@ -176,13 +176,17 @@ func versionInfo(cmd *cli.Command, args []string) {
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
+	// https://github.com/spf13/viper/commit/5619c0 changes the behaviour
+	// of SetConfigFile and SetConfigName, thus SetConfigName should come
+	// before SetConfigFile.
+	config.SetConfigName(".romana") // name of config file (without extension)
+	config.AddConfigPath("$HOME")   // adding home directory as first search path
+
 	if cfgFile != "" { // enable ability to specify config file via flag
 		config.SetConfigFile(cfgFile)
 	}
 
-	config.SetConfigName(".romana") // name of config file (without extension)
-	config.AddConfigPath("$HOME")   // adding home directory as first search path
-	config.AutomaticEnv()           // read in environment variables that match
+	config.AutomaticEnv() // read in environment variables that match
 
 	// If a config file is found, read it in.
 	err := config.ReadInConfig()
