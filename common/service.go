@@ -22,6 +22,8 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"github.com/codegangsta/negroni"
+	"github.com/spf13/viper"
 	clog "log"
 	"net"
 	"net/http"
@@ -32,9 +34,6 @@ import (
 	"time"
 
 	log "github.com/romana/rlog"
-
-	"github.com/codegangsta/negroni"
-	config "github.com/spf13/viper"
 )
 
 // ServiceUtils represents functionality common to various services.
@@ -411,15 +410,16 @@ func NewCliState() *CliState {
 // credentials.
 func (cs *CliState) Init() error {
 	cs.flagSet.Parse(os.Args[1:])
-	config.SetConfigName(".romana") // name of config file (without extension)
-	config.AddConfigPath("$HOME") // adding home directory as first search path
-	config.AutomaticEnv()         // read in environment variables that match
+	viper.SetConfigName(".romana") // name of config file (without extension)
+	viper.SetConfigType("yaml")
+	viper.AddConfigPath("$HOME") // adding home directory as first search path
+	viper.AutomaticEnv()         // read in environment variables that match
 
 	// If a config file is found, read it in.
-	err := config.ReadInConfig()
+	err := viper.ReadInConfig()
 	if err != nil {
 		switch err := err.(type) {
-		case config.ConfigFileNotFoundError:
+		case viper.ConfigFileNotFoundError:
 			log.Infof("Ignoring error: %s", err)
 		case *os.PathError:
 			if err.Error() != "open : no such file or directory" {
@@ -431,7 +431,7 @@ func (cs *CliState) Init() error {
 		}
 	}
 	err = nil
-	log.Infof("Using config file: %s", config.ConfigFileUsed())
+	log.Infof("Using config file: %s", viper.ConfigFileUsed())
 	if cs.credential != nil && cs.credential.flagSet != nil {
 		err = cs.credential.Initialize()
 	}
