@@ -23,8 +23,6 @@ import (
 
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
-
-	config "github.com/spf13/viper"
 )
 
 // reverse returns a given element in reverse
@@ -42,14 +40,7 @@ func reverse(t []tenant.Tenant) chan tenant.Tenant {
 
 // GetTenantID return romana Tenant ID
 // corresponding to romana name.
-func GetTenantID(name string) (uint64, error) {
-	rootURL := config.GetString("RootURL")
-
-	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
-	if err != nil {
-		return 0, err
-	}
-
+func GetTenantID(client *common.RestClient, name string) (uint64, error) {
 	tenantURL, err := client.GetServiceUrl("tenant")
 	if err != nil {
 		return 0, err

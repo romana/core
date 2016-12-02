@@ -81,16 +81,17 @@ func segmentAdd(cmd *cli.Command, args []string) error {
 
 	tnt := args[0]
 	seg := args[1]
-	romanaID, err := romana.GetTenantID(tnt)
-	if err != nil {
-		return errors.New("Romana Tenant doesn't exists: " + tnt)
-	}
-	romanaIDStr := strconv.FormatUint(romanaID, 10)
 
 	client, err := getRestClient()
 	if err != nil {
 		return err
 	}
+
+	romanaID, err := romana.GetTenantID(client, tnt)
+	if err != nil {
+		return errors.New("Romana Tenant doesn't exists: " + tnt)
+	}
+	romanaIDStr := strconv.FormatUint(romanaID, 10)
 
 	tenantURL, err := client.GetServiceUrl("tenant")
 	if err != nil {
