@@ -140,15 +140,6 @@ func (l *KubeListener) SetConfig(config common.ServiceConfig) error {
 	}
 	l.kubeClient = clientset
 
-	// TODO, find a better place to initialize
-	// the translator. Stas.
-	PTranslator.Init(l.restClient, l.segmentLabelName, l.tenantLabelName)
-	tc := PTranslator.GetClient()
-	if tc == nil {
-		log.Critical("Failed to initialize rest client for policy translator.")
-		os.Exit(255)
-	}
-
 	return nil
 }
 
@@ -276,6 +267,16 @@ func (l *KubeListener) applyNetworkPolicy(action networkPolicyAction, romanaNetw
 
 func (l *KubeListener) Initialize(client *common.RestClient) error {
 	l.restClient = client
+
+	// TODO, find a better place to initialize
+	// the translator. Stas.
+	PTranslator.Init(l.restClient, l.segmentLabelName, l.tenantLabelName)
+	tc := PTranslator.GetClient()
+	if tc == nil {
+		log.Critical("Failed to initialize rest client for policy translator.")
+		os.Exit(255)
+	}
+
 	l.lastEventPerNamespace = make(map[string]uint64)
 	log.Infof("%s: Starting server", l.Name())
 	nsURL, err := common.CleanURL(fmt.Sprintf("%s/%s/?%s", l.kubeURL, l.namespaceNotificationPath, HttpGetParamWatch))
