@@ -105,9 +105,7 @@ func tenantCreate(cmd *cli.Command, args []string) error {
 			fmt.Sprintf("expected at-least 1 argument, saw none"))
 	}
 
-	rootURL := config.GetString("RootURL")
-
-	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
+	client, err := getRestClient()
 	if err != nil {
 		return err
 	}
@@ -226,9 +224,7 @@ func tenantShow(cmd *cli.Command, args []string) error {
 			fmt.Sprintf("expected at-least 1 argument, saw none"))
 	}
 
-	rootURL := config.GetString("RootURL")
-
-	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
+	client, err := getRestClient()
 	if err != nil {
 		return err
 	}
@@ -307,9 +303,7 @@ func tenantShow(cmd *cli.Command, args []string) error {
 // tablular format depending on commanf line flags or
 // config file options.
 func tenantList(cmd *cli.Command, args []string) error {
-	rootURL := config.GetString("RootURL")
-
-	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
+	client, err := getRestClient()
 	if err != nil {
 		return err
 	}

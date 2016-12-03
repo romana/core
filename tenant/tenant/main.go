@@ -17,49 +17,23 @@
 package main
 
 import (
-	"flag"
 	"fmt"
-
 	"github.com/romana/core/common"
 	"github.com/romana/core/tenant"
 )
 
 // Main entry point for the tenant microservice
 func main() {
-	createSchema := flag.Bool("createSchema", false, "Create schema")
-	overwriteSchema := flag.Bool("overwriteSchema", false, "Overwrite schema")
-	rootURL := flag.String("rootURL", "", "Root service URL")
-	version := flag.Bool("version", false, "Build Information.")
-
-	username := flag.String("username", "", "Username")
-	password := flag.String("password", "", "Password")
-
-	flag.Parse()
-
-	if *version {
-		fmt.Println(common.BuildInfo())
-		return
-	}
-	if *rootURL == "" {
-		fmt.Println("Must specify rootURL.")
-		return
-	}
-	if *createSchema || *overwriteSchema {
-		err := tenant.CreateSchema(*rootURL, *overwriteSchema)
-		if err != nil {
-			panic(err)
-		}
-		fmt.Println("Schema created.")
-		return
-	}
-
-	cred := common.MakeCredentialFromCliArgs(*username, *password)
-	svcInfo, err := tenant.Run(*rootURL, cred)
+	cs := common.NewCliState()
+	tenant := &tenant.TenantSvc{}
+	svcInfo, err := cs.StartService(tenant)
 	if err != nil {
 		panic(err)
 	}
-	for {
-		msg := <-svcInfo.Channel
-		fmt.Println(msg)
+	if svcInfo != nil {
+		for {
+			msg := <-svcInfo.Channel
+			fmt.Println(msg)
+		}
 	}
 }

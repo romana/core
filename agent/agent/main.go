@@ -18,7 +18,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 
 	"github.com/romana/core/agent"
@@ -27,40 +26,18 @@ import (
 
 // main function is entrypoint to everything.
 func main() {
-	createSchema := flag.Bool("createSchema", false, "Create schema")
-	overwriteSchema := flag.Bool("overwriteSchema", false, "Overwrite schema")
-	var rootURL = flag.String("rootURL", "", "URL to root service URL")
-	var version = flag.Bool("version", false, "Build Information.")
-	username := flag.String("username", "", "Username")
-	password := flag.String("password", "", "Password")
-
-	flag.Parse()
-
-	if *version {
-		fmt.Println(common.BuildInfo())
-		return
-	}
-	if *rootURL == "" {
-		fmt.Println("Must specify rootURL.")
-		return
-	}
-
-	if *createSchema || *overwriteSchema {
-		err := agent.CreateSchema(*rootURL, *overwriteSchema)
-		if err != nil {
-			panic(err)
-		}
-		fmt.Println("Schema created.")
-		return
-	}
-
-	cred := common.MakeCredentialFromCliArgs(*username, *password)
-	svcInfo, err := agent.Run(*rootURL, cred, false)
+	cs := common.NewCliState()
+	a := &agent.Agent{TestMode: false}
+	helper := agent.NewAgentHelper(a)
+	a.Helper = &helper
+	svcInfo, err := cs.StartService(a)
 	if err != nil {
 		panic(err)
 	}
-	for {
-		msg := <-svcInfo.Channel
-		fmt.Println(msg)
+	if svcInfo != nil {
+		for {
+			msg := <-svcInfo.Channel
+			fmt.Println(msg)
+		}
 	}
 }

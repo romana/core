@@ -51,7 +51,7 @@ const (
 )
 
 // handleNetworkPolicyEvents by creating or deleting romana policies.
-func handleNetworkPolicyEvents(events []Event, l *kubeListener) {
+func handleNetworkPolicyEvents(events []Event, l *KubeListener) {
 	// TODO optimise deletion, search policy by name/id
 	// and delete by id rather then sending full policy body.
 	// Stas.
@@ -101,7 +101,7 @@ func handleNetworkPolicyEvents(events []Event, l *kubeListener) {
 }
 
 // handleNamespaceEvent by creating or deleting romana tenants.
-func handleNamespaceEvent(e Event, l *kubeListener) {
+func handleNamespaceEvent(e Event, l *KubeListener) {
 	namespace, ok := e.Object.(*v1.Namespace)
 	if !ok {
 		panic("Failed to cast namespace in handleNamespaceEvent")
@@ -140,7 +140,7 @@ func handleNamespaceEvent(e Event, l *kubeListener) {
 }
 
 // handleAnnotations on a namespace by implementing extra features requested through the annotation
-func handleAnnotations(o *v1.Namespace, l *kubeListener) {
+func handleAnnotations(o *v1.Namespace, l *KubeListener) {
 	log.Infof("In handleAnnotations")
 
 	// We only care about one annotation for now.
@@ -149,7 +149,7 @@ func handleAnnotations(o *v1.Namespace, l *kubeListener) {
 
 // CreateDefaultPolicy handles isolation flag on a namespace by creating/deleting
 // default network policy.
-func CreateDefaultPolicy(o *v1.Namespace, l *kubeListener) {
+func CreateDefaultPolicy(o *v1.Namespace, l *KubeListener) {
 	log.Infof("In CreateDefaultPolicy for %v\n", o)
 	tenant, err := l.resolveTenantByName(o.ObjectMeta.Name)
 	if err != nil {
@@ -207,7 +207,7 @@ func CreateDefaultPolicy(o *v1.Namespace, l *kubeListener) {
 
 // NsWatch is a generator that watches namespace related events in
 // kubernetes API and publishes this events to a channel.
-func (l *kubeListener) nsWatch(done <-chan struct{}, url string) (chan Event, error) {
+func (l *KubeListener) nsWatch(done <-chan struct{}, url string) (chan Event, error) {
 	out := make(chan Event, l.namespaceBufferSize)
 
 	// watcher watches all namespaces.
@@ -250,13 +250,13 @@ func (l *kubeListener) nsWatch(done <-chan struct{}, url string) (chan Event, er
 
 // ProduceNewPolicyEvents produces kubernetes network policy events that arent applied
 // in romana policy service yet.
-func ProduceNewPolicyEvents(out chan Event, done <-chan struct{}, kubeListener *kubeListener) {
+func ProduceNewPolicyEvents(out chan Event, done <-chan struct{}, KubeListener *KubeListener) {
 	var sleepTime time.Duration = 1
 	log.Infof("Listening for kubernetes network policies")
 
 	// watcher watches all network policy.
 	watcher := cache.NewListWatchFromClient(
-		kubeListener.kubeClient.ExtensionsClient,
+		KubeListener.kubeClient.ExtensionsClient,
 		"networkpolicies",
 		api.NamespaceAll,
 		fields.Everything(),
@@ -295,7 +295,7 @@ func ProduceNewPolicyEvents(out chan Event, done <-chan struct{}, kubeListener *
 		kubePolicyList = append(kubePolicyList, kp.(v1beta1.NetworkPolicy))
 	}
 
-	newEvents, oldPolicies, err := kubeListener.syncNetworkPolicies(kubePolicyList)
+	newEvents, oldPolicies, err := KubeListener.syncNetworkPolicies(kubePolicyList)
 	if err != nil {
 		log.Errorf("Failed to sync romana policies with kube policies, sync failed with %s", err)
 	}
@@ -309,13 +309,13 @@ func ProduceNewPolicyEvents(out chan Event, done <-chan struct{}, kubeListener *
 
 	// Delete old romana policies.
 	// TODO find a way to remove policy deletion from this function. Stas.
-	policyUrl, err := kubeListener.restClient.GetServiceUrl("policy")
+	policyUrl, err := KubeListener.restClient.GetServiceUrl("policy")
 	if err != nil {
 		log.Errorf("Failed to discover policy url before deleting outdated romana policies")
 	}
 
 	for k, _ := range oldPolicies {
-		err = kubeListener.restClient.Delete(fmt.Sprintf("%s/policies/%d", policyUrl, oldPolicies[k].ID), nil, &oldPolicies)
+		err = KubeListener.restClient.Delete(fmt.Sprintf("%s/policies/%d", policyUrl, oldPolicies[k].ID), nil, &oldPolicies)
 		if err != nil {
 			log.Errorf("Sync policies detected obsolete policy %d but failed to delete, %s", oldPolicies[k].ID, err)
 		}
@@ -352,7 +352,7 @@ var getAllPoliciesFunc = getAllPolicies
 // syncNetworkPolicies compares a list of kubernetes network policies with romana network policies,
 // it returns a list of kubernetes policies that don't have corresponding kubernetes network policy for them,
 // and a list of romana policies that used to represent kubernetes policy but corresponding kubernetes policy is gone.
-func (l *kubeListener) syncNetworkPolicies(kubePolicies []v1beta1.NetworkPolicy) (kubernetesEvents []Event, romanaPolicies []common.Policy, err error) {
+func (l *KubeListener) syncNetworkPolicies(kubePolicies []v1beta1.NetworkPolicy) (kubernetesEvents []Event, romanaPolicies []common.Policy, err error) {
 	log.Infof("In syncNetworkPolicies with %v", kubePolicies)
 
 	policies, err := getAllPoliciesFunc(l.restClient)

@@ -20,7 +20,10 @@ package common
 
 import (
 	"errors"
+	"flag"
 	"fmt"
+	"github.com/codegangsta/negroni"
+	config "github.com/spf13/viper"
 	"io/ioutil"
 	clog "log"
 	"net"
@@ -32,8 +35,6 @@ import (
 	"time"
 
 	log "github.com/romana/rlog"
-
-	"github.com/codegangsta/negroni"
 )
 
 // ServiceUtils represents functionality common to various services.
@@ -156,7 +157,7 @@ type Service interface {
 	SetConfig(config ServiceConfig) error
 
 	// Initializes the service (mostly for error reporting, could be a no-op)
-	Initialize() error
+	Initialize(client *RestClient) error
 
 	// Returns the routes that this service works with
 	Routes() Routes
@@ -164,30 +165,18 @@ type Service interface {
 	// Name returns the name of this service.
 	Name() string
 
-	//	// Middlewares returns an array of middleware handlers to add
-	//	// in addition to the default set.
-	//	Middlewares() []http.Handler
+	CreateSchema(overwrite bool) error
 }
 
-// InitializeService initializes the service with the
-// provided config and starts it. The channel returned
-// allows the caller to wait for a message from the running
-// service. Messages are of type ServiceMessage above.
-// It can be used for launching service from tests, etc.
-func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo, error) {
-	log.Infof("Initializing service %s with %v", service.Name(), config.Common.Api)
-
-	routes := service.Routes()
-
-	// Validate hooks
-	hooks := config.Common.Api.Hooks
+// setupHooks sets up before and after hooks for each service
+func setupHooks(routes Routes, hooks []Hook) error {
 	for i, hook := range hooks {
 		if strings.ToLower(hook.When) != "before" && strings.ToLower(hook.When) != "after" {
-			return nil, errors.New(fmt.Sprintf("InitializeService(): Invalid value for when: %s", hook.When))
+			return errors.New(fmt.Sprintf("InitializeService(): Invalid value for when: %s", hook.When))
 		}
 		m := strings.ToUpper(hook.Method)
 		if m != "POST" && m != "PUT" && m != "GET" && m != "DELETE" && m != "HEAD" {
-			return nil, errors.New(fmt.Sprintf("Invalid method: %s", m))
+			return errors.New(fmt.Sprintf("Invalid method: %s", m))
 		}
 		found := false
 		for j, _ := range routes {
@@ -204,25 +193,24 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 			log.Infof("InitializeService(): Modified route[%d]: %s %s %v", i, r.Method, r.Pattern, r.Hook)
 		}
 		if !found {
-			return nil, errors.New(fmt.Sprintf("No route matching pattern %s and method %s found in %v", hook.Pattern, hook.Method, routes))
+			return errors.New(fmt.Sprintf("No route matching pattern %s and method %s found in %v", hook.Pattern, hook.Method, routes))
 		}
 		finfo, err := os.Stat(hook.Executable)
 		if err != nil {
-			return nil, errors.New(fmt.Sprintf("Problem with specified executable %s: %v", hook.Executable, err))
+			return errors.New(fmt.Sprintf("Problem with specified executable %s: %v", hook.Executable, err))
 		}
 
 		if finfo.Mode().Perm()&0111 == 0 {
-			return nil, errors.New(fmt.Sprintf("%s is not an executable", hook.Executable))
+			return errors.New(fmt.Sprintf("%s is not an executable", hook.Executable))
 		}
 	}
-	err := service.SetConfig(config)
-	if err != nil {
-		return nil, err
-	}
-	err = service.Initialize()
-	if err != nil {
-		return nil, err
-	}
+	return nil
+
+}
+
+// initNegroni initializes Negroni with all the middleware and starts it.
+func initNegroni(routes Routes, config ServiceConfig) (*RestServiceInfo, error) {
+	var err error
 	// Create negroni
 	negroni := negroni.New()
 
@@ -233,7 +221,6 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 	// ct := w.Header().Get("Content-Type")
 	// where w is http.ResponseWriter
 	negroni.Use(NewNegotiator())
-
 	// Unmarshal data from the content-type format
 	// into a map
 	negroni.Use(NewUnmarshaller())
@@ -249,61 +236,92 @@ func InitializeService(service Service, config ServiceConfig) (*RestServiceInfo,
 	authMiddleware := AuthMiddleware{PublicKey: config.Common.PublicKey}
 	negroni.Use(authMiddleware)
 
-	router := newRouter(routes)
-
-	timeoutMillis := config.Common.Api.RestTimeoutMillis
+	timeoutMillis := getTimeoutMillis(config.Common)
 	var dur time.Duration
 	var readWriteDur time.Duration
-	if timeoutMillis <= 0 {
-		log.Infof("%s: Invalid timeout %d, defaulting to %d\n", service.Name(), timeoutMillis, DefaultRestTimeout)
-		timeoutMillis = DefaultRestTimeout
-		dur = DefaultRestTimeout * time.Millisecond
-		readWriteDur = (DefaultRestTimeout + ReadWriteTimeoutDelta) * time.Millisecond
-	} else {
-		timeoutStr := fmt.Sprintf("%dms", timeoutMillis)
-		dur, _ = time.ParseDuration(timeoutStr)
-		timeoutStr = fmt.Sprintf("%dms", timeoutMillis+ReadWriteTimeoutDelta)
-		readWriteDur, _ = time.ParseDuration(timeoutStr)
-	}
+	timeoutStr := fmt.Sprintf("%dms", timeoutMillis)
+	dur, _ = time.ParseDuration(timeoutStr)
+	timeoutStr = fmt.Sprintf("%dms", timeoutMillis+ReadWriteTimeoutDelta)
+	readWriteDur, _ = time.ParseDuration(timeoutStr)
 
-	log.Infof("%s: Creating TimeoutHandler with %v\n", service.Name(), dur)
+	router := newRouter(routes)
 	timeoutHandler := http.TimeoutHandler(router, dur, TimeoutMessage)
 	negroni.UseHandler(timeoutHandler)
 
 	hostPort := config.Common.Api.GetHostPort()
 	svcInfo, err := RunNegroni(negroni, hostPort, readWriteDur)
+	return svcInfo, err
+}
 
-	if err == nil {
-		addr := svcInfo.Address
-		if addr != hostPort {
-			log.Infof("Requested address %s, real %s\n", hostPort, addr)
-			idx := strings.LastIndex(addr, ":")
-			config.Common.Api.Host = addr[0:idx]
-			port, _ := strconv.Atoi(addr[idx+1:])
-			port64 := uint64(port)
-			config.Common.Api.Port = port64
-			// Also register this with root service if we are not root ourselves.
-			if service.Name() != ServiceRoot {
-				result := make(map[string]interface{})
-				portMsg := PortUpdateMessage{Port: port64}
-				retries := config.Common.Api.RestRetries
-				if retries <= 0 {
-					retries = DefaultRestRetries
-				}
-				clientConfig := RestClientConfig{TimeoutMillis: timeoutMillis, Retries: retries, RootURL: config.Common.Api.RootServiceUrl, TestMode: config.Common.Api.RestTestMode}
-				//				log.Infof("InitializeService() : Initializing Rest client with %v", clientConfig)
-				client, err := NewRestClient(clientConfig)
-				if err != nil {
-					return svcInfo, err
-				}
-				url := fmt.Sprintf("/config/%s/port", service.Name())
-				err = client.Post(url, portMsg, &result)
-				if err != nil {
-					log.Infof("Error attempting to register service %s with root: %+v", service.Name(), err)
-				} else {
-					log.Infof("Register service %s with root: %+v: %+v", service.Name(), portMsg, result)
+func getTimeoutMillis(config CommonConfig) int64 {
+	timeoutMillis := config.Api.RestTimeoutMillis
+	if timeoutMillis <= 0 {
+		timeoutMillis = DefaultRestTimeout
+	}
+	return timeoutMillis
+}
 
-				}
+// InitializeService initializes the service with the
+// provided config and starts it. The channel returned
+// allows the caller to wait for a message from the running
+// service. Messages are of type ServiceMessage above.
+// It can be used for launching service from tests, etc.
+func InitializeService(service Service, config ServiceConfig, credential *Credential) (*RestServiceInfo, error) {
+	log.Infof("Initializing service %s with %v", service.Name(), config.Common.Api)
+	var err error
+	routes := service.Routes()
+	hooks := config.Common.Api.Hooks
+	err = setupHooks(routes, hooks)
+	if err != nil {
+		return nil, err
+	}
+
+	err = service.SetConfig(config)
+	if err != nil {
+		return nil, err
+	}
+
+	// Create Rest client and initialize service with it.
+	retries := config.Common.Api.RestRetries
+	if retries <= 0 {
+		retries = DefaultRestRetries
+	}
+	clientConfig := RestClientConfig{TimeoutMillis: getTimeoutMillis(config.Common),
+		Retries:    retries,
+		RootURL:    config.Common.Api.RootServiceUrl,
+		TestMode:   config.Common.Api.RestTestMode,
+		Credential: credential,
+	}
+	client, err := NewRestClient(clientConfig)
+	if err != nil {
+		return nil, err
+	}
+	service.Initialize(client)
+
+	svcInfo, err := initNegroni(routes, config)
+	if err != nil {
+		return nil, err
+	}
+
+	requestedAddr := config.Common.Api.GetHostPort()
+	realAddr := svcInfo.Address
+	if realAddr != requestedAddr {
+		idx := strings.LastIndex(realAddr, ":")
+		config.Common.Api.Host = realAddr[0:idx]
+		port, _ := strconv.Atoi(realAddr[idx+1:])
+		port64 := uint64(port)
+		config.Common.Api.Port = port64
+		// Also register this with root service if we are not root ourselves.
+		if service.Name() != ServiceRoot {
+			result := make(map[string]interface{})
+			portMsg := PortUpdateMessage{Port: port64}
+			url := fmt.Sprintf("%s/config/%s/port", config.Common.Api.RootServiceUrl, service.Name())
+			log.Infof("For service %s, requested address %s, real %s, registering at %s\n", service.Name(), requestedAddr, realAddr, url)
+			err = client.Post(url, portMsg, &result)
+			if err != nil {
+				log.Infof("Error attempting to register service %s with root: %+v", service.Name(), err)
+			} else {
+				log.Infof("Registered service %s with root: %+v: %+v", service.Name(), portMsg, result)
 			}
 		}
 	}
@@ -319,7 +337,6 @@ func RunNegroni(n *negroni.Negroni, addr string, timeout time.Duration) (*RestSe
 	l := clog.New(os.Stderr, "[negroni] ", 0)
 	svr.Handler = n
 	svr.ErrorLog = l
-	log.Infof("Calling ListenAndServe(%p)", svr)
 	return ListenAndServe(svr)
 }
 
@@ -372,4 +389,129 @@ func ListenAndServe(svr *http.Server) (*RestServiceInfo, error) {
 		}
 	}()
 	return &RestServiceInfo{Address: realAddr, Channel: channel}, nil
+}
+
+// CliState represents the state needed for starting of various
+// services. This is here to avoid copy-pasting common command-line
+// argument information, configuration, credentials, etc.
+type CliState struct {
+	CreateSchema    *bool
+	OverwriteSchema *bool
+	RootURL         *string
+	version         *bool
+	ConfigFile      *string
+	credential      *Credential
+	flagSet         *flag.FlagSet
+}
+
+// NewCliState creates a new CliState with initial fields
+func NewCliState() *CliState {
+	cs := &CliState{}
+	cs.flagSet = flag.NewFlagSet("RomanaService", flag.ContinueOnError)
+	cs.CreateSchema = cs.flagSet.Bool("createSchema", false, "Create schema")
+	cs.OverwriteSchema = cs.flagSet.Bool("overwriteSchema", false, "Overwrite schema")
+	cs.RootURL = cs.flagSet.String("rootURL", "", "URL to root service URL")
+	cs.version = cs.flagSet.Bool("version", false, "Build Information.")
+	// This config file is not the same as one in Romana CLI for now... It is
+	// the config file for Root service.
+	// TODO: We should perhaps differentiate them somehow...
+	cs.ConfigFile = cs.flagSet.String("c", "", "config file")
+	cs.credential = NewCredential(cs.flagSet)
+	return cs
+}
+
+// Init calls flag.Parse() and, for now, sets up the
+// credentials.
+func (cs *CliState) Init() error {
+	cs.flagSet.Parse(os.Args[1:])
+	config.SetConfigName(".romana") // name of config file (without extension)
+	config.SetConfigType("yaml")
+	config.AddConfigPath("$HOME") // adding home directory as first search path
+	config.AutomaticEnv()         // read in environment variables that match
+
+	// If a config file is found, read it in.
+	err := config.ReadInConfig()
+	if err != nil {
+		switch err := err.(type) {
+		case config.ConfigFileNotFoundError:
+			// For now do nothing
+		case *os.PathError:
+			if err.Error() != "open : no such file or directory" {
+				return err
+			}
+		default:
+			return err
+		}
+	}
+	log.Infof("Using config file: %s", config.ConfigFileUsed())
+	err = cs.credential.Initialize()
+	return err
+}
+
+// SimpleOverwriteSchema is intended to be used from tests, it provides
+// a shortcut for the overwriteSchema functionality.
+func SimpleOverwriteSchema(svc Service, rootURL string) error {
+	cs := NewCliState()
+	overwriteSchema := true
+	cs.RootURL = &rootURL
+	cs.OverwriteSchema = &overwriteSchema
+	_, err := cs.StartService(svc)
+	return err
+}
+
+func SimpleStartService(svc Service, rootURL string) (*RestServiceInfo, error) {
+	cs := NewCliState()
+	cs.RootURL = &rootURL
+	rsi, err := cs.StartService(svc)
+	return rsi, err
+}
+
+// Init calls Init() and starts the provided service (or,
+// does what is required by command-line arguments, such as printing
+// usage info or version).
+func (c *CliState) StartService(svc Service) (*RestServiceInfo, error) {
+	err := c.Init()
+	if err != nil {
+		return nil, err
+	}
+
+	if *c.version {
+		fmt.Println(BuildInfo())
+		return nil, nil
+	}
+
+	if svc.Name() == "root" {
+		// Root is special, we do not launch it here. Root's main
+		// will do it.
+		return nil, nil
+	} else {
+		if *c.RootURL == "" {
+			fmt.Println("Must specify RootURL.")
+			return nil, nil
+		}
+	}
+
+	clientConfig := GetDefaultRestClientConfig(*c.RootURL)
+	clientConfig.Credential = c.credential
+	client, err := NewRestClient(clientConfig)
+	if err != nil {
+		return nil, err
+	}
+
+	config, err := client.GetServiceConfig(svc.Name())
+	if err != nil {
+		return nil, err
+	}
+
+	if *c.CreateSchema || *c.OverwriteSchema {
+		svc.SetConfig(*config)
+		err := svc.CreateSchema(*c.OverwriteSchema)
+		if err != nil {
+			return nil, err
+		}
+		fmt.Println("Schema created.")
+		return nil, nil
+	}
+
+	return InitializeService(svc, *config, c.credential)
 }

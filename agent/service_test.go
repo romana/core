@@ -21,7 +21,7 @@ import (
 	"os"
 	"testing"
 	// Dependencies for disabled test below
-	// "github.com/romana/core/common"
+	"github.com/romana/core/common"
 	// "log"
 	// "net"
 )
@@ -33,7 +33,8 @@ func startAgent(t *testing.T) {
 		panic(err)
 	}
 	rootURL := fmt.Sprintf("file://%s/testdata/root.json", cwd)
-	svcInfo, err := Run(rootURL, nil, true)
+	agent := &Agent{TestMode: true}
+	svcInfo, err := common.SimpleStartService(agent, rootURL)
 	if err != nil {
 		t.Fatal(err)
 	}

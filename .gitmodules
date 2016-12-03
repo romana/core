@@ -89,3 +89,21 @@
 	path = vendor/k8s.io/client-go
 	url = https://github.com/kubernetes/client-go
 	branch = release-1.5
+[submodule "vendor/golang.org/x/crypto"]
+	path = vendor/golang.org/x/crypto
+	url = https://go.googlesource.com/crypto
+[submodule "vendor/github.com/fsnotify/fsnotify"]
+	path = vendor/github.com/fsnotify/fsnotify
+	url = https://github.com/fsnotify/fsnotify
+[submodule "vendor/github.com/pelletier/go-toml"]
+	path = vendor/github.com/pelletier/go-toml
+	url = https://github.com/pelletier/go-toml
+[submodule "vendor/github.com/spf13/afero"]
+	path = vendor/github.com/spf13/afero
+	url = https://github.com/spf13/afero
+[submodule "vendor/github.com/pelletier/go-buffruneio"]
+	path = vendor/github.com/pelletier/go-buffruneio
+	url = https://github.com/pelletier/go-buffruneio
+[submodule "vendor/golang.org/x/text"]
+	path = vendor/golang.org/x/text
+	url = https://go.googlesource.com/text/

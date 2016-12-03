@@ -45,14 +45,14 @@ const (
 	HttpGetParamResourceVersion = "resourceVersion"
 )
 
-// kubeListener is a Service that listens to updates
+// KubeListener is a Service that listens to updates
 // from Kubernetes by connecting to the endpoints specified
 // and consuming chunked JSON documents. The endpoints are
 // constructed from kubeURL and the following paths:
 // 1. namespaceNotificationPath for namespace additions/deletions
 // 2. policyNotificationPathPrefix + <namespace name> + policyNotificationPathPostfix
 //    for policy additions/deletions.
-type kubeListener struct {
+type KubeListener struct {
 	config                        common.ServiceConfig
 	restClient                    *common.RestClient
 	kubeURL                       string
@@ -69,18 +69,22 @@ type kubeListener struct {
 }
 
 // Routes returns various routes used in the service.
-func (l *kubeListener) Routes() common.Routes {
+func (l *KubeListener) Routes() common.Routes {
 	routes := common.Routes{}
 	return routes
 }
 
 // Name implements method of Service interface.
-func (l *kubeListener) Name() string {
+func (l *KubeListener) Name() string {
 	return "kubernetesListener"
 }
 
+func (l *KubeListener) CreateSchema(overwrite bool) error {
+	return nil
+}
+
 // SetConfig implements SetConfig function of the Service interface.
-func (l *kubeListener) SetConfig(config common.ServiceConfig) error {
+func (l *KubeListener) SetConfig(config common.ServiceConfig) error {
 	confString := "/etc/romana/romana.conf.yml:kubernetesListener:config:"
 	log.Trace(5, confString, config)
 
@@ -136,15 +140,6 @@ func (l *kubeListener) SetConfig(config common.ServiceConfig) error {
 	}
 	l.kubeClient = clientset
 
-	// TODO, find a better place to initialize
-	// the translator. Stas.
-	PTranslator.Init(l.restClient, l.segmentLabelName, l.tenantLabelName)
-	tc := PTranslator.GetClient()
-	if tc == nil {
-		log.Critical("Failed to initialize rest client for policy translator.")
-		os.Exit(255)
-	}
-
 	return nil
 }
 
@@ -160,19 +155,19 @@ func Run(rootServiceURL string, cred *common.Credential) (*common.RestServiceInf
 	if err != nil {
 		return nil, err
 	}
-	kubeListener := &kubeListener{}
-	kubeListener.restClient = client
+	KubeListener := &KubeListener{}
+	KubeListener.restClient = client
 
-	config, err := client.GetServiceConfig(kubeListener.Name())
+	config, err := client.GetServiceConfig(KubeListener.Name())
 	if err != nil {
 		return nil, err
 	}
-	return common.InitializeService(kubeListener, *config)
+	return common.InitializeService(KubeListener, *config, cred)
 }
 
 // getOrAddSegment finds a segment (based on segment selector).
 // If not found, it adds one.
-func (l *kubeListener) getOrAddSegment(namespace string, kubeSegmentName string) (*tenant.Segment, error) {
+func (l *KubeListener) getOrAddSegment(namespace string, kubeSegmentName string) (*tenant.Segment, error) {
 	ten := &tenant.Tenant{}
 	ten.Name = namespace
 	// TODO this should be changed to find EXACTLY one after deletion functionality is implemented
@@ -235,7 +230,7 @@ func (l *kubeListener) getOrAddSegment(namespace string, kubeSegmentName string)
 }
 
 // resolveTenantByName retrieves tenant information from romana.
-func (l *kubeListener) resolveTenantByName(tenantName string) (*tenant.Tenant, error) {
+func (l *KubeListener) resolveTenantByName(tenantName string) (*tenant.Tenant, error) {
 	t := &tenant.Tenant{Name: tenantName}
 	err := l.restClient.Find(t, common.FindLast)
 	if err != nil {
@@ -244,7 +239,7 @@ func (l *kubeListener) resolveTenantByName(tenantName string) (*tenant.Tenant, e
 	return t, nil
 }
 
-func (l *kubeListener) applyNetworkPolicy(action networkPolicyAction, romanaNetworkPolicy common.Policy) error {
+func (l *KubeListener) applyNetworkPolicy(action networkPolicyAction, romanaNetworkPolicy common.Policy) error {
 	policyURL, err := l.restClient.GetServiceUrl("policy")
 	if err != nil {
 		return err
@@ -270,7 +265,18 @@ func (l *kubeListener) applyNetworkPolicy(action networkPolicyAction, romanaNetw
 	return nil
 }
 
-func (l *kubeListener) Initialize() error {
+func (l *KubeListener) Initialize(client *common.RestClient) error {
+	l.restClient = client
+
+	// TODO, find a better place to initialize
+	// the translator. Stas.
+	PTranslator.Init(l.restClient, l.segmentLabelName, l.tenantLabelName)
+	tc := PTranslator.GetClient()
+	if tc == nil {
+		log.Critical("Failed to initialize rest client for policy translator.")
+		os.Exit(255)
+	}
+
 	l.lastEventPerNamespace = make(map[string]uint64)
 	log.Infof("%s: Starting server", l.Name())
 	nsURL, err := common.CleanURL(fmt.Sprintf("%s/%s/?%s", l.kubeURL, l.namespaceNotificationPath, HttpGetParamWatch))

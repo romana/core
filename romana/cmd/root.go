@@ -32,14 +32,25 @@ import (
 
 // Variables used for configuration and flags.
 var (
-	cfgFile  string
-	rootURL  string
-	rootPort string
-	version  bool
-	verbose  bool
-	format   string
-	platform string
+	cfgFile    string
+	rootURL    string
+	rootPort   string
+	version    bool
+	verbose    bool
+	format     string
+	platform   string
+	credential *common.Credential
 )
+
+// getRestClient gets the rest client instance with the
+// configured root URL and the credential object that was
+// built at initalization.
+func getRestClient() (*common.RestClient, error) {
+	rootURL := config.GetString("RootURL")
+	cfg := common.GetDefaultRestClientConfig(rootURL)
+	cfg.Credential = credential
+	return common.NewRestClient(cfg)
+}
 
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cli.Command{
@@ -64,8 +75,9 @@ func Execute() {
 }
 
 func init() {
-	cli.OnInitialize(initConfig)
+	credential = common.NewCredentialCobra(RootCmd)
 
+	cli.OnInitialize(initConfig)
 	RootCmd.AddCommand(hostCmd)
 	RootCmd.AddCommand(tenantCmd)
 	RootCmd.AddCommand(segmentCmd)
@@ -145,6 +157,12 @@ func preConfig(cmd *cli.Command, args []string) {
 	}
 	config.Set("Platform", platform)
 
+	fmt.Println(config.GetString("username"))
+	err := credential.Initialize()
+	if err != nil {
+		log.Printf("Error: %s", err)
+		os.Exit(1)
+	}
 }
 
 // versionInfo displays the build and versioning information.
@@ -158,13 +176,17 @@ func versionInfo(cmd *cli.Command, args []string) {
 
 // initConfig reads in config file and ENV variables if set.
 func initConfig() {
+	// https://github.com/spf13/viper/commit/5619c0 changes the behaviour
+	// of SetConfigFile and SetConfigName, thus SetConfigName should come
+	// before SetConfigFile.
+	config.SetConfigName(".romana") // name of config file (without extension)
+	config.AddConfigPath("$HOME")   // adding home directory as first search path
+
 	if cfgFile != "" { // enable ability to specify config file via flag
 		config.SetConfigFile(cfgFile)
 	}
 
-	config.SetConfigName(".romana") // name of config file (without extension)
-	config.AddConfigPath("$HOME")   // adding home directory as first search path
-	config.AutomaticEnv()           // read in environment variables that match
+	config.AutomaticEnv() // read in environment variables that match
 
 	// If a config file is found, read it in.
 	err := config.ReadInConfig()

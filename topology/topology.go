@@ -222,53 +222,19 @@ func (topology *TopologySvc) SetConfig(config common.ServiceConfig) error {
 	return topology.store.SetConfig(storeConfig)
 }
 
-// Run configures and runs topology service.
-func Run(rootServiceURL string, cred *common.Credential) (*common.RestServiceInfo, error) {
-	clientConfig := common.GetDefaultRestClientConfig(rootServiceURL)
-	clientConfig.Credential = cred
-	client, err := common.NewRestClient(clientConfig)
-	if err != nil {
-		return nil, err
-	}
-	topSvc := &TopologySvc{}
-	topSvc.client = client
-	config, err := client.GetServiceConfig(topSvc.Name())
-	if err != nil {
-		return nil, err
-	}
-
-	return common.InitializeService(topSvc, *config)
-}
-
 // Initialize the topology service
-func (topology *TopologySvc) Initialize() error {
+func (topology *TopologySvc) Initialize(client *common.RestClient) error {
 	log.Println("Parsing", topology.datacenter)
 
 	ip, _, err := net.ParseCIDR(topology.datacenter.Cidr)
 	if err != nil {
 		return err
 	}
+	topology.client = client
 	topology.datacenter.Prefix = common.IPv4ToInt(ip)
 	return topology.store.Connect()
 }
 
-// CreateSchema creates schema for topology service.
-func CreateSchema(rootServiceURL string, overwrite bool) error {
-	log.Println("In CreateSchema(", rootServiceURL, ",", overwrite, ")")
-	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootServiceURL))
-	if err != nil {
-		return err
-	}
-
-	topologyService := &TopologySvc{}
-	config, err := client.GetServiceConfig(topologyService.Name())
-	if err != nil {
-		return err
-	}
-
-	err = topologyService.SetConfig(*config)
-	if err != nil {
-		return err
-	}
-	return topologyService.store.CreateSchema(overwrite)
+func (topology *TopologySvc) CreateSchema(overwrite bool) error {
+	return topology.store.CreateSchema(overwrite)
 }

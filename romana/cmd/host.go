@@ -103,7 +103,7 @@ func hostAdd(cmd *cli.Command, args []string) error {
 		agentport = uint64(agentPortInt)
 	}
 
-	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
+	client, err := getRestClient()
 	if err != nil {
 		return err
 	}
@@ -144,7 +144,7 @@ func hostShow(cmd *cli.Command, args []string) error {
 			fmt.Sprintf("expected at-least 1 argument, saw none"))
 	}
 
-	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
+	client, err := getRestClient()
 	if err != nil {
 		return err
 	}
@@ -205,7 +205,7 @@ func hostShow(cmd *cli.Command, args []string) error {
 }
 
 func hostList(cmd *cli.Command, args []string) error {
-	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
+	client, err := getRestClient()
 	if err != nil {
 		return err
 	}

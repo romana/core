@@ -44,7 +44,7 @@ type PolicyTranslator interface {
 }
 
 type Translator struct {
-	listener         *kubeListener
+	listener         *KubeListener
 	restClient       *common.RestClient
 	tenantsCache     []TenantCacheEntry
 	cacheMu          *sync.Mutex

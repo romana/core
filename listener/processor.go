@@ -38,8 +38,8 @@ const (
 //    b. If the Object is Namespace, attempts to add a new Tenant to Romana with that name.
 //       Logs an error if not possible.
 // 2. On receiving a done event, exit the goroutine
-func (l *kubeListener) process(in <-chan Event, done chan struct{}) {
-	log.Infof("kubeListener: process(): Entered with in %v, done %v", in, done)
+func (l *KubeListener) process(in <-chan Event, done chan struct{}) {
+	log.Infof("KubeListener: process(): Entered with in %v, done %v", in, done)
 
 	timer := time.Tick(processorTickTime * time.Second)
 	var networkPolicyEvents []Event
@@ -54,7 +54,7 @@ func (l *kubeListener) process(in <-chan Event, done chan struct{}) {
 					networkPolicyEvents = nil
 				}
 			case e := <-in:
-				log.Infof("kubeListener: process(): Got %v", e)
+				log.Infof("KubeListener: process(): Got %v", e)
 				switch obj := e.Object.(type) {
 				case *v1beta1.NetworkPolicy:
 					log.Tracef(2, "Scheduing network policy action, now scheduled %d actions", len(networkPolicyEvents))
@@ -66,7 +66,7 @@ func (l *kubeListener) process(in <-chan Event, done chan struct{}) {
 					log.Errorf("Processor received an event of unkonwn type %s, ignoring object %s", reflect.TypeOf(obj), obj)
 				}
 			case <-done:
-				log.Infof("kubeListener: process(): Got done")
+				log.Infof("KubeListener: process(): Got done")
 				return
 			}
 		}

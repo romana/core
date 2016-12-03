@@ -131,9 +131,7 @@ func policyAdd(cmd *cli.Command, args []string) error {
 		policyFile = args[0]
 	}
 
-	rootURL := config.GetString("RootURL")
-
-	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
+	client, err := getRestClient()
 	if err != nil {
 		return err
 	}
@@ -259,9 +257,7 @@ func policyAdd(cmd *cli.Command, args []string) error {
 // name, since multiple policies with same name can
 // exists, it returns the first one from them.
 func getPolicyID(policyName string) (uint64, error) {
-	rootURL := config.GetString("RootURL")
-
-	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
+	client, err := getRestClient()
 	if err != nil {
 		return 0, err
 	}
@@ -298,9 +294,7 @@ func policyRemove(cmd *cli.Command, args []string) error {
 			"POLICY_NAME (or --policyid <id> ) should be provided.")
 	}
 
-	rootURL := config.GetString("RootURL")
-
-	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
+	client, err := getRestClient()
 	if err != nil {
 		return err
 	}
@@ -375,9 +369,7 @@ func policyListShow(listOnly bool, args []string) error {
 		return fmt.Errorf("Policy show takes at-least one argument or policy id.")
 	}
 
-	rootURL := config.GetString("RootURL")
-
-	client, err := common.NewRestClient(common.GetDefaultRestClientConfig(rootURL))
+	client, err := getRestClient()
 	if err != nil {
 		return err
 	}

@@ -17,7 +17,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 
 	"github.com/romana/core/common"
@@ -25,28 +24,16 @@ import (
 )
 
 func main() {
-	rootURL := flag.String("rootURL", "", "Romana Root service URL")
-	version := flag.Bool("version", false, "Build Information.")
-	username := flag.String("username", "", "Username")
-	password := flag.String("password", "", "Password")
-
-	flag.Parse()
-
-	if *version {
-		fmt.Println(common.BuildInfo())
-		return
-	}
-	if *rootURL == "" {
-		fmt.Println("Must specify rootURL.")
-		return
-	}
-	cred := common.MakeCredentialFromCliArgs(*username, *password)
-	svcInfo, err := listener.Run(*rootURL, cred)
+	cs := common.NewCliState()
+	l := &listener.KubeListener{}
+	svcInfo, err := cs.StartService(l)
 	if err != nil {
 		panic(err)
 	}
-	for {
-		msg := <-svcInfo.Channel
-		fmt.Println(msg)
+	if svcInfo != nil {
+		for {
+			msg := <-svcInfo.Channel
+			fmt.Println(msg)
+		}
 	}
 }

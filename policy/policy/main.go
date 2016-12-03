@@ -17,49 +17,23 @@
 package main
 
 import (
-	"flag"
 	"fmt"
-
 	"github.com/romana/core/common"
 	"github.com/romana/core/policy"
 )
 
 // Main entry point for the Policy microservice
 func main() {
-	createSchema := flag.Bool("createSchema", false, "Create schema")
-	overwriteSchema := flag.Bool("overwriteSchema", false, "Overwrite schema")
-	rootURL := flag.String("rootURL", "", "Root service URL")
-	version := flag.Bool("version", false, "Build Information.")
-	username := flag.String("username", "", "Username")
-	password := flag.String("password", "", "Password")
-
-	flag.Parse()
-
-	if *version {
-		fmt.Println(common.BuildInfo())
-		return
-	}
-	if *rootURL == "" {
-		fmt.Println("Must specify rootURL.")
-		return
-	}
-	if *createSchema || *overwriteSchema {
-		err := policy.CreateSchema(*rootURL, *overwriteSchema)
-		if err != nil {
-			panic(err)
-		}
-		fmt.Println("Schema created.")
-		return
-	}
-
-	cred := common.MakeCredentialFromCliArgs(*username, *password)
-	svcInfo, err := policy.Run(*rootURL, cred)
+	cs := common.NewCliState()
+	policy := &policy.PolicySvc{}
+	svcInfo, err := cs.StartService(policy)
 	if err != nil {
 		panic(err)
 	}
-
-	for {
-		msg := <-svcInfo.Channel
-		fmt.Println(msg)
+	if svcInfo != nil {
+		for {
+			msg := <-svcInfo.Channel
+			fmt.Println(msg)
+		}
 	}
 }

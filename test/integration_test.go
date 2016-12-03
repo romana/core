@@ -47,7 +47,6 @@ var (
 
 // Hook up gocheck into the "go test" runner.
 func Test(t *testing.T) {
-	os.Args = []string{os.Args[0], "-check.vv", "true"}
 	check.TestingT(t)
 }
 
@@ -130,30 +129,33 @@ func (s *MySuite) SetUpTest(c *check.C) {
 	c.Log("integration_test.SetUpSuite(): Waiting a bit...")
 	time.Sleep(time.Second)
 
-	c.Log("integration_test.SetUpSuite(): Creating topology schema")
-	err = topology.CreateSchema(urlInfo.rootURL, true)
+	c.Log("Creating topology schema")
+	topo := &topology.TopologySvc{}
+	err = common.SimpleOverwriteSchema(topo, urlInfo.rootURL)
 	if err != nil {
-		c.Fatal(err)
+		c.Fatalf("Error: [%s] %T", err, err)
 	}
-	c.Log("integration_test.SetUpSuite(): OK")
 
-	c.Log("integration_test.SetUpSuite(): Creating tenant schema")
-	err = tenant.CreateSchema(urlInfo.rootURL, true)
+	c.Log("Creating tenant schema")
+	ten := &tenant.TenantSvc{}
+	err = common.SimpleOverwriteSchema(ten, urlInfo.rootURL)
+
 	if err != nil {
 		c.Fatal(err)
 	}
 	c.Log("integration_test.SetUpSuite(): OK")
 
 	c.Log("Creating IPAM schema")
-	err = ipam.CreateSchema(urlInfo.rootURL, true)
+	ipam := &ipam.IPAM{}
+	err = common.SimpleOverwriteSchema(ipam, urlInfo.rootURL)
+
 	if err != nil {
 		c.Fatal(err)
 	}
-	c.Log("integration_test.SetUpSuite(): OK")
 
 	// Start topology service
-	myLog(c, "integration_test.SetUpSuite(): STARTING TOPOLOGY SERVICE")
-	topoInfo, err := topology.Run(urlInfo.rootURL, nil)
+	myLog(c, "STARTING TOPOLOGY SERVICE")
+	topoInfo, err := common.SimpleStartService(topo, urlInfo.rootURL)
 	if err != nil {
 		c.Error(err)
 	}
@@ -162,8 +164,8 @@ func (s *MySuite) SetUpTest(c *check.C) {
 	urlInfo.topoURL = "http://" + topoInfo.Address
 
 	// Start tenant service
-	myLog(c, "integration_test.SetUpSuite(): STARTING TENANT SERVICE")
-	tenantInfo, err := tenant.Run(urlInfo.rootURL, nil)
+	myLog(c, "STARTING TENANT SERVICE")
+	tenantInfo, err := common.SimpleStartService(ten, urlInfo.rootURL)
 	if err != nil {
 		c.Fatal(err)
 	}
@@ -171,8 +173,8 @@ func (s *MySuite) SetUpTest(c *check.C) {
 	myLog(c, "integration_test.SetUpSuite(): Tenant service said: %s", msg)
 	urlInfo.tenantURL = "http://" + tenantInfo.Address
 
-	myLog(c, "integration_test.SetUpSuite(): STARTING IPAM SERVICE")
-	ipamInfo, err := ipam.Run(urlInfo.rootURL, nil)
+	myLog(c, "STARTING IPAM SERVICE")
+	ipamInfo, err := common.SimpleStartService(ipam, urlInfo.rootURL)
 	if err != nil {
 		c.Fatal(err)
 	}
@@ -252,7 +254,11 @@ func (s *MySuite) TestAgentStart(c *check.C) {
 	c.Assert(len(hostList2), check.Equals, 2)
 
 	myLog(c, "STARTING Agent SERVICE")
-	agentInfo, err := agent.Run(urlInfo.rootURL, nil, true)
+
+	a := &agent.Agent{TestMode: true}
+	helper := agent.NewAgentHelper(a)
+	a.Helper = &helper
+	agentInfo, err := common.SimpleStartService(a, urlInfo.rootURL)
 	if err != nil {
 		c.Error(err)
 	}
@@ -441,8 +447,8 @@ func (s *MySuite) TestRootTopoTenantIpamInteraction(c *check.C) {
 	tenSingle.Name = "name1"
 	err = client.Find(&tenSingle, common.FindFirst)
 	if err != nil {
-		c.Error(err)
-		c.FailNow()
+		c.Fatal(err)
+
 	}
 	c.Assert(tenSingle.Name, check.Equals, "name1")
 	c.Assert(tenSingle.ExternalID, check.Equals, "t1")

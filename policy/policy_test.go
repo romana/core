@@ -62,6 +62,10 @@ type mockSvc struct {
 	segmentsStr    map[string]uint64
 }
 
+func (s *mockSvc) CreateSchema(o bool) error {
+	return nil
+}
+
 func (s *mockSvc) SetConfig(config common.ServiceConfig) error {
 	return nil
 }
@@ -70,7 +74,7 @@ func (s *mockSvc) Name() string {
 	return common.ServiceRoot
 }
 
-func (s *mockSvc) Initialize() error {
+func (s *mockSvc) Initialize(c *common.RestClient) error {
 	return nil
 }
 
@@ -257,7 +261,7 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	svc.tenantsStr = make(map[string]uint64)
 	svc.segments = make(map[uint64]string)
 	svc.segmentsStr = make(map[string]uint64)
-	svcInfo, err := common.InitializeService(svc, *cfg)
+	svcInfo, err := common.InitializeService(svc, *cfg, nil)
 
 	if err != nil {
 		c.Error(err)
@@ -274,15 +278,15 @@ func (s *MySuite) TestPolicy(c *check.C) {
 	}
 	s.serviceURL = fmt.Sprintf("http://%s", svcInfo.Address)
 	log.Printf("Test: Mock service listens at %s\n", s.serviceURL)
-	err = CreateSchema(s.serviceURL, true)
 
+	polSvc := &PolicySvc{}
+	err = common.SimpleOverwriteSchema(polSvc, s.serviceURL)
 	if err != nil {
-		c.Error(err)
-		c.FailNow()
+		c.Fatal(err)
 	}
-
 	log.Printf("Policy schema created.")
-	svcInfo, err = Run(s.serviceURL, nil)
+
+	svcInfo, err = common.SimpleStartService(polSvc, s.serviceURL)
 	if err != nil {
 		c.Fatal(err)
 	}
