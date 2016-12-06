@@ -22,6 +22,7 @@ package iptsave
 import (
 	"bufio"
 	"fmt"
+	"github.com/romana/core/common/log/trace"
 	log "github.com/romana/rlog"
 	"io"
 )
@@ -36,13 +37,13 @@ type IPtables struct {
 
 // lastTable returns pointer to the last IPtable in IPtables.
 func (i *IPtables) lastTable() *IPtable {
-	log.Trace(3, "In lastTable()")
+	log.Trace(trace.Private, "In lastTable()")
 	if len(i.Tables) == 0 {
 		return nil
 	}
 
 	t := i.Tables[len(i.Tables)-1]
-	log.Trace(3, "In lastTable returning with ", t.Name)
+	log.Trace(trace.Inside, "In lastTable returning with ", t.Name)
 	return t
 }
 
@@ -101,7 +102,7 @@ func (it IPtable) RenderFooter() string {
 
 // lastChain returns pointer to the last IPchain in IPtable.
 func (i *IPtable) lastChain() *IPchain {
-	log.Trace(3, "In lastChain()")
+	log.Trace(trace.Private, "In lastChain()")
 	if len(i.Chains) == 0 {
 		return nil
 	}
@@ -112,7 +113,7 @@ func (i *IPtable) lastChain() *IPchain {
 
 // ChainByName looks for IPchain with corresponding name and returns a pointer to it.
 func (i *IPtable) ChainByName(name string) *IPchain {
-	log.Trace(3, "In ChainByName()")
+	log.Trace(trace.Private, "In ChainByName()")
 
 	for n, c := range i.Chains {
 		if c.Name == name {
@@ -331,14 +332,14 @@ func (i *IPtables) parseItem(item Item) {
 			panic("Chain before table")
 		} // TODO crash here
 
-		log.Tracef(5, "In ParseItem adding chain %s to the table %s", item.Body, table.Name)
+		log.Tracef(trace.Inside, "In ParseItem adding chain %s to the table %s", item.Body, table.Name)
 
 		table.Chains = append(table.Chains, &IPchain{Name: item.Body})
 	case itemChainPolicy:
 		// If item is a chain policy, set a policy for the last chain.
 		table := i.lastTable()
 
-		log.Tracef(5, "In ParseItem table %s has %d chains", table.Name, len(table.Chains))
+		log.Tracef(trace.Inside, "In ParseItem table %s has %d chains", table.Name, len(table.Chains))
 
 		chain := table.lastChain()
 		if table == nil || chain == nil {
@@ -420,7 +421,7 @@ func MergeTables(dstTable, srcTable *IPtable) []*IPchain {
 				newChainFound = false
 				var newRules []*IPrule
 
-				log.Tracef(2, "In MergeTables, merging chain %s into table %s", srcChain.Name, dstTable.Name)
+				log.Tracef(trace.Inside, "In MergeTables, merging chain %s into table %s", srcChain.Name, dstTable.Name)
 
 				// iptables-restore with --noflush flag works differently with
 				// default builtin chains and user-defined chains.
@@ -439,7 +440,7 @@ func MergeTables(dstTable, srcTable *IPtable) []*IPchain {
 		}
 
 		if newChainFound {
-			log.Tracef(2, "In MergeTables, adding chain %s into table %s", srcChain.Name, dstTable.Name)
+			log.Tracef(trace.Inside, "In MergeTables, adding chain %s into table %s", srcChain.Name, dstTable.Name)
 			newChains = append(newChains, srcTable.Chains[srcChainNum])
 		}
 	}
@@ -480,7 +481,7 @@ func MergeUserChains(dstChain, srcChain *IPchain) []*IPrule {
 	// if rules match then one of them added to the result, otherwise both are.
 	for i := 0; i < maxLen; i++ {
 		if i <= dstLen && i <= srcLen {
-			log.Tracef(2, "In MergeUserTables, counter=%d, src table len=%d, dst table len=%d", i, srcLen, dstLen)
+			log.Tracef(trace.Inside, "In MergeUserTables, counter=%d, src table len=%d, dst table len=%d", i, srcLen, dstLen)
 			if dstChain.Rules[i].String() == srcChain.Rules[i].String() {
 				retRules = append(retRules, dstChain.Rules[i])
 			} else {

@@ -20,6 +20,7 @@ package firewall
 import (
 	"fmt"
 	"github.com/romana/core/common"
+	"github.com/romana/core/common/log/trace"
 	utilexec "github.com/romana/core/pkg/util/exec"
 	log "github.com/romana/rlog"
 	"net"
@@ -233,15 +234,15 @@ func (fw *IPtables) isRuleExist(rule FirewallRule) bool {
 func (fw *IPtables) ensureIPtablesChain(chainName string, opType chainState) error {
 	log.Infof("In ensureIPtablesChain(): %s %s", opType.String(), chainName)
 
-	log.Tracef(2, "In ensureIPtablesChain(): Testing chain ", chainName)
+	log.Tracef(trace.Inside, "In ensureIPtablesChain(): Testing chain ", chainName)
 	exists := fw.isChainExistByName(chainName)
-	log.Tracef(2, "In ensureIPtablesChain(): Test for chain %s returned %b", chainName, exists)
+	log.Tracef(trace.Inside, "In ensureIPtablesChain(): Test for chain %s returned %b", chainName, exists)
 
 	var iptablesAction string
 	switch opType {
 	case ensureChainExists:
 		if exists {
-			log.Tracef(2, "In ensureIPtablesChain(): nothing to do for chain %s", chainName)
+			log.Tracef(trace.Inside, "In ensureIPtablesChain(): nothing to do for chain %s", chainName)
 			return nil
 		} else {
 			iptablesAction = "-N"
@@ -251,7 +252,7 @@ func (fw *IPtables) ensureIPtablesChain(chainName string, opType chainState) err
 		if exists {
 			iptablesAction = "-D"
 		} else {
-			log.Tracef(2, "In ensureIPtablesChain(): nothing to do for chain %s", chainName)
+			log.Tracef(trace.Inside, "In ensureIPtablesChain(): nothing to do for chain %s", chainName)
 			return nil
 		}
 	}

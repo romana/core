@@ -24,6 +24,7 @@ import (
 	"os"
 
 	"github.com/romana/core/common"
+	"github.com/romana/core/common/log/trace"
 	"github.com/romana/core/tenant"
 	log "github.com/romana/rlog"
 
@@ -86,7 +87,7 @@ func (l *KubeListener) CreateSchema(overwrite bool) error {
 // SetConfig implements SetConfig function of the Service interface.
 func (l *KubeListener) SetConfig(config common.ServiceConfig) error {
 	confString := "/etc/romana/romana.conf.yml:kubernetesListener:config:"
-	log.Trace(5, confString, config)
+	log.Trace(trace.Inside, confString, config)
 
 	m := config.ServiceSpecific
 	if kl, ok := m["kubernetes_url"]; !ok || kl == "" {
