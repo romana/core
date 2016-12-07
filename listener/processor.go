@@ -31,13 +31,11 @@ const (
 	processorTickTime = 4
 )
 
-// Process is a goroutine that consumes resource update events and:
+// process is a goroutine that consumes resource update events coming from
+// Kubernetes and:
 // 1. On receiving an added or deleted event:
-//    a. If the Object is NetworkPolicy, translates the body (Object of the event)
-//       to romana policy (common.Policy) using translateNetworkPolicy, and then
-//       calls applyNetworkPolicy with the appropriate action (add or delete)
-//    b. If the Object is Namespace, attempts to add a new Tenant to Romana with that name.
-//       Logs an error if not possible.
+//    i. add it to the queue
+//    ii. on a timer event, send the events to handleNetworkPolicyEvents and empty the queue
 // 2. On receiving a done event, exit the goroutine
 func (l *KubeListener) process(in <-chan Event, done chan struct{}) {
 	log.Infof("KubeListener: process(): Entered with in %v, done %v", in, done)

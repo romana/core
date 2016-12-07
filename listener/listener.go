@@ -17,7 +17,6 @@
 package listener
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -27,6 +26,7 @@ import (
 	"github.com/romana/core/common/log/trace"
 	"github.com/romana/core/tenant"
 	log "github.com/romana/rlog"
+	"k8s.io/client-go/1.5/pkg/apis/extensions/v1beta1"
 
 	"k8s.io/client-go/1.5/kubernetes"
 	"k8s.io/client-go/1.5/tools/cache"
@@ -240,30 +240,66 @@ func (l *KubeListener) resolveTenantByName(tenantName string) (*tenant.Tenant, e
 	return t, nil
 }
 
-func (l *KubeListener) applyNetworkPolicy(action networkPolicyAction, romanaNetworkPolicy common.Policy) error {
+// deleteNetworkPolicyByID deletes the policy specified by the policyID
+func (l *KubeListener) deleteNetworkPolicyByID(policyID uint64) error {
+	policyURL, err := l.restClient.GetServiceUrl("policy")
+	if err != nil {
+		return err
+	}
+	policyURL = fmt.Sprintf("%s/policies/%d", policyURL, policyID)
+	log.Debugf("deleteNetworkPolicyByID: Deleting policy %d", policyID)
+	deletedPolicy := common.Policy{}
+	err = l.restClient.Delete(policyURL, nil, &deletedPolicy)
+	if err != nil {
+		switch err := err.(type) {
+		default:
+			return err
+		case common.HttpError:
+			if err.StatusCode == http.StatusNotFound {
+				log.Warnf("deleteNetworkPolicyByID: Policy %d not found, ignoring", policyID)
+				return nil
+			} else {
+				return err
+			}
+		}
+	}
+	log.Debugf("deleteNetworkPolicyByID: Deleted policy %s", deletedPolicy)
+	return err
+}
+
+// addNetworkPolicy adds the policy to the policy service.
+func (l *KubeListener) addNetworkPolicy(policy common.Policy) error {
 	policyURL, err := l.restClient.GetServiceUrl("policy")
 	if err != nil {
 		return err
 	}
 	policyURL = fmt.Sprintf("%s/policies", policyURL)
-	policyStr, _ := json.Marshal(romanaNetworkPolicy)
-	switch action {
-	case networkPolicyActionAdd:
-		log.Infof("Applying policy %s", policyStr)
-		err := l.restClient.Post(policyURL, romanaNetworkPolicy, &romanaNetworkPolicy)
-		if err != nil {
-			return err
-		}
-	case networkPolicyActionDelete:
-		log.Infof("Deleting policy policy %s", policyStr)
-		err := l.restClient.Delete(policyURL, romanaNetworkPolicy, &romanaNetworkPolicy)
-		if err != nil {
-			return err
-		}
-	default:
-		return errors.New("Unsupported operation")
+	log.Debugf("Applying policy %s", policy)
+	err = l.restClient.Post(policyURL, policy, &policy)
+	if err != nil {
+		return err
 	}
 	return nil
+}
+
+// deleteNetworkPolicy deletes the policy matching provided policy on whatever
+// fields are provided.
+func (l *KubeListener) deleteNetworkPolicy(policy common.Policy) error {
+	err := l.restClient.Find(&policy, common.FindExactlyOne)
+	if err != nil {
+		switch err := err.(type) {
+		default:
+			return err
+		case common.HttpError:
+			if err.StatusCode == http.StatusNotFound {
+				log.Warnf("deleteNetworkPolicy: Policy not found %s, ignoring", kubePolicy.Name)
+				return nil
+			} else {
+				return err
+			}
+		}
+	}
+	return l.deleteNetworkPolicyByID(policy.ID)
 }
 
 func (l *KubeListener) Initialize(client *common.RestClient) error {

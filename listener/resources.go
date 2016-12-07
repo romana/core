@@ -73,18 +73,7 @@ func handleNetworkPolicyEvents(events []Event, l *KubeListener) {
 	// Translate new network policies into romana policies.
 	createPolicyList, kubePolicy, err := PTranslator.Kube2RomanaBulk(createEvents)
 	if err != nil {
-		log.Errorf("Not all kubernetes policies could be translated to Romana policies. Attempted %d, succes %d, fail %d, error %s", len(createEvents), len(createPolicyList), len(kubePolicy), err)
-	}
-	for kn, _ := range kubePolicy {
-		log.Errorf("Failed to translate kubernetes policy %v", kubePolicy[kn])
-	}
-
-	// Translate old network policies into romana policies.
-	// TODO this feels strange but we have to have a full policy body
-	// for deletion. Stas.
-	deletePolicyList, kubePolicy, err := PTranslator.Kube2RomanaBulk(deleteEvents)
-	if err != nil {
-		log.Errorf("Not all kubernetes policies could be translated to Romana policies. Attempted %d, succes %d, fail %d, error %s", len(createEvents), len(deletePolicyList), len(kubePolicy), err)
+		log.Errorf("Not all kubernetes policies could be translated to Romana policies. Attempted %d, success %d, fail %d, error %s", len(createEvents), len(createPolicyList), len(kubePolicy), err)
 	}
 	for kn, _ := range kubePolicy {
 		log.Errorf("Failed to translate kubernetes policy %v", kubePolicy[kn])
@@ -92,12 +81,19 @@ func handleNetworkPolicyEvents(events []Event, l *KubeListener) {
 
 	// Create new policies.
 	for pn, _ := range createPolicyList {
-		l.applyNetworkPolicy(networkPolicyActionAdd, createPolicyList[pn])
+		err = l.addNetworkPolicy(createPolicyList[pn])
+		if err != nil {
+			log.Errorf("Error adding policy with Kubernetes ID %s: %s", createPolicyList[pn].ExternalID, err)
+		}
 	}
 
 	// Delete old policies.
-	for pn, _ := range deletePolicyList {
-		l.applyNetworkPolicy(networkPolicyActionDelete, deletePolicyList[pn])
+	for _, policy := range deleteEvents {
+		// TODO this must be changed to use External ID
+		err = l.deleteNetworkPolicy(common.Policy{Name: policy.Name})
+		if err != nil {
+			log.Errorf("Error deleting policy %s (%s): %s", policy.Name, policy.GetUID(), err)
+		}
 	}
 }
 
@@ -126,7 +122,8 @@ func handleNamespaceEvent(e Event, l *KubeListener) {
 			}
 		}
 	} else if e.Type == KubeEventDeleted {
-		// TODO
+		log.Infof("KubeEventDeleted: deleting default policy for namespace %s", namespace.GetUID())
+		deleteDefaultPolicy(namespace, l)
 	}
 
 	// Ignore repeated events during namespace termination
@@ -142,27 +139,106 @@ func handleNamespaceEvent(e Event, l *KubeListener) {
 
 // handleAnnotations on a namespace by implementing extra features requested through the annotation
 func handleAnnotations(o *v1.Namespace, l *KubeListener) {
-	log.Infof("In handleAnnotations")
+	log.Tracef(trace.Private, "In handleAnnotations")
 
 	// We only care about one annotation for now.
-	CreateDefaultPolicy(o, l)
+	HandleDefaultPolicy(o, l)
 }
 
-// CreateDefaultPolicy handles isolation flag on a namespace by creating/deleting
-// default network policy.
-func CreateDefaultPolicy(o *v1.Namespace, l *KubeListener) {
-	log.Infof("In CreateDefaultPolicy for %v\n", o)
-	tenant, err := l.resolveTenantByName(o.ObjectMeta.Name)
+// HandleDefaultPolicy handles isolation flag on a namespace by creating/deleting
+// default network policy. See http://kubernetes.io/docs/user-guide/networkpolicies/
+func HandleDefaultPolicy(o *v1.Namespace, l *KubeListener) {
+	var defaultDeny bool
+	annotationKey := "net.beta.kubernetes.io/networkpolicy"
+	if np, ok := o.ObjectMeta.Annotations[annotationKey]; ok {
+		log.Infof("Handling default policy on a namespace %s, policy is now %s \n", o.ObjectMeta.Name, np)
+		// Annotations are stored in the Annotations map as raw JSON.
+		// So we need to parse it.
+		isolationPolicy := struct {
+			Ingress struct {
+				Isolation string `json:"isolation"`
+			} `json:"ingress"`
+		}{}
+		// TODO change to json.Unmarshal. Stas
+		err := json.NewDecoder(strings.NewReader(np)).Decode(&isolationPolicy)
+		if err != nil {
+			log.Errorf("In HandleDefaultPolicy :: Error decoding annotation %s: %s", annotationKey, err)
+			return
+		}
+		log.Debugf("Decoded to policy: %v", isolationPolicy)
+		defaultDeny = isolationPolicy.Ingress.Isolation == "DefaultDeny"
+	} else {
+		log.Infof("Handling default policy on a namespace, no annotation detected assuming non isolated namespace\n")
+		defaultDeny = false
+	}
+	if defaultDeny {
+		deleteDefaultPolicy(o, l)
+	} else {
+		addDefaultPolicy(o, l)
+	}
+}
+
+// getDefaultPolicyName creates unique string to serve as ExternalID
+// for the default policy. It is not strictly speaking an ExternalID
+// as it does not have an exact equivalent as a policy ID in Kubernetes.
+// However, Kubernetes does have a notion of namespace isolation, to which we
+// correspond this policy, and so we construct a "synthetic" External ID
+// with an _ISOLATION_ON_ prefix followed by the namespace's UID.
+func getDefaultPolicyName(o *v1.Namespace) string {
+	// TODO this should be ExternalID, not Name...
+	return fmt.Sprintf("_AllowAll_%s", o.GetUID())
+}
+
+// deleteDefaultPolicy deletes the policy, thus enabling isolation
+// effectively setting DefaultDeny to on.
+func deleteDefaultPolicy(o *v1.Namespace, l *KubeListener) {
+	var err error
+	// TODO this should be ExternalID, not Name...
+	name := getDefaultPolicyName(o)
+	policy := common.Policy{Name: name}
+	err = l.restClient.Find(&policy, common.FindExactlyOne)
 	if err != nil {
-		log.Infof("In CreateDefaultPolicy :: Error :: failed to resolve tenant %s \n", err)
+		// An annotation to set isolation on may be issued multiple times.
+		// If it already was reacted to and default policy was dropped,
+		// then we don't do anything.
+		log.Debugf("In deleteDefaultPolicy :: Failed to find policy %s: %s, ignoring\n", name, err)
+		return
+	}
+	if err = l.deleteNetworkPolicyByID(policy.ID); err != nil {
+		log.Errorf("In deleteDefaultPolicy :: Error :: failed to delete policy %d: %s\n", policy.ID, err)
+	}
+}
+
+// addDefaultPolicy adds the default policy which is to allow
+// all ingres.
+func addDefaultPolicy(o *v1.Namespace, l *KubeListener) {
+	var err error
+	// TODO this should be ExternalID, not Name...
+	policyName := getDefaultPolicyName(o)
+
+	// Before adding the default policy, see if it may already exist.
+	policy := common.Policy{Name: policyName}
+	err = l.restClient.Find(&policy, common.FindExactlyOne)
+	if err == nil {
+		// An annotation to set isolation off may be issued multiple
+		// times and we already have the default policy caused by that in place.
+		// So we just do not do anything.
+		log.Infof("In addDefaultPolicy :: Policy %s (%d) already exists, ignoring\n", policy.Name, policy.ID)
 		return
 	}
 
-	policyName := fmt.Sprintf("ns%d", tenant.NetworkID)
+	// Find tenant, to properly set up policy
+	// TODO This really should be by external ID...
+	tenant, err := l.resolveTenantByName(o.ObjectMeta.Name)
+	if err != nil {
+		log.Infof("In addDefaultPolicy :: Error :: failed to resolve tenant %s \n", err)
+		return
+	}
 
 	romanaPolicy := &common.Policy{
 		Direction: common.PolicyDirectionIngress,
 		Name:      policyName,
+		//		ExternalID: externalID,
 		AppliedTo: []common.Endpoint{{TenantNetworkID: &tenant.NetworkID}},
 		Ingress: []common.RomanaIngress{
 			common.RomanaIngress{
@@ -172,37 +248,16 @@ func CreateDefaultPolicy(o *v1.Namespace, l *KubeListener) {
 		},
 	}
 
-	log.Infof("In CreateDefaultPolicy with policy %v\n", romanaPolicy)
-
-	var desiredAction networkPolicyAction
-
-	if np, ok := o.ObjectMeta.Annotations["net.beta.kubernetes.io/networkpolicy"]; ok {
-		log.Infof("Handling default policy on a namespace %s, policy is now %s \n", o.ObjectMeta.Name, np)
-		policy := struct {
-			Ingress struct {
-				Isolation string `json:"isolation"`
-			} `json:"ingress"`
-		}{}
-		err := json.NewDecoder(strings.NewReader(np)).Decode(&policy)
-		if err != nil {
-			log.Infof("In CreateDefaultPolicy :: Error decoding network policy: %s", err)
-			return
-		}
-
-		log.Info("Decoded to policy:", policy)
-		if policy.Ingress.Isolation == "DefaultDeny" {
-			log.Info("Isolation enabled")
-			desiredAction = networkPolicyActionDelete
+	err = l.addNetworkPolicy(*romanaPolicy)
+	switch err := err.(type) {
+	default:
+		log.Errorf("In addDefaultPolicy :: Error :: failed to create policy  %s: %s\n", policyName, err)
+	case common.HttpError:
+		if err.StatusCode == http.StatusConflict {
+			log.Infof("In addDefaultPolicy ::Policy %s already exists.\n", policyName)
 		} else {
-			desiredAction = networkPolicyActionAdd
+			log.Errorf("In addDefaultPolicy :: Error :: failed to create policy %s: %s\n", policyName, err)
 		}
-	} else {
-		log.Infof("Handling default policy on a namespace, no annotation detected assuming non isolated namespace\n")
-		desiredAction = networkPolicyActionAdd
-	}
-
-	if err2 := l.applyNetworkPolicy(desiredAction, *romanaPolicy); err2 != nil {
-		log.Infof("In CreateDefaultPolicy :: Error :: failed to apply %v to the policy %s \n", desiredAction, err2)
 	}
 }
 
