@@ -24,7 +24,7 @@ import (
 	"strings"
 
 	"github.com/romana/core/common"
-	"github.com/romana/core/tenant"
+	"github.com/romana/core/common/store"
 )
 
 // PolicySvc provides Policy service.
@@ -104,7 +104,7 @@ func (policy *PolicySvc) augmentEndpoint(endpoint *common.Endpoint) error {
 	//
 	// TODO this will have to be changed once we implement
 	// https://paninetworks.kanbanize.com/ctrl_board/3/cards/319/details
-	ten := &tenant.Tenant{}
+	ten := &common.Tenant{}
 	if endpoint.TenantNetworkID == nil {
 		if endpoint.TenantID != 0 {
 			tenantIDToUse := strconv.FormatUint(endpoint.TenantID, 10)
@@ -137,7 +137,7 @@ func (policy *PolicySvc) augmentEndpoint(endpoint *common.Endpoint) error {
 		if ten == nil && (endpoint.SegmentID != 0 || endpoint.SegmentExternalID != "" || endpoint.SegmentName != "") {
 			return common.NewError400("No tenant information specified, cannot look up segment.")
 		}
-		segment := &tenant.Segment{}
+		segment := &common.Segment{}
 		if endpoint.SegmentID != 0 {
 			segmentIDToUse := strconv.FormatUint(endpoint.SegmentID, 10)
 			segmentsUrl := fmt.Sprintf("%s/tenants/%d/segments/%s", tenantSvcUrl, ten.ID, segmentIDToUse)
@@ -397,13 +397,14 @@ func (policy *PolicySvc) SetConfig(config common.ServiceConfig) error {
 	// TODO this is a copy-paste of topology service, to refactor
 	log.Println(config)
 	policy.config = config
-	//	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
-	log.Printf("Policy port: %d", config.Common.Api.Port)
-
-	policy.store = policyStore{}
-	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
+	storeConfigMap := config.ServiceSpecific["store"].(map[string]interface{})
+	rdbmsStore, err := store.GetStore(storeConfigMap)
+	if err != nil {
+		return err
+	}
+	policy.store.RdbmsStore = rdbmsStore.(*store.RdbmsStore)
 	policy.store.ServiceStore = &policy.store
-	return policy.store.SetConfig(storeConfig)
+	return nil
 }
 
 func (policy *PolicySvc) CreateSchema(overwrite bool) error {

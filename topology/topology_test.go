@@ -197,7 +197,6 @@ func (s *MySuite) TestTopology(c *check.C) {
 	//	time.Sleep(time.Hour)
 
 	c.Assert(newHostResp.Ip, check.Equals, "10.10.10.10")
-	c.Assert(newHostResp.ID, check.Equals, uint64(1))
 
 	newHostReq = common.Host{Ip: "10.10.10.11", AgentPort: 9999, Name: "host11", RomanaIp: "15.15.15.16"}
 	newHostResp = common.Host{}
@@ -207,10 +206,10 @@ func (s *MySuite) TestTopology(c *check.C) {
 		c.FailNow()
 	}
 	myLog(c, "Response: ", newHostResp)
-	c.Assert(newHostResp.ID, check.Equals, uint64(2))
 
 	err = client.Post(hostsRelURL, newHostReq, &newHostResp)
-	httpErr := err.(common.HttpError)
+
+	httpErr := err.(*common.HttpError)
 	myLog(c, "Attempt to add duplicate host: %v", httpErr)
 	c.Assert(httpErr.StatusCode, check.Equals, 409)
 
@@ -218,14 +217,12 @@ func (s *MySuite) TestTopology(c *check.C) {
 	newHostRespWithoutRomanaIP := common.Host{}
 	err = client.Post(hostsRelURL, newHostReqWithoutRomanaIP, &newHostRespWithoutRomanaIP)
 	if err != nil {
-		c.Error(err)
-		c.FailNow()
+		c.Fatal(err)
 	}
 	myLog(c, "Response: ", newHostRespWithoutRomanaIP)
 
 	c.Assert(newHostRespWithoutRomanaIP.Ip, check.Equals, "10.10.10.12")
-	c.Assert(newHostRespWithoutRomanaIP.RomanaIp, check.Equals, "10.2.0.0/16")
-	c.Assert(newHostRespWithoutRomanaIP.ID, check.Equals, uint64(3))
+	c.Assert(newHostRespWithoutRomanaIP.RomanaIp, check.Equals, "10.3.0.0/16")
 
 	newHostReqWithoutRomanaIP = common.Host{Ip: "10.10.10.13", AgentPort: 9999, Name: "host13"}
 	newHostRespWithoutRomanaIP = common.Host{}
@@ -237,8 +234,7 @@ func (s *MySuite) TestTopology(c *check.C) {
 	myLog(c, "Response: ", newHostRespWithoutRomanaIP)
 
 	c.Assert(newHostRespWithoutRomanaIP.Ip, check.Equals, "10.10.10.13")
-	c.Assert(newHostRespWithoutRomanaIP.RomanaIp, check.Equals, "10.3.0.0/16")
-	c.Assert(newHostRespWithoutRomanaIP.ID, check.Equals, uint64(4))
+	c.Assert(newHostRespWithoutRomanaIP.RomanaIp, check.Equals, "10.4.0.0/16")
 
 	// TODO: auto generation of romana cidr currently don't
 	//       handle manually assigned one gracefully, thus tests

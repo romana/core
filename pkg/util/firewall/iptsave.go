@@ -52,7 +52,7 @@ type IPTsaveFirewall struct {
 func (i *IPTsaveFirewall) Init(exec utilexec.Executable, store FirewallStore, nc NetConfig) error {
 
 	fwstore := firewallStore{}
-	fwstore.DbStore = store.GetDb()
+	fwstore.RdbmsStore = store.GetDb()
 	fwstore.mu = store.GetMutex()
 
 	i.Store = fwstore

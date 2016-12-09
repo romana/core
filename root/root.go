@@ -59,7 +59,11 @@ func (root *Root) SetConfig(config common.ServiceConfig) error {
 
 	root.store = rootStore{}
 	root.store.ServiceStore = &root.store
-	storeConfig := rootConfig["store"].(map[string]interface{})
+	storeConfigMap := rootConfig["store"].(map[string]interface{})
+	storeConfig, err := common.MakeStoreConfig(storeConfigMap)
+	if err != nil {
+		return err
+	}
 	err = root.store.SetConfig(storeConfig)
 	if err != nil {
 		return err
@@ -92,8 +96,12 @@ func (root *Root) SetConfig(config common.ServiceConfig) error {
 		if err != nil {
 			return err
 		}
-		log.Debugf("Read public key: %s", string(root.publicKey))
-		storeConfig := rootConfig["store"].(map[string]interface{})
+		log.Infof("Read public key: %s", string(root.publicKey))
+		storeConfigMap := rootConfig["store"].(map[string]interface{})
+		storeConfig, err := common.MakeStoreConfig(storeConfigMap)
+		if err != nil {
+			return err
+		}
 		return root.store.SetConfig(storeConfig)
 	} else {
 		root.publicKey = []byte{}

@@ -19,7 +19,7 @@ import (
 	"database/sql"
 	"fmt"
 	"github.com/romana/core/common"
-	"github.com/romana/core/tenant"
+	"github.com/romana/core/common/store"
 	"log"
 	"net"
 )
@@ -41,14 +41,14 @@ func (ipam *IPAM) Routes() common.Routes {
 	routes := common.Routes{
 		common.Route{
 			Method:          "POST",
-			Pattern:         "/endpoints",
+			Pattern:         "/IPAMEndpoints",
 			Handler:         ipam.addEndpoint,
-			MakeMessage:     func() interface{} { return &Endpoint{} },
+			MakeMessage:     func() interface{} { return &common.IPAMEndpoint{} },
 			UseRequestToken: true,
 		},
 		common.Route{
 			Method:          "DELETE",
-			Pattern:         "/endpoints/{ip}",
+			Pattern:         "/IPAMEndpoints/{ip}",
 			Handler:         ipam.deleteEndpoint,
 			MakeMessage:     nil,
 			UseRequestToken: false,
@@ -65,7 +65,7 @@ func (ipam *IPAM) Routes() common.Routes {
 }
 
 // allocateIP finds internal Romana information based on tenantID/tenantName and other provided parameters, then adds
-// that endpoint to IPAM, and passes through the allocated IP
+// that IPAMEndpoint to IPAM, and passes through the allocated IP
 func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interface{}, error) {
 	// TODO
 	// This is the current state of calling this service from other environments:
@@ -78,7 +78,7 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 	// 2. Kubernetes (CNI Plugin)
 	// https://github.com/romana/kube/blob/master/CNI/romana#L134
 	// IP=$(curl -s "http://$ROMANA_MASTER_IP:9601/allocateIP?tenantName=${tenant}&segmentName=${segment}&hostName=${node}" | get_json_kv | get_ip)
-	ten := &tenant.Tenant{}
+	ten := &common.Tenant{}
 	var findFlag common.FindFlag
 	if tenantID := ctx.QueryVariables.Get("tenantID"); tenantID != "" {
 		// This is how IPAM plugin driver calls us.
@@ -105,7 +105,7 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 		return nil, err
 	}
 
-	endpoint := Endpoint{}
+	endpoint := common.IPAMEndpoint{}
 	instanceName := ctx.QueryVariables.Get("instanceName")
 	if instanceName != "" {
 		endpoint.Name = instanceName
@@ -128,7 +128,7 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 		return nil, err
 	}
 	endpoint.TenantID = fmt.Sprintf("%d", ten.ID)
-	seg := &tenant.Segment{Name: segmentName, TenantID: ten.ID}
+	seg := &common.Segment{Name: segmentName, TenantID: ten.ID}
 	err = ipam.client.Find(seg, findFlag)
 	if err != nil {
 		log.Printf("IPAM encountered an error finding segments: %+v: %v", seg, err)
@@ -144,11 +144,11 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 	return ipam.addEndpoint(&endpoint, ctx)
 }
 
-// addEndpoint handles request to add an endpoint and
+// addIPAMEndpoint handles request to add an IPAMEndpoint and
 // allocate an IP address.
 func (ipam *IPAM) addEndpoint(input interface{}, ctx common.RestContext) (interface{}, error) {
-	endpoint := input.(*Endpoint)
-	log.Printf("IPAM: Request to add endpoint %s, token %s", endpoint.Name, endpoint.RequestToken.String)
+	endpoint := input.(*common.IPAMEndpoint)
+	log.Printf("IPAM: Request to add IPAMEndpoint %s, token %s", endpoint.Name, endpoint.RequestToken.String)
 	// Get host info from topology service
 	topoUrl, err := ipam.client.GetServiceUrl("topology")
 	if err != nil {
@@ -182,7 +182,7 @@ func (ipam *IPAM) addEndpoint(input interface{}, ctx common.RestContext) (interf
 
 	// TODO follow links once tenant service supports it. For now...
 
-	t := &tenant.Tenant{}
+	t := &common.Tenant{}
 	tenantsUrl := fmt.Sprintf("%s/tenants/%s", tenantUrl, endpoint.TenantID)
 	log.Printf("IPAM: Calling %s\n", tenantsUrl)
 	err = ipam.client.Get(tenantsUrl, t)
@@ -194,7 +194,7 @@ func (ipam *IPAM) addEndpoint(input interface{}, ctx common.RestContext) (interf
 
 	segmentUrl := fmt.Sprintf("/tenants/%s/segments/%s", endpoint.TenantID, endpoint.SegmentID)
 	log.Printf("IPAM: calling %s\n", segmentUrl)
-	segment := &tenant.Segment{}
+	segment := &common.Segment{}
 	err = ipam.client.Get(segmentUrl, segment)
 	if err != nil {
 		log.Printf("IPAM: Encountered an error querying tenant service for tenant %s and segment %s: %v", endpoint.TenantID, endpoint.SegmentID, err)
@@ -214,17 +214,17 @@ func (ipam *IPAM) addEndpoint(input interface{}, ctx common.RestContext) (interf
 	}
 	hostIpInt := common.IPv4ToInt(network.IP)
 	upToEndpointIpInt := hostIpInt | (t.NetworkID << tenantBitShift) | (segment.NetworkID << segmentBitShift)
-	log.Printf("IPAM: Before calling addEndpoint:  %v | (%v << %v) | (%v << %v): %v ", network.IP.String(), t.NetworkID, tenantBitShift, segment.NetworkID, segmentBitShift, common.IntToIPv4(upToEndpointIpInt))
+	log.Printf("IPAM: Before calling addIPAMEndpoint:  %v | (%v << %v) | (%v << %v): %v ", network.IP.String(), t.NetworkID, tenantBitShift, segment.NetworkID, segmentBitShift, common.IntToIPv4(upToEndpointIpInt))
 	err = ipam.store.addEndpoint(endpoint, upToEndpointIpInt, ipam.dc)
 	if err != nil {
-		log.Printf("IPAM: Encountered an error adding endpoint to db: %v", err)
+		log.Printf("IPAM: Encountered an error adding IPAMEndpoint to db: %v", err)
 		return nil, err
 	}
 	return endpoint, nil
 
 }
 
-// deleteEndpoint releases the IP(s) owned by the endpoint into assignable
+// deleteIPAMEndpoint releases the IP(s) owned by the IPAMEndpoint into assignable
 // pool.
 func (ipam *IPAM) deleteEndpoint(input interface{}, ctx common.RestContext) (interface{}, error) {
 	return ipam.store.deleteEndpoint(ctx.PathVariables["ip"])
@@ -240,12 +240,14 @@ func (ipam *IPAM) Name() string {
 func (ipam *IPAM) SetConfig(config common.ServiceConfig) error {
 	// TODO this is a copy-paste of topology service, to refactor
 	ipam.config = config
-	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
-	log.Printf("IPAM port: %d", config.Common.Api.Port)
-	ipam.store = ipamStore{}
+	storeConfigMap := config.ServiceSpecific["store"].(map[string]interface{})
+	rdbmsStore, err := store.GetStore(storeConfigMap)
+	if err != nil {
+		return err
+	}
+	ipam.store.RdbmsStore = rdbmsStore.(*store.RdbmsStore)
 	ipam.store.ServiceStore = &ipam.store
-	return ipam.store.SetConfig(storeConfig)
-
+	return nil
 }
 
 func (ipam *IPAM) CreateSchema(overwrite bool) error {

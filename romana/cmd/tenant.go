@@ -25,7 +25,6 @@ import (
 	"github.com/romana/core/common"
 	"github.com/romana/core/romana/adaptor"
 	"github.com/romana/core/romana/util"
-	"github.com/romana/core/tenant"
 
 	ms "github.com/mitchellh/mapstructure"
 	cli "github.com/spf13/cobra"
@@ -37,8 +36,8 @@ var externalID string
 // tenantData holds tenant information received from tenant
 // service and its corresponding name received from adaptors.
 type tenantData struct {
-	Tenant   tenant.Tenant
-	Segments []tenant.Segment
+	Tenant   common.Tenant
+	Segments []common.Segment
 }
 
 // tenantCmd represents the tenant commands
@@ -115,7 +114,7 @@ func tenantCreate(cmd *cli.Command, args []string) error {
 		return err
 	}
 
-	tenants := []tenant.Tenant{}
+	tenants := []common.Tenant{}
 	for _, tnt := range args {
 		var tntUUID string
 
@@ -152,7 +151,7 @@ func tenantCreate(cmd *cli.Command, args []string) error {
 			tntUUID = externalID
 		}
 
-		data := tenant.Tenant{Name: tnt, ExternalID: tntUUID}
+		data := common.Tenant{Name: tnt, ExternalID: tntUUID}
 		var result map[string]interface{}
 		err = client.Post(tenantURL+"/tenants", data, &result)
 		if err != nil {
@@ -160,7 +159,7 @@ func tenantCreate(cmd *cli.Command, args []string) error {
 		}
 		_, tFound := result["name"]
 		if tFound {
-			var t tenant.Tenant
+			var t common.Tenant
 			dc := &ms.DecoderConfig{TagName: "json", Result: &t}
 			decoder, err := ms.NewDecoder(dc)
 			if err != nil {
@@ -234,7 +233,7 @@ func tenantShow(cmd *cli.Command, args []string) error {
 		return err
 	}
 
-	data := []tenant.Tenant{}
+	data := []common.Tenant{}
 	tenants := []tenantData{}
 	err = client.Get(tenantURL+"/tenants", &data)
 	if err != nil {
@@ -250,7 +249,7 @@ func tenantShow(cmd *cli.Command, args []string) error {
 	for _, t := range data {
 		for _, n := range args {
 			if t.Name == n || t.ExternalID == n {
-				seg := []tenant.Segment{}
+				seg := []common.Segment{}
 				err = client.Get(tenantURL+"/tenants/"+t.ExternalID+"/segments", &seg)
 				if err != nil {
 					httpErr, ok := err.(common.HttpError)
@@ -313,7 +312,7 @@ func tenantList(cmd *cli.Command, args []string) error {
 		return err
 	}
 
-	tenants := []tenant.Tenant{}
+	tenants := []common.Tenant{}
 	err = client.Get(tenantURL+"/tenants", &tenants)
 	if err != nil {
 		return err

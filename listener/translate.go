@@ -26,7 +26,6 @@ import (
 
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/log/trace"
-	"github.com/romana/core/tenant"
 	log "github.com/romana/rlog"
 
 	"k8s.io/client-go/1.5/pkg/apis/extensions/v1beta1"
@@ -137,8 +136,8 @@ func (l *Translator) translateNetworkPolicy(kubePolicy *v1beta1.NetworkPolicy) (
 }
 
 // resolveTenantByName retrieves tenant information from romana.
-func (l *Translator) resolveTenantByName(tenantName string) (*tenant.Tenant, error) {
-	t := &tenant.Tenant{Name: tenantName}
+func (l *Translator) resolveTenantByName(tenantName string) (*common.Tenant, error) {
+	t := &common.Tenant{Name: tenantName}
 	err := l.restClient.Find(t, common.FindLast)
 	if err != nil {
 		return t, err
@@ -148,7 +147,7 @@ func (l *Translator) resolveTenantByName(tenantName string) (*tenant.Tenant, err
 
 // getOrAddSegment finds a segment (based on segment selector).
 // If not found, it adds one.
-func (l *Translator) getOrAddSegment(namespace string, kubeSegmentName string) (*tenant.Segment, error) {
+func (l *Translator) getOrAddSegment(namespace string, kubeSegmentName string) (*common.Segment, error) {
 	tenantCacheEntry := l.checkTenantInCache(namespace)
 	if tenantCacheEntry == nil {
 		return nil, TranslatorError{ErrorTenantNotInCache, fmt.Errorf("Tenant not found in cache while resolving segment")}
@@ -173,7 +172,7 @@ func (l *Translator) getOrAddSegment(namespace string, kubeSegmentName string) (
 	}()
 
 	ten := tenantCacheEntry.Tenant
-	seg := &tenant.Segment{}
+	seg := &common.Segment{}
 	seg.Name = kubeSegmentName
 	seg.TenantID = ten.ID
 	err := l.restClient.Find(seg, common.FindExactlyOne)
@@ -185,7 +184,7 @@ func (l *Translator) getOrAddSegment(namespace string, kubeSegmentName string) (
 	case common.HttpError:
 		if err.StatusCode == http.StatusNotFound {
 			// Not found, so let's create a segment.
-			segreq := tenant.Segment{Name: kubeSegmentName, TenantID: ten.ID}
+			segreq := common.Segment{Name: kubeSegmentName, TenantID: ten.ID}
 			segURL, err2 := l.restClient.GetServiceUrl("tenant")
 			if err2 != nil {
 				return nil, err2
@@ -203,7 +202,7 @@ func (l *Translator) getOrAddSegment(namespace string, kubeSegmentName string) (
 				// lookup and now?
 				if err2.StatusCode == http.StatusConflict {
 					switch details := err2.Details.(type) {
-					case tenant.Segment:
+					case common.Segment:
 						// We expect the existing segment to be returned in the details field.
 						return &details, nil
 					default:
@@ -227,8 +226,8 @@ func (l *Translator) getOrAddSegment(namespace string, kubeSegmentName string) (
 }
 
 type TenantCacheEntry struct {
-	Tenant   tenant.Tenant
-	Segments []tenant.Segment
+	Tenant   common.Tenant
+	Segments []common.Segment
 }
 
 func (t Translator) checkTenantInCache(tenantName string) *TenantCacheEntry {
@@ -246,7 +245,7 @@ func (t Translator) checkTenantInCache(tenantName string) *TenantCacheEntry {
 }
 
 // checkTenantInCache checks if given tenant cache entry has a segment with given name.
-func (t Translator) checkSegmentInCache(cacheEntry *TenantCacheEntry, segmentId string) *tenant.Segment {
+func (t Translator) checkSegmentInCache(cacheEntry *TenantCacheEntry, segmentId string) *common.Segment {
 	t.cacheMu.Lock()
 	defer func() {
 		t.cacheMu.Unlock()
@@ -270,7 +269,7 @@ func (t *Translator) updateCache() error {
 		return TranslatorError{ErrorCacheUpdate, err}
 	}
 
-	tenants := []tenant.Tenant{}
+	tenants := []common.Tenant{}
 	err = t.restClient.Get(tenantURL+"/tenants", &tenants)
 	if err != nil {
 		log.Errorf("updateCache(): Error getting tenant information: %s", err)
@@ -282,7 +281,7 @@ func (t *Translator) updateCache() error {
 		os.Exit(255)
 	}
 
-	// tenants := []tenant.Tenant{}
+	// tenants := []common.Tenant{}
 	// _ = t.restClient.Find(&tenants, common.FindAll)
 
 	t.cacheMu.Lock()
@@ -293,7 +292,7 @@ func (t *Translator) updateCache() error {
 
 	t.tenantsCache = nil
 	for _, ten := range tenants {
-		segments := []tenant.Segment{}
+		segments := []common.Segment{}
 		fullUrl := fmt.Sprintf("%s/tenants/%d/segments", tenantURL, ten.ID)
 		err = t.restClient.Get(fullUrl, &segments)
 		// ignore 404 error here which means no segments

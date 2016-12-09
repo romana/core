@@ -24,7 +24,6 @@ import (
 	"github.com/romana/core/common"
 	"github.com/romana/core/romana/romana"
 	"github.com/romana/core/romana/util"
-	"github.com/romana/core/tenant"
 
 	ms "github.com/mitchellh/mapstructure"
 	cli "github.com/spf13/cobra"
@@ -98,7 +97,7 @@ func segmentAdd(cmd *cli.Command, args []string) error {
 		return err
 	}
 
-	data := tenant.Segment{Name: seg, ExternalID: externalID}
+	data := common.Segment{Name: seg, ExternalID: externalID}
 	var result map[string]interface{}
 	err = client.Post(tenantURL+"/tenants/"+romanaIDStr+"/segments",
 		data, &result)
@@ -127,7 +126,7 @@ func segmentAdd(cmd *cli.Command, args []string) error {
 	}
 
 	if config.GetString("Format") == "json" {
-		segment := tenant.Segment{}
+		segment := common.Segment{}
 		dc := &ms.DecoderConfig{TagName: "json", Result: &segment}
 		decoder, err := ms.NewDecoder(dc)
 		if err != nil {

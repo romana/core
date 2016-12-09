@@ -15,17 +15,16 @@
 package policy
 
 import (
-	"encoding/json"
-	"log"
-	"time"
-
 	"database/sql"
+	"encoding/json"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/romana/core/common"
+	"github.com/romana/core/common/store"
+	"log"
 )
 
 type policyStore struct {
-	common.DbStore
+	*store.RdbmsStore
 }
 
 func (policyStore *policyStore) addPolicy(policyDoc *common.Policy) error {
@@ -34,7 +33,7 @@ func (policyStore *policyStore) addPolicy(policyDoc *common.Policy) error {
 	if err != nil {
 		return err
 	}
-	policyDb := &PolicyDb{}
+	policyDb := &store.PolicyDb{}
 	policyDb.Policy = string(json)
 	if policyDoc.ID != 0 {
 		policyDb.ID = policyDoc.ID
@@ -61,7 +60,7 @@ func (policyStore *policyStore) addPolicy(policyDoc *common.Policy) error {
 }
 
 func (policyStore *policyStore) listPolicies() ([]common.Policy, error) {
-	var policyDb []PolicyDb
+	var policyDb []store.PolicyDb
 	var policies []common.Policy
 	db := policyStore.DbStore.Db.Find(&policyDb)
 	err := common.GetDbErrors(db)
@@ -77,7 +76,7 @@ func (policyStore *policyStore) listPolicies() ([]common.Policy, error) {
 }
 
 func (policyStore *policyStore) lookupPolicy(externalID string) (uint64, error) {
-	policyDbEntry := PolicyDb{}
+	policyDbEntry := store.PolicyDb{}
 	log.Printf("Looking up policy with id = %s ", externalID)
 	db := policyStore.DbStore.Db.First(&policyDbEntry, "external_id = ?", externalID)
 	if db.RecordNotFound() {
@@ -92,7 +91,7 @@ func (policyStore *policyStore) lookupPolicy(externalID string) (uint64, error) 
 }
 
 func (policyStore *policyStore) getPolicy(id uint64, markedDeleted bool) (common.Policy, error) {
-	policyDbEntry := PolicyDb{}
+	policyDbEntry := store.PolicyDb{}
 	policyDoc := common.Policy{}
 	log.Printf("Looking up policy with id = %v (deleted: %v)", id, markedDeleted)
 	var err error
@@ -126,7 +125,7 @@ func (policyStore *policyStore) getPolicy(id uint64, markedDeleted bool) (common
 // upon receiving a DELETE request but before distributing
 // this request to agents.
 func (policyStore *policyStore) inactivatePolicy(id uint64) error {
-	policyDb := &PolicyDb{}
+	policyDb := &store.PolicyDb{}
 	db := policyStore.DbStore.Db
 	db = db.Where("id = ?", id).Delete(policyDb)
 	if db.RecordNotFound() {
@@ -143,7 +142,7 @@ func (policyStore *policyStore) inactivatePolicy(id uint64) error {
 // name provided. Policy names are not unique, thus the return
 // value is the first policy found in the list of policies present.
 func (policyStore *policyStore) findPolicyByName(name string) (common.Policy, error) {
-	var policyDb []PolicyDb
+	var policyDb []store.PolicyDb
 	var policies []common.Policy
 	log.Println("In findPoliciesByName()")
 	db := policyStore.DbStore.Db.Find(&policyDb)
@@ -166,7 +165,7 @@ func (policyStore *policyStore) findPolicyByName(name string) (common.Policy, er
 }
 
 func (policyStore *policyStore) deletePolicy(id uint64) error {
-	policyDb := &PolicyDb{}
+	policyDb := &store.PolicyDb{}
 	db := policyStore.DbStore.Db
 	db = db.Unscoped().Where("id = ?", id).Delete(policyDb)
 	if db.RecordNotFound() {
@@ -177,38 +176,4 @@ func (policyStore *policyStore) deletePolicy(id uint64) error {
 		return err
 	}
 	return nil
-}
-
-// CreateSchemaPostProcess implements CreateSchemaPostProcess method of
-// ServiceStore interface.
-func (policyStore *policyStore) CreateSchemaPostProcess() error {
-	return nil
-}
-
-// policyDb represents how common.Policy is stored in the database.
-// For now to keep it simple, it will not be fully normalized --
-// we will just keep an ID and policy document as JSON
-type PolicyDb struct {
-	ID uint64 `sql:"AUTO_INCREMENT"`
-	// Policy document as JSON
-	Policy       string         `sql:"type:TEXT"`
-	ExternalID   sql.NullString `json:"external_id,omitempty" sql:"unique"`
-	DatacenterID string
-	// DeletedAt is for using soft delete functionality
-	// from http://jinzhu.me/gorm/curd.html#delete
-	DeletedAt *time.Time
-	//	Comment string `gorm:"type:varchar(8192)"`
-}
-
-// Name specifies a nicer-looking table name.
-func (PolicyDb) TableName() string {
-	return "policies"
-}
-
-// Entities implements Entities method of
-// Service interface.
-func (policyStore *policyStore) Entities() []interface{} {
-	retval := make([]interface{}, 1)
-	retval[0] = &PolicyDb{}
-	return retval
 }

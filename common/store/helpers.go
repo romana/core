@@ -13,70 +13,25 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Package topology host, TOR definitions.
-package topology
+// Package kvstore provides a flexible key value backend to be used
+// with romana servies based of on docker/libkv.
+package store
 
 import (
 	"bytes"
 	"encoding/binary"
 	"fmt"
-	"log"
+	"github.com/romana/core/common"
+	log "github.com/romana/rlog"
 	"net"
+	"os"
 	"strconv"
 	"strings"
-
-	"github.com/romana/core/common"
-	"github.com/romana/core/common/kvstore"
-
-	_ "github.com/go-sql-driver/mysql"
 )
 
-var (
+const (
 	BITS_IN_BYTE uint = 8
 )
-
-type Tor struct {
-	Id         uint64 `sql:"AUTO_INCREMENT"`
-	datacenter *common.Datacenter
-}
-
-// Backing store
-type topoStore struct {
-	common.DbStore
-}
-
-func (topoStore *topoStore) Entities() []interface{} {
-	retval := make([]interface{}, 2)
-	retval[0] = &common.Host{}
-	retval[1] = &common.Datacenter{}
-	return retval
-}
-
-func (topoStore *topoStore) CreateSchemaPostProcess() error {
-	return nil
-}
-
-func (topoStore *topoStore) findHost(id uint64) (common.Host, error) {
-	host := common.Host{}
-	topoStore.DbStore.Db.Where("id = ?", id).First(&host)
-	err := common.MakeMultiError(topoStore.DbStore.Db.GetErrors())
-	if err != nil {
-		return host, err
-	}
-	return host, nil
-}
-
-func (topoStore *topoStore) listHosts() ([]common.Host, error) {
-	var hosts []common.Host
-	log.Println("In listHosts()")
-	topoStore.DbStore.Db.Find(&hosts)
-	err := common.MakeMultiError(topoStore.DbStore.Db.GetErrors())
-	if err != nil {
-		return nil, err
-	}
-	log.Println("listHosts(): found hosts:", hosts)
-	return hosts, nil
-}
 
 // findFirstAvaiableID finds the first available ID
 // for the given list of hostIDs. This is mainly to
@@ -168,61 +123,110 @@ func getNetworkFromID(id uint64, hostBits uint, cidr string) (string, error) {
 	return hostIPNet.String(), nil
 }
 
-// addHost adds a new host to a specific datacenter, it also makes sure
-// that if a romana cidr is not assigned, then to create and assign a new
-// romana cidr using help of helper functions like findFirstAvaiableID
-// and getNetworkFromID.
-func (topoStore *topoStore) addHost(dc *common.Datacenter, host *common.Host) error {
-	romanaIP := strings.TrimSpace(host.RomanaIp)
-	if romanaIP == "" {
-		var err error
-		tx := topoStore.DbStore.Db.Begin()
+// GetStore is a factory method, returning the appropriate store provided
+// the config.
+func GetStore(configMap map[string]interface{}) (common.Store, error) {
+	config, err := common.MakeStoreConfig(configMap)
+	if err != nil {
+		return nil, err
+	}
+	var store common.Store
+	switch config.Type {
+	default:
+		return nil, common.NewError("Unknown store type: '%s'", config.Type)
+	case common.StoreTypeMysql, common.StoreTypeSqlite3:
+		store = &RdbmsStore{}
+	case common.StoreTypeEtcd:
+		store = &KvStore{}
+	}
+	store.SetConfig(config)
+	return store, nil
+}
 
-		var allHostsID []uint64
-		if err := tx.Table("hosts").Pluck("id", &allHostsID).Error; err != nil {
-			tx.Rollback()
-			return err
-		}
-
-		id := findFirstAvaiableID(allHostsID)
-		host.RomanaIp, err = getNetworkFromID(id, dc.PortBits, dc.Cidr)
-		// TODO: auto generation of romana cidr doesn't handle previously
-		//       allocated cidrs currently, thus it needs to be handled
-		//       here so that no 2 hosts get same or overlapping cidrs.
-		//       here check needs to be in place to detect all manually
-		//       inserted romana cidrs for overlap.
-		if err != nil {
-			tx.Rollback()
-			return err
-		}
-
-		if err := tx.Create(host).Error; err != nil {
-			tx.Rollback()
-			return err
-		}
-		tx.Commit()
-	} else {
-		// TODO: auto generation of romana cidr doesn't handle previously
-		//       allocated cidrs currently, thus it needs to be handled
-		//       here so that no 2 hosts get same or overlapping cidrs.
-		//       here check needs to be in place that auto generated cidrs
-		//       overlap with this manually assigned one or not.
-		topoStore.DbStore.Db.NewRecord(*host)
-		db := topoStore.DbStore.Db.Create(host)
-		if err := common.GetDbErrors(db); err != nil {
-			log.Printf("topology.store.addHost(%v): %v", host, err)
-			return err
+// createSchemaSqlite3 creates schema for a sqlite3 db
+func createSchemaSqlite3(dbStore *DbStore, force bool) error {
+	schemaName := dbStore.Config.Database
+	log.Infof("Entering createSchemaSqlite3() with %s", schemaName)
+	var err error
+	if force {
+		finfo, err := os.Stat(schemaName)
+		exist := finfo != nil || os.IsExist(err)
+		log.Infof("Before attempting to drop %s, exists: %t, stat: [%v] ... [%v]", schemaName, exist, finfo, err)
+		if exist {
+			err = os.Remove(schemaName)
+			if err != nil {
+				return err
+			}
 		}
 	}
-	err := kvstore.AddHost(host)
+	err = dbStore.Connect()
 	if err != nil {
 		return err
 	}
-	log.Println("Sucessfully added host(", host, ").")
-	return nil
+
+	entities := dbStore.ServiceStore.Entities()
+	log.Infof("Creating tables for %v", entities)
+	for _, entity := range entities {
+		log.Infof("sqlite3: Creating table for %T", entity)
+		db := dbStore.Db.CreateTable(entity)
+		if db.Error != nil {
+			return db.Error
+		}
+	}
+
+	errs := dbStore.Db.GetErrors()
+	log.Infof("sqlite3: Errors: %v", errs)
+	err2 := common.MakeMultiError(errs)
+
+	if err2 != nil {
+		return err2
+	}
+	return dbStore.ServiceStore.CreateSchemaPostProcess()
 }
 
-func (topoStore *topoStore) deleteHost(hostID uint64) error {
-	log.Println("In deleteHost()")
-	return kvstore.DeleteHost(hostID)
+// createSchemaMysql creates schema for a MySQL db
+func createSchemaMysql(dbStore *DbStore, force bool) error {
+	log.Infof("in createSchema(%t)", force)
+
+	schemaName := dbStore.Config.Database
+	dbStore.Config.Database = "mysql"
+	err := dbStore.Connect()
+	if err != nil {
+		return err
+	}
+
+	db := dbStore.Db
+	var sql string
+	if force {
+		sql = fmt.Sprintf("DROP DATABASE IF EXISTS %s", schemaName)
+		db.Exec(sql)
+	}
+
+	sql = fmt.Sprintf("CREATE DATABASE %s CHARACTER SET ascii COLLATE ascii_general_ci", schemaName)
+	db.Exec(sql)
+	err = common.MakeMultiError(db.GetErrors())
+	if err != nil {
+		return err
+	}
+
+	dbStore.Config.Database = schemaName
+	err = dbStore.Connect()
+	if err != nil {
+		return err
+	}
+
+	entities := dbStore.ServiceStore.Entities()
+
+	for i := range entities {
+		entity := entities[i]
+		db := dbStore.Db.CreateTable(entity)
+		if db.Error != nil {
+			return db.Error
+		}
+	}
+	err = common.MakeMultiError(dbStore.Db.GetErrors())
+	if err != nil {
+		return err
+	}
+	return dbStore.ServiceStore.CreateSchemaPostProcess()
 }

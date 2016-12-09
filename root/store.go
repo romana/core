@@ -18,11 +18,12 @@ import (
 	"fmt"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/romana/core/common"
+	"github.com/romana/core/common/store"
 	log "github.com/romana/rlog"
 )
 
 type rootStore struct {
-	common.DbStore
+	store.DbStore
 	isAuthEnabled bool
 }
 

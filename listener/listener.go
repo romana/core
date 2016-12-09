@@ -24,7 +24,6 @@ import (
 
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/log/trace"
-	"github.com/romana/core/tenant"
 	log "github.com/romana/rlog"
 
 	"k8s.io/client-go/1.5/kubernetes"
@@ -151,8 +150,8 @@ var PTranslator Translator
 
 // getOrAddSegment finds a segment (based on segment selector).
 // If not found, it adds one.
-func (l *KubeListener) getOrAddSegment(namespace string, kubeSegmentName string) (*tenant.Segment, error) {
-	ten := &tenant.Tenant{}
+func (l *KubeListener) getOrAddSegment(namespace string, kubeSegmentName string) (*common.Segment, error) {
+	ten := &common.Tenant{}
 	ten.Name = namespace
 	// TODO this should be changed to find EXACTLY one after deletion functionality is implemented
 	err := l.restClient.Find(ten, common.FindLast)
@@ -160,7 +159,7 @@ func (l *KubeListener) getOrAddSegment(namespace string, kubeSegmentName string)
 		return nil, err
 	}
 
-	seg := &tenant.Segment{}
+	seg := &common.Segment{}
 	seg.Name = kubeSegmentName
 	seg.TenantID = ten.ID
 	err = l.restClient.Find(seg, common.FindExactlyOne)
@@ -172,7 +171,7 @@ func (l *KubeListener) getOrAddSegment(namespace string, kubeSegmentName string)
 	case common.HttpError:
 		if err.StatusCode == http.StatusNotFound {
 			// Not found, so let's create a segment.
-			segreq := tenant.Segment{Name: kubeSegmentName, TenantID: ten.ID}
+			segreq := common.Segment{Name: kubeSegmentName, TenantID: ten.ID}
 			segURL, err2 := l.restClient.GetServiceUrl("tenant")
 			if err2 != nil {
 				return nil, err2
@@ -190,7 +189,7 @@ func (l *KubeListener) getOrAddSegment(namespace string, kubeSegmentName string)
 				// lookup and now?
 				if err2.StatusCode == http.StatusConflict {
 					switch details := err2.Details.(type) {
-					case tenant.Segment:
+					case common.Segment:
 						// We expect the existing segment to be returned in the details field.
 						return &details, nil
 					default:
@@ -214,8 +213,8 @@ func (l *KubeListener) getOrAddSegment(namespace string, kubeSegmentName string)
 }
 
 // resolveTenantByName retrieves tenant information from romana.
-func (l *KubeListener) resolveTenantByName(tenantName string) (*tenant.Tenant, error) {
-	t := &tenant.Tenant{Name: tenantName}
+func (l *KubeListener) resolveTenantByName(tenantName string) (*common.Tenant, error) {
+	t := &common.Tenant{Name: tenantName}
 	err := l.restClient.Find(t, common.FindLast)
 	if err != nil {
 		return t, err
