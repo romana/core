@@ -26,7 +26,6 @@ import (
 	"github.com/romana/core/common/log/trace"
 	"github.com/romana/core/tenant"
 	log "github.com/romana/rlog"
-	"k8s.io/client-go/1.5/pkg/apis/extensions/v1beta1"
 
 	"k8s.io/client-go/1.5/kubernetes"
 	"k8s.io/client-go/1.5/tools/cache"
@@ -292,7 +291,7 @@ func (l *KubeListener) deleteNetworkPolicy(policy common.Policy) error {
 			return err
 		case common.HttpError:
 			if err.StatusCode == http.StatusNotFound {
-				log.Warnf("deleteNetworkPolicy: Policy not found %s, ignoring", kubePolicy.Name)
+				log.Warnf("deleteNetworkPolicy: Policy not found %s, ignoring", policy.Name)
 				return nil
 			} else {
 				return err
