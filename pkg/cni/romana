@@ -31,7 +31,7 @@ exec 6>&1
 if [[ -d /var/log/romana ]]; then
 	LOGFILE=/var/log/romana/cni.log
 else
-	LOGFILE=/tmp/romana-cni.log
+	LOGFILE=/var/tmp/romana-cni.log
 fi
 exec &>> $LOGFILE
 
