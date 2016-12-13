@@ -28,7 +28,11 @@
 exec 6>&1
 
 # and replace stdout with logfile
-LOGFILE=/tmp/romana-cni.log
+if [[ -d /var/log/romana ]]; then
+	LOGFILE=/var/log/romana/cni.log
+else
+	LOGFILE=/var/tmp/romana-cni.log
+fi
 exec &>> $LOGFILE
 
 # -- Const
