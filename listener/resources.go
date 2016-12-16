@@ -89,10 +89,13 @@ func handleNetworkPolicyEvents(events []Event, l *KubeListener) {
 
 	// Delete old policies.
 	for _, policy := range deleteEvents {
+		// policy name is derived as below in translator and thus use the
+		// same technique to derive the policy name here for deleting it.
+		policyName := fmt.Sprintf("kube.%s.%s", policy.ObjectMeta.Namespace, policy.ObjectMeta.Name)
 		// TODO this must be changed to use External ID
-		err = l.deleteNetworkPolicy(common.Policy{Name: policy.Name})
+		err = l.deleteNetworkPolicy(common.Policy{Name: policyName})
 		if err != nil {
-			log.Errorf("Error deleting policy %s (%s): %s", policy.Name, policy.GetUID(), err)
+			log.Errorf("Error deleting policy %s (%s): %s", policyName, policy.GetUID(), err)
 		}
 	}
 }
