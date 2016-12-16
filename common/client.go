@@ -175,7 +175,7 @@ func (rc *RestClient) ListHosts() ([]Host, error) {
 	return hostList, err
 }
 
-// FindOne is a convenience function, which queries the appropriate service
+// Find is a convenience function, which queries the appropriate service
 // and retrieves one entity based on provided structure, and puts the results
 // into the same structure. The provided argument, entity, should be a pointer
 // to the desired structure, e.g., &common.Host{}.

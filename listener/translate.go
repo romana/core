@@ -109,7 +109,7 @@ func (t Translator) Kube2RomanaBulk(kubePolicies []v1beta1.NetworkPolicy) ([]com
 //    automatically have been created when the namespace was added)
 func (l *Translator) translateNetworkPolicy(kubePolicy *v1beta1.NetworkPolicy) (common.Policy, error) {
 	policyName := fmt.Sprintf("kube.%s.%s", kubePolicy.ObjectMeta.Namespace, kubePolicy.ObjectMeta.Name)
-	romanaPolicy := &common.Policy{Direction: common.PolicyDirectionIngress, Name: policyName, ExternalID: string(kubePolicy.ObjectMeta.UID)}
+	romanaPolicy := &common.Policy{Direction: common.PolicyDirectionIngress, Name: policyName, ExternalID: string(kubePolicy.GetUID())}
 
 	// Prepare translate group with original kubernetes policy and empty romana policy.
 	translateGroup := &TranslateGroup{kubePolicy, romanaPolicy, TranslateGroupStartIndex}
@@ -273,6 +273,7 @@ func (t *Translator) updateCache() error {
 	tenants := []tenant.Tenant{}
 	err = t.restClient.Get(tenantURL+"/tenants", &tenants)
 	if err != nil {
+		log.Errorf("updateCache(): Error getting tenant information: %s", err)
 		return TranslatorError{ErrorCacheUpdate, err}
 	}
 
@@ -295,11 +296,11 @@ func (t *Translator) updateCache() error {
 		segments := []tenant.Segment{}
 		fullUrl := fmt.Sprintf("%s/tenants/%d/segments", tenantURL, ten.ID)
 		err = t.restClient.Get(fullUrl, &segments)
-
 		// ignore 404 error here which means no segments
 		// considered to be a zero segments rather then
 		// an error.
 		if err != nil && !checkHttp404(err) {
+			log.Errorf("updateCache(): Error getting segment information for tenant %d: %s", ten.ID, err)
 			return TranslatorError{ErrorCacheUpdate, err}
 		}
 
