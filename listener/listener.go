@@ -284,7 +284,14 @@ func (l *KubeListener) addNetworkPolicy(policy common.Policy) error {
 // deleteNetworkPolicy deletes the policy matching provided policy on whatever
 // fields are provided.
 func (l *KubeListener) deleteNetworkPolicy(policy common.Policy) error {
-	err := l.restClient.Find(&policy, common.FindExactlyOne)
+	policyURL, err := l.restClient.GetServiceUrl("policy")
+	if err != nil {
+		return err
+	}
+
+	rPolicy := common.Policy{}
+	policyURL = fmt.Sprintf("%s/find/policies/%s", policyURL, policy.Name)
+	err = l.restClient.Get(policyURL, &rPolicy)
 	if err != nil {
 		switch err := err.(type) {
 		default:
@@ -298,7 +305,7 @@ func (l *KubeListener) deleteNetworkPolicy(policy common.Policy) error {
 			}
 		}
 	}
-	return l.deleteNetworkPolicyByID(policy.ID)
+	return l.deleteNetworkPolicyByID(rPolicy.ID)
 }
 
 func (l *KubeListener) Initialize(client *common.RestClient) error {

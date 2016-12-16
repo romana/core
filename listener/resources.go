@@ -194,14 +194,23 @@ func getDefaultPolicyName(o *v1.Namespace) string {
 func deleteDefaultPolicy(o *v1.Namespace, l *KubeListener) {
 	var err error
 	// TODO this should be ExternalID, not Name...
-	name := getDefaultPolicyName(o)
-	policy := common.Policy{Name: name}
-	err = l.restClient.Find(&policy, common.FindExactlyOne)
+	policyName := getDefaultPolicyName(o)
+	policy := common.Policy{Name: policyName}
+
+	policyURL, err := l.restClient.GetServiceUrl("policy")
+	if err != nil {
+		log.Errorf("In deleteDefaultPolicy :: Failed to find policy service: %s\n", err)
+		log.Errorf("In deleteDefaultPolicy :: Failed to delete default policy: %s\n", policyName)
+		return
+	}
+
+	policyURL = fmt.Sprintf("%s/find/policies/%s", policyURL, policy.Name)
+	err = l.restClient.Get(policyURL, &policy)
 	if err != nil {
 		// An annotation to set isolation on may be issued multiple times.
 		// If it already was reacted to and default policy was dropped,
 		// then we don't do anything.
-		log.Debugf("In deleteDefaultPolicy :: Failed to find policy %s: %s, ignoring\n", name, err)
+		log.Debugf("In deleteDefaultPolicy :: Failed to find policy %s: %s, ignoring\n", policyName, err)
 		return
 	}
 	if err = l.deleteNetworkPolicyByID(policy.ID); err != nil {
@@ -218,7 +227,16 @@ func addDefaultPolicy(o *v1.Namespace, l *KubeListener) {
 
 	// Before adding the default policy, see if it may already exist.
 	policy := common.Policy{Name: policyName}
-	err = l.restClient.Find(&policy, common.FindExactlyOne)
+
+	policyURL, err := l.restClient.GetServiceUrl("policy")
+	if err != nil {
+		log.Errorf("In addDefaultPolicy :: Failed to find policy service: %s\n", err)
+		log.Errorf("In addDefaultPolicy :: Failed to add default policy: %s\n", policyName)
+		return
+	}
+
+	policyURL = fmt.Sprintf("%s/find/policies/%s", policyURL, policy.Name)
+	err = l.restClient.Get(policyURL, &policy)
 	if err == nil {
 		// An annotation to set isolation off may be issued multiple
 		// times and we already have the default policy caused by that in place.
@@ -229,7 +247,7 @@ func addDefaultPolicy(o *v1.Namespace, l *KubeListener) {
 
 	// Find tenant, to properly set up policy
 	// TODO This really should be by external ID...
-	tenant, err := l.resolveTenantByName(o.ObjectMeta.Name)
+	tnt, err := l.resolveTenantByName(o.ObjectMeta.Name)
 	if err != nil {
 		log.Infof("In addDefaultPolicy :: Error :: failed to resolve tenant %s \n", err)
 		return
@@ -239,7 +257,7 @@ func addDefaultPolicy(o *v1.Namespace, l *KubeListener) {
 		Direction: common.PolicyDirectionIngress,
 		Name:      policyName,
 		//		ExternalID: externalID,
-		AppliedTo: []common.Endpoint{{TenantNetworkID: &tenant.NetworkID}},
+		AppliedTo: []common.Endpoint{{TenantNetworkID: &tnt.NetworkID}},
 		Ingress: []common.RomanaIngress{
 			common.RomanaIngress{
 				Peers: []common.Endpoint{{Peer: common.Wildcard}},
