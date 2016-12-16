@@ -186,10 +186,10 @@ func HandleDefaultPolicy(o *v1.Namespace, l *KubeListener) {
 // as it does not have an exact equivalent as a policy ID in Kubernetes.
 // However, Kubernetes does have a notion of namespace isolation, to which we
 // correspond this policy, and so we construct a "synthetic" External ID
-// with an _ISOLATION_ON_ prefix followed by the namespace's UID.
+// with an _ISOLATION_ON_ prefix followed by the namespace's Name.
 func getDefaultPolicyName(o *v1.Namespace) string {
 	// TODO this should be ExternalID, not Name...
-	return fmt.Sprintf("_AllowAll_%s", o.GetUID())
+	return fmt.Sprintf("_AllowAllPods2Talk_%s_", o.GetName())
 }
 
 // deleteDefaultPolicy deletes the policy, thus enabling isolation
