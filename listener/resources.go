@@ -270,6 +270,8 @@ func addDefaultPolicy(o *v1.Namespace, l *KubeListener) {
 	switch err := err.(type) {
 	default:
 		log.Errorf("In addDefaultPolicy :: Error :: failed to create policy  %s: %s\n", policyName, err)
+	case nil:
+		log.Debugf("In addDefaultPolicy: Succesfully created policy  %s\n", policyName)
 	case common.HttpError:
 		if err.StatusCode == http.StatusConflict {
 			log.Infof("In addDefaultPolicy ::Policy %s already exists.\n", policyName)
