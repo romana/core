@@ -85,6 +85,8 @@ func (l *KubeListener) CreateSchema(overwrite bool) error {
 
 // SetConfig implements SetConfig function of the Service interface.
 func (l *KubeListener) SetConfig(config common.ServiceConfig) error {
+	// confString used only for trace log, to quickly help find
+	// in which file and where the variables listed below are.
 	confString := "/etc/romana/romana.conf.yml:kubernetesListener:config:"
 	log.Trace(trace.Inside, confString, config)
 
@@ -320,6 +322,14 @@ func (l *KubeListener) Initialize(client *common.RestClient) error {
 		os.Exit(255)
 	}
 
+	// Channel for stopping watching kubernetes events.
+	done := make(chan struct{})
+
+	// l.ProcessNodeEvents listens and processes kubernetes node events,
+	// mainly allowing nodes to be added/removed to/from romana cluster
+	// based on these events.
+	l.ProcessNodeEvents(done)
+
 	l.lastEventPerNamespace = make(map[string]uint64)
 	log.Infof("%s: Starting server", l.Name())
 	nsURL, err := common.CleanURL(fmt.Sprintf("%s/%s/?%s", l.kubeURL, l.namespaceNotificationPath, HttpGetParamWatch))
@@ -327,14 +337,12 @@ func (l *KubeListener) Initialize(client *common.RestClient) error {
 		return err
 	}
 	log.Infof("Starting to listen on %s", nsURL)
-	done := make(chan struct{})
 	eventc, err := l.nsWatch(done, nsURL)
 	if err != nil {
 		log.Critical("Namespace watcher failed to start", err)
 		os.Exit(255)
 	}
 
-	// events := l.conductor(nsEvents, done)
 	l.process(eventc, done)
 
 	ProduceNewPolicyEvents(eventc, done, l)
