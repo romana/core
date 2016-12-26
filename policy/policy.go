@@ -231,6 +231,7 @@ func (policy *PolicySvc) augmentPolicy(policyDoc *common.Policy) error {
 // distributePolicy distributes policy to all agents.
 // TODO how should error handling work here really?
 func (policy *PolicySvc) distributePolicy(policyDoc *common.Policy) error {
+
 	hosts, err := policy.client.ListHosts()
 	if err != nil {
 		return err
@@ -319,34 +320,7 @@ func (policy *PolicySvc) deletePolicy(id uint64) (interface{}, error) {
 	if err != nil {
 		return nil, err
 	}
-	hosts, err := policy.client.ListHosts()
-	if err != nil {
-		return nil, err
-	}
 
-	if policyDoc.ExternalID == "" {
-		// TODO
-		// Important! This should really be done in policy agent.
-		// Only done here as temporary measure.
-		externalId := makeId(policyDoc.AppliedTo, policyDoc.Name)
-		log.Printf("Constructing internal policy name = %s", externalId)
-		policyDoc.ExternalID = externalId
-	}
-
-	errStr := make([]string, 0)
-	for _, host := range hosts {
-		// TODO make schema configurable
-		url := fmt.Sprintf("http://%s:%d/policies", host.Ip, host.AgentPort)
-		result := make(map[string]interface{})
-		err = policy.client.Delete(url, policyDoc, result)
-		log.Printf("Agent at %s returned %v", host.Ip, result)
-		if err != nil {
-			errStr = append(errStr, fmt.Sprintf("Error deleting policy %d (%s) from host %s: %v. ", id, policyDoc.Name, host.Ip, err))
-		}
-	}
-	if len(errStr) > 0 {
-		return nil, common.NewError500(errStr)
-	}
 	err = policy.store.deletePolicy(id)
 	if err != nil {
 		return nil, err
@@ -408,11 +382,6 @@ func (policy *PolicySvc) addPolicy(input interface{}, ctx common.RestContext) (i
 		return nil, err
 	}
 	log.Printf("addPolicy(): Stored policy %s", policyDoc.Name)
-	err = policy.distributePolicy(policyDoc)
-	if err != nil {
-		log.Printf("addPolicy(): Error distributing: %v", err)
-		return nil, err
-	}
 	policyDoc.Datacenter = nil
 	return policyDoc, nil
 }
@@ -430,6 +399,7 @@ func (policy *PolicySvc) SetConfig(config common.ServiceConfig) error {
 	policy.config = config
 	//	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
 	log.Printf("Policy port: %d", config.Common.Api.Port)
+
 	policy.store = policyStore{}
 	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
 	policy.store.ServiceStore = &policy.store
