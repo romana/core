@@ -39,6 +39,16 @@ func (c mockNetworkConfig) PNetCIDR() (cidr *net.IPNet, err error) {
 	return
 }
 
+// PrefixBits returns tenant bits value from POC config.
+func (c mockNetworkConfig) PrefixBits() uint {
+	return uint(8)
+}
+
+// PortBits returns tenant bits value from POC config.
+func (c mockNetworkConfig) PortBits() uint {
+	return uint(8)
+}
+
 // TenantBits returns tenant bits value from POC config.
 func (c mockNetworkConfig) TenantBits() uint {
 	// dc.TenantBits = 4
