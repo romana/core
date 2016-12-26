@@ -131,6 +131,7 @@ type IPchain struct {
 	Policy   string
 	Counters string
 	Rules    []*IPrule
+	RenderState RenderState
 }
 
 // RenderHeader returns string representation of chains header
@@ -145,10 +146,16 @@ func (ic IPchain) RenderHeader() string {
 // -D MYCHAIN <othermatch> -j <otheraction)
 func (ic IPchain) RenderFooter() string {
 	var res string
-	for _, rule := range ic.Rules {
-		res += fmt.Sprintf("%s %s %s\n", rule.RenderState, ic.Name, rule)
+	switch ic.RenderState {
+	case RenderAppendRule:
+		for _, rule := range ic.Rules {
+			res += fmt.Sprintf("%s %s %s\n", rule.RenderState, ic.Name, rule)
+		}
+	case RenderDeleteRule:
+		res = fmt.Sprintf("-X %s\n", ic.Name)
+	default:
+		log.Errorf("Unknown render state %s for chain %s", ic.RenderState, ic.Name)
 	}
-
 	return res
 }
 
