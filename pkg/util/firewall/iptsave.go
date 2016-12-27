@@ -50,7 +50,6 @@ type IPTsaveFirewall struct {
 
 // Init implements Firewall interface
 func (i *IPTsaveFirewall) Init(exec utilexec.Executable, store FirewallStore, nc NetConfig) error {
-	log.Infof("In Init()")
 
 	fwstore := firewallStore{}
 	fwstore.DbStore = store.GetDb()
@@ -63,7 +62,7 @@ func (i *IPTsaveFirewall) Init(exec utilexec.Executable, store FirewallStore, nc
 	// Read current iptables config.
 	output, err := i.os.Exec(iptablesSaveBin, []string{})
 	if err != nil {
-		log.Infof("In Init(), failed to call iptables-save, %s", err)
+		log.Errorf("In Init(), failed to call iptables-save, %s", err)
 		return err
 	}
 
@@ -413,7 +412,7 @@ func makeUndoRule(rule FirewallRule, tableCurrent, tableDesired *iptsave.IPtable
 
 // applyRules renders desired rules and passes them as stdin to iptables-restore.
 func (i *IPTsaveFirewall) applyRules(iptables *iptsave.IPtables) error {
-	cmd := i.os.Cmd(iptablesRestoreBin, []string{"--noflush"})
+	cmd := i.os.Cmd(iptablesRestoreBin, []string{"--noflush", "-w"})
 	reader := bytes.NewReader([]byte(iptables.Render()))
 
 	log.Tracef(trace.Inside, "In applyRules allocating stdin pipe")
