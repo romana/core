@@ -282,7 +282,10 @@ func InitializeService(service Service, config ServiceConfig, cred *Credential) 
 	if err != nil {
 		return nil, err
 	}
-	service.Initialize(client)
+
+	if err := service.Initialize(client); err != nil {
+		return nil, err
+	}
 
 	svcInfo, err := initNegroni(routes, service, config, client)
 	if err != nil {
