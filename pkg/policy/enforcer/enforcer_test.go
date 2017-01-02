@@ -1,4 +1,4 @@
-package agent
+package enforcer
 
 import (
 	"github.com/romana/core/common"

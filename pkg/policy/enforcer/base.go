@@ -16,7 +16,7 @@
 // Static iptables rules, that form backbone of romana policy flow. Do not
 // depend on any tenants, pods or policies.
 
-package agent
+package enforcer
 
 import (
 	"github.com/romana/core/pkg/util/iptsave"

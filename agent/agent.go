@@ -19,7 +19,7 @@ package agent
 import (
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/log/trace"
-	policyAgent "github.com/romana/core/pkg/policy/agent"
+	enforcer "github.com/romana/core/pkg/policy/enforcer"
 	policyCache "github.com/romana/core/pkg/util/policy/cache"
 	tenantCache "github.com/romana/core/pkg/util/tenant/cache"
 	log "github.com/romana/rlog"
@@ -58,9 +58,9 @@ type Agent struct {
 	client *common.RestClient
 
 	// Manages iptables rules to reflect romana policies.
-	policyAgent policyAgent.Interface
+	enforcer enforcer.Interface
 
-	// Stops policy manager.
+	// Stops policy enforcer.
 	policyStop chan struct{}
 }
 
@@ -208,8 +208,8 @@ func (a *Agent) Initialize(client *common.RestClient) error {
 	a.policyStop = make(chan struct{})
 	tenantCache := tenantCache.New(a.client, tenantCache.Config{CacheTickSeconds: cacheTickTime})
 	policyCache := policyCache.New(a.client, policyCache.Config{CacheTickSeconds: cacheTickTime})
-	a.policyAgent = policyAgent.New(tenantCache, policyCache, a.networkConfig, a.Helper.Executor, policyRefreshSeconds)
-	a.policyAgent.Run(a.policyStop)
+	a.enforcer = enforcer.New(tenantCache, policyCache, a.networkConfig, a.Helper.Executor, policyRefreshSeconds)
+	a.enforcer.Run(a.policyStop)
 
 	return nil
 }

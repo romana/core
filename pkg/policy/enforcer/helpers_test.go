@@ -13,7 +13,7 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-package agent
+package enforcer
 
 import (
 	"github.com/romana/core/pkg/util/iptsave"

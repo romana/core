@@ -13,8 +13,8 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Policy agent package translates romana policies into iptables rules.
-package agent
+// Policy enforcer package translates romana policies into iptables rules.
+package enforcer
 
 import (
 	"github.com/romana/core/common"
@@ -29,14 +29,14 @@ import (
 	"time"
 )
 
-// Interface defines policy agent behavior.
+// Interface defines policy enforcer behavior.
 type Interface interface {
 	// Run starts internal loop that handles updates from policies.
 	Run(<-chan struct{})
 }
 
-// Agent implements Interface.
-type Agent struct {
+// Endpoint implements Interface.
+type Enforcer struct {
 	// tenant cache provides updates for romana tenants.
 	tenantCache tenantCache.Interface
 
@@ -66,16 +66,16 @@ type Agent struct {
 	refreshSeconds int
 }
 
-// New returns new policy agent.
+// New returns new policy enforcer.
 func New(tenantCache tenantCache.Interface, policyCache policyCache.Interface, network firewall.NetConfig, exec utilexec.Executable, refreshSeconds int) Interface {
-	return &Agent{tenantCache: tenantCache, policyCache: policyCache, netConfig: network, exec: exec, refreshSeconds: refreshSeconds}
+	return &Enforcer{tenantCache: tenantCache, policyCache: policyCache, netConfig: network, exec: exec, refreshSeconds: refreshSeconds}
 }
 
 // Run implements Interface.  It reads notifications
 // from the policy cache and from the tenant cache,
 // when either cache chagned re-renders all iptables rules.
-func (a *Agent) Run(stop <-chan struct{}) {
-	log.Trace(trace.Public, "Policy agent Run()")
+func (a *Enforcer) Run(stop <-chan struct{}) {
+	log.Trace(trace.Public, "Policy enforcer Run()")
 
 	tenants := a.tenantCache.Run(stop)
 	policies := a.policyCache.Run(stop)
@@ -87,14 +87,14 @@ func (a *Agent) Run(stop <-chan struct{}) {
 		for {
 			select {
 			case <-a.ticker:
-				log.Trace(4, "Policy agent tick started")
+				log.Trace(4, "Policy enforcer tick started")
 				if a.paused {
-					log.Tracef(5, "Policy agent tick skipped due to pause")
+					log.Tracef(5, "Policy enforcer tick skipped due to pause")
 					continue
 				}
 
 				if a.policyUpdate == "" && a.tenantUpdate == "" {
-					log.Tracef(5, "Policy agent tick skipped due no updates, hash=%s and policy hash=%s", a.tenantUpdate, a.policyUpdate)
+					log.Tracef(5, "Policy enforcer tick skipped due no updates, hash=%s and policy hash=%s", a.tenantUpdate, a.policyUpdate)
 					continue
 				}
 
@@ -113,15 +113,15 @@ func (a *Agent) Run(stop <-chan struct{}) {
 				a.tenantUpdate = ""
 
 			case hash := <-tenants:
-				log.Trace(4, "Policy agent receives update from tenant cache hash=%s", hash)
+				log.Trace(4, "Policy enforcer receives update from tenant cache hash=%s", hash)
 				a.tenantUpdate = hash
 
 			case hash := <-policies:
-				log.Trace(4, "Policy agent receives update from policy cache hash=%s", hash)
+				log.Trace(4, "Policy enforcer receives update from policy cache hash=%s", hash)
 				a.policyUpdate = hash
 
 			case <-stop:
-				log.Infof("Policy agent stopping")
+				log.Infof("Policy enforcer stopping")
 				return
 			}
 		}
@@ -129,19 +129,19 @@ func (a *Agent) Run(stop <-chan struct{}) {
 }
 
 // Pause main loop.
-func (a *Agent) Pause() {
+func (a *Enforcer) Pause() {
 	a.paused = true
 }
 
 // Continue main loop.
-func (a *Agent) Continue() {
+func (a *Enforcer) Continue() {
 	a.paused = false
 }
 
 // renderIPtables creates iptables rules for all romana policies in policy cache
 // except the ones which depends on non-existend tenant/segment.
 func renderIPtables(tenantCache tenantCache.Interface, policyCache policyCache.Interface, netConfig firewall.NetConfig) *iptsave.IPtables {
-	log.Trace(trace.Private, "Policy agent in renderIPtables()")
+	log.Trace(trace.Private, "Policy enforcer in renderIPtables()")
 
 	// Make empty iptables object.
 	iptables := iptsave.IPtables{
@@ -172,7 +172,7 @@ func makeBase(iptables *iptsave.IPtables) {
 // makeTenantRules populates tenant/segment rules into the provided
 // iptables object.
 func makeTenantRules(tenantCache tenantCache.Interface, netConfig firewall.NetConfig, iptables *iptsave.IPtables) {
-	log.Trace(trace.Private, "Policy agent in makeTenantRules()")
+	log.Trace(trace.Private, "Policy enforcer in makeTenantRules()")
 
 	// For now our policies only exist in a filter tables so we don't care
 	// for other tables.
@@ -180,7 +180,7 @@ func makeTenantRules(tenantCache tenantCache.Interface, netConfig firewall.NetCo
 
 	tenants := tenantCache.List()
 
-	log.Tracef(5, "Policy agent received %d tenants from tenant cache", len(tenants))
+	log.Tracef(5, "Policy enforcer received %d tenants from tenant cache", len(tenants))
 	for _, tenant := range tenants {
 		// :ROMANA-FW-T2
 		tenantIngressChain := EnsureChainExists(filter, MakeTenantIngressChainName(tenant))
@@ -192,7 +192,7 @@ func makeTenantRules(tenantCache tenantCache.Interface, netConfig firewall.NetCo
 			panic("Ingress chain doesn't exist, base rules aren't rendered corretly")
 		}
 		InsertNormalRule(ingressChain, MakeIngressTenantJumpRule(tenant, netConfig))
-		log.Tracef(6, "Policy agent processes tenants %s with %d segments", tenant.Name, len(tenant.Segments))
+		log.Tracef(6, "Policy enforcer processes tenants %s with %d segments", tenant.Name, len(tenant.Segments))
 
 		for _, segment := range tenant.Segments {
 			// :ROMANA-T2-S0
@@ -218,7 +218,7 @@ func makeTenantRules(tenantCache tenantCache.Interface, netConfig firewall.NetCo
 
 // makePolicies populates policy related rules into the iptables.
 func makePolicies(policyCache policyCache.Interface, netConfig firewall.NetConfig, iptables *iptsave.IPtables) {
-	log.Trace(trace.Private, "Policy agent in makePolicies()")
+	log.Trace(trace.Private, "Policy enforcer in makePolicies()")
 
 	// For now our policies only exist in a filter tables so we don't care
 	// for other tables.
@@ -227,7 +227,7 @@ func makePolicies(policyCache policyCache.Interface, netConfig firewall.NetConfi
 	policies := policyCache.List()
 
 	for _, policy := range policies {
-		log.Tracef(5, "Policy agent rendering policy %s", policy.Name)
+		log.Tracef(5, "Policy enforcer rendering policy %s", policy.Name)
 
 		policyActive := false
 
@@ -241,11 +241,11 @@ func makePolicies(policyCache policyCache.Interface, netConfig firewall.NetConfi
 			if targetChain, ok := targetExists(target, iptables); ok {
 				InsertNormalRule(targetChain, MakeSimpleJumpRule(MakeRomanaPolicyName(policy)))
 
-				log.Tracef(6, "Policy agent rendered target %v for policy %s.", target, policy.Name)
+				log.Tracef(6, "Policy enforcer rendered target %v for policy %s.", target, policy.Name)
 
 				policyActive = true
 			} else {
-				log.Tracef(6, "Policy agent skipped  target %v for policy %s.", target, policy.Name)
+				log.Tracef(6, "Policy enforcer skipped  target %v for policy %s.", target, policy.Name)
 			}
 		}
 
@@ -255,7 +255,7 @@ func makePolicies(policyCache policyCache.Interface, netConfig firewall.NetConfi
 			policyChain := EnsureChainExists(filter, MakeRomanaPolicyName(policy))
 
 			for ingressNum, ingress := range policy.Ingress {
-				log.Tracef(6, "Policy agent renders ingress %v from policy %s", ingress, policy.Name)
+				log.Tracef(6, "Policy enforcer renders ingress %v from policy %s", ingress, policy.Name)
 
 				// Make ingress chain
 				// -A ROMANA-P-d73a173e1f52-IN_<ingressNum>
@@ -281,14 +281,14 @@ func makePolicies(policyCache policyCache.Interface, netConfig firewall.NetConfi
 				// -A ROMANA-P-c5010560ed3e_ -m comment --comment "PolicyId=c5010560ed3e" -j RETURN
 			}
 		} else {
-			log.Tracef(6, "Policy agent skips policy %s, probably no valid AppliedTo exists", policy.Name)
+			log.Tracef(6, "Policy enforcer skips policy %s, probably no valid AppliedTo exists", policy.Name)
 		}
 	}
 }
 
 // targetExists checks if iptables has underlying chains for given target.
 func targetExists(target common.Endpoint, iptables *iptsave.IPtables) (*iptsave.IPchain, bool) {
-	log.Trace(trace.Private, "Policy agent in targetExists()")
+	log.Trace(trace.Private, "Policy enforcer in targetExists()")
 
 	// For now our policies only exist in a filter tables so we don't care
 	// for other tables.
@@ -321,7 +321,7 @@ func targetExists(target common.Endpoint, iptables *iptsave.IPtables) (*iptsave.
 
 	chain := filter.ChainByName(targetChainName)
 	if chain == nil {
-		log.Tracef(6, "Policy agent fails to validate target %v, base chain doesn't exist %s", target, targetChainName)
+		log.Tracef(6, "Policy enforcer fails to validate target %v, base chain doesn't exist %s", target, targetChainName)
 		return nil, false
 	}
 
