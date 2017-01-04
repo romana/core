@@ -351,7 +351,7 @@ func cleanupUnusedChains(iptables *iptsave.IPtables, exec utilexec.Executable) {
 	}
 
 	for _, currentChain := range romanaChainsInCurrentTables {
-		log.Infof("In cleanupUnusedChains, testing is %s exists in desired state", currentChain)
+		log.Tracef(5, "In cleanupUnusedChains, testing is %s exists in desired state", currentChain)
 		desiredChain := desiredFilter.ChainByName(currentChain)
 		if desiredChain == nil {
 			log.Tracef(6, "In cleanupUnusedChains, scheduling chain %s for deletion", currentChain)
