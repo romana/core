@@ -70,6 +70,12 @@ type NetConfig interface {
 	// Returns romana network cidr.
 	PNetCIDR() (cidr *net.IPNet, err error)
 
+	// Returns prefix bits from romana network config.
+	PrefixBits() uint
+
+	// Returns port bits from romana network config.
+	PortBits() uint
+
 	// Returns tenant bits from romana network config.
 	TenantBits() uint
 

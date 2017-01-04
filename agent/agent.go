@@ -19,6 +19,9 @@ package agent
 import (
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/log/trace"
+	enforcer "github.com/romana/core/pkg/policy/enforcer"
+	policyCache "github.com/romana/core/pkg/util/policy/cache"
+	tenantCache "github.com/romana/core/pkg/util/tenant/cache"
 	log "github.com/romana/rlog"
 )
 
@@ -53,6 +56,12 @@ type Agent struct {
 	store agentStore
 
 	client *common.RestClient
+
+	// Manages iptables rules to reflect romana policies.
+	enforcer enforcer.Interface
+
+	// Stops policy enforcer.
+	policyStop chan struct{}
 }
 
 // SetConfig implements SetConfig function of the Service interface.
@@ -147,6 +156,15 @@ func (a *Agent) Name() string {
 	return "agent"
 }
 
+const (
+	// defaultCacheTickTime controls how oftend storage cache is updated.
+	defaultCacheTickTime = 5
+
+	// defaultPolicyRefreshSeconds controls how often policy agent checks
+	// storage caches for updates and applies changes if any.
+	defaultPolicyRefreshSeconds = 2
+)
+
 // Initialize implements the Initialize method of common.Service
 // interface.
 func (a *Agent) Initialize(client *common.RestClient) error {
@@ -170,6 +188,29 @@ func (a *Agent) Initialize(client *common.RestClient) error {
 		log.Error("Agent: ", agentError(err))
 		return agentError(err)
 	}
+
+	// Tenant and Policy cache will poll backend storage every cacheTickTime seconds.
+	var cacheTickTime int
+	if a.config.ServiceSpecific["cache_tick_time"] != nil {
+		cacheTickTime = int(a.config.ServiceSpecific["cache_tick_time"].(float64))
+	} else {
+		cacheTickTime = defaultCacheTickTime
+	}
+
+	// Will try to refresh policies every policyRefreshSeconds.
+	var policyRefreshSeconds int
+	if a.config.ServiceSpecific["policy_refresh_seconds"] != nil {
+		policyRefreshSeconds = int(a.config.ServiceSpecific["policy_refresh_seconds"].(float64))
+	} else {
+		policyRefreshSeconds = defaultPolicyRefreshSeconds
+	}
+
+	a.policyStop = make(chan struct{})
+	tenantCache := tenantCache.New(a.client, tenantCache.Config{CacheTickSeconds: cacheTickTime})
+	policyCache := policyCache.New(a.client, policyCache.Config{CacheTickSeconds: cacheTickTime})
+	a.enforcer = enforcer.New(tenantCache, policyCache, a.networkConfig, a.Helper.Executor, policyRefreshSeconds)
+	a.enforcer.Run(a.policyStop)
+
 	return nil
 }
 

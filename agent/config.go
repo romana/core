@@ -49,6 +49,16 @@ func (c *NetworkConfig) PNetCIDR() (cidr *net.IPNet, err error) {
 	return
 }
 
+// PrefixBits returns tenant bits value from POC config.
+func (c *NetworkConfig) PrefixBits() uint {
+	return c.dc.PrefixBits
+}
+
+// PortBits returns tenant bits value from POC config.
+func (c *NetworkConfig) PortBits() uint {
+	return c.dc.PortBits
+}
+
 // TenantBits returns tenant bits value from POC config.
 func (c *NetworkConfig) TenantBits() uint {
 	return c.dc.TenantBits
