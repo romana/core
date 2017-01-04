@@ -108,7 +108,7 @@ func (c *NetworkConfig) updateRomanaGWMask(ipnet *net.IPNet) {
 // If no match is found we assume we are running on host which is not
 // part of the Romana setup and spit error out.
 func (a Agent) identifyCurrentHost() error {
-	log.Debug("In Agent identifyCurrentHost()")
+	log.Trace(trace.Private, "In Agent identifyCurrentHost()")
 
 	topologyURL, err := a.client.GetServiceUrl("topology")
 	if err != nil {

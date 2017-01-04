@@ -188,7 +188,7 @@ func (a *Agent) Initialize(client *common.RestClient) error {
 	// calling createRomanaGW() to populate romanaGW and romanaGWMask.
 	log.Info("Agent: Attempting to identify current host.")
 	if err := a.identifyCurrentHost(); err != nil {
-		log.Error("Agent: ", agentError(err))
+		log.Error("Agent: Failed to identify current host: ", agentError(err))
 		return agentError(err)
 	}
 
