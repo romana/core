@@ -55,7 +55,7 @@ func (a Agent) createRomanaGW() error {
 	rgw := &netlink.Dummy{LinkAttrs: netlink.LinkAttrs{Name: "romana-gw", TxQLen: 1000}}
 	if err := netlink.LinkAdd(rgw); err != nil {
 		if err == syscall.EEXIST {
-			log.Error("romana gateway already exists.")
+			log.Warn("romana gateway already exists.")
 		} else {
 			log.Info("Error adding romana gateway to node:", err)
 			return err
@@ -74,7 +74,7 @@ func (a Agent) createRomanaGW() error {
 	if err := netlink.AddrDel(rgw, oldIP); err != nil {
 		// Log error and continue as usual, since its ok if we can't delete
 		// the old IPAddress, since we may have lost it due to multiple reasons.
-		log.Error("Error while removing old IPAddress from romana gateway:", err)
+		log.Warn("Error while removing old IPAddress from romana gateway:", err)
 	}
 
 	ip := &netlink.Addr{
@@ -124,10 +124,8 @@ func (a Agent) enableRomanaKernelDefaults() error {
 	return nil
 }
 
-// RouteUpdater polls romana topology service for route changes and
+// routeUpdater polls romana topology service for route changes and
 // updates routes accordingly.
-// TODO: Currently routeUpdater polls topology service, convert this
-// to kvstore watch on /romana/nodes once kvstore backend is ready.
 func (a Agent) routeUpdater(stopRouteUpdater <-chan struct{}, routeRefreshSeconds int) error {
 	log.Trace(trace.Private, "In Agent routeUpdater()")
 
@@ -137,6 +135,10 @@ func (a Agent) routeUpdater(stopRouteUpdater <-chan struct{}, routeRefreshSecond
 	return nil
 }
 
+// routePopulate populates a.networkConfig.otherHosts periodically after every
+// routeRefreshSeconds after query topology service for changes in node list.
+// TODO: Currently routePopulate polls topology service, convert this
+// to kvstore watch on /romana/nodes once kvstore backend is ready.
 func (a Agent) routePopulate(stop <-chan struct{}, routeRefreshSeconds int) {
 	log.Trace(trace.Private, "In Agent routePopulate()")
 
@@ -158,6 +160,8 @@ func (a Agent) routePopulate(stop <-chan struct{}, routeRefreshSeconds int) {
 	}
 }
 
+// routeSet updates the routes/romana-gw and other network configs
+// depending on the updates received to it form routePopulate above.
 func (a Agent) routeSet(stop <-chan struct{}, routeRefreshSeconds int) {
 	log.Trace(trace.Private, "In Agent routeSet()")
 

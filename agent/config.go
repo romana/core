@@ -89,7 +89,9 @@ func (c *NetworkConfig) RomanaGWMask() net.IPMask {
 }
 
 // updateRomanaGWMask updates romana gateway and mask to new
-// value and moves the old one to old* variables.
+// value and moves the old one to old* variables. The old
+// address and mask are used later to identify the address
+// we need to delete from the Romana GW interface.
 func (c *NetworkConfig) updateRomanaGWMask(ipnet *net.IPNet) {
 	c.Lock()
 	defer c.Unlock()
@@ -165,6 +167,13 @@ func (a Agent) identifyCurrentHost() error {
 
 				// Check if romanaGW address was changed recently, if it was
 				// then remove the old one and set the new one we received.
+				//
+				// romana-gw can change due to multiple reasons:
+				// * when node is cordoned/un-cordoned thus no pods except
+				//   daemon set are there.
+				// * when node is rebooted and it takes it long enough that the
+				//   current cidr was re-allocated to other node.
+				//
 				romanaGWMaskSize, _ := a.networkConfig.romanaGWMask.Size()
 				ipnetMaskSize, _ := ipnet.Mask.Size()
 				if !a.networkConfig.romanaGW.Equal(ipnet.IP) ||
