@@ -17,6 +17,7 @@ package agent
 
 import (
 	"net"
+	"sync"
 
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/log/trace"
@@ -31,10 +32,13 @@ import (
 // firewall.NetConfig interface.
 type NetworkConfig struct {
 	// Current host network configuration
-	romanaGW     net.IP
-	romanaGWMask net.IPMask
-	otherHosts   []common.Host
-	dc           common.Datacenter
+	sync.Mutex
+	romanaGW        net.IP
+	romanaGWMask    net.IPMask
+	oldRomanaGW     net.IP
+	oldRomanaGWMask net.IPMask
+	otherHosts      []common.Host
+	dc              common.Datacenter
 }
 
 // EndpointNetmaskSize returns integer value (aka size) of endpoint netmask.
@@ -84,6 +88,18 @@ func (c *NetworkConfig) RomanaGWMask() net.IPMask {
 	return c.romanaGWMask
 }
 
+// updateRomanaGWMask updates romana gateway and mask to new
+// value and moves the old one to old* variables.
+func (c *NetworkConfig) updateRomanaGWMask(ipnet *net.IPNet) {
+	c.Lock()
+	defer c.Unlock()
+
+	c.oldRomanaGW = c.romanaGW
+	c.oldRomanaGWMask = c.romanaGWMask
+	c.romanaGW = ipnet.IP
+	c.romanaGWMask = ipnet.Mask
+}
+
 // identifyCurrentHost discovers network configuration
 // of the host we are running on.
 // We need to know public IP and Romana gateway IP of the current host.
@@ -92,6 +108,7 @@ func (c *NetworkConfig) RomanaGWMask() net.IPMask {
 // If no match is found we assume we are running on host which is not
 // part of the Romana setup and spit error out.
 func (a Agent) identifyCurrentHost() error {
+	log.Debug("In Agent identifyCurrentHost()")
 
 	topologyURL, err := a.client.GetServiceUrl("topology")
 	if err != nil {
@@ -145,14 +162,34 @@ func (a Agent) identifyCurrentHost() error {
 				if s1 != s2 {
 					continue
 				}
-				// OK, we're happy with this result
-				a.networkConfig.romanaGW = ipnet.IP
-				a.networkConfig.romanaGWMask = ipnet.Mask
+
+				// Check if romanaGW address was changed recently, if it was
+				// then remove the old one and set the new one we received.
+				romanaGWMaskSize, _ := a.networkConfig.romanaGWMask.Size()
+				ipnetMaskSize, _ := ipnet.Mask.Size()
+				if !a.networkConfig.romanaGW.Equal(ipnet.IP) ||
+					romanaGWMaskSize != ipnetMaskSize {
+					a.networkConfig.updateRomanaGWMask(ipnet)
+
+					// Update Romana Gateway with new config.
+					if err := a.createRomanaGW(); err != nil {
+						log.Error("Agent: Failed to update romana gateway IP Address on the node:", err)
+						return err
+					}
+				}
+
+				log.Trace(trace.Private, "Acquiring mutex identifyCurrentHost")
+				a.Helper.ensureInterHostRoutesMutex.Lock()
+
 				// Retain the other hosts that were listed.
 				// This will be used for creating inter-host routes.
 				a.networkConfig.otherHosts = append(a.networkConfig.otherHosts, hosts[0:i]...)
 				a.networkConfig.otherHosts = append(a.networkConfig.otherHosts, hosts[i+1:]...)
 				log.Trace(trace.Inside, "Found match for CIDR", romanaCIDR, "using address", ipnet.IP)
+
+				log.Trace(trace.Private, "Releasing mutex identifyCurrentHost")
+				a.Helper.ensureInterHostRoutesMutex.Unlock()
+
 				return nil
 			}
 		}

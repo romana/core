@@ -166,30 +166,62 @@ const (
 	// defaultPolicyRefreshSeconds controls how often policy agent checks
 	// storage caches for updates and applies changes if any.
 	defaultPolicyRefreshSeconds = 2
+
+	// defaultRouteRefreshSeconds controls how often agent checks
+	// for route update and applies changes if any.
+	defaultRouteRefreshSeconds = 120
 )
 
 // Initialize implements the Initialize method of common.Service
 // interface.
 func (a *Agent) Initialize(client *common.RestClient) error {
 	log.Trace(trace.Public, "Entering Agent.Initialize()")
+	a.client = client
+
 	err := a.store.Connect()
 	if err != nil {
 		log.Error("Agent.Initialize() : Failed to connect to database.")
 		return err
 	}
 
+	// identifyCurrentHost() needs to be called at-least once before
+	// calling createRomanaGW() to populate romanaGW and romanaGWMask.
 	log.Info("Agent: Attempting to identify current host.")
 	if err := a.identifyCurrentHost(); err != nil {
 		log.Error("Agent: ", agentError(err))
 		return agentError(err)
 	}
 
-	a.client = client
-	// Ensure we have all the routes to our neighbours
-	log.Info("Agent: ensuring interhost routes exist")
-	if err := a.Helper.ensureInterHostRoutes(); err != nil {
-		log.Error("Agent: ", agentError(err))
-		return agentError(err)
+	// Create Romana Gateway and bring up the necessary config for it
+	// for example: assign IP Address to it, etc.
+	if err := a.createRomanaGW(); err != nil {
+		log.Error("Agent: Failed to create Romana Gateway on the node:", err)
+		return err
+	}
+
+	// Enable default kernel settings needed by romana, for example:
+	// ip forward, proxy arp, etc
+	if err := a.enableRomanaKernelDefaults(); err != nil {
+		log.Error("Agent: Failed to enable Romana kernel defaults on the node:", err)
+		return err
+	}
+
+	// Will try to refresh routes every routeRefreshSeconds.
+	var routeRefreshSeconds int
+	if a.config.ServiceSpecific["route_refresh_seconds"] != nil {
+		routeRefreshSeconds = int(a.config.ServiceSpecific["route_refresh_seconds"].(float64))
+	} else {
+		routeRefreshSeconds = defaultRouteRefreshSeconds
+	}
+
+	// Channel for stopping route update mechanism.
+	stopRouteUpdater := make(chan struct{})
+
+	// a.RouteUpdater updates routes on the current node for
+	// the newly added or removed nodes in romana cluster.
+	if err := a.routeUpdater(stopRouteUpdater, routeRefreshSeconds); err != nil {
+		log.Errorf("Agent: Failed to start route updater on the node: %s", err)
+		return err
 	}
 
 	// Tenant and Policy cache will poll backend storage every cacheTickTime seconds.
