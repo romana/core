@@ -11,7 +11,6 @@ services = $$GOPATH/bin/root\
 		   $$GOPATH/bin/romana\
 		   $$GOPATH/bin/policy\
 		   $$GOPATH/bin/listener\
-		   $$GOPATH/bin/watchnodes\
 		   $$GOPATH/bin/doc\
 		   $$GOPATH/bin/topology
 
