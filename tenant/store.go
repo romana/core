@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"github.com/romana/core/common"
 	"log"
+	"strconv"
 )
 
 // Backing store
@@ -73,8 +74,19 @@ func (tenantStore *tenantStore) listTenants() ([]Tenant, error) {
 // whose tenantId is specified.
 func (tenantStore *tenantStore) listSegments(tenantId string) ([]Segment, error) {
 	var segments []Segment
+
+	// Testing tenantId for being an int, if successful
+	// match tenants by ID field, otherwise match tenants
+	// by an ExternalID.
+	var whereClause string
+	if _, err := strconv.Atoi(tenantId); err == nil {
+		whereClause = "tenants.id = ?"
+	} else {
+		whereClause = "tenants.external_id = ?"
+	}
+
 	db := tenantStore.DbStore.Db.Joins("JOIN tenants ON segments.tenant_id = tenants.id").
-		Where("tenants.id = ? OR tenants.external_id = ?", tenantId, tenantId).
+		Where(whereClause, tenantId).
 		Find(&segments)
 	err := common.MakeMultiError(db.GetErrors())
 	log.Printf("In listSegments(): %v, %v", segments, err)
