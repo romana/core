@@ -178,12 +178,20 @@ func (a Agent) identifyCurrentHost() error {
 				ipnetMaskSize, _ := ipnet.Mask.Size()
 				if !a.networkConfig.romanaGW.Equal(ipnet.IP) ||
 					romanaGWMaskSize != ipnetMaskSize {
-					a.networkConfig.updateRomanaGWMask(ipnet)
 
-					// Update Romana Gateway with new config.
-					if err := a.createRomanaGW(); err != nil {
-						log.Error("Agent: Failed to update romana gateway IP Address on the node:", err)
-						return err
+					// For now we don't need updating romanaGW address
+					// and mask, so disable it, but do log a message
+					// about it.
+					if true {
+						log.Error("Agent: romana gateway IP Address/Mask changed on the node.")
+					} else {
+						a.networkConfig.updateRomanaGWMask(ipnet)
+
+						// Update Romana Gateway with new config.
+						if err := a.createRomanaGW(); err != nil {
+							log.Error("Agent: Failed to update romana gateway IP Address on the node:", err)
+							return err
+						}
 					}
 				}
 
