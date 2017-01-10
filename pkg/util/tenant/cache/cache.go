@@ -84,6 +84,7 @@ func (c *Cache) Run(stop <-chan struct{}) <-chan string {
 				currentState, err := c.getNewState(c.client)
 				if err != nil {
 					log.Errorf("Tenant cache failed to sync with upstream, %s", err)
+					continue
 				}
 
 				// and check if tenants from Tenant service are different

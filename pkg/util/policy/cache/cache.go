@@ -86,6 +86,7 @@ func (c *Cache) Run(stop <-chan struct{}) <-chan string {
 				currentState, err := c.getNewState(c.client)
 				if err != nil {
 					log.Errorf("Policy cache failed to sync with upstream, %s", err)
+					continue
 				}
 
 				// and check if policies from Policy service are different
