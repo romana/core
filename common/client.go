@@ -372,6 +372,9 @@ func (rc *RestClient) modifyUrl(dest string, queryMod url.Values) error {
 //    to generate a uuid and add it to the query as RequestToken=<UUID>. It will then be up to the service
 //    to ensure idempotence or not.
 func (rc *RestClient) execMethod(method string, dest string, data interface{}, result interface{}) error {
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+
 	// TODO check if token expired, if yes, reauthenticate... But this needs
 	// more state here (knowledge of Root service by Rest client...)
 	rc.callNum += 1
@@ -565,8 +568,6 @@ func (rc *RestClient) execMethod(method string, dest string, data interface{}, r
 // Post applies POST method to the specified URL,
 // putting the result into the provided interface
 func (rc *RestClient) Post(url string, data interface{}, result interface{}) error {
-	rc.mu.Lock()
-	defer rc.mu.Unlock()
 	err := rc.execMethod("POST", url, data, result)
 	return err
 }
@@ -574,8 +575,6 @@ func (rc *RestClient) Post(url string, data interface{}, result interface{}) err
 // Delete applies DELETE method to the specified URL,
 // putting the result into the provided interface
 func (rc *RestClient) Delete(url string, data interface{}, result interface{}) error {
-	rc.mu.Lock()
-	defer rc.mu.Unlock()
 	err := rc.execMethod("DELETE", url, data, result)
 	return err
 }
@@ -583,8 +582,6 @@ func (rc *RestClient) Delete(url string, data interface{}, result interface{}) e
 // Put applies PUT method to the specified URL,
 // putting the result into the provided interface
 func (rc *RestClient) Put(url string, data interface{}, result interface{}) error {
-	rc.mu.Lock()
-	defer rc.mu.Unlock()
 	err := rc.execMethod("PUT", url, data, result)
 	return err
 }
@@ -592,8 +589,6 @@ func (rc *RestClient) Put(url string, data interface{}, result interface{}) erro
 // Get applies GET method to the specified URL,
 // putting the result into the provided interface
 func (rc *RestClient) Get(url string, result interface{}) error {
-	rc.mu.Lock()
-	defer rc.mu.Unlock()
 	return rc.execMethod("GET", url, nil, result)
 }
 
