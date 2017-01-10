@@ -28,6 +28,7 @@ import (
 	"net/url"
 	"reflect"
 	"strings"
+	"sync"
 	"time"
 
 	log "github.com/romana/rlog"
@@ -43,6 +44,7 @@ type RestClient struct {
 	client         *http.Client
 	token          string
 	config         *RestClientConfig
+	mu             sync.Mutex
 	lastStatusCode int
 }
 
@@ -370,6 +372,9 @@ func (rc *RestClient) modifyUrl(dest string, queryMod url.Values) error {
 //    to generate a uuid and add it to the query as RequestToken=<UUID>. It will then be up to the service
 //    to ensure idempotence or not.
 func (rc *RestClient) execMethod(method string, dest string, data interface{}, result interface{}) error {
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
+
 	// TODO check if token expired, if yes, reauthenticate... But this needs
 	// more state here (knowledge of Root service by Rest client...)
 	rc.callNum += 1
