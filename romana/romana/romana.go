@@ -20,15 +20,13 @@ package romana
 
 import (
 	"errors"
-
 	"github.com/romana/core/common"
-	"github.com/romana/core/tenant"
 )
 
 // reverse returns a given element in reverse
 // order from a tenant.Tenant slice
-func reverse(t []tenant.Tenant) chan tenant.Tenant {
-	r := make(chan tenant.Tenant)
+func reverse(t []common.Tenant) chan common.Tenant {
+	r := make(chan common.Tenant)
 	go func() {
 		for i, _ := range t {
 			r <- t[len(t)-1-i]
@@ -46,7 +44,7 @@ func GetTenantID(client *common.RestClient, name string) (uint64, error) {
 		return 0, err
 	}
 
-	tenants := []tenant.Tenant{}
+	tenants := []common.Tenant{}
 	err = client.Get(tenantURL+"/tenants", &tenants)
 	if err != nil {
 		return 0, err

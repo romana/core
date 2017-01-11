@@ -258,11 +258,11 @@ func (s *MySuite) TestAuth(c *check.C) {
 	tenURL := fmt.Sprintf("http://%s", tenantInfo.Address)
 
 	// We are going to try to add a couple of tenants.
-	tenant1 := tenant.Tenant{Name: "tenant1", ExternalID: "tenant1"}
-	tenant2 := tenant.Tenant{Name: "tenant2", ExternalID: "tenant2"}
+	tenant1 := common.Tenant{Name: "tenant1", ExternalID: "tenant1"}
+	tenant2 := common.Tenant{Name: "tenant2", ExternalID: "tenant2"}
 
 	// Tenant client should not be able to add a tenant
-	tenOut := &tenant.Tenant{}
+	tenOut := &common.Tenant{}
 	err = tenant1Client.Post(fmt.Sprintf("%s/tenants", tenURL), tenant1, tenOut)
 	expect403(c, err)
 
@@ -280,7 +280,7 @@ func (s *MySuite) TestAuth(c *check.C) {
 
 	// Now there are 2 tenants...
 	// Can tenant1 access tenant2's segments?
-	var segs []tenant.Segment
+	var segs []common.Segment
 	err = tenant1Client.Get(fmt.Sprintf("%s/tenants/%d/segments", tenURL, 2), segs)
 	expect403(c, err)
 

@@ -20,55 +20,37 @@ import (
 	"errors"
 	"fmt"
 	"github.com/romana/core/common"
+	"github.com/romana/core/common/store"
 	"log"
 	"strings"
 )
 
-// Endpoint represents an endpoint (a VM, a Kubernetes Pod, etc.)
-// that is to get an IP address.
-type Endpoint struct {
-	Ip           string         `json:"ip,omitempty"`
-	TenantID     string         `json:"tenant_id,omitempty"`
-	SegmentID    string         `json:"segment_id,omitempty"`
-	HostId       string         `json:"host_id,omitempty"`
-	Name         string         `json:"name,omitempty"`
-	RequestToken sql.NullString `json:"request_token" sql:"unique"`
-	// Ordinal number of this Endpoint in the host/tenant combination
-	NetworkID uint64 `json:"-"`
-	// Calculated effective network ID of this Endpoint --
-	// taking into account stride (endpoint space bits)
-	// and alignment thereof. This is used in IP calculation.
-	EffectiveNetworkID uint64 `json:"-"`
-	// Whether it is in use (for purposes of reclaiming)
-	InUse bool   `json:"-"`
-	Id    uint64 `sql:"AUTO_INCREMENT",json:"-"`
-}
 type ipamStore struct {
-	common.DbStore
+	*store.RdbmsStore
 }
 
 // deleteEndpoint releases the IP(s) owned by the endpoint into assignable
 // pool.
-func (ipamStore *ipamStore) deleteEndpoint(ip string) (Endpoint, error) {
+func (ipamStore *ipamStore) deleteEndpoint(ip string) (common.IPAMEndpoint, error) {
 	tx := ipamStore.DbStore.Db.Begin()
-	results := make([]Endpoint, 0)
-	tx.Where(&Endpoint{Ip: ip}).Find(&results)
+	results := make([]common.IPAMEndpoint, 0)
+	tx.Where(&common.IPAMEndpoint{Ip: ip}).Find(&results)
 	if len(results) == 0 {
 		tx.Rollback()
-		return Endpoint{}, common.NewError404("endpoint", ip)
+		return common.IPAMEndpoint{}, common.NewError404("endpoint", ip)
 	}
 	if len(results) > 1 {
 		// This cannot happen by constraints...
 		tx.Rollback()
 		errMsg := fmt.Sprintf("Expected one result for ip %s, got %v", ip, results)
 		log.Printf(errMsg)
-		return Endpoint{}, common.NewError500(errors.New(errMsg))
+		return common.IPAMEndpoint{}, common.NewError500(errors.New(errMsg))
 	}
-	tx = tx.Model(Endpoint{}).Where("ip = ?", ip).Update("in_use", false)
+	tx = tx.Model(common.IPAMEndpoint{}).Where("ip = ?", ip).Update("in_use", false)
 	err := common.MakeMultiError(tx.GetErrors())
 	if err != nil {
 		tx.Rollback()
-		return Endpoint{}, err
+		return common.IPAMEndpoint{}, err
 	}
 	tx.Commit()
 	return results[0], nil
@@ -76,13 +58,13 @@ func (ipamStore *ipamStore) deleteEndpoint(ip string) (Endpoint, error) {
 
 // addEndpoint allocates an IP address and stores it in the
 // database.
-func (ipamStore *ipamStore) addEndpoint(endpoint *Endpoint, upToEndpointIpInt uint64, dc common.Datacenter) error {
+func (ipamStore *ipamStore) addEndpoint(endpoint *common.IPAMEndpoint, upToEndpointIpInt uint64, dc common.Datacenter) error {
 
 	var err error
 	tx := ipamStore.DbStore.Db.Begin()
 
 	if endpoint.RequestToken.Valid && endpoint.RequestToken.String != "" {
-		var existingEndpoints []Endpoint
+		var existingEndpoints []common.IPAMEndpoint
 		var count int
 		tx.Where("request_token = ?", endpoint.RequestToken.String).Find(&existingEndpoints).Count(&count)
 		err = common.GetDbErrors(tx)
@@ -119,7 +101,7 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *Endpoint, upToEndpointIpInt ui
 	// First, find the MAX network ID available for this host/segment combination.
 	sel = "IFNULL(MAX(network_id),-1)+1"
 	log.Printf("IpamStore: Calling SELECT %s FROM endpoints WHERE %s;", sel, fmt.Sprintf(strings.Replace(filter, "?", "%s", 3), hostId, tenantId, segId))
-	row := tx.Model(Endpoint{}).Where(filter, hostId, tenantId, segId).Select(sel).Row()
+	row := tx.Model(common.IPAMEndpoint{}).Where(filter, hostId, tenantId, segId).Select(sel).Row()
 	err = common.GetDbErrors(tx)
 	if err != nil {
 		log.Printf("IPAM Errors 2: %v", err)
@@ -170,7 +152,7 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *Endpoint, upToEndpointIpInt ui
 	// In containerized setup, not using group by leads to failure due to
 	// incompatible sql mode, thus use "GROUP BY network_id, ip" to avoid
 	// this failure.
-	row = tx.Model(Endpoint{}).Where(filter+"AND in_use = 0", hostId, tenantId, segId).Select(sel).Group("ip").Order("MIN(network_id) ASC").Row()
+	row = tx.Model(common.IPAMEndpoint{}).Where(filter+"AND in_use = 0", hostId, tenantId, segId).Select(sel).Group("ip").Order("MIN(network_id) ASC").Row()
 	err = common.GetDbErrors(tx)
 	if err != nil {
 		log.Printf("IPAM Errors 5: %v", err)
@@ -189,7 +171,7 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *Endpoint, upToEndpointIpInt ui
 	if netID.Valid {
 		log.Printf("IpamStore: Reusing %d: %s", netID.Int64, ip)
 		endpoint.Ip = ip
-		tx = tx.Model(Endpoint{}).Where("ip = ?", ip).Update("in_use", true)
+		tx = tx.Model(common.IPAMEndpoint{}).Where("ip = ?", ip).Update("in_use", true)
 		err = common.GetDbErrors(tx)
 		if err != nil {
 			log.Printf("IPAM Errors 7: %v", err)
@@ -212,25 +194,4 @@ func getEffectiveNetworkID(EndpointNetworkID uint64, stride uint) uint64 {
 	// and 2 for DHCP.
 	effectiveEndpointNetworkID = 3 + (1<<stride)*EndpointNetworkID
 	return effectiveEndpointNetworkID
-}
-
-// Entities implements Entities method of Service interface.
-func (ipamStore *ipamStore) Entities() []interface{} {
-	retval := make([]interface{}, 1)
-	retval[0] = &Endpoint{}
-	return retval
-}
-
-// CreateSchemaPostProcess implements CreateSchemaPostProcess method of
-// Service interface.
-func (ipamStore *ipamStore) CreateSchemaPostProcess() error {
-	db := ipamStore.Db
-	log.Printf("ipamStore.CreateSchemaPostProcess(), DB is %v", db)
-	db.Model(&Endpoint{}).AddUniqueIndex("idx_tenant_segment_host_network_id", "tenant_id", "segment_id", "host_id", "network_id")
-	db.Model(&Endpoint{}).AddUniqueIndex("idx_ip", "ip")
-	err := common.MakeMultiError(db.GetErrors())
-	if err != nil {
-		return err
-	}
-	return nil
 }

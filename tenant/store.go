@@ -18,50 +18,19 @@ package tenant
 import (
 	"fmt"
 	"github.com/romana/core/common"
+	"github.com/romana/core/common/store"
 	"log"
-	"strconv"
 )
 
 // Backing store
 type tenantStore struct {
-	common.DbStore
+	*store.RdbmsStore
 }
 
-// Entities implements Entities method of
-// Service interface.
-func (tenantStore *tenantStore) Entities() []interface{} {
-	retval := make([]interface{}, 2)
-	t := Tenant{}
-	retval[0] = &t
-	s := Segment{}
-	retval[1] = &s
-	return retval
-}
-
-// Tenant represents a tenant, a top-level entity.
-type Tenant struct {
-	ID uint64 `sql:"AUTO_INCREMENT" json:"id,omitempty"`
-	// ExternalID is an ID of this tenant in a system that is integrated
-	// with Romana: e.g., OpenStack.
-	ExternalID string    `sql:"not null" json:"external_id,omitempty" gorm:"COLUMN:external_id"`
-	Name       string    `json:"name,omitempty"`
-	Segments   []Segment `json:"segments,omitempty"`
-	NetworkID  uint64    `json:"network_id,omitempty"`
-}
-
-// Segment is a subdivision of tenant.
-type Segment struct {
-	ID         uint64 `sql:"AUTO_INCREMENT" json:"id,omitempty"`
-	ExternalID string `sql:"not null" json:"external_id,omitempty" gorm:"COLUMN:external_id"`
-	TenantID   uint64 `gorm:"COLUMN:tenant_id" json:"tenant_id,omitempty"`
-	Name       string `json:"name,omitempty"`
-	NetworkID  uint64 `json:"network_id,omitempty"`
-}
-
-func (tenantStore *tenantStore) listTenants() ([]Tenant, error) {
-	var tenants []Tenant
+func (tenantStore *tenantStore) listTenants() ([]common.Tenant, error) {
+	var tenants []common.Tenant
 	log.Println("In listTenants()", &tenants)
-	tenantStore.DbStore.Db.Find(&tenants)
+	tenantStore.RdbmsStore.DbStore.Db.Find(&tenants)
 	err := common.MakeMultiError(tenantStore.DbStore.Db.GetErrors())
 	if err != nil {
 		return nil, err
@@ -72,21 +41,10 @@ func (tenantStore *tenantStore) listTenants() ([]Tenant, error) {
 
 // listSegments returns a list of segments for a specific tenant
 // whose tenantId is specified.
-func (tenantStore *tenantStore) listSegments(tenantId string) ([]Segment, error) {
-	var segments []Segment
-
-	// Testing tenantId for being an int, if successful
-	// match tenants by ID field, otherwise match tenants
-	// by an ExternalID.
-	var whereClause string
-	if _, err := strconv.Atoi(tenantId); err == nil {
-		whereClause = "tenants.id = ?"
-	} else {
-		whereClause = "tenants.external_id = ?"
-	}
-
-	db := tenantStore.DbStore.Db.Joins("JOIN tenants ON segments.tenant_id = tenants.id").
-		Where(whereClause, tenantId).
+func (tenantStore *tenantStore) listSegments(tenantId string) ([]common.Segment, error) {
+	var segments []common.Segment
+	db := tenantStore.RdbmsStore.DbStore.Db.Joins("JOIN tenants ON segments.tenant_id = tenants.id").
+		Where("tenants.id = ? OR tenants.external_id = ?", tenantId, tenantId).
 		Find(&segments)
 	err := common.MakeMultiError(db.GetErrors())
 	log.Printf("In listSegments(): %v, %v", segments, err)
@@ -99,11 +57,11 @@ func (tenantStore *tenantStore) listSegments(tenantId string) ([]Segment, error)
 	return segments, nil
 }
 
-func (tenantStore *tenantStore) addTenant(tenant *Tenant) error {
+func (tenantStore *tenantStore) addTenant(tenant *common.Tenant) error {
 	//	log.Println("In tenantStore addTenant()")
 	log.Printf("In tenantStore addTenant(%v) in %s", *tenant, tenantStore.Config.Database)
-	var tenants []Tenant
-	tx := tenantStore.DbStore.Db.Begin()
+	var tenants []common.Tenant
+	tx := tenantStore.RdbmsStore.DbStore.Db.Begin()
 	err := common.GetDbErrors(tx)
 	if err != nil {
 		tx.Rollback()
@@ -127,11 +85,11 @@ func (tenantStore *tenantStore) addTenant(tenant *Tenant) error {
 	return nil
 }
 
-func (tenantStore *tenantStore) addSegment(tenantId uint64, segment *Segment) error {
+func (tenantStore *tenantStore) addSegment(tenantId uint64, segment *common.Segment) error {
 	var err error
-	tx := tenantStore.DbStore.Db.Begin()
+	tx := tenantStore.RdbmsStore.DbStore.Db.Begin()
 
-	var segments []Segment
+	var segments []common.Segment
 	tx = tx.Where("tenant_id = ?", tenantId).Find(&segments)
 	err = common.GetDbErrors(tx)
 	if err != nil {
@@ -152,11 +110,11 @@ func (tenantStore *tenantStore) addSegment(tenantId uint64, segment *Segment) er
 	return nil
 }
 
-func (tenantStore *tenantStore) getTenant(id string) (Tenant, error) {
-	ten := Tenant{}
+func (tenantStore *tenantStore) getTenant(id string) (common.Tenant, error) {
+	ten := common.Tenant{}
 	var count int
 	log.Println("In getTenant()")
-	db := tenantStore.DbStore.Db.Where("id = ?", id).First(&ten).Count(&count)
+	db := tenantStore.RdbmsStore.DbStore.Db.Where("id = ?", id).First(&ten).Count(&count)
 	err := common.GetDbErrors(db)
 	if err != nil {
 		return ten, err
@@ -167,10 +125,10 @@ func (tenantStore *tenantStore) getTenant(id string) (Tenant, error) {
 	return ten, nil
 }
 
-func (tenantStore *tenantStore) getSegment(tenantId string, segmentId string) (Segment, error) {
-	seg := Segment{}
+func (tenantStore *tenantStore) getSegment(tenantId string, segmentId string) (common.Segment, error) {
+	seg := common.Segment{}
 	var count int
-	db := tenantStore.DbStore.Db.Where("tenant_id = ? AND id = ?", tenantId, segmentId).
+	db := tenantStore.RdbmsStore.Db.Where("tenant_id = ? AND id = ?", tenantId, segmentId).
 		First(&seg).Count(&count)
 
 	err := common.GetDbErrors(db)
@@ -181,19 +139,4 @@ func (tenantStore *tenantStore) getSegment(tenantId string, segmentId string) (S
 		return seg, common.NewError404("segment/tenant", fmt.Sprintf("%s/%s", tenantId, segmentId))
 	}
 	return seg, nil
-}
-
-// CreateSchemaPostProcess implements CreateSchemaPostProcess method of
-// ServiceStore interface.
-func (tenantStore *tenantStore) CreateSchemaPostProcess() error {
-	db := tenantStore.Db
-	log.Printf("tenantStore.CreateSchemaPostProcess(), DB is %v", db)
-	db.Model(&Tenant{}).AddUniqueIndex("idx_extid", "external_id")
-	// This should be changed...
-	db.Model(&Segment{}).AddUniqueIndex("idx_tenant_name_extid", "tenant_id", "name", "external_id")
-	err := common.GetDbErrors(db)
-	if err != nil {
-		return err
-	}
-	return nil
 }

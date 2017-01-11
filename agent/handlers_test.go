@@ -42,7 +42,10 @@ func _makeAgent(t *testing.T) *Agent {
 	storeConfig := common.InitMap(common.KV("type", "sqlite3"), common.KV("database", dbName))
 	serviceConfig := common.InitMap(common.KV("store", storeConfig))
 	config := common.ServiceConfig{ServiceSpecific: serviceConfig}
-	store := NewStore(config)
+	store, err := NewStore(config)
+	if err != nil {
+		t.Errorf("Error creating schema: %v", err)
+	}
 	err = store.CreateSchema(false)
 	if err != nil {
 		t.Errorf("Error creating schema: %v", err)

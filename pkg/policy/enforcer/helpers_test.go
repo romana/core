@@ -16,8 +16,8 @@
 package enforcer
 
 import (
+	"github.com/romana/core/common"
 	"github.com/romana/core/pkg/util/iptsave"
-	"github.com/romana/core/tenant"
 	"net"
 	"testing"
 )
@@ -64,7 +64,7 @@ func (m MockNC) PNetCIDR() (cidr *net.IPNet, err error) {
 
 func TestMakeIngressTenantJumpRule(t *testing.T) {
 	netConfig := MockNC{uint(8), uint(8), uint(4), uint(4), uint(8)}
-	rule := MakeIngressTenantJumpRule(tenant.Tenant{NetworkID: uint64(2)}, netConfig)
+	rule := MakeIngressTenantJumpRule(common.Tenant{NetworkID: uint64(2)}, netConfig)
 	t.Log(rule)
 }
 

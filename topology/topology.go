@@ -17,8 +17,8 @@ package topology
 
 import (
 	"fmt"
-	//	"github.com/mitchellh/mapstructure"
 	"github.com/romana/core/common"
+	"github.com/romana/core/common/store"
 	"log"
 	"net"
 	"strconv"
@@ -30,7 +30,7 @@ type TopologySvc struct {
 	client     *common.RestClient
 	config     common.ServiceConfig
 	datacenter *common.Datacenter
-	store      topoStore
+	store      common.Store
 	routes     common.Route
 }
 
@@ -82,9 +82,17 @@ func (topology *TopologySvc) Routes() common.Routes {
 			MakeMessage:     nil,
 			UseRequestToken: false,
 		},
+		common.Route{
+			Method:          "DELETE",
+			Pattern:         hostListPath + "/{hostID}",
+			Handler:         topology.handleDeleteHost,
+			MakeMessage:     nil,
+			UseRequestToken: false,
+		},
 	}
-	var h = []common.Host{}
-	routes = append(routes, common.CreateFindRoutes(&h, &topology.store.DbStore)...)
+	// TODO reintroduce (if we need to) the find routes
+	//	var h = []common.Host{}
+	//	routes = append(routes, common.CreateFindRoutes(&h, &topology.store.DbStore)...)
 	return routes
 }
 
@@ -107,7 +115,7 @@ func (topology *TopologySvc) handleGetHost(input interface{}, ctx common.RestCon
 	if err != nil {
 		return nil, err
 	}
-	host, err := topology.store.findHost(id)
+	host, err := topology.store.GetHost(id)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +129,7 @@ func (topology *TopologySvc) handleGetHost(input interface{}, ctx common.RestCon
 
 func (topology *TopologySvc) handleHostListGet(input interface{}, ctx common.RestContext) (interface{}, error) {
 	log.Println("In handleHostListGet()")
-	hosts, err := topology.store.listHosts()
+	hosts, err := topology.store.ListHosts()
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +156,7 @@ func (topology *TopologySvc) handleHostListPost(input interface{}, ctx common.Re
 		}
 	}
 	log.Printf("Host will be added with agent port %d", host.AgentPort)
-	err := topology.store.addHost(topology.datacenter, host)
+	err := topology.store.AddHost(*topology.datacenter, host)
 	if err != nil {
 		return nil, err
 	}
@@ -217,9 +225,11 @@ func (topology *TopologySvc) SetConfig(config common.ServiceConfig) error {
 	log.Printf("Datacenter information: was %s, decoded to %+v\n", dcMap, dc)
 	topology.datacenter = &dc
 	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
-	topology.store = topoStore{}
-	topology.store.ServiceStore = &topology.store
-	return topology.store.SetConfig(storeConfig)
+	topology.store, err = store.GetStore(storeConfig)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // Initialize the topology service
@@ -237,4 +247,22 @@ func (topology *TopologySvc) Initialize(client *common.RestClient) error {
 
 func (topology *TopologySvc) CreateSchema(overwrite bool) error {
 	return topology.store.CreateSchema(overwrite)
+}
+
+// handleDeleteHost handles deletion of a host.
+func (topology *TopologySvc) handleDeleteHost(input interface{}, ctx common.RestContext) (interface{}, error) {
+	log.Println("In handleDeleteHost()")
+	idStr := strings.TrimSpace(ctx.PathVariables["hostID"])
+	if idStr == "" {
+		return nil, common.NewError400("Request must be to /hosts/{hostID}.")
+	}
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		return nil, err
+	}
+	err = topology.store.DeleteHost(id)
+	if err != nil {
+		return nil, err
+	}
+	return nil, nil
 }

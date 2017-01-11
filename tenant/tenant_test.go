@@ -40,29 +40,30 @@ func (s *MySuite) TearDownSuite(c *check.C) {
 
 func (s *MySuite) TestStore(c *check.C) {
 	var err error
-	var t Tenant
-	var seg Segment
+	var t common.Tenant
+	var seg common.Segment
 
 	store := tenantStore{}
 	store.ServiceStore = &store
 
-	storeConfig := make(map[string]interface{})
-	storeConfig["type"] = "sqlite3"
-	storeConfig["database"] = s.GetMockSqliteFile("tenant")
+	storeConfigMap := make(map[string]interface{})
+	storeConfigMap["type"] = "sqlite3"
+	storeConfigMap["database"] = s.GetMockSqliteFile("tenant")
 	//
 	//	storeConfig["database"] = "tenant"
 	//	storeConfig["port"] = 8889
 	//	storeConfig["username"] = "root"
 	//	storeConfig["password"] = "root"
 	//	storeConfig["type"] = "mysql"
-
+	storeConfig, err := common.MakeStoreConfig(storeConfigMap)
+	c.Assert(err, check.IsNil)
 	err = store.SetConfig(storeConfig)
 	c.Assert(err, check.IsNil)
 	err = store.CreateSchema(true)
 	c.Assert(err, check.IsNil)
 
 	// Should be OK
-	t = Tenant{Name: "name1"}
+	t = common.Tenant{Name: "name1"}
 	err = store.addTenant(&t)
 	c.Assert(err, check.IsNil)
 
@@ -70,13 +71,13 @@ func (s *MySuite) TestStore(c *check.C) {
 	log.Printf("Created tenant %+v", t)
 
 	// Error: duplicate name
-	t = Tenant{Name: "name1"}
+	t = common.Tenant{Name: "name1"}
 	err = store.addTenant(&t)
 	c.Assert(err, check.NotNil, check.Commentf("Expected error"))
 	log.Printf("Expected error %T %+v", err, err)
 
 	// OK: external ID disambiguates.
-	t = Tenant{Name: "name1", ExternalID: "extid1"}
+	t = common.Tenant{Name: "name1", ExternalID: "extid1"}
 	err = store.addTenant(&t)
 	c.Assert(err, check.IsNil)
 
@@ -84,37 +85,37 @@ func (s *MySuite) TestStore(c *check.C) {
 	log.Printf("Created tenant %+v", t)
 
 	// Error: duplicate
-	t = Tenant{Name: "name1", ExternalID: "extid1"}
+	t = common.Tenant{Name: "name1", ExternalID: "extid1"}
 	err = store.addTenant(&t)
 	c.Assert(err, check.NotNil, check.Commentf("Expected error"))
 	log.Printf("Expected error %T %+v", err, err)
 
 	// OK
-	t = Tenant{ExternalID: "extid2"}
+	t = common.Tenant{ExternalID: "extid2"}
 	err = store.addTenant(&t)
 	c.Assert(err, check.IsNil)
 	log.Printf("Created tenant %+v", t)
 
 	// Duplicate
-	t = Tenant{ExternalID: "extid2"}
+	t = common.Tenant{ExternalID: "extid2"}
 	err = store.addTenant(&t)
 	c.Assert(err, check.NotNil, check.Commentf("Expected error"))
 	log.Printf("Expected error %T %+v", err, err)
 
 	// OK
-	seg = Segment{Name: "seg1"}
+	seg = common.Segment{Name: "seg1"}
 	err = store.addSegment(tenID1, &seg)
 	c.Assert(err, check.IsNil)
 	log.Printf("Created segment %+v", seg)
 
 	// Duplicate
-	seg = Segment{Name: "seg1"}
+	seg = common.Segment{Name: "seg1"}
 	err = store.addSegment(tenID1, &seg)
 	c.Assert(err, check.NotNil, check.Commentf("Expected error"))
 	log.Printf("Expected error %T %+v", err, err)
 
 	// OK
-	seg = Segment{ExternalID: "segextid1"}
+	seg = common.Segment{ExternalID: "segextid1"}
 	err = store.addSegment(tenID1, &seg)
 	c.Assert(err, check.IsNil)
 	log.Printf("Created segment %+v", seg)
@@ -126,13 +127,13 @@ func (s *MySuite) TestStore(c *check.C) {
 	//	log.Printf("Expected error %T %+v", err, err)
 
 	// OK - different tenant
-	seg = Segment{Name: "seg1"}
+	seg = common.Segment{Name: "seg1"}
 	err = store.addSegment(tenID2, &seg)
 	c.Assert(err, check.IsNil)
 	log.Printf("Created segment %+v", seg)
 
 	for i := 0; i < 500; i++ {
-		toFind := []Tenant{}
+		toFind := []common.Tenant{}
 		query := url.Values{}
 		query["external_id"] = []string{"extid2"}
 		found, err := store.Find(query, &toFind, common.FindExactlyOne)
@@ -140,6 +141,6 @@ func (s *MySuite) TestStore(c *check.C) {
 		if err != nil {
 			panic(err)
 		}
-		c.Assert(found.(Tenant).ExternalID, check.Equals, "extid2")
+		c.Assert(found.(common.Tenant).ExternalID, check.Equals, "extid2")
 	}
 }

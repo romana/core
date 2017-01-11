@@ -20,6 +20,7 @@ package firewall
 import (
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/log/trace"
+	"github.com/romana/core/common/store"
 	log "github.com/romana/rlog"
 	"sync"
 )
@@ -27,7 +28,7 @@ import (
 // FirewallStore defines how database should be passed into firewall instance.
 type FirewallStore interface {
 	// GetDb Returns fully initialized DbStore object
-	GetDb() common.DbStore
+	GetDb() store.RdbmsStore
 
 	// GetMutex return instance of mutex used guard firewall database.
 	GetMutex() *sync.RWMutex
@@ -35,7 +36,7 @@ type FirewallStore interface {
 
 // firewallStore implement FirewallStore
 type firewallStore struct {
-	common.DbStore
+	store.RdbmsStore
 	mu *sync.RWMutex
 }
 
@@ -53,7 +54,7 @@ func (fs firewallStore) CreateSchemaPostProcess() error {
 }
 
 // GetDb implements firewall.FirewallStore
-func (fs firewallStore) GetDb() common.DbStore {
+func (fs firewallStore) GetDb() store.DbStore {
 	return fs.DbStore
 }
 

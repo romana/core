@@ -46,9 +46,11 @@ func (s *MySuite) TestStore(c *check.C) {
 	store := ipamStore{}
 	store.ServiceStore = &store
 
-	storeConfig := make(map[string]interface{})
-	storeConfig["type"] = "sqlite3"
-	storeConfig["database"] = s.RomanaTestSuite.GetMockSqliteFile("ipam")
+	storeConfigMap := make(map[string]interface{})
+	storeConfigMap["type"] = "sqlite3"
+	storeConfigMap["database"] = s.RomanaTestSuite.GetMockSqliteFile("ipam")
+	storeConfig, err := common.MakeStoreConfig(storeConfigMap)
+	c.Assert(err, check.IsNil)
 	err = store.SetConfig(storeConfig)
 	c.Assert(err, check.IsNil)
 	cidr := "10.0.0.0/8"
@@ -78,7 +80,7 @@ func (s *MySuite) TestStore(c *check.C) {
 		}
 		dc.EndpointSpaceBits = stride
 		dc.EndpointBits = 8 - stride
-		endpoint := &Endpoint{Id: 0, EffectiveNetworkID: 0, HostId: "X", SegmentID: "X", TenantID: "X"}
+		endpoint := &common.IPAMEndpoint{Id: 0, EffectiveNetworkID: 0, HostId: "X", SegmentID: "X", TenantID: "X"}
 		i := uint(1)
 		firstIp := ""
 		var upperBound uint

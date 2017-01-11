@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"github.com/go-check/check"
 	"github.com/romana/core/common"
-	"github.com/romana/core/tenant"
 	"log"
 	"net/http"
 
@@ -93,7 +92,7 @@ func (s *mockSvc) Routes() common.Routes {
 		Method:  "GET",
 		Pattern: "/tenants/1",
 		Handler: func(input interface{}, ctx common.RestContext) (interface{}, error) {
-			return &tenant.Tenant{ID: 1, Name: "default", ExternalID: "default", NetworkID: 1}, nil
+			return &common.Tenant{ID: 1, Name: "default", ExternalID: "default", NetworkID: 1}, nil
 		},
 	}
 
@@ -105,7 +104,7 @@ func (s *mockSvc) Routes() common.Routes {
 			if err != nil {
 				return nil, err
 			}
-			return &tenant.Segment{ID: idInt, Name: "backend", ExternalID: "backend"}, nil
+			return &common.Segment{ID: idInt, Name: "backend", ExternalID: "backend"}, nil
 		},
 	}
 

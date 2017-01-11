@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/log/trace"
+	"github.com/romana/core/common/store"
 	"github.com/romana/core/pkg/util/firewall"
 	log "github.com/romana/rlog"
 	"sync"
@@ -29,13 +30,13 @@ import (
 // sqlite which is not very reliable in concurrent access scenario,
 // so we are going to guard access with mutex.
 type agentStore struct {
-	common.DbStore
+	*store.RdbmsStore
 	mu *sync.RWMutex
 }
 
 // GetDb implements firewall.FirewallStore
-func (agentStore agentStore) GetDb() common.DbStore {
-	return agentStore.DbStore
+func (agentStore agentStore) GetDb() store.RdbmsStore {
+	return *agentStore.RdbmsStore
 }
 
 // GetMutex implements firewall.FirewallStore
@@ -54,15 +55,19 @@ func (agentStore *agentStore) Entities() []interface{} {
 }
 
 // NewStore returns initialized agentStore.
-func NewStore(config common.ServiceConfig) *agentStore {
-	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
+func NewStore(config common.ServiceConfig) (*agentStore, error) {
+	storeConfigMap := config.ServiceSpecific["store"].(map[string]interface{})
 	store := agentStore{
 		mu: &sync.RWMutex{},
 	}
 	store.ServiceStore = &store
+	storeConfig, err := common.MakeStoreConfig(storeConfigMap)
+	if err != nil {
+		return nil, err
+	}
 	store.SetConfig(storeConfig)
 
-	return &store
+	return &store, nil
 }
 
 // Route is a model to store managed routes
