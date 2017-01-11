@@ -24,7 +24,6 @@ import (
 	"github.com/romana/core/pkg/util/firewall"
 	"github.com/romana/core/pkg/util/iptsave"
 	"github.com/romana/core/pkg/util/u32"
-	"github.com/romana/core/tenant"
 	log "github.com/romana/rlog"
 )
 
@@ -36,7 +35,7 @@ const (
 // MakeIngressTenantJumpRule makes a rule to send traffic from romana ingress chain
 // into a tenant specific chain.
 // -A ROMANA-FORWARD-IN -m u32 --u32 "0x10&0xff00f000=0xa002000" -j ROMANA-FW-T2
-func MakeIngressTenantJumpRule(tenant tenant.Tenant, netConfig firewall.NetConfig) *iptsave.IPrule {
+func MakeIngressTenantJumpRule(tenant common.Tenant, netConfig firewall.NetConfig) *iptsave.IPrule {
 	// TODO extract NetId from netConfig. Stas
 	u32TenantMatch := u32.New(netConfig).MatchNetId(uint(10)).MatchTenantId(uint(tenant.NetworkID)).MatchDst()
 	tenantChainName := MakeTenantIngressChainName(tenant)
@@ -59,7 +58,7 @@ func MakeIngressTenantJumpRule(tenant tenant.Tenant, netConfig firewall.NetConfi
 // MakeSegmentPolicyJumpRule makes a rule to send traffic from tenant specific chain
 // into a segment specific chain.
 // -A ROMANA-FW-T2 -m u32 --u32 "0x10&0xff00ff00=0xa002000" -j ROMANA-T2-S0
-func MakeSegmentPolicyJumpRule(tenant tenant.Tenant, segment tenant.Segment, netConfig firewall.NetConfig) *iptsave.IPrule {
+func MakeSegmentPolicyJumpRule(tenant common.Tenant, segment common.Segment, netConfig firewall.NetConfig) *iptsave.IPrule {
 	u32SegmentMatch := u32.New(netConfig).MatchNetId(uint(10)).MatchTenantId(uint(tenant.NetworkID)).MatchSegmentId(uint(segment.NetworkID)).MatchDst()
 	segmentChainName := MakeSegmentPolicyChainName(tenant.NetworkID, segment.NetworkID)
 
@@ -95,7 +94,7 @@ func InsertNormalRule(chain *iptsave.IPchain, rule *iptsave.IPrule) {
 
 // MakeTenantIngressChainName returns the name of iptables chain
 // that holds ingress rules for specific romana tenant.
-func MakeTenantIngressChainName(tenant tenant.Tenant) string {
+func MakeTenantIngressChainName(tenant common.Tenant) string {
 	return fmt.Sprintf("ROMANA-FW-T%d", tenant.NetworkID)
 }
 
@@ -173,7 +172,7 @@ func MakeSimpleJumpRule(target string) *iptsave.IPrule {
 
 // MakeTenantWidePolicyJumpRule returns a rule that jumps into the iptables
 // chain that hosts policies for the entire tenant.
-func MakeTenantWidePolicyJumpRule(tenant tenant.Tenant) *iptsave.IPrule {
+func MakeTenantWidePolicyJumpRule(tenant common.Tenant) *iptsave.IPrule {
 	return MakeSimpleJumpRule(MakeTenantWideIngressChainName(tenant.NetworkID))
 }
 

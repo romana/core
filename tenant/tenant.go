@@ -16,10 +16,10 @@
 package tenant
 
 import (
-	"log"
-	"strconv"
-
 	"github.com/romana/core/common"
+	"github.com/romana/core/common/store"
+	log "github.com/romana/rlog"
+	"strconv"
 )
 
 // TenantSvc provides tenant service.
@@ -36,6 +36,29 @@ const (
 	tenantNameQueryVar = "tenantName"
 )
 
+// TenantIDChecker implements AuthZChecker function, ensuring that
+// only user that has attribute of tenant corresponding to the
+// tenantId in the path of request is allowed to execute.
+func TenantIDChecker(ctx common.RestContext) bool {
+	idStr := ctx.PathVariables["tenantId"]
+	u := ctx.User
+	for _, role := range u.Roles {
+		if role.Name == common.RoleAdmin || role.Name == common.RoleService {
+			return true
+		}
+	}
+	for _, role := range u.Roles {
+		if role.Name == common.RoleTenant {
+			for _, attr := range u.Attributes {
+				if attr.AttributeKey == "tenant" && attr.AttributeValue == idStr {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 // Routes provides route for tenant service.
 func (tsvc *TenantSvc) Routes() common.Routes {
 	routes := common.Routes{
@@ -43,12 +66,13 @@ func (tsvc *TenantSvc) Routes() common.Routes {
 			Method:      "POST",
 			Pattern:     tenantsPath,
 			Handler:     tsvc.addTenant,
-			MakeMessage: func() interface{} { return &Tenant{} },
+			MakeMessage: func() interface{} { return &common.Tenant{} },
 		},
 		common.Route{
-			Method:  "GET",
-			Pattern: tenantsPath + "/{tenantId}",
-			Handler: tsvc.getTenant,
+			Method:       "GET",
+			Pattern:      tenantsPath + "/{tenantId}",
+			Handler:      tsvc.getTenant,
+			AuthZChecker: TenantIDChecker,
 		},
 		common.Route{
 			Method:  "GET",
@@ -56,10 +80,11 @@ func (tsvc *TenantSvc) Routes() common.Routes {
 			Handler: tsvc.listTenants,
 		},
 		common.Route{
-			Method:      "POST",
-			Pattern:     tenantsPath + "/{tenantId}" + segmentsPath,
-			Handler:     tsvc.addSegment,
-			MakeMessage: func() interface{} { return &Segment{} },
+			Method:       "POST",
+			Pattern:      tenantsPath + "/{tenantId}" + segmentsPath,
+			Handler:      tsvc.addSegment,
+			MakeMessage:  func() interface{} { return &common.Segment{} },
+			AuthZChecker: TenantIDChecker,
 		},
 		common.Route{
 			Method:          "GET",
@@ -67,6 +92,7 @@ func (tsvc *TenantSvc) Routes() common.Routes {
 			Handler:         tsvc.getSegment,
 			MakeMessage:     nil,
 			UseRequestToken: false,
+			AuthZChecker:    TenantIDChecker,
 		},
 		common.Route{
 			Method:          "GET",
@@ -74,12 +100,13 @@ func (tsvc *TenantSvc) Routes() common.Routes {
 			Handler:         tsvc.listSegments,
 			MakeMessage:     nil,
 			UseRequestToken: false,
+			AuthZChecker:    TenantIDChecker,
 		},
 	}
-	var t = []Tenant{}
-	routes = append(routes, common.CreateFindRoutes(&t, &tsvc.store.DbStore)...)
-	var s = []Segment{}
-	routes = append(routes, common.CreateFindRoutes(&s, &tsvc.store.DbStore)...)
+	var t = []common.Tenant{}
+	routes = append(routes, common.CreateFindRoutes(&t, &tsvc.store)...)
+	var s = []common.Segment{}
+	routes = append(routes, common.CreateFindRoutes(&s, &tsvc.store)...)
 	return routes
 }
 
@@ -87,7 +114,7 @@ func (tsvc *TenantSvc) Routes() common.Routes {
 // specific details provided as input. It returns full details
 // about the created tenant or HTTP Error.
 func (tsvc *TenantSvc) addTenant(input interface{}, ctx common.RestContext) (interface{}, error) {
-	newTenant := input.(*Tenant)
+	newTenant := input.(*common.Tenant)
 	err := tsvc.store.addTenant(newTenant)
 	if err != nil {
 		log.Printf("TenantService: Attempting to add tenant %+v: %+v", newTenant, err)
@@ -130,7 +157,7 @@ func (tsvc *TenantSvc) addSegment(input interface{}, ctx common.RestContext) (in
 	if err != nil {
 		return nil, err
 	}
-	newSegment := input.(*Segment)
+	newSegment := input.(*common.Segment)
 	err = tsvc.store.addSegment(tenantId, newSegment)
 	return newSegment, err
 }
@@ -150,15 +177,16 @@ func (tsvc *TenantSvc) getSegment(input interface{}, ctx common.RestContext) (in
 // SetConfig implements SetConfig function of the Service interface.
 // Returns an error if cannot connect to the data store
 func (tsvc *TenantSvc) SetConfig(config common.ServiceConfig) error {
+	var err error
 	tsvc.config = config
-	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
-	tsvc.store = tenantStore{}
-	// TODO
-	// From review:
-	// What's going on here? Why does ServicStore need a reference to the structure that contains it?
-	// Need a good way to document this (pattern or anti-pattern?)
+	storeConfigMap := config.ServiceSpecific["store"].(map[string]interface{})
+	rdbmsStore, err := store.GetStore(storeConfigMap)
+	if err != nil {
+		return err
+	}
+	tsvc.store.RdbmsStore = rdbmsStore.(*store.RdbmsStore)
 	tsvc.store.ServiceStore = &tsvc.store
-	return tsvc.store.SetConfig(storeConfig)
+	return nil
 }
 
 func (tsvc *TenantSvc) CreateSchema(overwrite bool) error {

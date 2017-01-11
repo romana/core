@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"github.com/jinzhu/gorm"
+
 	"net/http"
 	"os/exec"
 )
@@ -69,6 +70,7 @@ type ExecErrorDetails struct {
 // NewError500 creates an HttpError with 500 (http.StatusInternalServerError) status code.
 func NewError500(details interface{}) HttpError {
 	retval := HttpError{StatusCode: http.StatusInternalServerError}
+
 	switch details := details.(type) {
 	case *exec.ExitError:
 		retval.Details = ExecErrorDetails{Error: details.Error()} //, Stderr: string(details.Stderr)}
@@ -108,6 +110,11 @@ func NewUnprocessableEntityError(details interface{}) HttpError {
 // NewError404 creates a 404 NOT FOUND message.
 func NewError404(resourceType string, resourceID string) HttpError {
 	return HttpError{StatusCode: http.StatusNotFound, ResourceType: resourceType, ResourceID: resourceID}
+}
+
+// NewError403 creates a 403 FORBIDDEN message.
+func NewError403() HttpError {
+	return HttpError{StatusCode: http.StatusForbidden}
 }
 
 // String returns formatted HTTP error for human consumption.
@@ -199,6 +206,19 @@ func MakeMultiError(errors []error) error {
 	return &MultiError{errors}
 }
 
+// Error satisfies Error method on error interface and returns
+// a concatenated string of all error messages.
+func (m *MultiError) Error() string {
+	s := ""
+	for i := range m.errors {
+		if len(s) > 0 {
+			s += "; "
+		}
+		s += m.errors[i].Error()
+	}
+	return s
+}
+
 // GetDbErrors creates MultiError on error from DB.
 func GetDbErrors(db *gorm.DB) error {
 	errors := db.GetErrors()
@@ -215,17 +235,4 @@ func GetDbErrors(db *gorm.DB) error {
 		specificErrors[i] = DbToHttpError(err)
 	}
 	return MakeMultiError(specificErrors)
-}
-
-// Error satisfies Error method on error interface and returns
-// a concatenated string of all error messages.
-func (m *MultiError) Error() string {
-	s := ""
-	for i := range m.errors {
-		if len(s) > 0 {
-			s += "; "
-		}
-		s += m.errors[i].Error()
-	}
-	return s
 }

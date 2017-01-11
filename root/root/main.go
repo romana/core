@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"github.com/romana/core/common"
 	"github.com/romana/core/root"
-	"log"
+	log "github.com/romana/rlog"
 )
 
 // Main entry point for the root microservice
@@ -34,9 +34,20 @@ func main() {
 		fmt.Println("Must specify configFileName.")
 		return
 	}
+	if *cs.CreateSchema || *cs.OverwriteSchema {
+		err := root.CreateSchema(*cs.ConfigFile, *cs.OverwriteSchema)
+		if err != nil {
+			panic(err)
+		}
+	}
 	svcInfo, err := root.Run(*cs.ConfigFile)
-	for {
-		msg := <-svcInfo.Channel
-		log.Println(msg)
+	if err != nil {
+		panic(err)
+	}
+	if svcInfo != nil {
+		for {
+			msg := <-svcInfo.Channel
+			log.Info(msg)
+		}
 	}
 }

@@ -34,7 +34,7 @@ func startAgent(t *testing.T) {
 	}
 	rootURL := fmt.Sprintf("file://%s/testdata/root.json", cwd)
 	agent := &Agent{TestMode: true}
-	svcInfo, err := common.SimpleStartService(agent, rootURL)
+	svcInfo, err := common.SimpleStartService(agent, rootURL, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

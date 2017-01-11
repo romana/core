@@ -3,7 +3,6 @@ package enforcer
 import (
 	"github.com/romana/core/common"
 	"github.com/romana/core/pkg/util/iptsave"
-	"github.com/romana/core/tenant"
 	"testing"
 )
 
@@ -40,13 +39,13 @@ COMMIT
 	t.Log(iptables.Render() == expected)
 }
 
-type fakeTenantCache []tenant.Tenant
+type fakeTenantCache []common.Tenant
 
 func (t fakeTenantCache) Run(stop <-chan struct{}) <-chan string {
 	return make(chan string)
 }
-func (t fakeTenantCache) List() []tenant.Tenant {
-	return []tenant.Tenant(t)
+func (t fakeTenantCache) List() []common.Tenant {
+	return []common.Tenant(t)
 }
 
 type fakePolicyCache []common.Policy
@@ -69,31 +68,31 @@ func TestMakeTenantRules(t *testing.T) {
 		},
 	}
 
-	tenants := []tenant.Tenant{
-		tenant.Tenant{
+	tenants := []common.Tenant{
+		common.Tenant{
 			NetworkID: uint64(2),
-			Segments: []tenant.Segment{
-				tenant.Segment{
+			Segments: []common.Segment{
+				common.Segment{
 					NetworkID: uint64(20),
 				},
-				tenant.Segment{
+				common.Segment{
 					NetworkID: uint64(21),
 				},
-				tenant.Segment{
+				common.Segment{
 					NetworkID: uint64(22),
 				},
 			},
 		},
-		tenant.Tenant{
+		common.Tenant{
 			NetworkID: uint64(1),
-			Segments: []tenant.Segment{
-				tenant.Segment{
+			Segments: []common.Segment{
+				common.Segment{
 					NetworkID: uint64(10),
 				},
-				tenant.Segment{
+				common.Segment{
 					NetworkID: uint64(11),
 				},
-				tenant.Segment{
+				common.Segment{
 					NetworkID: uint64(12),
 				},
 			},
@@ -119,31 +118,31 @@ func TestMakePolicies(t *testing.T) {
 		},
 	}
 
-	tenants := []tenant.Tenant{
-		tenant.Tenant{
+	tenants := []common.Tenant{
+		common.Tenant{
 			NetworkID: uint64(2),
-			Segments: []tenant.Segment{
-				tenant.Segment{
+			Segments: []common.Segment{
+				common.Segment{
 					NetworkID: uint64(20),
 				},
-				tenant.Segment{
+				common.Segment{
 					NetworkID: uint64(21),
 				},
-				tenant.Segment{
+				common.Segment{
 					NetworkID: uint64(22),
 				},
 			},
 		},
-		tenant.Tenant{
+		common.Tenant{
 			NetworkID: uint64(1),
-			Segments: []tenant.Segment{
-				tenant.Segment{
+			Segments: []common.Segment{
+				common.Segment{
 					NetworkID: uint64(10),
 				},
-				tenant.Segment{
+				common.Segment{
 					NetworkID: uint64(11),
 				},
-				tenant.Segment{
+				common.Segment{
 					NetworkID: uint64(12),
 				},
 			},

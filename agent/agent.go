@@ -66,6 +66,7 @@ type Agent struct {
 
 // SetConfig implements SetConfig function of the Service interface.
 func (a *Agent) SetConfig(config common.ServiceConfig) error {
+	var err error
 	log.Trace(trace.Public, config)
 	a.config = config
 	leaseFileName := config.ServiceSpecific["lease_file"].(string)
@@ -74,9 +75,11 @@ func (a *Agent) SetConfig(config common.ServiceConfig) error {
 
 	a.waitForIfaceTry = int(config.ServiceSpecific["wait_for_iface_try"].(float64))
 	a.networkConfig = &NetworkConfig{}
-
-	a.store = *NewStore(config)
-
+	store, err := NewStore(config)
+	if err != nil {
+		return err
+	}
+	a.store = *store
 	log.Trace(trace.Inside, "Agent.SetConfig() finished.")
 	return nil
 }

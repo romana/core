@@ -20,7 +20,7 @@ import (
 	"testing"
 
 	"github.com/romana/core/common"
-	"github.com/romana/core/tenant"
+	//	"github.com/romana/core/tenant"
 
 	"k8s.io/client-go/1.5/pkg/api/v1"
 	"k8s.io/client-go/1.5/pkg/apis/extensions/v1beta1"
@@ -42,12 +42,12 @@ func TestTranslateTarget(t *testing.T) {
 	translator := Translator{
 		tenantsCache: []TenantCacheEntry{
 			TenantCacheEntry{
-				Tenant: tenant.Tenant{
+				Tenant: common.Tenant{
 					Name: "default",
 					ID:   3,
 				},
-				Segments: []tenant.Segment{
-					tenant.Segment{
+				Segments: []common.Segment{
+					common.Segment{
 						Name: "TestSegment",
 						ID:   2,
 					},
@@ -123,23 +123,23 @@ func TestMakeNextIngressPeer(t *testing.T) {
 	translator := Translator{
 		tenantsCache: []TenantCacheEntry{
 			TenantCacheEntry{
-				Tenant: tenant.Tenant{
+				Tenant: common.Tenant{
 					Name: "default",
 					ID:   3,
 				},
-				Segments: []tenant.Segment{
-					tenant.Segment{
+				Segments: []common.Segment{
+					common.Segment{
 						Name: "TestSegment",
 						ID:   2,
 					},
-					tenant.Segment{
+					common.Segment{
 						Name: "AnotherTestSegment",
 						ID:   3,
 					},
 				},
 			},
 			TenantCacheEntry{
-				Tenant: tenant.Tenant{
+				Tenant: common.Tenant{
 					Name: "source-tenant",
 					ID:   4,
 				},

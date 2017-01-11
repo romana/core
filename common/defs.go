@@ -18,9 +18,20 @@ package common
 // Definitions of common structures.
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"strings"
+)
+
+type FindFlag string
+
+const (
+	// Flags to store.Find operation
+	FindFirst      = "findFirst"
+	FindLast       = "findLast"
+	FindExactlyOne = "findExactlyOne"
+	FindAll        = "findAll"
 )
 
 // Here we only keep type definitions and struct definitions with no behavior.
@@ -42,7 +53,7 @@ const (
 	// 	 For passing in Gorilla Mux context the original body data
 	ContextKeyOriginalBody string = "OriginalBody"
 	ContextKeyMarshaller   string = "Marshaller"
-	ContextKeyRoles        string = "Roles"
+	ContextKeyUser         string = "User"
 	// DefaultRestTimeout, in milliseconds.
 	DefaultRestTimeout       = 500
 	DefaultRestRetryStrategy = "fibonacci"
@@ -79,13 +90,11 @@ const (
 	// Wildcard
 	Wildcard = "any"
 
-	// Name of root service
-	ServiceRoot = "root"
+	// Name of main Romana service
+	ServiceNameRoot = "root"
+	ServiceNameTest = "test"
+	FullConfigKey   = "fullConfig"
 )
-
-type TokenMessage struct {
-	Token string
-}
 
 // LinkResponse structure represents the commonly occurring
 // {
@@ -446,4 +455,44 @@ type Datacenter struct {
 
 func (dc Datacenter) String() string {
 	return String(dc)
+}
+
+// Tenant represents a tenant, a top-level entity.
+type Tenant struct {
+	ID uint64 `sql:"AUTO_INCREMENT" json:"id,omitempty"`
+	// ExternalID is an ID of this tenant in a system that is integrated
+	// with Romana: e.g., OpenStack.
+	ExternalID string    `sql:"not null" json:"external_id,omitempty" gorm:"COLUMN:external_id"`
+	Name       string    `json:"name,omitempty"`
+	Segments   []Segment `json:"segments,omitempty"`
+	NetworkID  uint64    `json:"network_id,omitempty"`
+}
+
+// Segment is a subdivision of tenant.
+type Segment struct {
+	ID         uint64 `sql:"AUTO_INCREMENT" json:"id,omitempty"`
+	ExternalID string `sql:"not null" json:"external_id,omitempty" gorm:"COLUMN:external_id"`
+	TenantID   uint64 `gorm:"COLUMN:tenant_id" json:"tenant_id,omitempty"`
+	Name       string `json:"name,omitempty"`
+	NetworkID  uint64 `json:"network_id,omitempty"`
+}
+
+// IPAMEndpoint represents an endpoint (a VM, a Kubernetes Pod, etc.)
+// that is to get an IP address.
+type IPAMEndpoint struct {
+	Ip           string         `json:"ip,omitempty"`
+	TenantID     string         `json:"tenant_id,omitempty"`
+	SegmentID    string         `json:"segment_id,omitempty"`
+	HostId       string         `json:"host_id,omitempty"`
+	Name         string         `json:"name,omitempty"`
+	RequestToken sql.NullString `json:"request_token" sql:"unique"`
+	// Ordinal number of this Endpoint in the host/tenant combination
+	NetworkID uint64 `json:"-"`
+	// Calculated effective network ID of this Endpoint --
+	// taking into account stride (endpoint space bits)
+	// and alignment thereof. This is used in IP calculation.
+	EffectiveNetworkID uint64 `json:"-"`
+	// Whether it is in use (for purposes of reclaiming)
+	InUse bool   `json:"-"`
+	Id    uint64 `sql:"AUTO_INCREMENT",json:"-"`
 }

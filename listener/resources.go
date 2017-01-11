@@ -25,7 +25,6 @@ import (
 
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/log/trace"
-	"github.com/romana/core/tenant"
 	log "github.com/romana/rlog"
 
 	"k8s.io/client-go/1.5/pkg/api"
@@ -110,8 +109,8 @@ func handleNamespaceEvent(e Event, l *KubeListener) {
 	log.Infof("KubeEvent: Processing namespace event == %v and phase %v", e.Type, namespace.Status)
 
 	if e.Type == KubeEventAdded {
-		tenantReq := tenant.Tenant{Name: namespace.ObjectMeta.Name, ExternalID: string(namespace.ObjectMeta.UID)}
-		tenantResp := tenant.Tenant{}
+		tenantReq := common.Tenant{Name: namespace.ObjectMeta.Name, ExternalID: string(namespace.ObjectMeta.UID)}
+		tenantResp := common.Tenant{}
 		log.Infof("KubeEventAdded: Posting to /tenants: %+v", tenantReq)
 		tenantUrl, err := l.restClient.GetServiceUrl("tenant")
 		if err != nil {

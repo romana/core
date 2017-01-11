@@ -33,23 +33,23 @@ func main() {
 		return
 	}
 
-	clientConfig := common.GetDefaultRestClientConfig(*rootURL)
+	clientConfig := common.GetDefaultRestClientConfig(*rootURL, nil)
 	client, err := common.NewRestClient(clientConfig)
 	if err != nil {
 		fmt.Printf("Error %s", err)
 		return
 	}
 
-	cache := cache.New(client, cache.Config{CacheTickSeconds: 10})
+	c := cache.New(client, cache.Config{CacheTickSeconds: 10})
 
 	stop := make(chan struct{})
-	update := cache.Run(stop)
+	update := c.Run(stop)
 
 	for {
 		select {
 		case hash := <-update:
 			fmt.Printf("New tenant hash %s\n", hash)
-			PrintTenant(cache)
+			PrintTenant(c)
 		}
 	}
 }

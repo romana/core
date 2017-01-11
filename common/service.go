@@ -23,8 +23,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/codegangsta/negroni"
-	config "github.com/spf13/viper"
-	"io/ioutil"
+	"github.com/spf13/viper"
 	clog "log"
 	"net"
 	"net/http"
@@ -172,11 +171,11 @@ type Service interface {
 func setupHooks(routes Routes, hooks []Hook) error {
 	for i, hook := range hooks {
 		if strings.ToLower(hook.When) != "before" && strings.ToLower(hook.When) != "after" {
-			return errors.New(fmt.Sprintf("InitializeService(): Invalid value for when: %s", hook.When))
+			return errors.New(fmt.Sprintf("Invalid value for when: %s", hook.When))
 		}
 		m := strings.ToUpper(hook.Method)
 		if m != "POST" && m != "PUT" && m != "GET" && m != "DELETE" && m != "HEAD" {
-			return errors.New(fmt.Sprintf("Invalid method: %s", m))
+			return errors.New(fmt.Sprintf("Invalid method for use with a hook: %s", m))
 		}
 		found := false
 		for j, _ := range routes {
@@ -184,24 +183,24 @@ func setupHooks(routes Routes, hooks []Hook) error {
 			if r.Pattern == hook.Pattern && strings.ToUpper(r.Method) == m {
 				found = true
 				r.Hook = &hooks[i]
-				log.Infof("InitializeService(): [%d] Added hook to run %s %s %s %s", j, hook.Executable, hook.When, r.Method, r.Pattern)
+				log.Infof("[%d] Added hook to run %s %s %s %s", j, hook.Executable, hook.When, r.Method, r.Pattern)
 				break
 			}
 		}
 
 		for i, r := range routes {
-			log.Infof("InitializeService(): Modified route[%d]: %s %s %v", i, r.Method, r.Pattern, r.Hook)
+			log.Infof("Modified route[%d]: %s %s %v", i, r.Method, r.Pattern, r.Hook)
 		}
 		if !found {
 			return errors.New(fmt.Sprintf("No route matching pattern %s and method %s found in %v", hook.Pattern, hook.Method, routes))
 		}
 		finfo, err := os.Stat(hook.Executable)
 		if err != nil {
-			return errors.New(fmt.Sprintf("Problem with specified executable %s: %v", hook.Executable, err))
+			return errors.New(fmt.Sprintf("Problem with specified hook executable %s: %v", hook.Executable, err))
 		}
 
 		if finfo.Mode().Perm()&0111 == 0 {
-			return errors.New(fmt.Sprintf("%s is not an executable", hook.Executable))
+			return errors.New(fmt.Sprintf("Hook %s is not an executable", hook.Executable))
 		}
 	}
 	return nil
@@ -209,7 +208,7 @@ func setupHooks(routes Routes, hooks []Hook) error {
 }
 
 // initNegroni initializes Negroni with all the middleware and starts it.
-func initNegroni(routes Routes, config ServiceConfig) (*RestServiceInfo, error) {
+func initNegroni(routes Routes, service Service, config ServiceConfig, client *RestClient) (*RestServiceInfo, error) {
 	var err error
 	// Create negroni
 	negroni := negroni.New()
@@ -221,19 +220,15 @@ func initNegroni(routes Routes, config ServiceConfig) (*RestServiceInfo, error) 
 	// ct := w.Header().Get("Content-Type")
 	// where w is http.ResponseWriter
 	negroni.Use(NewNegotiator())
+
 	// Unmarshal data from the content-type format
 	// into a map
 	negroni.Use(NewUnmarshaller())
-	pubKeyLocation := config.Common.Api.AuthPublic
-	if pubKeyLocation != "" {
-		log.Infof("Reading public key from %s", pubKeyLocation)
-		config.Common.PublicKey, err = ioutil.ReadFile(pubKeyLocation)
-	}
+
+	authMiddleware, err := NewAuthMiddleware(service, config, client)
 	if err != nil {
 		return nil, err
 	}
-	// We use the public key of root server to check the token.
-	authMiddleware := AuthMiddleware{PublicKey: config.Common.PublicKey}
 	negroni.Use(authMiddleware)
 
 	timeoutMillis := getTimeoutMillis(config.Common)
@@ -266,7 +261,7 @@ func getTimeoutMillis(config CommonConfig) int64 {
 // allows the caller to wait for a message from the running
 // service. Messages are of type ServiceMessage above.
 // It can be used for launching service from tests, etc.
-func InitializeService(service Service, config ServiceConfig, credential *Credential) (*RestServiceInfo, error) {
+func InitializeService(service Service, config ServiceConfig, cred *Credential) (*RestServiceInfo, error) {
 	log.Infof("Initializing service %s with %v", service.Name(), config.Common.Api)
 	var err error
 	routes := service.Routes()
@@ -282,23 +277,14 @@ func InitializeService(service Service, config ServiceConfig, credential *Creden
 	}
 
 	// Create Rest client and initialize service with it.
-	retries := config.Common.Api.RestRetries
-	if retries <= 0 {
-		retries = DefaultRestRetries
-	}
-	clientConfig := RestClientConfig{TimeoutMillis: getTimeoutMillis(config.Common),
-		Retries:    retries,
-		RootURL:    config.Common.Api.RootServiceUrl,
-		TestMode:   config.Common.Api.RestTestMode,
-		Credential: credential,
-	}
+	clientConfig := GetRestClientConfig(config, cred)
 	client, err := NewRestClient(clientConfig)
 	if err != nil {
 		return nil, err
 	}
 	service.Initialize(client)
 
-	svcInfo, err := initNegroni(routes, config)
+	svcInfo, err := initNegroni(routes, service, config, client)
 	if err != nil {
 		return nil, err
 	}
@@ -312,7 +298,7 @@ func InitializeService(service Service, config ServiceConfig, credential *Creden
 		port64 := uint64(port)
 		config.Common.Api.Port = port64
 		// Also register this with root service if we are not root ourselves.
-		if service.Name() != ServiceRoot {
+		if service.Name() != ServiceNameRoot {
 			result := make(map[string]interface{})
 			portMsg := PortUpdateMessage{Port: port64}
 			url := fmt.Sprintf("%s/config/%s/port", config.Common.Api.RootServiceUrl, service.Name())
@@ -424,52 +410,60 @@ func NewCliState() *CliState {
 // credentials.
 func (cs *CliState) Init() error {
 	cs.flagSet.Parse(os.Args[1:])
-	config.SetConfigName(".romana") // name of config file (without extension)
-	config.SetConfigType("yaml")
-	config.AddConfigPath("$HOME") // adding home directory as first search path
-	config.AutomaticEnv()         // read in environment variables that match
+	viper.SetConfigName(".romana") // name of config file (without extension)
+	viper.SetConfigType("yaml")
+	viper.AddConfigPath("$HOME") // adding home directory as first search path
+	viper.AutomaticEnv()         // read in environment variables that match
 
 	// If a config file is found, read it in.
-	err := config.ReadInConfig()
+	err := viper.ReadInConfig()
 	if err != nil {
 		switch err := err.(type) {
-		case config.ConfigFileNotFoundError:
-			// For now do nothing
+		case viper.ConfigFileNotFoundError:
+			log.Infof("Ignoring error: %s", err)
 		case *os.PathError:
 			if err.Error() != "open : no such file or directory" {
 				return err
 			}
+			log.Infof("Config file not found")
 		default:
 			return err
 		}
 	}
-	log.Infof("Using config file: %s", config.ConfigFileUsed())
-	err = cs.credential.Initialize()
+	err = nil
+	log.Infof("Using config file: %s", viper.ConfigFileUsed())
+	if cs.credential != nil && cs.credential.flagSet != nil {
+		err = cs.credential.Initialize()
+	}
 	return err
 }
 
 // SimpleOverwriteSchema is intended to be used from tests, it provides
 // a shortcut for the overwriteSchema functionality.
-func SimpleOverwriteSchema(svc Service, rootURL string) error {
+func SimpleOverwriteSchema(svc Service, rootURL string, cred *Credential) error {
 	cs := NewCliState()
 	overwriteSchema := true
+	cs.credential = cred
 	cs.RootURL = &rootURL
 	cs.OverwriteSchema = &overwriteSchema
 	_, err := cs.StartService(svc)
 	return err
 }
 
-func SimpleStartService(svc Service, rootURL string) (*RestServiceInfo, error) {
+func SimpleStartService(svc Service, rootURL string, cred *Credential) (*RestServiceInfo, error) {
+	log.Tracef(1, "Entering SimpleStartService for %s", svc.Name())
 	cs := NewCliState()
+	cs.credential = cred
 	cs.RootURL = &rootURL
 	rsi, err := cs.StartService(svc)
 	return rsi, err
 }
 
-// Init calls Init() and starts the provided service (or,
+// StartService calls Init() and starts the provided service (or,
 // does what is required by command-line arguments, such as printing
 // usage info or version).
 func (c *CliState) StartService(svc Service) (*RestServiceInfo, error) {
+	log.Tracef(1, "Starting service %s", svc.Name())
 	err := c.Init()
 	if err != nil {
 		return nil, err
@@ -480,7 +474,7 @@ func (c *CliState) StartService(svc Service) (*RestServiceInfo, error) {
 		return nil, nil
 	}
 
-	if svc.Name() == "root" {
+	if svc.Name() == ServiceNameRoot {
 		// Root is special, we do not launch it here. Root's main
 		// will do it.
 		return nil, nil
@@ -491,20 +485,18 @@ func (c *CliState) StartService(svc Service) (*RestServiceInfo, error) {
 		}
 	}
 
-	clientConfig := GetDefaultRestClientConfig(*c.RootURL)
-	clientConfig.Credential = c.credential
+	clientConfig := GetDefaultRestClientConfig(*c.RootURL, c.credential)
 	client, err := NewRestClient(clientConfig)
 	if err != nil {
 		return nil, err
 	}
-
-	config, err := client.GetServiceConfig(svc.Name())
+	serviceConfig, err := client.GetServiceConfig(svc.Name())
 	if err != nil {
 		return nil, err
 	}
 
 	if *c.CreateSchema || *c.OverwriteSchema {
-		svc.SetConfig(*config)
+		svc.SetConfig(*serviceConfig)
 		err := svc.CreateSchema(*c.OverwriteSchema)
 		if err != nil {
 			return nil, err
@@ -513,5 +505,5 @@ func (c *CliState) StartService(svc Service) (*RestServiceInfo, error) {
 		return nil, nil
 	}
 
-	return InitializeService(svc, *config, c.credential)
+	return InitializeService(svc, *serviceConfig, c.credential)
 }

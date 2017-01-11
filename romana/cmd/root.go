@@ -47,8 +47,7 @@ var (
 // built at initalization.
 func getRestClient() (*common.RestClient, error) {
 	rootURL := config.GetString("RootURL")
-	cfg := common.GetDefaultRestClientConfig(rootURL)
-	cfg.Credential = credential
+	cfg := common.GetDefaultRestClientConfig(rootURL, credential)
 	return common.NewRestClient(cfg)
 }
 
