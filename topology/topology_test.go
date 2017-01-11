@@ -189,8 +189,7 @@ func (s *MySuite) TestTopology(c *check.C) {
 	newHostResp := common.Host{}
 	err = client.Post(hostsRelURL, newHostReq, &newHostResp)
 	if err != nil {
-		c.Error(err)
-		c.FailNow()
+		c.Fatal(err)
 	}
 	myLog(c, "Response: ", newHostResp)
 	myLog(c, "Waiting for....", time.Hour)
@@ -208,7 +207,9 @@ func (s *MySuite) TestTopology(c *check.C) {
 	myLog(c, "Response: ", newHostResp)
 
 	err = client.Post(hostsRelURL, newHostReq, &newHostResp)
-
+	if err == nil {
+		c.Fatalf("Expected an error on adding a duplicate host...")
+	}
 	httpErr := err.(*common.HttpError)
 	myLog(c, "Attempt to add duplicate host: %v", httpErr)
 	c.Assert(httpErr.StatusCode, check.Equals, 409)

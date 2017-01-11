@@ -20,7 +20,6 @@ import (
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/store"
 	"log"
-	"strconv"
 )
 
 // Backing store

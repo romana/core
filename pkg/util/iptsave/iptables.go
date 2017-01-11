@@ -127,10 +127,10 @@ func (i *IPtable) ChainByName(name string) *IPchain {
 
 // IPchain represents a chain in iptables.
 type IPchain struct {
-	Name     string
-	Policy   string
-	Counters string
-	Rules    []*IPrule
+	Name        string
+	Policy      string
+	Counters    string
+	Rules       []*IPrule
 	RenderState RenderState
 }
 

@@ -90,7 +90,7 @@ func (kvStore *KvStore) Connect() error {
 
 // reclaimID returns the ID into the pool.
 func (kvStore *KvStore) reclaimID(key string, id uint64) error {
-	lockKey := fmt.Sprintf("%s/lock", key)
+	lockKey := fmt.Sprintf("%s_lock", key)
 	lock, err := kvStore.Db.NewLock(lockKey, nil)
 	if err != nil {
 		return err
@@ -104,8 +104,7 @@ func (kvStore *KvStore) reclaimID(key string, id uint64) error {
 
 	select {
 	default:
-		idRingKey := fmt.Sprintf("%s/ids", key)
-		idRingKvPair, err := kvStore.Db.Get(idRingKey)
+		idRingKvPair, err := kvStore.Db.Get(key)
 		if err != nil {
 			return err
 		}
@@ -121,7 +120,7 @@ func (kvStore *KvStore) reclaimID(key string, id uint64) error {
 		if err != nil {
 			return err
 		}
-		err = kvStore.Db.Put(idRingKey, idRingBytes, nil)
+		err = kvStore.Db.Put(key, idRingBytes, nil)
 		if err != nil {
 			return err
 		}
@@ -134,30 +133,51 @@ func (kvStore *KvStore) reclaimID(key string, id uint64) error {
 
 // getID returns the next sequential ID for the specified key.
 func (kvStore *KvStore) getID(key string) (uint64, error) {
+	log.Debugf("getID: %s", key)
 	var id uint64
-	lockKey := fmt.Sprintf("%s/lock", key)
+	lockKey := fmt.Sprintf("%s_lock", key)
 	lock, err := kvStore.Db.NewLock(lockKey, nil)
 	if err != nil {
+		log.Errorf("getID: Error acquiring lock for %s: %s", lockKey, err)
 		return 0, err
 	}
+	log.Debugf("getID: Acquired lock for %s", lockKey)
 	stopChan := make(chan struct{})
+	log.Debugf("getID: Attempting to lock")
 	ch, err := lock.Lock(stopChan)
 	if err != nil {
+		log.Errorf("getID: Error locking lock %s: %s", lock, err)
 		return 0, err
 	}
-	defer lock.Unlock()
+	log.Debugf("getID: Locked.")
 
+	// This really is just a defer of Unlock()
+	// but wrapped in a function to add logging.
+	defer func() {
+		err := lock.Unlock()
+		if err != nil {
+			log.Errorf("getID: Error unlocking %s", lockKey)
+		} else {
+			log.Debugf("getID: Unlocked lock %s", lockKey)
+		}
+	}()
+	log.Debugf("getID: Entering select")
 	select {
 	default:
-		idRingKey := fmt.Sprintf("%s/ids", key)
-		idRingKvPair, err := kvStore.Db.Get(idRingKey)
+		log.Debugf("getID: In default of select")
+		log.Debugf("getID: Fetching %s", key)
+		idRingKvPair, err := kvStore.Db.Get(key)
+		log.Debugf("getID: Got %s", *idRingKvPair)
 		if err != nil {
+			log.Debugf("getID: Error fetching %s: %s", key, err)
 			return 0, err
 		}
+		log.Debugf("getID: Got %s", *idRingKvPair)
 		idRing, err := common.DecodeIDRing(idRingKvPair.Value)
 		if err != nil {
 			return 0, err
 		}
+		log.Debugf("getID: Got %s", idRing)
 		id, err = idRing.GetID()
 		if err != nil {
 			return 0, err
@@ -166,12 +186,13 @@ func (kvStore *KvStore) getID(key string) (uint64, error) {
 		if err != nil {
 			return 0, err
 		}
-		err = kvStore.Db.Put(idRingKey, idRingBytes, nil)
+		err = kvStore.Db.Put(key, idRingBytes, nil)
 		if err != nil {
 			return 0, err
 		}
 		return id, nil
-	case <-ch:
+	case msg := <-ch:
+		log.Debugf("getID: Received from channel: %s", msg)
 		return id, nil
 	}
 }
@@ -179,11 +200,12 @@ func (kvStore *KvStore) getID(key string) (uint64, error) {
 // CreateSchema creates the schema in this DB. If force flag
 // is specified, the schema is dropped and recreated.
 func (kvStore *KvStore) CreateSchema(force bool) error {
+	log.Debugf("Creating schema for %s", kvStore.Config.Database)
 	err := kvStore.Connect()
 	if err != nil {
 		return err
 	}
-	toInit := []string{"hosts/ids", "tenant/ids", "segment/ids"}
+	toInit := []string{"hosts_ids", "tenant_ids", "segment_ids"}
 	for _, s := range toInit {
 		key := kvStore.makeKey(s)
 		ring := common.NewIDRing()
@@ -211,19 +233,20 @@ func (kvStore *KvStore) makeKey(suffix string, args ...interface{}) string {
 	}
 	key := fmt.Sprintf("/%s/%s", kvStore.Config.Database, suffix)
 	key = libkvStore.Normalize(key)
+	key = strings.Replace(key, "//", "/", -1)
 	return key
 }
 
 func (kvStore *KvStore) AddHost(dc common.Datacenter, host *common.Host) error {
 	var err error
-	hostsKey := kvStore.makeKey("network/hosts/ids")
+	hostsKey := kvStore.makeKey("hosts_ids")
 	if host.ID == 0 {
 		host.ID, err = kvStore.getID(hostsKey)
-		log.Debugf("AddHost: Made ID %d", host.ID)
 		if err != nil {
 			log.Debugf("AddHost: Error getting new ID: %s", err)
 			return err
 		}
+		log.Debugf("AddHost: Made ID %d", host.ID)
 	}
 
 	romanaIP := strings.TrimSpace(host.RomanaIp)
@@ -234,7 +257,7 @@ func (kvStore *KvStore) AddHost(dc common.Datacenter, host *common.Host) error {
 			return err
 		}
 	}
-	key := kvStore.makeKey("network/hosts/%d", host.ID)
+	key := kvStore.makeKey("hosts/%d", host.ID)
 	value, err := json.Marshal(host)
 	if err != nil {
 		log.Debugf("AddHost: Error marshalling host: %s", err)
@@ -256,13 +279,13 @@ func (kvStore *KvStore) DeleteHost(hostID uint64) error {
 		return fmt.Errorf("error deleting host, hostID not present.")
 	}
 
-	key := kvStore.makeKey("network/hosts/%d", hostID)
+	key := kvStore.makeKey("hosts/%d", hostID)
 	err := kvStore.Db.Delete(key)
 	if err != nil {
 		log.Debugf("DeleteHost: Error %s", err)
 		return err
 	}
-	hostsKey := kvStore.makeKey("network/hosts/ids")
+	hostsKey := kvStore.makeKey("hosts_ids")
 	err = kvStore.reclaimID(hostsKey, hostID)
 	if err != nil {
 		log.Debugf("DeleteHost: Error %s", err)
@@ -274,7 +297,8 @@ func (kvStore *KvStore) DeleteHost(hostID uint64) error {
 func (kvStore *KvStore) ListHosts() ([]common.Host, error) {
 	log.Trace(trace.Public, "KvStore.ListHosts()")
 	var err error
-	key := kvStore.makeKey("network/hosts/")
+	key := kvStore.makeKey("hosts/")
+	log.Debugf("ListHosts(): Listing %s", key)
 	exists, err := kvStore.Db.Exists(key)
 	if err != nil {
 		log.Debugf("ListHosts: Error %s", err)
@@ -302,7 +326,7 @@ func (kvStore *KvStore) ListHosts() ([]common.Host, error) {
 
 func (kvStore KvStore) GetHost(hostID uint64) (common.Host, error) {
 	host := common.Host{}
-	key := kvStore.makeKey("network/hosts/%d", hostID)
+	key := kvStore.makeKey("hosts/%d", hostID)
 	exists, err := kvStore.Db.Exists(key)
 	if err != nil {
 		log.Debugf("GetHost: Error %s", err)

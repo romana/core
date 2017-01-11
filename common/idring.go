@@ -16,8 +16,7 @@
 package common
 
 import (
-	"bytes"
-	"encoding/gob"
+	"encoding/json"
 	"fmt"
 	"github.com/romana/core/common/log/trace"
 	log "github.com/romana/rlog"
@@ -81,21 +80,14 @@ func NewIDRing() IDRing {
 
 // Encode encodes the IDRing into an array of bytes.
 func (ir IDRing) Encode() ([]byte, error) {
-	buf := new(bytes.Buffer)
-	encoder := gob.NewEncoder(buf)
-	err := encoder.Encode(ir)
-	if err != nil {
-		return nil, err
-	}
-	return buf.Bytes(), nil
+	return json.Marshal(ir)
+
 }
 
 // DecodeIDRing decodes IDRing object from the byte array.
 func DecodeIDRing(data []byte) (IDRing, error) {
-	buf := bytes.NewBuffer(data)
-	decoder := gob.NewDecoder(buf)
 	idRing := IDRing{}
-	err := decoder.Decode(&idRing)
+	err := json.Unmarshal(data, &idRing)
 	if err != nil {
 		return idRing, err
 	}

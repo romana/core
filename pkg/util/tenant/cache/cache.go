@@ -20,7 +20,6 @@ import (
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/log/trace"
 	"github.com/romana/core/pkg/util/tenant/hasher"
-	"github.com/romana/core/tenant"
 	log "github.com/romana/rlog"
 	"sync"
 	"time"
@@ -36,7 +35,7 @@ type Interface interface {
 	Run(stop <-chan struct{}) <-chan string
 
 	// Returns a list of objects in cache.
-	List() []tenant.Tenant
+	List() []common.Tenant
 }
 
 // Config represents configuration for the tenant cache.
@@ -52,7 +51,7 @@ type Cache struct {
 	// Delay between main loop runs.
 	ticker <-chan time.Time
 
-	store []tenant.Tenant
+	store []common.Tenant
 
 	mu *sync.Mutex
 
@@ -109,7 +108,7 @@ func (c *Cache) Run(stop <-chan struct{}) <-chan string {
 }
 
 // List implements Interface.
-func (c *Cache) List() []tenant.Tenant {
+func (c *Cache) List() []common.Tenant {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -118,8 +117,8 @@ func (c *Cache) List() []tenant.Tenant {
 }
 
 // getNewState retrieves tenants from romana Tenant service.
-func (c *Cache) getNewState(client *common.RestClient) ([]tenant.Tenant, error) {
-	tenants := []tenant.Tenant{}
+func (c *Cache) getNewState(client *common.RestClient) ([]common.Tenant, error) {
+	tenants := []common.Tenant{}
 
 	tenantURL, err := client.GetServiceUrl("tenant")
 	if err != nil {
