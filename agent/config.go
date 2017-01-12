@@ -16,7 +16,9 @@
 package agent
 
 import (
+	"fmt"
 	"net"
+	"strings"
 	"sync"
 
 	"github.com/romana/core/common"
@@ -96,21 +98,89 @@ func (c *NetworkConfig) updateRomanaGWMask(ipnet *net.IPNet) {
 	c.Lock()
 	defer c.Unlock()
 
+	log.Tracef(4, "Current Romana Gateway: %s/%s", c.romanaGW, c.romanaGWMask)
+	log.Tracef(4, "New Romana Gateway: %s", ipnet.String())
+
 	c.oldRomanaGW = c.romanaGW
 	c.oldRomanaGWMask = c.romanaGWMask
 	c.romanaGW = ipnet.IP
 	c.romanaGWMask = ipnet.Mask
 }
 
-// identifyCurrentHost discovers network configuration
+// identifyCurrentHost contacts topology service and get
+// details about the node the agent is running on, it then
+// populates IP and Mask fields, by comparing hostname with
+// one received from topology service.
+func (a Agent) identifyCurrentHost() error {
+	log.Trace(trace.Private, "In Agent identifyCurrentHost()")
+
+	topologyURL, err := a.client.GetServiceUrl("topology")
+	if err != nil {
+		return agentError(err)
+	}
+	index := common.IndexResponse{}
+	err = a.client.Get(topologyURL, &index)
+	if err != nil {
+		return agentError(err)
+	}
+	dcURL := index.Links.FindByRel("datacenter")
+	a.networkConfig.dc = common.Datacenter{}
+	err = a.client.Get(dcURL, &a.networkConfig.dc)
+	if err != nil {
+		return agentError(err)
+	}
+
+	hostURL := index.Links.FindByRel("host-list")
+	hosts := []common.Host{}
+	err = a.client.Get(hostURL, &hosts)
+	if err != nil {
+		return agentError(err)
+	}
+	log.Trace(trace.Inside, "Retrieved hosts list, found", len(hosts), "hosts")
+
+	addrs, err := net.InterfaceAddrs()
+	if err != nil {
+		return err
+	}
+
+	log.Tracef(trace.Inside, "Searching %d interfaces for a matching host configuration: %v", len(addrs), addrs)
+
+	for _, host := range hosts {
+		for _, addr := range addrs {
+			if strings.Contains(addr.String(), host.Ip) {
+
+				_, ipnet, err := net.ParseCIDR(host.RomanaIp)
+				if err != nil {
+					return fmt.Errorf("Unable to parse Romana IP Address: %s", host.RomanaIp)
+				}
+
+				romanaIP, err := getFirstIPinCIDR(ipnet)
+				if err != nil {
+					fmt.Println(err)
+				}
+				log.Debug("Assigning Romana IP: ", romanaIP)
+
+				a.networkConfig.updateRomanaGWMask(romanaIP)
+
+				log.Trace(trace.Inside, "Found match for host", host, "using address", addr)
+
+				return nil
+			}
+		}
+	}
+
+	return agentErrorString("Unable to identify current host, host not added to romana cluster.")
+}
+
+// updateRoutes discovers network configuration
 // of the host we are running on.
 // We need to know public IP and Romana gateway IP of the current host.
 // This is done by matching current host IP addresses against what topology
 // service thinks the host address is.
 // If no match is found we assume we are running on host which is not
 // part of the Romana setup and spit error out.
-func (a Agent) identifyCurrentHost() error {
-	log.Trace(trace.Private, "In Agent identifyCurrentHost()")
+func (a Agent) updateRoutes() error {
+	log.Trace(trace.Private, "In Agent updateRoutes()")
 
 	topologyURL, err := a.client.GetServiceUrl("topology")
 	if err != nil {
@@ -212,4 +282,20 @@ func (a Agent) identifyCurrentHost() error {
 		}
 	}
 	return agentErrorString("Unable to find interface matching any Romana CIDR")
+}
+
+func getFirstIPinCIDR(ipnet *net.IPNet) (*net.IPNet, error) {
+	ip := ipnet.IP.Mask(ipnet.Mask)
+	for i := len(ip) - 1; i >= 0; i-- {
+		ip[i]++
+		if ip[i] > 0 {
+			break
+		}
+	}
+
+	if !ipnet.Contains(ip) {
+		return &net.IPNet{}, fmt.Errorf("Error, no more IP address left in the network provided: %s", ipnet.String())
+	}
+
+	return &net.IPNet{IP: ip, Mask: ipnet.Mask}, nil
 }

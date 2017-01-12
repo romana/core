@@ -148,7 +148,7 @@ func (a Agent) routePopulate(stop <-chan struct{}, routeRefreshSeconds int) {
 		select {
 		case <-routeRefresh:
 			log.Trace(trace.Inside, "Populating routes from topology service now: ", time.Now())
-			if err := a.identifyCurrentHost(); err != nil {
+			if err := a.updateRoutes(); err != nil {
 				log.Error("Agent routePopulate: ", err)
 			}
 			log.Debug("Agent routeSet updated routes successfully.")
