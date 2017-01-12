@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Pani Networks
+// Copyright (c) 2017 Pani Networks
 // All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -282,7 +282,10 @@ func InitializeService(service Service, config ServiceConfig, cred *Credential) 
 	if err != nil {
 		return nil, err
 	}
-	service.Initialize(client)
+
+	if err := service.Initialize(client); err != nil {
+		return nil, err
+	}
 
 	svcInfo, err := initNegroni(routes, service, config, client)
 	if err != nil {
