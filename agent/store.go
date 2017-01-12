@@ -57,17 +57,22 @@ func (agentStore *agentStore) Entities() []interface{} {
 // NewStore returns initialized agentStore.
 func NewStore(config common.ServiceConfig) (*agentStore, error) {
 	storeConfigMap := config.ServiceSpecific["store"].(map[string]interface{})
-	store := agentStore{
+	datastore := agentStore{
 		mu: &sync.RWMutex{},
 	}
-	store.ServiceStore = &store
+	rdbmsStore, err := store.GetStore(storeConfigMap)
+	if err != nil {
+		return nil, err
+	}
+	datastore.RdbmsStore = rdbmsStore.(*store.RdbmsStore)
+	datastore.ServiceStore = &datastore
 	storeConfig, err := common.MakeStoreConfig(storeConfigMap)
 	if err != nil {
 		return nil, err
 	}
-	store.SetConfig(storeConfig)
+	datastore.SetConfig(storeConfig)
 
-	return &store, nil
+	return &datastore, nil
 }
 
 // Route is a model to store managed routes
