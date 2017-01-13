@@ -135,7 +135,10 @@ func GetStore(configMap map[string]interface{}) (common.Store, error) {
 	default:
 		return nil, common.NewError("Unknown store type: '%s'", config.Type)
 	case common.StoreTypeMysql, common.StoreTypeSqlite3:
-		store = &RdbmsStore{}
+		rdbmsStore := &RdbmsStore{}
+		rdbmsStore.ServiceStore = rdbmsStore
+		rdbmsStore.DbStore.ServiceStore = rdbmsStore
+		store = rdbmsStore
 	case common.StoreTypeEtcd:
 		store = &KvStore{}
 	}
