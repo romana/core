@@ -224,12 +224,10 @@ func (topology *TopologySvc) SetConfig(config common.ServiceConfig) error {
 	//	}
 	log.Printf("Datacenter information: was %s, decoded to %+v\n", dcMap, dc)
 	topology.datacenter = &dc
-	storeConfig := config.ServiceSpecific["store"].(map[string]interface{})
-	topology.store, err = store.GetStore(storeConfig)
-	if err != nil {
-		return err
-	}
-	return nil
+
+	storeConfigMap := config.ServiceSpecific["store"].(map[string]interface{})
+	topology.store, err = store.GetStore(storeConfigMap)
+	return err
 }
 
 // Initialize the topology service
