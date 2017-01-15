@@ -119,3 +119,9 @@
 [submodule "vendor/github.com/vishvananda/netns"]
 	path = vendor/github.com/vishvananda/netns
 	url = https://github.com/vishvananda/netns
+[submodule "vendor/github.com/ugorji/go"]
+	path = vendor/github.com/ugorji/go
+	url = https://github.com/ugorji/go
+[submodule "vendor/golang.org/x/net"]
+	path = vendor/golang.org/x/net
+	url = https://go.googlesource.com/net
