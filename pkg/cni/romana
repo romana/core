@@ -173,7 +173,7 @@ ipam_allocate_ip () {
     romana_segment_id=$(find_romana_id 'segment' 'name' $segment)
     romana_host_id=$(find_romana_id 'host' 'name' $node)
     ipam_service_url=$(find_romana_service 'ipam')
-    url="${ipam_service_url}/endpoints"
+    url="${ipam_service_url}/IPAMEndpoints"
     payload="{\"tenant_id\" : \"${romana_tenant_id}\", \"segment_id\" : \"${romana_segment_id}\", \"host_id\" : \"${romana_host_id}\" }"
     ip=`curl -s -H 'content-type: application/json' -X POST -d "${payload}" $url | jq '.ip' | sed -e "s/\"//g"`
     echo $ip
@@ -271,7 +271,7 @@ pod_down () {
     curl -s -XDELETE -H 'content-type: application/json' -d "$(req "${IFACE}" "$POD_IP")" http://localhost:9604/pod 2>&1 >> $LOGFILE
 
     # Deallocate ip address
-    curl -s -XDELETE "http://$ROMANA_MASTER_IP:9601/endpoints/$POD_IP"
+    curl -s -XDELETE "http://$ROMANA_MASTER_IP:9601/IPAMEndpoints/$POD_IP"
 
     # Restore stdout - ready to talk back to kubernetes
     exec 1>&6
