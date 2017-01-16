@@ -13,8 +13,8 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Package kvstore provides a flexible key value backend to be used
-// with romana servies based of on docker/libkv.
+// Package store provides routines for backing storage,
+// currently supporting libkv and RDBMS-based backends.
 package store
 
 import (
