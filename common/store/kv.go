@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Pani Networks
+// Copyright (c) 2016-2017 Pani Networks
 // All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -13,8 +13,8 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Package kvstore provides a flexible key value backend to be used
-// with romana servies based of on docker/libkv.
+// Package store provides a flexible key value backend to be used
+// with Romana services based of on docker/libkv.
 package store
 
 import (
@@ -23,8 +23,8 @@ import (
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/log/trace"
 	log "github.com/romana/rlog"
-
 	"net/url"
+	"reflect"
 
 	"strings"
 	"time"
@@ -53,9 +53,49 @@ type KvStore struct {
 	Db     RomanaLibkvStore
 }
 
-// Currently unimplemented
+// Find generically implements Find() of Store interface
+// for KvStore.
 func (kvStore *KvStore) Find(query url.Values, entities interface{}, flag common.FindFlag) (interface{}, error) {
-	return nil, nil
+	// TODO this is intended as a temporary fix for CNI that looks for
+	// host based on name. A more generic solution will come later.
+
+	ptrToArrayType := reflect.TypeOf(entities)
+	arrayType := ptrToArrayType.Elem()
+	newEntities := reflect.New(arrayType).Interface()
+	t := reflect.TypeOf(newEntities).Elem().Elem()
+	hostType := reflect.TypeOf(common.Host{})
+	if t.Name() != hostType.Name() {
+		return nil, common.NewError500(fmt.Sprintf("Cannot look for %s", t.Name()))
+	}
+	hostName := query.Get("name")
+	if flag != common.FindLast {
+		return nil, common.NewError500(fmt.Sprintf("Unsupported flag %s", flag))
+	}
+
+	key := kvStore.makeKey("hosts")
+	log.Debugf("KvStore.Find(): Made key %s from %s", key, t.Name())
+
+	kvPairs, err := kvStore.Db.List(key)
+	if kvPairs == nil || len(kvPairs) == 0 {
+		return nil, common.NewError404("host", fmt.Sprintf("name=%s", hostName))
+	}
+
+	var goodHost *common.Host
+	for _, kvPair := range kvPairs {
+		curHost := &common.Host{}
+		err = json.Unmarshal(kvPair.Value, curHost)
+		if err != nil {
+			return nil, err
+		}
+		log.Printf("Checking %s against %s", curHost.Name, hostName)
+		if curHost.Name == hostName {
+			goodHost = curHost
+		}
+	}
+	if goodHost == nil {
+		return nil, common.NewError404("name", hostName)
+	}
+	return *goodHost, nil
 }
 
 // SetConfig sets the config object from a map.

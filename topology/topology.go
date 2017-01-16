@@ -89,11 +89,26 @@ func (topology *TopologySvc) Routes() common.Routes {
 			MakeMessage:     nil,
 			UseRequestToken: false,
 		},
+		// TODO to be done generically
+		common.Route{
+			Method:          "GET",
+			Pattern:         "/findLast/hosts",
+			Handler:         topology.handleFindHost,
+			MakeMessage:     nil,
+			UseRequestToken: false,
+		},
 	}
+
 	// TODO reintroduce (if we need to) the find routes
 	//	var h = []common.Host{}
 	//	routes = append(routes, common.CreateFindRoutes(&h, &topology.store.DbStore)...)
 	return routes
+}
+
+func (topology *TopologySvc) handleFindHost(input interface{}, ctx common.RestContext) (interface{}, error) {
+	query := ctx.QueryVariables
+	var hosts []common.Host
+	return topology.store.Find(query, &hosts, common.FindLast)
 }
 
 // handleHost handles request for a specific host's info
