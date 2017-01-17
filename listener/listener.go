@@ -123,10 +123,7 @@ func (l *KubeListener) SetConfig(config common.ServiceConfig) error {
 	l.namespaceBufferSize = 1000
 
 	if kc, ok := m["kubernetes_config"]; !ok || kc == "" {
-		// Default kubernetes config location on ubuntu
-		// TODO: this should not be hard coded, other
-		//       distributions may have other user names.
-		m["kubernetes_config"] = "/home/ubuntu/.kube/config"
+		return common.NewError("Listener: kubernetes_config parameter is required to start.")
 	}
 
 	// TODO, this loads kubernetes config from flags provided in main
