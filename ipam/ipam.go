@@ -41,14 +41,14 @@ func (ipam *IPAM) Routes() common.Routes {
 	routes := common.Routes{
 		common.Route{
 			Method:          "POST",
-			Pattern:         "/IPAMEndpoints",
+			Pattern:         "/endpoints",
 			Handler:         ipam.addEndpoint,
 			MakeMessage:     func() interface{} { return &common.IPAMEndpoint{} },
 			UseRequestToken: true,
 		},
 		common.Route{
 			Method:          "DELETE",
-			Pattern:         "/IPAMEndpoints/{ip}",
+			Pattern:         "/endpoints/{ip}",
 			Handler:         ipam.deleteEndpoint,
 			MakeMessage:     nil,
 			UseRequestToken: false,
