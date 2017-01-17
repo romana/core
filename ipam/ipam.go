@@ -114,7 +114,7 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 	host := &common.Host{}
 	host.Name = hostName
 	var err error
-	err = ipam.client.Find(host, common.FindExactlyOne)
+	err = ipam.client.Find(host, common.FindLast)
 	if err != nil {
 		log.Printf("IPAM encountered an error finding host for name %s %v", hostName, err)
 		return nil, err
