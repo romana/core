@@ -298,10 +298,18 @@ func targetExists(target common.Endpoint, iptables *iptsave.IPtables) (*iptsave.
 
 	switch DetectPolicyTargetType(target) {
 	case OperatorPolicyTarget:
-		// for operator policies add operator jump
+		// for operator policies applied to traffic
+		// from anywhere towards pods.
 		// :ROMANA-P-c5010560ed3e_
 		// -A ROMANA-OP -j ROMANA-P-c5010560ed3e_
 		targetChainName = MakeOperatorPolicyChainName()
+
+	case OperatorPolicyIngressTarget:
+		// for operator policies applied to traffic
+		// from pods to host.
+		// :ROMANA-P-c5010560ed3e_
+		// -A ROMANA-OP-IN -j ROMANA-P-c5010560ed3e_
+		targetChainName = MakeOperatorPolicyIngressChainName()
 
 	case TenantWidePolicyTarget:
 		// for tenant wide policies add tenant wide jump
@@ -318,6 +326,7 @@ func targetExists(target common.Endpoint, iptables *iptsave.IPtables) (*iptsave.
 	default:
 		panic("Uknown policy target type")
 	}
+	log.Tracef(6, "Detected target chain %s for target %v", targetChainName, target)
 
 	chain := filter.ChainByName(targetChainName)
 	if chain == nil {

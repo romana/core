@@ -182,12 +182,22 @@ func MakeOperatorPolicyChainName() string {
 	return "ROMANA-OP"
 }
 
+func MakeOperatorPolicyIngressChainName() string {
+	return "ROMANA-OP-IN"
+}
+
 // PolicyTargetType represents type of common.Policy.AppliedTo.
 type PolicyTargetType string
 
 const (
-	// OperatorPolicyTarget represents a policy that targets a host.
+	// OperatorPolicyTarget represents a policy
+	// that applied to all traffic going towards pods,
+	// including traffic from host.
 	OperatorPolicyTarget PolicyTargetType = "operator"
+
+	// OperatorPolicyIngressTarget represents a policy
+	// that applied to traffic traveling from pods to the host.
+	OperatorPolicyIngressTarget PolicyTargetType = "operator-ingress"
 
 	// TenantWidePolicyTarget represents a policy that targets entire tenant.
 	TenantWidePolicyTarget PolicyTargetType = "tenant-wide"
@@ -202,8 +212,12 @@ const (
 // DetectPolicyTargetType identifies given endpoint as one of valid policy
 // target types.
 func DetectPolicyTargetType(target common.Endpoint) PolicyTargetType {
-	if target.Peer != "" || target.Dest != "" {
+	if target.Dest == "local" {
 		return OperatorPolicyTarget
+	}
+
+	if target.Dest == "host" {
+		return OperatorPolicyIngressTarget
 	}
 
 	if target.TenantNetworkID != nil {
@@ -237,7 +251,7 @@ func MakePolicyIngressJump(peer common.Endpoint, targetChain string, netConfig f
 	}
 
 	if peer.Peer == "host" {
-		return MakeRuleWithBody(fmt.Sprintf("-s %s", netConfig.RomanaGW()), targetChain)
+		return MakeRuleWithBody(fmt.Sprintf("-s %s/32", netConfig.RomanaGW()), targetChain)
 	}
 
 	if peer.Cidr != "" {

@@ -40,6 +40,12 @@ func MakeBaseRules() []*iptsave.IPchain {
 					},
 				},
 				&iptsave.IPrule{
+					Action: iptsave.IPtablesAction{
+						Type: iptsave.ActionDefault,
+						Body: MakeOperatorPolicyIngressChainName(),
+					},
+				},
+				&iptsave.IPrule{
 					Match: []*iptsave.Match{
 						&iptsave.Match{
 							Body: "-m comment --comment DefaultDrop",
@@ -110,7 +116,14 @@ func MakeBaseRules() []*iptsave.IPchain {
 			},
 		},
 		&iptsave.IPchain{
-			Name:   "ROMANA-OP",
+			Name:   MakeOperatorPolicyChainName(),
+			Policy: "-",
+			Rules: []*iptsave.IPrule{
+				MakePolicyChainFooterRule(),
+			},
+		},
+		&iptsave.IPchain{
+			Name:   MakeOperatorPolicyIngressChainName(),
 			Policy: "-",
 			Rules: []*iptsave.IPrule{
 				MakePolicyChainFooterRule(),
