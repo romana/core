@@ -36,8 +36,8 @@ const (
 // into a tenant specific chain.
 // -A ROMANA-FORWARD-IN -m u32 --u32 "0x10&0xff00f000=0xa002000" -j ROMANA-FW-T2
 func MakeIngressTenantJumpRule(tenant common.Tenant, netConfig firewall.NetConfig) *iptsave.IPrule {
-	// TODO extract NetId from netConfig. Stas
-	u32TenantMatch := u32.New(netConfig).MatchNetId(uint(10)).MatchTenantId(uint(tenant.NetworkID)).MatchDst()
+	romanaCidr, _ := netConfig.PNetCIDR()
+	u32TenantMatch := u32.New(netConfig).MatchNetId(u32.IPNETtoUint(romanaCidr)).MatchTenantId(uint(tenant.NetworkID)).MatchDst()
 	tenantChainName := MakeTenantIngressChainName(tenant)
 
 	rule := iptsave.IPrule{
@@ -59,7 +59,8 @@ func MakeIngressTenantJumpRule(tenant common.Tenant, netConfig firewall.NetConfi
 // into a segment specific chain.
 // -A ROMANA-FW-T2 -m u32 --u32 "0x10&0xff00ff00=0xa002000" -j ROMANA-T2-S0
 func MakeSegmentPolicyJumpRule(tenant common.Tenant, segment common.Segment, netConfig firewall.NetConfig) *iptsave.IPrule {
-	u32SegmentMatch := u32.New(netConfig).MatchNetId(uint(10)).MatchTenantId(uint(tenant.NetworkID)).MatchSegmentId(uint(segment.NetworkID)).MatchDst()
+	romanaCidr, _ := netConfig.PNetCIDR()
+	u32SegmentMatch := u32.New(netConfig).MatchNetId(u32.IPNETtoUint(romanaCidr)).MatchTenantId(uint(tenant.NetworkID)).MatchSegmentId(uint(segment.NetworkID)).MatchDst()
 	segmentChainName := MakeSegmentPolicyChainName(tenant.NetworkID, segment.NetworkID)
 
 	rule := iptsave.IPrule{
@@ -182,12 +183,22 @@ func MakeOperatorPolicyChainName() string {
 	return "ROMANA-OP"
 }
 
+func MakeOperatorPolicyIngressChainName() string {
+	return "ROMANA-OP-IN"
+}
+
 // PolicyTargetType represents type of common.Policy.AppliedTo.
 type PolicyTargetType string
 
 const (
-	// OperatorPolicyTarget represents a policy that targets a host.
+	// OperatorPolicyTarget represents a policy
+	// that applied to all traffic going towards pods,
+	// including traffic from host.
 	OperatorPolicyTarget PolicyTargetType = "operator"
+
+	// OperatorPolicyIngressTarget represents a policy
+	// that applied to traffic traveling from pods to the host.
+	OperatorPolicyIngressTarget PolicyTargetType = "operator-ingress"
 
 	// TenantWidePolicyTarget represents a policy that targets entire tenant.
 	TenantWidePolicyTarget PolicyTargetType = "tenant-wide"
@@ -202,8 +213,12 @@ const (
 // DetectPolicyTargetType identifies given endpoint as one of valid policy
 // target types.
 func DetectPolicyTargetType(target common.Endpoint) PolicyTargetType {
-	if target.Peer != "" || target.Dest != "" {
+	if target.Dest == "local" {
 		return OperatorPolicyTarget
+	}
+
+	if target.Dest == "host" {
+		return OperatorPolicyIngressTarget
 	}
 
 	if target.TenantNetworkID != nil {
@@ -237,20 +252,21 @@ func MakePolicyIngressJump(peer common.Endpoint, targetChain string, netConfig f
 	}
 
 	if peer.Peer == "host" {
-		return MakeRuleWithBody(fmt.Sprintf("-s %s", netConfig.RomanaGW()), targetChain)
+		return MakeRuleWithBody(fmt.Sprintf("-s %s/32", netConfig.RomanaGW()), targetChain)
 	}
 
 	if peer.Cidr != "" {
 		return MakeRuleWithBody(fmt.Sprintf("-s %s", peer.Cidr), targetChain)
 	}
 
+	romanaCidr, _ := netConfig.PNetCIDR()
 	if peer.TenantNetworkID != nil && peer.SegmentNetworkID != nil {
-		u32TenantMatch := u32.New(netConfig).MatchNetId(uint(10)).MatchTenantId(uint(*peer.TenantNetworkID)).MatchSegmentId(uint(*peer.SegmentNetworkID)).MatchSrc()
+		u32TenantMatch := u32.New(netConfig).MatchNetId(u32.IPNETtoUint(romanaCidr)).MatchTenantId(uint(*peer.TenantNetworkID)).MatchSegmentId(uint(*peer.SegmentNetworkID)).MatchSrc()
 		return MakeRuleWithBody(fmt.Sprintf("-m u32 --u32 \"%s\"", u32TenantMatch), targetChain)
 	}
 
 	if peer.TenantNetworkID != nil {
-		u32TenantMatch := u32.New(netConfig).MatchNetId(uint(10)).MatchTenantId(uint(*peer.TenantNetworkID)).MatchSrc()
+		u32TenantMatch := u32.New(netConfig).MatchNetId(u32.IPNETtoUint(romanaCidr)).MatchTenantId(uint(*peer.TenantNetworkID)).MatchSrc()
 		return MakeRuleWithBody(fmt.Sprintf("-m u32 --u32 \"%s\"", u32TenantMatch), targetChain)
 	}
 

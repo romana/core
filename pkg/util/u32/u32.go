@@ -228,3 +228,33 @@ func (u *U32) clearFlags() {
 	u.matchSegment = false
 	u.matchEndpoint = false
 }
+
+// IPtoBig is a convinience method that produces big.Int from net.IP
+func IPtoBig(ip net.IP) *big.Int {
+	bigIP := big.NewInt(int64(0))
+	bigIP.SetBytes([]byte(ip.To4()))
+
+	return bigIP
+}
+
+// IPNETtoUint attempts to convert CIDR into uint which is useful for 
+// MatchNetId method
+// It takes provided cidr e.g. "10.0.0.0/8" in net.IPnet format
+// and shifts it to the right to produce 10 as uint.
+// For example "100.112.0.0/12" converts to binary as
+// Address:   100.112.0.0          01100100.0111 0000.00000000.00000000
+// Netmask:   255.240.0.0 = 12     11111111.1111 0000.00000000.00000000
+// this function will shift binary representation of the address to the
+// right to preserving only bits protected by leading 1 in a netmask
+// e.g. 01100100.0111 0000.00000000.00000000 >> 01100100.0111 = 1607
+func IPNETtoUint(ipnet *net.IPNet) uint {
+
+	maskLeadingOnes, maskSize := ipnet.Mask.Size()
+	shift := maskSize - maskLeadingOnes
+
+	bigIP := IPtoBig(ipnet.IP)
+	bigIP = bigIP.Rsh(bigIP, uint(shift))
+
+
+	return uint(bigIP.Int64())
+}
