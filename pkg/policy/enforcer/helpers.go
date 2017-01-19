@@ -36,8 +36,8 @@ const (
 // into a tenant specific chain.
 // -A ROMANA-FORWARD-IN -m u32 --u32 "0x10&0xff00f000=0xa002000" -j ROMANA-FW-T2
 func MakeIngressTenantJumpRule(tenant common.Tenant, netConfig firewall.NetConfig) *iptsave.IPrule {
-	// TODO extract NetId from netConfig. Stas
-	u32TenantMatch := u32.New(netConfig).MatchNetId(uint(10)).MatchTenantId(uint(tenant.NetworkID)).MatchDst()
+	romanaCidr, _ := netConfig.PNetCIDR()
+	u32TenantMatch := u32.New(netConfig).MatchNetId(u32.IPNETtoUint(romanaCidr)).MatchTenantId(uint(tenant.NetworkID)).MatchDst()
 	tenantChainName := MakeTenantIngressChainName(tenant)
 
 	rule := iptsave.IPrule{
