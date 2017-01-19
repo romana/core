@@ -154,7 +154,7 @@ func (a Agent) identifyCurrentHost() error {
 					return fmt.Errorf("Unable to parse Romana IP Address: %s", host.RomanaIp)
 				}
 
-				romanaIP, err := getFirstIPinCIDR(ipnet)
+				romanaIP, err := GetFirstIPinCIDR(ipnet)
 				if err != nil {
 					fmt.Println(err)
 				}
@@ -284,7 +284,14 @@ func (a Agent) updateRoutes() error {
 	return agentErrorString("Unable to find interface matching any Romana CIDR")
 }
 
-func getFirstIPinCIDR(ipnet *net.IPNet) (*net.IPNet, error) {
+func GetFirstIPinCIDR(ipnet *net.IPNet) (*net.IPNet, error) {
+	if ipnet == nil {
+		return nil, fmt.Errorf("Agent Error, no input provided to GetFirstIPinCIDR")
+	}
+	if ipnet.IP.String() == "<nil>" || ipnet.Mask.String() == "<nil>" {
+		return nil, fmt.Errorf("Agent Error, invalid IP/Mask provided to GetFirstIPinCIDR")
+	}
+
 	ip := ipnet.IP.Mask(ipnet.Mask)
 	for i := len(ip) - 1; i >= 0; i-- {
 		ip[i]++
@@ -294,7 +301,7 @@ func getFirstIPinCIDR(ipnet *net.IPNet) (*net.IPNet, error) {
 	}
 
 	if !ipnet.Contains(ip) {
-		return &net.IPNet{}, fmt.Errorf("Error, no more IP address left in the network provided: %s", ipnet.String())
+		return nil, fmt.Errorf("Error, no more IP address left in the network provided: %s", ipnet.String())
 	}
 
 	return &net.IPNet{IP: ip, Mask: ipnet.Mask}, nil
