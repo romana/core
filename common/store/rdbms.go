@@ -304,6 +304,15 @@ func (rdbms *RdbmsStore) Entities() []interface{} {
 	retval = append(retval, &common.Tenant{})
 	retval = append(retval, &common.Segment{})
 	retval = append(retval, &common.IPAMEndpoint{})
+
+	// TODO this table used by romana agent
+	// in local sqlite3 database the structure
+	// has no business doing here and resulting
+	// tables has no business showing up
+	// in all other databases. That store must
+	// be deprecated asap or it's going to cause pain.
+	// Stas.
+	retval = append(retval, &common.IPtablesRule{})
 	retval = append(retval, &PolicyDb{})
 	return retval
 }
