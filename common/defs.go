@@ -496,3 +496,13 @@ type IPAMEndpoint struct {
 	InUse bool   `json:"-"`
 	Id    uint64 `sql:"AUTO_INCREMENT",json:"-"`
 }
+
+// IPtablesRule represents a single iptables rule managed by the agent.
+// TODO Originally defined in pkg/util/firewall, redefined here only to support
+// new way of schema creation.
+// WARNING. This might get out of sync with original definition. Stas.
+type IPtablesRule struct {
+	ID    uint64 `sql:"AUTO_INCREMENT"`
+	Body  string
+	State string
+}
