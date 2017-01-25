@@ -194,7 +194,7 @@ func romanaHostRemove(l *KubeListener, node string) error {
 	hostsUrl := fmt.Sprintf("%s/hosts", topologyURL)
 	err = l.restClient.Get(hostsUrl, &hosts)
 	if err != nil {
-		log.Errorf("Error: failed to list hosts %s", err)
+		log.Errorf("Error: failed to list hosts: %s", err)
 		return err
 	}
 
@@ -208,7 +208,7 @@ func romanaHostRemove(l *KubeListener, node string) error {
 	}
 
 	if !found {
-		log.Errorf("Error: couldn't fild romana host with name %s, skipping deletion", node)
+		log.Errorf("Error: couldn't find romana host with name %s, skipping deletion", node)
 		return nil
 	}
 
