@@ -178,19 +178,43 @@ func romanaHostRemove(l *KubeListener, node string) error {
 		return err
 	}
 
-	host := common.Host{
-		Name: node,
+	/* TODO Find doesn't work with kv store + topology.
+		host := common.Host{
+			Name: node,
+		}
+
+		err = l.restClient.Find(&host, common.FindExactlyOne)
+		if err != nil {
+			log.Errorf("Error: couldn't find node(%s): (%s)", node, err)
+			return err
+		}
+	*/
+	hosts := []common.Host{}
+	host := common.Host{}
+	hostsUrl := fmt.Sprintf("%s/hosts", topologyURL)
+	err = l.restClient.Get(hostsUrl, &hosts)
+	if err != nil {
+		log.Errorf("Error: failed to list hosts: %s", err)
+		return err
 	}
 
-	err = l.restClient.Find(&host, common.FindExactlyOne)
-	if err != nil {
-		log.Errorf("Error: couldn't find node(%s): (%s)", node, err)
-		return err
+	var found bool
+	for n, h := range hosts {
+		if h.Name == node {
+			host = hosts[n]
+			found = true
+			break
+		}
+	}
+
+	if !found {
+		log.Errorf("Error: couldn't find romana host with name %s, skipping deletion", node)
+		return nil
 	}
 
 	hostResponse := common.Host{}
 	topologyURL = fmt.Sprintf("%s/hosts/%d", topologyURL, host.ID)
-	err = l.restClient.Delete(topologyURL+"/hosts", nil, &hostResponse)
+	err = l.restClient.Delete(topologyURL, nil, &hostResponse)
 	if err != nil {
 		log.Errorf("Error removing node (%s) from romana cluster (%s).\n", host.Name, err)
 		return err
