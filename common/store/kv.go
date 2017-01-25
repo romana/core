@@ -207,12 +207,12 @@ func (kvStore *KvStore) getID(key string) (uint64, error) {
 		log.Debugf("getID: In default of select")
 		log.Debugf("getID: Fetching %s", key)
 		idRingKvPair, err := kvStore.Db.Get(key)
-		log.Debugf("getID: Got %s", *idRingKvPair)
+		log.Debugf("getID: Got %v", *idRingKvPair)
 		if err != nil {
 			log.Debugf("getID: Error fetching %s: %s", key, err)
 			return 0, err
 		}
-		log.Debugf("getID: Got %s", *idRingKvPair)
+		log.Debugf("getID: Got %v", *idRingKvPair)
 		idRing, err := common.DecodeIDRing(idRingKvPair.Value)
 		if err != nil {
 			return 0, err

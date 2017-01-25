@@ -288,7 +288,7 @@ func (am AuthMiddleware) ServeHTTP(writer http.ResponseWriter, request *http.Req
 		headerToken := request.Header.Get("Authorization")
 		user := &User{}
 		token, err := jwt.ParseWithClaims(headerToken, user, am.Keyfunc)
-		log.Debugf("Token received from %s: %s", headerToken, token)
+		log.Debugf("Token received from %s: %v", headerToken, token)
 
 		if err != nil {
 			writer.WriteHeader(http.StatusForbidden)
