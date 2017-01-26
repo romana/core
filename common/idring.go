@@ -52,9 +52,9 @@ func (irr Range) String() string {
 // the range shrinks. IDs can be returned to the ring. An instance of this SHOULD NOT
 // be created directly, use NewIDRing() to create it.
 type IDRing struct {
-	// Ranges is an ordered set of ranges from which .
-	// Initially this should include a single Ranges,
-	// from 1 to MaxInt.
+	// Ranges is an ordered set of ranges from which we allocate IDs.
+	// Initially this should include a single Range,
+	// from 1 to MaxUint64.
 	// When this is nil, it means that we have exhausted the entire
 	// range from 1 to MaxInt, and, unless an ID is reclaimed, no more
 	// IDs can be given out.

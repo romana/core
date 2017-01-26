@@ -232,8 +232,8 @@ func (kvStore *KvStore) getID(key string) (uint64, error) {
 		}
 		return id, nil
 	case msg := <-ch:
-		log.Debugf("getID: Received from channel: %s", msg)
-		return id, nil
+		log.Errorf("getID: Received from channel: %s", msg)
+		return id, common.NewError("Lost lock: %s", msg)
 	}
 }
 
@@ -245,7 +245,7 @@ func (kvStore *KvStore) CreateSchema(force bool) error {
 	if err != nil {
 		return err
 	}
-	toInit := []string{"hosts_ids", "tenant_ids", "segment_ids"}
+	toInit := []string{"hosts_ids", "tenants_ids", "segments_ids"}
 	for _, s := range toInit {
 		key := kvStore.makeKey(s)
 		ring := common.NewIDRing()
@@ -267,6 +267,16 @@ func (kvStore *KvStore) CreateSchema(force bool) error {
 // 2. Ends with suffix.
 // 3. If args are present, suffix is interpreted as a string into which
 //    args can be substituted as in fmt.Sprintf
+// Currently, the following key convention is observed (note that
+// this is all under /<db_name> (say, "/romana") hierarchy):
+// - Under "hosts", there is a list of keys representing host IDs
+//    (currently, numeric, sequential). Under each of these, the
+//    document representing the host is stored
+// - For each entity (such as "tenant", "segment", "host")
+//   that require sequential IDs, it is made plural and suffix "_ids"
+//   is added to yield keys where the ID pool is stored (e.g., "hosts_ids").
+// - "_lock" suffix is added to make a key which is used for locking
+//   (so, e.g., "hosts_ids_lock")
 func (kvStore *KvStore) makeKey(suffix string, args ...interface{}) string {
 	if args != nil && len(args) > 0 {
 		suffix = fmt.Sprintf(suffix, args...)
@@ -277,6 +287,8 @@ func (kvStore *KvStore) makeKey(suffix string, args ...interface{}) string {
 	return key
 }
 
+// AddHost adds the host. If RomanaIp is not specified for it,
+// a new RomanaIp is generated and assigned to it.
 func (kvStore *KvStore) AddHost(dc common.Datacenter, host *common.Host) error {
 	var err error
 	hostsKey := kvStore.makeKey("hosts_ids")
@@ -303,17 +315,18 @@ func (kvStore *KvStore) AddHost(dc common.Datacenter, host *common.Host) error {
 		log.Debugf("AddHost: Error marshalling host: %s", err)
 		return err
 	}
-	result, _, err := kvStore.Db.AtomicPut(key, value, nil, nil)
-	if result {
-		return nil
+	_, _, err = kvStore.Db.AtomicPut(key, value, nil, nil)
+	if err != nil {
+		if err == libkvStore.ErrKeyExists {
+			return common.NewErrorConflict(fmt.Sprintf("Host %d already exists: %v", host.ID, *host))
+		} else {
+			return err
+		}
 	}
-	if err == libkvStore.ErrKeyExists {
-		return common.NewErrorConflict(fmt.Sprintf("Host %d already exists: %v", host.ID, *host))
-	} else {
-		return err
-	}
+	return nil
 }
 
+// DeleteHost deletes host based on supplied ID.
 func (kvStore *KvStore) DeleteHost(hostID uint64) error {
 	if hostID == 0 {
 		return fmt.Errorf("error deleting host, hostID not present.")
@@ -334,6 +347,7 @@ func (kvStore *KvStore) DeleteHost(hostID uint64) error {
 	return nil
 }
 
+// ListHosts lists available hosts.
 func (kvStore *KvStore) ListHosts() ([]common.Host, error) {
 	log.Trace(trace.Public, "KvStore.ListHosts()")
 	var err error
@@ -364,6 +378,7 @@ func (kvStore *KvStore) ListHosts() ([]common.Host, error) {
 	return hosts, nil
 }
 
+// GetHost gets the host information based on provided ID.
 func (kvStore KvStore) GetHost(hostID uint64) (common.Host, error) {
 	host := common.Host{}
 	key := kvStore.makeKey("hosts/%d", hostID)
