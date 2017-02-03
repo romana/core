@@ -328,7 +328,7 @@ func stateInRule(l *Lexer) stateFn {
 
 func stateRuleMatch(l *Lexer) stateFn {
 	log.Trace(trace.Private, "In rule match state")
-	var exMarkConsumed, matchLiteralConsumed bool
+	var matchLiteralConsumed bool
 
 	item := Item{Type: itemRuleMatch}
 	for {
@@ -338,26 +338,39 @@ func stateRuleMatch(l *Lexer) stateFn {
 		log.Trace(trace.Inside, "In rule match with char ", c)
 
 		switch c {
+// -d 99.88.77.66/32 -p tcp -m comment --comment "tenant-a/my-service: external IP" -m tcp --dport 80 -m physdev ! --physdev-is-in -m addrtype ! --src-type LOCAL -j
+// ^-match           ^-match^-match                                                 ^-match           ^-match    ^-wtf
 		case string(endOfText):
 			return l.errorf("Error: unexpected EOF in rule section")
 		case "!":
-			// exclamation mark can appear only once per match
-			// and only before match literal
-			if exMarkConsumed == true {
-				return l.errorf("Unexpected ! in rules spec")
+			// ~exclamation mark can appear only once per match
+			// and only before match literal~
+
+			// '!' exclamation mark can appear in 2 cases
+			// before next module opt like           -m physdev ! --physdev-is-in
+			// 	in that case we should just consume it.
+			//	TODO for Stas, actually we should parse module opts appropriately instead.
+			// or before next module literal like    ! -d 99.88.77.66/32
+			//	and in that case we know it's a beginning of a new match, so emit current one.
+			if l.expect(" --") {
+				// exclamation mark before match opts, nothing todo just consume it.
+			} else if l.expect(" -") {
+				// exclamation mark before a new match.
+				if matchLiteralConsumed {
+					// already consuming a match, stop consuming current one and start a new one.
+					l.items <- item
+
+					// put current '!' back into stream for the next iteration
+					// can not fail
+					_ = l.input.UnreadByte()
+
+					return stateRuleMatch
+				}
+				// else we're just starting to consume a new match, nothing to do for '!'.
+			} else {
+				return l.errorf("Error: unexpected ! in a rule spec, expect match literal (-p) or match opts (--dport)")
 			}
 
-			if matchLiteralConsumed {
-				l.items <- item
-
-				// put current '!' back into stream for the next iteration
-				// can not fail
-				_ = l.input.UnreadByte()
-
-				return stateRuleMatch
-			}
-
-			exMarkConsumed = true
 			item.Body += c
 		case "-":
 			// '-' dash can appear in 4 cases
@@ -365,8 +378,8 @@ func stateRuleMatch(l *Lexer) stateFn {
 			// in module opts like '--dport'
 			// in inside opts literal like '--to-destination' or inside body '-j MY-CHAIN'
 			// in action '-j'
-			onLiteral := false
 
+			onLiteral := false
 			if l.expect("p ") || l.expect("m ") || l.expect("i ") || l.expect("o ") || l.expect("s ") || l.expect("d ") {
 				// Single dash, single char and a space indicate module literal.
 				onLiteral = true
