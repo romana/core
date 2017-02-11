@@ -100,6 +100,7 @@ func (a *Enforcer) Run(stop <-chan struct{}) {
 
 				iptables = renderIPtables(a.tenantCache, a.policyCache, a.netConfig)
 				cleanupUnusedChains(iptables, a.exec)
+				featureSnat(iptables, a.exec)
 				if ValidateIPtables(iptables, a.exec) {
 					if err := ApplyIPtables(iptables, a.exec); err != nil {
 						log.Errorf("iptables-restore call failed %s", err)
