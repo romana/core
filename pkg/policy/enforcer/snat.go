@@ -51,6 +51,14 @@ func getFeatureSnatConfig() (*snatConfig, error) {
 		return &config, common.NewError("ROMANA_FEATURE_SNAT_NATIF must be set to interface name.")
 	}
 
+	if config.natIp == "" {
+		return &config, common.NewError("ROMANA_FEATURE_SNAT_NATIP must be set to an IP address associated with ROMANA_FEATURE_SNAT_NATIF.")
+	}
+
+	if config.excludeNets == "" {
+		log.Warn("ROMANA_FEATURE_SNAT is enabled but ROMANA_FEATURE_SNAT_EXCLUDE is not provided, that config will result in firewall NATting all the traffic which might be destructive.")
+	}
+
 	return &config, nil
 }
 
@@ -83,19 +91,14 @@ func featureSnat(iptables *iptsave.IPtables, exec utilexec.Executable) {
 		}
 	}
 
-	log.Tracef(4, "Iptables has %d tables before nat", len(iptables.Tables))
 	// Add *nat table if not there already.
 	natTable := iptables.TableByName("nat")
 	if natTable == nil {
 		natTable = &iptsave.IPtable{
 			Name: "nat",
 		}
-		log.Tracef(4, "adding nat table")
 		iptables.Tables = append(iptables.Tables, natTable)
-		log.Tracef(4, "Iptables has %d tables right after nat", len(iptables.Tables))
 	}
-	log.Tracef(4, "Iptables has %d tables after nat", len(iptables.Tables))
-	log.Tracef(4, "Nattable %v, %T", natTable, natTable)
 
 	// Add postrouting chain if not there alaready.
 	postroutingChain := natTable.ChainByName("POSTROUTING")
@@ -115,12 +118,7 @@ func featureSnat(iptables *iptsave.IPtables, exec utilexec.Executable) {
 
 	natTable.Chains = append(natTable.Chains, featureChain)
 
-	var featureSnatTarget string
-	if config.natIp != "" {
-		featureSnatTarget = fmt.Sprintf("SNAT --to %s", config.natIp)
-	} else {
-		featureSnatTarget = "SNAT"
-	}
+	featureSnatTarget := fmt.Sprintf("SNAT --to %s", config.natIp)
 
 	for _, cidr := range strings.Split(config.excludeNets, ",") {
 		featureChain.Rules = append(featureChain.Rules,
