@@ -338,14 +338,9 @@ func stateRuleMatch(l *Lexer) stateFn {
 		log.Trace(trace.Inside, "In rule match with char ", c)
 
 		switch c {
-// -d 99.88.77.66/32 -p tcp -m comment --comment "tenant-a/my-service: external IP" -m tcp --dport 80 -m physdev ! --physdev-is-in -m addrtype ! --src-type LOCAL -j
-// ^-match           ^-match^-match                                                 ^-match           ^-match    ^-wtf
 		case string(endOfText):
 			return l.errorf("Error: unexpected EOF in rule section")
 		case "!":
-			// ~exclamation mark can appear only once per match
-			// and only before match literal~
-
 			// '!' exclamation mark can appear in 2 cases
 			// before next module opt like           -m physdev ! --physdev-is-in
 			// 	in that case we should just consume it.
