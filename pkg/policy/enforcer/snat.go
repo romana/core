@@ -21,6 +21,7 @@ import (
 	"github.com/romana/core/common"
 	utilexec "github.com/romana/core/pkg/util/exec"
 	"github.com/romana/core/pkg/util/iptsave"
+	"github.com/romana/core/pkg/util/firewall"
 	log "github.com/romana/rlog"
 	"os"
 	"strings"
@@ -62,7 +63,7 @@ func getFeatureSnatConfig() (*snatConfig, error) {
 	return &config, nil
 }
 
-func featureSnat(iptables *iptsave.IPtables, exec utilexec.Executable) {
+func featureSnat(iptables *iptsave.IPtables, exec utilexec.Executable, netConfig firewall.NetConfig) {
 	if !checkFeatureSnatEnabled() {
 		return
 	}
@@ -70,6 +71,12 @@ func featureSnat(iptables *iptsave.IPtables, exec utilexec.Executable) {
 	config, err := getFeatureSnatConfig()
 	if err != nil {
 		log.Errorf("Feature SNAT enabled but config variable isn't set correctly, ignoring - %s", err)
+		return
+	}
+
+	romanaCidr, err := netConfig.PNetCIDR()
+	if err != nil {
+		log.Errorf("Failed to retrieve romana CIDR, romana agent isn't configured correctly, skipping feature SNAT")
 		return
 	}
 
@@ -125,9 +132,6 @@ func featureSnat(iptables *iptsave.IPtables, exec utilexec.Executable) {
 			&iptsave.IPrule{
 				Match: []*iptsave.Match{
 					&iptsave.Match{
-						Body: fmt.Sprintf("-o %s", config.natIf),
-					},
-					&iptsave.Match{
 						Body: fmt.Sprintf("-d %s", cidr),
 					},
 				},
@@ -140,6 +144,14 @@ func featureSnat(iptables *iptsave.IPtables, exec utilexec.Executable) {
 
 	featureChain.Rules = append(featureChain.Rules,
 		&iptsave.IPrule{
+			Match: []*iptsave.Match{
+				&iptsave.Match{
+					Body: fmt.Sprintf("-s %s", romanaCidr),
+				},
+				&iptsave.Match{
+					Body: fmt.Sprintf("-o %s", config.natIf),
+				},
+			},
 			Action: iptsave.IPtablesAction{
 				Type: iptsave.ActionOther,
 				Body: featureSnatTarget,
