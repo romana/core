@@ -1,18 +1,26 @@
 {
-	"ingress": [{
-		"rules": [{
-			"ports": [
-				67
-			],
-			"protocol": "UDP"
-		}],
-		"peers": [{
-			"peer": "local"
-		}]
-	}],
-	"applied_to": [{
-		"dest": "host"
-	}],
-	"name": "pol-dhcp-host",
-	"direction": "ingress"
+  "ingress": [
+    {
+      "rules": [
+        {
+          "ports": [
+            67
+          ],
+          "protocol": "UDP"
+        }
+      ],
+      "peers": [
+        {
+          "peer": "local"
+        }
+      ]
+    }
+  ],
+  "applied_to": [
+    {
+      "dest": "host"
+    }
+  ],
+  "name": "pol-dhcp-host",
+  "direction": "ingress"
 }
