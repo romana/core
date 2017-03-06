@@ -213,6 +213,8 @@ func (a Agent) updateRoutes() error {
 
 	log.Tracef(trace.Inside, "Searching %d interfaces for a matching host configuration: %v", len(addrs), addrs)
 
+	var otherHosts []common.Host
+
 	// Find an interface that matches a Romana CIDR
 	// and store that interface's IP address.
 	// It will be used when configuring iptables and routes to tap interfaces.
@@ -270,8 +272,9 @@ func (a Agent) updateRoutes() error {
 
 				// Retain the other hosts that were listed.
 				// This will be used for creating inter-host routes.
-				a.networkConfig.otherHosts = append(a.networkConfig.otherHosts, hosts[0:i]...)
-				a.networkConfig.otherHosts = append(a.networkConfig.otherHosts, hosts[i+1:]...)
+				otherHosts = append(a.networkConfig.otherHosts, hosts[0:i]...)
+				otherHosts = append(a.networkConfig.otherHosts, hosts[i+1:]...)
+				a.networkConfig.otherHosts = otherHosts
 				log.Trace(trace.Inside, "Found match for CIDR", romanaCIDR, "using address", ipnet.IP)
 
 				log.Trace(trace.Private, "Releasing mutex identifyCurrentHost")
