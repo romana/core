@@ -20,6 +20,7 @@ import (
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/log/trace"
 	enforcer "github.com/romana/core/pkg/policy/enforcer"
+	"github.com/romana/core/pkg/util/iptsave"
 	policyCache "github.com/romana/core/pkg/util/policy/cache"
 	tenantCache "github.com/romana/core/pkg/util/tenant/cache"
 	log "github.com/romana/rlog"
@@ -229,6 +230,16 @@ func (a *Agent) Initialize(client *common.RestClient) error {
 	if err := a.routeUpdater(stopRouteUpdater, routeRefreshSeconds); err != nil {
 		log.Errorf("Agent: Failed to start route updater on the node: %s", err)
 		return err
+	}
+
+	if checkFeatureSnatEnabled() {
+		iptables := &iptsave.IPtables{}
+		featureSnat(iptables, a.Helper.Executor, a.networkConfig)
+		if err := enforcer.ApplyIPtables(iptables, a.Helper.Executor); err != nil {
+			log.Errorf("Filed to install rules supporting FEATURE_SNAT iptables-restore call failed %s", err)
+		}
+
+
 	}
 
 	if a.policyEnabled {
