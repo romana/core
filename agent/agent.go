@@ -79,7 +79,7 @@ func (a *Agent) SetConfig(config common.ServiceConfig) error {
 	var ok bool
 	a.policyEnabled, ok = config.ServiceSpecific["policy_enabled"].(bool)
 	if !ok {
-		a.policyEnabled = false
+		a.policyEnabled = true
 	}
 	a.waitForIfaceTry = int(config.ServiceSpecific["wait_for_iface_try"].(float64))
 	a.networkConfig = &NetworkConfig{}
