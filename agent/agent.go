@@ -239,7 +239,6 @@ func (a *Agent) Initialize(client *common.RestClient) error {
 			log.Errorf("Filed to install rules supporting FEATURE_SNAT iptables-restore call failed %s", err)
 		}
 
-
 	}
 
 	if a.policyEnabled {
