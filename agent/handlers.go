@@ -50,6 +50,7 @@ type Status struct {
 // statusHandler reports operational statistics.
 func (a *Agent) statusHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
 	log.Trace(trace.Private, "Agent: Entering statusHandler()")
+
 	fw, err := firewall.NewFirewall(a.getFirewallType())
 	if err != nil {
 		return nil, err
@@ -78,21 +79,23 @@ func (a *Agent) podDownHandler(input interface{}, ctx common.RestContext) (inter
 	netReq := input.(*NetworkRequest)
 	netif := netReq.NetIf
 
-	// We need new firewall instance here to use its Cleanup()
-	// to uninstall firewall rules related to the endpoint.
-	fw, err := firewall.NewFirewall(a.getFirewallType())
-	if err != nil {
-		return nil, err
-	}
+	if a.policyEnabled {
+		// We need new firewall instance here to use its Cleanup()
+		// to uninstall firewall rules related to the endpoint.
+		fw, err := firewall.NewFirewall(a.getFirewallType())
+		if err != nil {
+			return nil, err
+		}
 
-	err = fw.Init(a.Helper.Executor, a.store, a.networkConfig)
-	if err != nil {
-		return nil, err
-	}
+		err = fw.Init(a.Helper.Executor, a.store, a.networkConfig)
+		if err != nil {
+			return nil, err
+		}
 
-	err = fw.Cleanup(netif)
-	if err != nil {
-		return nil, err
+		err = fw.Cleanup(netif)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	// Spawn new thread to process the request
@@ -138,25 +141,27 @@ func (a *Agent) vmDownHandler(input interface{}, ctx common.RestContext) (interf
 		return "Error removing DHCP lease", agentError(err)
 	}
 
-	// We need new firewall instance here to use it's Cleanup()
-	// to uninstall firewall rules related to the endpoint.
-	fw, err := firewall.NewFirewall(a.getFirewallType())
-	if err != nil {
-		return nil, err
-	}
+	if a.policyEnabled {
+		// We need new firewall instance here to use it's Cleanup()
+		// to uninstall firewall rules related to the endpoint.
+		fw, err := firewall.NewFirewall(a.getFirewallType())
+		if err != nil {
+			return nil, err
+		}
 
-	err = fw.Init(a.Helper.Executor, a.store, a.networkConfig)
-	if err != nil {
-		return nil, err
-	}
+		err = fw.Init(a.Helper.Executor, a.store, a.networkConfig)
+		if err != nil {
+			return nil, err
+		}
 
-	err = fw.Cleanup(netif)
-	if err != nil {
-		return nil, err
-	}
-	err = a.store.deleteNetIf(netif)
-	if err != nil {
-		return nil, err
+		err = fw.Cleanup(netif)
+		if err != nil {
+			return nil, err
+		}
+		err = a.store.deleteNetIf(netif)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return "OK", nil
 }
@@ -208,42 +213,44 @@ func (a *Agent) podUpHandlerAsync(netReq NetworkRequest) error {
 		return agentError(err)
 	}
 
-	log.Infof("Agent: Provisioning firewall - %s", netif.Name)
-	fw, err := firewall.NewFirewall(currentProvider)
-	if err != nil {
-		return err
-	}
+	if a.policyEnabled {
+		log.Infof("Agent: Provisioning firewall - %s", netif.Name)
+		fw, err := firewall.NewFirewall(currentProvider)
+		if err != nil {
+			return err
+		}
 
-	err = fw.Init(a.Helper.Executor, a.store, a.networkConfig)
-	if err != nil {
-		return err
-	}
+		err = fw.Init(a.Helper.Executor, a.store, a.networkConfig)
+		if err != nil {
+			return err
+		}
 
-	if err1 := fw.SetEndpoint(netif); err1 != nil {
-		log.Error(agentError(err))
-		return agentError(err)
-	}
+		if err1 := fw.SetEndpoint(netif); err1 != nil {
+			log.Error(agentError(err))
+			return agentError(err)
+		}
 
-	var rules RuleSet
-	switch currentProvider {
-	case firewall.ShellexProvider:
-		rules = KubeShellXRules
-	case firewall.IPTsaveProvider:
-		rules = KubeSaveRestoreRules
-	default:
-		err := fmt.Errorf("Unkown firewall provider in podUpHandler")
-		log.Error(agentError(err))
-		return agentError(err)
-	}
+		var rules RuleSet
+		switch currentProvider {
+		case firewall.ShellexProvider:
+			rules = KubeShellXRules
+		case firewall.IPTsaveProvider:
+			rules = KubeSaveRestoreRules
+		default:
+			err := fmt.Errorf("Unkown firewall provider in podUpHandler")
+			log.Error(agentError(err))
+			return agentError(err)
+		}
 
-	if err := prepareFirewallRules(fw, a.networkConfig, rules, currentProvider); err != nil {
-		log.Error(agentError(err))
-		return agentError(err)
-	}
+		if err := prepareFirewallRules(fw, a.networkConfig, rules, currentProvider); err != nil {
+			log.Error(agentError(err))
+			return agentError(err)
+		}
 
-	if err := fw.ProvisionEndpoint(); err != nil {
-		log.Error(agentError(err))
-		return agentError(err)
+		if err := fw.ProvisionEndpoint(); err != nil {
+			log.Error(agentError(err))
+			return agentError(err)
+		}
 	}
 
 	log.Trace(trace.Inside, "Agent: All good", netif)
@@ -381,43 +388,45 @@ func (a *Agent) vmUpHandlerAsync(netif NetIf) error {
 		return agentError(err)
 	}
 
-	log.Infof("Agent: Provisioning firewall - %s", netif.Name)
-	fw, err := firewall.NewFirewall(currentProvider)
-	if err != nil {
-		return err
-	}
+	if a.policyEnabled {
+		log.Infof("Agent: Provisioning firewall - %s", netif.Name)
+		fw, err := firewall.NewFirewall(currentProvider)
+		if err != nil {
+			return err
+		}
 
-	err = fw.Init(a.Helper.Executor, a.store, a.networkConfig)
-	if err != nil {
-		log.Error(agentError(err))
-		return agentError(err)
-	}
+		err = fw.Init(a.Helper.Executor, a.store, a.networkConfig)
+		if err != nil {
+			log.Error(agentError(err))
+			return agentError(err)
+		}
 
-	if err1 := fw.SetEndpoint(netif); err1 != nil {
-		log.Error(agentError(err1))
-		return agentError(err1)
-	}
+		if err1 := fw.SetEndpoint(netif); err1 != nil {
+			log.Error(agentError(err1))
+			return agentError(err1)
+		}
 
-	var rules RuleSet
-	switch currentProvider {
-	case firewall.ShellexProvider:
-		rules = OpenStackShellRules
-	case firewall.IPTsaveProvider:
-		rules = OpenStackSaveRestoreRules
-	default:
-		err := fmt.Errorf("Unkown firewall provider in vmUpHandler")
-		log.Error(agentError(err))
-		return agentError(err)
-	}
+		var rules RuleSet
+		switch currentProvider {
+		case firewall.ShellexProvider:
+			rules = OpenStackShellRules
+		case firewall.IPTsaveProvider:
+			rules = OpenStackSaveRestoreRules
+		default:
+			err := fmt.Errorf("Unkown firewall provider in vmUpHandler")
+			log.Error(agentError(err))
+			return agentError(err)
+		}
 
-	if err := prepareFirewallRules(fw, a.networkConfig, rules, currentProvider); err != nil {
-		log.Error(agentError(err))
-		return agentError(err)
-	}
+		if err := prepareFirewallRules(fw, a.networkConfig, rules, currentProvider); err != nil {
+			log.Error(agentError(err))
+			return agentError(err)
+		}
 
-	if err := fw.ProvisionEndpoint(); err != nil {
-		log.Error(agentError(err))
-		return agentError(err)
+		if err := fw.ProvisionEndpoint(); err != nil {
+			log.Error(agentError(err))
+			return agentError(err)
+		}
 	}
 
 	log.Trace(trace.Inside, "All good", netif)

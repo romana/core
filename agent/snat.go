@@ -13,12 +13,12 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Policy enforcer package translates romana policies into iptables rules.
-package enforcer
+package agent
 
 import (
 	"fmt"
 	"github.com/romana/core/common"
+	"github.com/romana/core/pkg/policy/enforcer"
 	utilexec "github.com/romana/core/pkg/util/exec"
 	"github.com/romana/core/pkg/util/firewall"
 	"github.com/romana/core/pkg/util/iptsave"
@@ -80,7 +80,7 @@ func featureSnat(iptables *iptsave.IPtables, exec utilexec.Executable, netConfig
 		return
 	}
 
-	currentIptables, err := LoadIPtables(exec)
+	currentIptables, err := enforcer.LoadIPtables(exec)
 	if err != nil {
 		log.Errorf("Feature SNAT enabled but failed to load nat rules - %s", err)
 		return
@@ -115,7 +115,7 @@ func featureSnat(iptables *iptsave.IPtables, exec utilexec.Executable, netConfig
 	}
 
 	if !featureNatJump {
-		postroutingChain.Rules = append(postroutingChain.Rules, MakeSimpleJumpRule("ROMANA_FEATURE_SNAT"))
+		postroutingChain.Rules = append(postroutingChain.Rules, enforcer.MakeSimpleJumpRule("ROMANA_FEATURE_SNAT"))
 	}
 
 	featureChain := &iptsave.IPchain{

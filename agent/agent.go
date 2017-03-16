@@ -20,6 +20,7 @@ import (
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/log/trace"
 	enforcer "github.com/romana/core/pkg/policy/enforcer"
+	"github.com/romana/core/pkg/util/iptsave"
 	policyCache "github.com/romana/core/pkg/util/policy/cache"
 	tenantCache "github.com/romana/core/pkg/util/tenant/cache"
 	log "github.com/romana/rlog"
@@ -57,6 +58,8 @@ type Agent struct {
 
 	client *common.RestClient
 
+	policyEnabled bool
+
 	// Manages iptables rules to reflect romana policies.
 	enforcer enforcer.Interface
 
@@ -73,6 +76,11 @@ func (a *Agent) SetConfig(config common.ServiceConfig) error {
 	lf := NewLeaseFile(leaseFileName, a)
 	a.leaseFile = &lf
 
+	var ok bool
+	a.policyEnabled, ok = config.ServiceSpecific["policy_enabled"].(bool)
+	if !ok {
+		a.policyEnabled = true
+	}
 	a.waitForIfaceTry = int(config.ServiceSpecific["wait_for_iface_try"].(float64))
 	a.networkConfig = &NetworkConfig{}
 	store, err := NewStore(config)
@@ -224,27 +232,38 @@ func (a *Agent) Initialize(client *common.RestClient) error {
 		return err
 	}
 
-	// Tenant and Policy cache will poll backend storage every cacheTickTime seconds.
-	var cacheTickTime int
-	if a.config.ServiceSpecific["cache_tick_time"] != nil {
-		cacheTickTime = int(a.config.ServiceSpecific["cache_tick_time"].(float64))
-	} else {
-		cacheTickTime = defaultCacheTickTime
+	if checkFeatureSnatEnabled() {
+		iptables := &iptsave.IPtables{}
+		featureSnat(iptables, a.Helper.Executor, a.networkConfig)
+		if err := enforcer.ApplyIPtables(iptables, a.Helper.Executor); err != nil {
+			log.Errorf("Filed to install rules supporting FEATURE_SNAT iptables-restore call failed %s", err)
+		}
+
 	}
 
-	// Will try to refresh policies every policyRefreshSeconds.
-	var policyRefreshSeconds int
-	if a.config.ServiceSpecific["policy_refresh_seconds"] != nil {
-		policyRefreshSeconds = int(a.config.ServiceSpecific["policy_refresh_seconds"].(float64))
-	} else {
-		policyRefreshSeconds = defaultPolicyRefreshSeconds
-	}
+	if a.policyEnabled {
+		// Tenant and Policy cache will poll backend storage every cacheTickTime seconds.
+		var cacheTickTime int
+		if a.config.ServiceSpecific["cache_tick_time"] != nil {
+			cacheTickTime = int(a.config.ServiceSpecific["cache_tick_time"].(float64))
+		} else {
+			cacheTickTime = defaultCacheTickTime
+		}
 
-	a.policyStop = make(chan struct{})
-	tenantCache := tenantCache.New(a.client, tenantCache.Config{CacheTickSeconds: cacheTickTime})
-	policyCache := policyCache.New(a.client, policyCache.Config{CacheTickSeconds: cacheTickTime})
-	a.enforcer = enforcer.New(tenantCache, policyCache, a.networkConfig, a.Helper.Executor, policyRefreshSeconds)
-	a.enforcer.Run(a.policyStop)
+		// Will try to refresh policies every policyRefreshSeconds.
+		var policyRefreshSeconds int
+		if a.config.ServiceSpecific["policy_refresh_seconds"] != nil {
+			policyRefreshSeconds = int(a.config.ServiceSpecific["policy_refresh_seconds"].(float64))
+		} else {
+			policyRefreshSeconds = defaultPolicyRefreshSeconds
+		}
+
+		a.policyStop = make(chan struct{})
+		tenantCache := tenantCache.New(a.client, tenantCache.Config{CacheTickSeconds: cacheTickTime})
+		policyCache := policyCache.New(a.client, policyCache.Config{CacheTickSeconds: cacheTickTime})
+		a.enforcer = enforcer.New(tenantCache, policyCache, a.networkConfig, a.Helper.Executor, policyRefreshSeconds)
+		a.enforcer.Run(a.policyStop)
+	}
 
 	return nil
 }
