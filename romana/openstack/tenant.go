@@ -18,21 +18,20 @@
 package openstack
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/romana/core/romana/util"
 	log "github.com/romana/rlog"
 
-	"github.com/rackspace/gophercloud"
-	"github.com/rackspace/gophercloud/openstack"
-	"github.com/rackspace/gophercloud/openstack/identity/v2/tenants"
-	"github.com/rackspace/gophercloud/pagination"
+	"github.com/gophercloud/gophercloud"
+	"github.com/gophercloud/gophercloud/openstack"
+	"github.com/gophercloud/gophercloud/openstack/identity/v3/projects"
+	"github.com/gophercloud/gophercloud/pagination"
 )
 
 var (
 	identityClient *gophercloud.ServiceClient
-	networkClient  *gophercloud.ServiceClient
-	computeClient  *gophercloud.ServiceClient
 )
 
 func getIdentityClient() (*gophercloud.ServiceClient, error) {
@@ -47,30 +46,6 @@ func getIdentityClient() (*gophercloud.ServiceClient, error) {
 	return identityClient, nil
 }
 
-func getComputeClient() (*gophercloud.ServiceClient, error) {
-	var err error
-	if computeClient == nil {
-		computeClient, err = initComputeClient()
-		if err != nil {
-			log.Println("Error: ", err)
-			return nil, err
-		}
-	}
-	return computeClient, nil
-}
-
-func getNetworkClient() (*gophercloud.ServiceClient, error) {
-	var err error
-	if networkClient == nil {
-		networkClient, err = initNetworkClient()
-		if err != nil {
-			log.Println("Error: ", err)
-			return nil, err
-		}
-	}
-	return networkClient, nil
-}
-
 // initIdentityClient initializes openstack api using
 // gophercloud which handles auth tokens keeping api calls
 // simpler. Currently it uses environment variables for
@@ -81,138 +56,58 @@ func initIdentityClient() (*gophercloud.ServiceClient, error) {
 		log.Println("Error fetching openstack env vars: ", err)
 		return nil, err
 	}
-	provider, err := openstack.AuthenticatedClient(opts)
-	if err != nil {
-		log.Println("Error authenticating with openstack: ", err)
-		return nil, err
-	}
-	return openstack.NewIdentityV2(provider), nil
-}
-
-// initComputeClient initializes openstack api using
-// gophercloud which handles auth tokens keeping api calls
-// simpler. Currently it uses environment variables for
-// authenticating with openstack identity.
-func initComputeClient() (*gophercloud.ServiceClient, error) {
-	opts, err := openstack.AuthOptionsFromEnv()
-	if err != nil {
-		log.Println("Error fetching openstack env vars: ", err)
-		return nil, err
+	if opts.DomainID == ""  && opts.DomainName == "" {
+		opts.DomainName = os.Getenv("OS_PROJECT_DOMAIN_NAME")
 	}
 	provider, err := openstack.AuthenticatedClient(opts)
 	if err != nil {
 		log.Println("Error authenticating with openstack: ", err)
 		return nil, err
 	}
-	return openstack.NewComputeV2(provider, gophercloud.EndpointOpts{
-		Name:   "compute",
-		Region: os.Getenv("OS_REGION_NAME"),
+	client, err := openstack.NewIdentityV3(provider, gophercloud.EndpointOpts{
+			Region: os.Getenv("OS_REGION_NAME"),
 	})
-}
-
-// initNetworkClient initializes openstack api using
-// gophercloud which handles auth tokens keeping api calls
-// simpler. Currently it uses environment variables for
-// authenticating with openstack identity.
-func initNetworkClient() (*gophercloud.ServiceClient, error) {
-	opts, err := openstack.AuthOptionsFromEnv()
 	if err != nil {
-		log.Println("Error fetching openstack env vars: ", err)
+		log.Println("Error creating identity client:", err)
 		return nil, err
 	}
-	provider, err := openstack.AuthenticatedClient(opts)
-	if err != nil {
-		log.Println("Error authenticating with openstack: ", err)
-		return nil, err
-	}
-	return openstack.NewNetworkV2(provider, gophercloud.EndpointOpts{
-		Name:   "neutron",
-		Region: os.Getenv("OS_REGION_NAME"),
-	})
+	return client, nil
 }
 
 // GetTenantName returns openstack tenant name corresponding
 // to the UUID being used in romana tenants.
 func GetTenantName(uuid string) (string, error) {
-	var tenant string
-
 	c, err := getIdentityClient()
 	if err != nil {
 		log.Println("Error getting Identity Client: ", err)
 		return "", err
 	}
-
-	opts := tenants.ListOpts{Limit: 20}
-	pager := tenants.List(c, &opts)
-	// brute force the whole tenant list to get the name?
-	pager.EachPage(
-		func(page pagination.Page) (bool, error) {
-			tenantList, _ := tenants.ExtractTenants(page)
-			for _, t := range tenantList {
-				// "t" is tenants.Tenant
-				if t.ID == uuid {
-					tenant = t.Name
-					// stop iterating and return tenant.Name
-					return false, nil
-				}
-			}
-			return true, nil
-		},
-	)
-
-	if tenant == "" {
-		log.Printf("Tenant (UUID: %s) not found.\n", uuid)
-		return "", util.ErrTenantNotFound
-	}
-
-	return tenant, nil
-}
-
-// GetTenantList returns openstack tenant list.
-func GetTenantList() ([]tenants.Tenant, error) {
-	c, err := getIdentityClient()
+	result := projects.Get(c, uuid, projects.GetOpts{})
+	project, err := result.Extract()
 	if err != nil {
-		return nil, err
+		log.Printf("Error looking up name for uuid %s: %s.\n", uuid, err)
+		return "", err
 	}
 
-	opts := tenants.ListOpts{}
-	pager := tenants.List(c, &opts)
-	page, err := pager.AllPages()
-	if err == nil {
-		return tenants.ExtractTenants(page)
-	}
-	return nil, err
+	return project.Name, nil
 }
 
 // TenantExists returns true/false depending on
 // openstack tenant name or uuid exists.
-func TenantExists(name string) bool {
-	var tenant bool
-
-	c, err := getIdentityClient()
-	if err != nil {
-		log.Println("Error getting Identity Client: ", err)
-		return false
+func TenantExists(uuidOrName string) bool {
+	name, err := GetTenantName(uuidOrName)
+	// intentional nil error check
+	if err == nil {
+		log.Printf("TenantExists: UUID %s resolved to name %s", uuidOrName, name)
+		return true
 	}
-
-	opts := tenants.ListOpts{Limit: 20}
-	pager := tenants.List(c, &opts)
-	// brute force the whole tenant list to get tenant details?
-	pager.EachPage(
-		func(page pagination.Page) (bool, error) {
-			tenantList, _ := tenants.ExtractTenants(page)
-			for _, t := range tenantList {
-				// "t" is tenants.Tenant
-				if t.ID == name || t.Name == name {
-					tenant = true
-					// stop iterating and return tenant
-					return false, nil
-				}
-			}
-			return true, nil
-		},
-	)
-	return tenant
+	uuid, err := GetTenantUUID(uuidOrName)
+	if err == nil {
+		log.Printf("TenantExists: name %s resolved to uuid %s", uuidOrName, uuid)
+		return true
+	}
+	log.Printf("%s not found as uuid or name", uuidOrName)
+	return false
 }
 
 // GetTenantUUID returns openstack tenant UUID
@@ -226,16 +121,13 @@ func GetTenantUUID(tenantName string) (string, error) {
 		return "", err
 	}
 
-	opts := tenants.ListOpts{Limit: 20}
-	pager := tenants.List(c, &opts)
-	// brute force the whole tenant list to get the name?
+	pager := projects.List(c, projects.ListOpts{Name: tenantName})
 	pager.EachPage(
 		func(page pagination.Page) (bool, error) {
-			tenantList, _ := tenants.ExtractTenants(page)
-			for _, t := range tenantList {
-				// "t" is tenants.Tenant
-				if t.Name == tenantName {
-					uuid = t.ID
+			projectList, _ := projects.ExtractProjects(page)
+			for _, project := range projectList {
+				if project.Name == tenantName {
+					uuid = project.ID
 					// stop iterating and return tenant.Name
 					return false, nil
 				}
