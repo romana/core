@@ -18,7 +18,6 @@
 package openstack
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/romana/core/romana/util"
