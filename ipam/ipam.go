@@ -47,6 +47,12 @@ func (ipam *IPAM) Routes() common.Routes {
 			UseRequestToken: true,
 		},
 		common.Route{
+			Method:          "GET",
+			Pattern:         "/endpoints",
+			Handler:         ipam.listEndpoints,
+			UseRequestToken: true,
+		},
+		common.Route{
 			Method:          "DELETE",
 			Pattern:         "/endpoints/{ip}",
 			Handler:         ipam.deleteEndpoint,
@@ -228,6 +234,11 @@ func (ipam *IPAM) addEndpoint(input interface{}, ctx common.RestContext) (interf
 // pool.
 func (ipam *IPAM) deleteEndpoint(input interface{}, ctx common.RestContext) (interface{}, error) {
 	return ipam.store.deleteEndpoint(ctx.PathVariables["ip"])
+}
+
+// listEndpoints returns all registered endpoints
+func (ipam *IPAM) listEndpoints(input interface{}, ctx common.RestContext) (interface{}, error) {
+	return ipam.store.listEndpoint()
 }
 
 // Name provides name of this service.
