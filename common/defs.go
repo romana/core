@@ -438,7 +438,7 @@ type ServiceResponse struct {
 
 // Datacenter represents the configuration of a datacenter.
 type Datacenter struct {
-	Id        uint64 `json:"id",sql:"AUTO_INCREMENT"`
+	Id        uint64 `json:"id" sql:"AUTO_INCREMENT"`
 	IpVersion uint   `json:"ip_version,omitempty"`
 	// We don't need to store this, but calculate and pass around
 	Prefix      uint64 `json:"prefix,omitempty"`
@@ -493,8 +493,8 @@ type IPAMEndpoint struct {
 	// and alignment thereof. This is used in IP calculation.
 	EffectiveNetworkID uint64 `json:"-"`
 	// Whether it is in use (for purposes of reclaiming)
-	InUse bool   `json:"in_use,omitmepty"`
-	Id    uint64 `sql:"AUTO_INCREMENT",json:"-"`
+	InUse bool   `json:"-"`
+	Id    uint64 `sql:"AUTO_INCREMENT" json:"-"`
 }
 
 // IPtablesRule represents a single iptables rule managed by the agent.
