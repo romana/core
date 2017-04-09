@@ -186,6 +186,19 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *common.IPAMEndpoint, upToEndpo
 
 }
 
+// listEndpoint lists all registered endpoints.
+func (ipamStore *ipamStore) listEndpoint() ([]common.IPAMEndpoint, error) {
+	db := ipamStore.DbStore.Db
+	var results []common.IPAMEndpoint
+	if err := db.Find(&results).Error; err != nil {
+		if db.RecordNotFound() {
+			return results, common.NewError404("endpoint", "all")
+		}
+		return results, common.NewError500(err)
+	}
+	return results, nil
+}
+
 // getEffectiveNetworkID gets effective number of an Endpoint
 // on a given host (see endpoint.EffectiveNetworkID).
 func getEffectiveNetworkID(EndpointNetworkID uint64, stride uint) uint64 {

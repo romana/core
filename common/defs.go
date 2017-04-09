@@ -493,7 +493,7 @@ type IPAMEndpoint struct {
 	// and alignment thereof. This is used in IP calculation.
 	EffectiveNetworkID uint64 `json:"-"`
 	// Whether it is in use (for purposes of reclaiming)
-	InUse bool   `json:"-"`
+	InUse bool   `json:"in_use,omitmepty"`
 	Id    uint64 `sql:"AUTO_INCREMENT",json:"-"`
 }
 
