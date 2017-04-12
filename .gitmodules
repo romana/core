@@ -132,3 +132,9 @@
 	path = vendor/github.com/containernetworking/cni
 	url = https://github.com/romana/cni
 	branch = vendor-fix
+[submodule "vendor/github.com/reiver/go-telnet"]
+	path = vendor/github.com/reiver/go-telnet
+	url = https://github.com/reiver/go-telnet
+[submodule "vendor/github.com/reiver/go-oi"]
+	path = vendor/github.com/reiver/go-oi
+	url = https://github.com/reiver/go-oi

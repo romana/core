@@ -63,6 +63,15 @@ type Agent struct {
 
 	policyEnabled bool
 
+	// disables interhost routes managed by the agent.
+	routeMeshEnabled bool
+
+	// enables publishing routes to external route manager.
+	routePublisher string
+
+	// configuration for external publisher
+	routePublisherConfig map[string]string
+
 	// Manages iptables rules to reflect romana policies.
 	enforcer enforcer.Interface
 
@@ -87,6 +96,23 @@ func (a *Agent) SetConfig(config common.ServiceConfig) error {
 	if !ok {
 		a.policyEnabled = true
 	}
+
+	a.routeMeshEnabled, ok = config.ServiceSpecific["route_mesh_enabled"].(bool)
+	if !ok {
+		a.routeMeshEnabled = true
+	}
+
+	a.routePublisher, ok = config.ServiceSpecific["route_publisher"].(string)
+	if !ok {
+		a.routePublisher = "none"
+	}
+
+	a.routePublisherConfig, err = ParseRoutePublisherConfig(config.ServiceSpecific["route_publisher_config"])
+	if err != nil {
+		log.Errorf("%s", err)
+		a.routePublisherConfig = nil
+	}
+
 	a.waitForIfaceTry = int(config.ServiceSpecific["wait_for_iface_try"].(float64))
 	a.networkConfig = &NetworkConfig{}
 	store, err := NewStore(config)
@@ -253,15 +279,21 @@ func (a *Agent) Initialize(client *common.RestClient) error {
 		routeRefreshSeconds = defaultRouteRefreshSeconds
 	}
 
-	// Channel for stopping route update mechanism.
-	stopRouteUpdater := make(chan struct{})
+	if a.routeMeshEnabled {
+		log.Infof("Agent: starting route mesh")
 
-	// a.RouteUpdater updates routes on the current node for
-	// the newly added or removed nodes in romana cluster.
-	if err := a.routeUpdater(stopRouteUpdater, routeRefreshSeconds); err != nil {
-		log.Errorf("Agent: Failed to start route updater on the node: %s", err)
-		return err
+		// Channel for stopping route update mechanism.
+		stopRouteUpdater := make(chan struct{})
+
+		// a.RouteUpdater updates routes on the current node for
+		// the newly added or removed nodes in romana cluster.
+		if err := a.routeUpdater(stopRouteUpdater, routeRefreshSeconds); err != nil {
+			log.Errorf("Agent: Failed to start route updater on the node: %s", err)
+			return err
+		}
 	}
+
+	PublishRoutesTo(a.routePublisher, a.routePublisherConfig, a.client)
 
 	if checkFeatureSnatEnabled() {
 		iptables := &iptsave.IPtables{}
