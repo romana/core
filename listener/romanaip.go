@@ -128,7 +128,7 @@ func (l *KubeListener) kubernetesDeleteServiceEventHandler(n interface{}) {
 
 	log.Printf("Delete event received for service (%s) ", service.GetName())
 
-	deleteRomanaIP(service)
+	l.deleteRomanaIP(service)
 }
 
 func (l *KubeListener) updateRomanaIP(service *v1.Service) error {
@@ -202,7 +202,7 @@ func (l *KubeListener) updateRomanaIP(service *v1.Service) error {
 			Activated:     true,
 		}
 
-		agentAddRomanaIP(rna)
+		l.agentAddRomanaIP(rna)
 		RomanaIPNodeActivationList.RNA[serviceName] = rna
 
 		fmt.Printf("RomanaIPNodeActivationList.RNA: %v\n", RomanaIPNodeActivationList.RNA)
@@ -212,7 +212,7 @@ func (l *KubeListener) updateRomanaIP(service *v1.Service) error {
 	return nil
 }
 
-func deleteRomanaIP(service *v1.Service) {
+func (l *KubeListener) deleteRomanaIP(service *v1.Service) {
 	RomanaIPNodeActivationList.Lock()
 	defer RomanaIPNodeActivationList.Unlock()
 
@@ -222,18 +222,21 @@ func deleteRomanaIP(service *v1.Service) {
 		return
 	}
 
-	agentDeleteRomanaIP(rna)
+	l.agentDeleteRomanaIP(rna)
 	delete(RomanaIPNodeActivationList.RNA, service.GetName())
 
 	fmt.Printf("RomanaIPNodeActivationList.RNA: %v\n", RomanaIPNodeActivationList.RNA)
 }
 
-func agentDeleteRomanaIP(rna RNA) {
-	log.Printf("curl -X DELETE http://%s:9604/romanaip/%s",
+func (l *KubeListener) agentDeleteRomanaIP(rna RNA) {
+	var ip string
+	agentURL := fmt.Sprintf("http://%s:9604/romanaip/%s",
 		rna.NodeIPAddress, rna.RomanaIP.IP)
+	l.restClient.Delete(agentURL, nil, &ip)
 }
 
-func agentAddRomanaIP(rna RNA) {
-	log.Printf("curl -X POST -d '{\"ip\": \"%s\"}' http://%s:9604/romanaip",
-		rna.RomanaIP.IP, rna.NodeIPAddress)
+func (l *KubeListener) agentAddRomanaIP(rna RNA) {
+	ip := rna.RomanaIP.IP
+	agentURL := fmt.Sprintf("http://%s:9604/romanaip", rna.NodeIPAddress)
+	l.restClient.Post(agentURL, ip, &ip)
 }
