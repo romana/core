@@ -95,7 +95,9 @@ func (l *KubeListener) kubernetesAddServiceEventHandler(n interface{}) {
 	}
 }
 
-// kubernetesUpdateServiceEventHandler currently doesn't do anything yet.
+// kubernetesUpdateServiceEventHandler is called when Kubernetes reports an
+// update service event. It connects to the Romana agent and updates the service
+// external IP as RomanaIP to the Romana cluster.
 func (l *KubeListener) kubernetesUpdateServiceEventHandler(o, n interface{}) {
 	service, ok := n.(*v1.Service)
 	//_, ok := n.(*v1.Service)
