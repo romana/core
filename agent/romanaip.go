@@ -50,6 +50,9 @@ func (a *Agent) getDefaultLink() (netlink.Link, error) {
 	}
 
 	for _, r := range routes {
+        // If dst/src is not specified for a route, then it
+        // means a default route is found which handles packets
+        // for everything which is not handled by specific routes.
 		if r.Src == nil && r.Dst == nil {
 			defaultR = r
 			break
