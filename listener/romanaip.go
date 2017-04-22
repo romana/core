@@ -19,10 +19,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net"
 	"sync"
 	"time"
+
+	"github.com/romana/core/common/log/trace"
+	log "github.com/romana/rlog"
 
 	"k8s.io/client-go/1.5/pkg/api"
 	"k8s.io/client-go/1.5/pkg/api/v1"
@@ -36,19 +38,23 @@ type RomanaIP struct {
 	IP   string `json:"ip"`
 }
 
-type RNA struct {
+type ExternalIP struct {
+	IP string `json:"ip" form:"ip"`
+}
+
+type ExposedIPSpec struct {
 	RomanaIP      RomanaIP
 	NodeIPAddress string
 	Activated     bool
 }
 
-type RNAList struct {
+type ExposedIPSpecMap struct {
 	sync.Mutex
-	RNA map[string]RNA
+	E map[string]ExposedIPSpec
 }
 
 var (
-	RomanaIPNodeActivationList = RNAList{RNA: make(map[string]RNA)}
+	RomanaExposedIPSpecMap = ExposedIPSpecMap{E: make(map[string]ExposedIPSpec)}
 )
 
 func (l *KubeListener) startRomanaIPSync(stop <-chan struct{}) {
@@ -100,15 +106,11 @@ func (l *KubeListener) kubernetesAddServiceEventHandler(n interface{}) {
 // external IP as RomanaIP to the Romana cluster.
 func (l *KubeListener) kubernetesUpdateServiceEventHandler(o, n interface{}) {
 	service, ok := n.(*v1.Service)
-	//_, ok := n.(*v1.Service)
 	if !ok {
 		log.Printf("Error processing update event for service (%s) ", n)
 		return
 	}
 
-	// Disable this for now, update events are sent every
-	// 10 seconds per service, thus this could fill up the log
-	// easily in very small amount of time.
 	log.Printf("Update Event received for service (%s) ", service.GetName())
 
 	if err := l.updateRomanaIP(service); err != nil {
@@ -134,15 +136,15 @@ func (l *KubeListener) kubernetesDeleteServiceEventHandler(n interface{}) {
 }
 
 func (l *KubeListener) updateRomanaIP(service *v1.Service) error {
-	RomanaIPNodeActivationList.Lock()
-	defer RomanaIPNodeActivationList.Unlock()
+	RomanaExposedIPSpecMap.Lock()
+	defer RomanaExposedIPSpecMap.Unlock()
 
 	serviceName := service.GetName()
 
 	annotation := service.GetAnnotations()
 	romanaAnnotation, ok := annotation["romanaip"]
 	if ok {
-		_, foundService := RomanaIPNodeActivationList.RNA[serviceName]
+		_, foundService := RomanaExposedIPSpecMap.E[serviceName]
 		if foundService {
 			fmt.Printf("Service (%s) already has romanaIP associated with it.",
 				serviceName)
@@ -198,16 +200,17 @@ func (l *KubeListener) updateRomanaIP(service *v1.Service) error {
 				node.Name)
 		}
 
-		rna := RNA{
+		exposedIPSpec := ExposedIPSpec{
 			RomanaIP:      romanaIP,
 			NodeIPAddress: node.Status.Addresses[0].Address,
 			Activated:     true,
 		}
 
-		l.agentAddRomanaIP(rna)
-		RomanaIPNodeActivationList.RNA[serviceName] = rna
+		l.agentAddRomanaIP(exposedIPSpec)
+		RomanaExposedIPSpecMap.E[serviceName] = exposedIPSpec
 
-		fmt.Printf("RomanaIPNodeActivationList.RNA: %v\n", RomanaIPNodeActivationList.RNA)
+		log.Tracef(trace.Private, "RomanaExposedIPSpecMap.E: %v\n",
+			RomanaExposedIPSpecMap.E)
 
 	}
 
@@ -215,30 +218,38 @@ func (l *KubeListener) updateRomanaIP(service *v1.Service) error {
 }
 
 func (l *KubeListener) deleteRomanaIP(service *v1.Service) {
-	RomanaIPNodeActivationList.Lock()
-	defer RomanaIPNodeActivationList.Unlock()
+	RomanaExposedIPSpecMap.Lock()
+	defer RomanaExposedIPSpecMap.Unlock()
 
-	rna, ok := RomanaIPNodeActivationList.RNA[service.GetName()]
+	exposedIPSpec, ok := RomanaExposedIPSpecMap.E[service.GetName()]
 	if !ok {
 		log.Printf("Error service not found in the list: %s", service.GetName())
 		return
 	}
 
-	l.agentDeleteRomanaIP(rna)
-	delete(RomanaIPNodeActivationList.RNA, service.GetName())
+	l.agentDeleteRomanaIP(exposedIPSpec)
+	delete(RomanaExposedIPSpecMap.E, service.GetName())
 
-	fmt.Printf("RomanaIPNodeActivationList.RNA: %v\n", RomanaIPNodeActivationList.RNA)
+	log.Tracef(trace.Private, "RomanaExposedIPSpecMap.E: %v\n",
+		RomanaExposedIPSpecMap.E)
 }
 
-func (l *KubeListener) agentDeleteRomanaIP(rna RNA) {
-	var ip string
-	agentURL := fmt.Sprintf("http://%s:9604/romanaip/%s",
-		rna.NodeIPAddress, rna.RomanaIP.IP)
-	l.restClient.Delete(agentURL, nil, &ip)
+func (l *KubeListener) agentDeleteRomanaIP(e ExposedIPSpec) {
+	ip := ExternalIP{IP: e.RomanaIP.IP}
+	agentURL := fmt.Sprintf("http://%s:9604/romanaip", e.NodeIPAddress)
+	err := l.restClient.Delete(agentURL, ip, &ip)
+	if err != nil {
+		log.Errorf("Error in sending agent, externalIP (%s) deletion information",
+			ip.IP)
+	}
 }
 
-func (l *KubeListener) agentAddRomanaIP(rna RNA) {
-	ip := rna.RomanaIP.IP
-	agentURL := fmt.Sprintf("http://%s:9604/romanaip", rna.NodeIPAddress)
-	l.restClient.Post(agentURL, ip, &ip)
+func (l *KubeListener) agentAddRomanaIP(e ExposedIPSpec) {
+	ip := ExternalIP{IP: e.RomanaIP.IP}
+	agentURL := fmt.Sprintf("http://%s:9604/romanaip", e.NodeIPAddress)
+	err := l.restClient.Post(agentURL, ip, &ip)
+	if err != nil {
+		log.Errorf("Error in sending agent, externalIP (%s) addition information",
+			ip.IP)
+	}
 }

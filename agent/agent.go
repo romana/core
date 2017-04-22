@@ -129,7 +129,7 @@ func (a *Agent) Routes() common.Routes {
 			Pattern: "/romanaip",
 			Handler: a.romanaIPPostHandler,
 			MakeMessage: func() interface{} {
-				return new(string)
+				return &ExternalIP{}
 			},
 			UseRequestToken: false,
 		},
@@ -138,7 +138,7 @@ func (a *Agent) Routes() common.Routes {
 			Pattern: "/romanaip",
 			Handler: a.romanaIPDeleteHandler,
 			MakeMessage: func() interface{} {
-				return new(string)
+				return &ExternalIP{}
 			},
 			UseRequestToken: false,
 		},

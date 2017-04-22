@@ -22,8 +22,13 @@ import (
 
 	"github.com/romana/core/common"
 	log "github.com/romana/rlog"
+
 	"github.com/vishvananda/netlink"
 )
+
+type ExternalIP struct {
+	IP string `json:"ip" form:"ip"`
+}
 
 func (a *Agent) linkAddIP(ip string) error {
 	ipAddress, err := netlink.ParseAddr(ip)
@@ -50,9 +55,9 @@ func (a *Agent) getDefaultLink() (netlink.Link, error) {
 	}
 
 	for _, r := range routes {
-        // If dst/src is not specified for a route, then it
-        // means a default route is found which handles packets
-        // for everything which is not handled by specific routes.
+		// If dst/src is not specified for a route, then it
+		// means a default route is found which handles packets
+		// for everything which is not handled by specific routes.
 		if r.Src == nil && r.Dst == nil {
 			defaultR = r
 			break
@@ -71,27 +76,35 @@ func (a *Agent) getDefaultLink() (netlink.Link, error) {
 }
 
 func (a *Agent) romanaIPPostHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
-	ip := input.(*string)
+	if input == nil {
+		return nil, errors.New("Error, agent external IP post handler received nil input.")
+	}
 
-	log.Infof("Agent: received romanaIP for addition %s\n", ip)
+	ip := input.(*ExternalIP)
 
-	err := a.linkAddIP(*ip)
+	log.Infof("Agent: received IP Address for addition %s\n", ip.IP)
+
+	err := a.linkAddIP(ip.IP)
 	if err != nil {
 		return nil, err
 	}
 
-	return "OK", nil
+	return ip, nil
 }
 
 func (a *Agent) romanaIPDeleteHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
-	ip := input.(*string)
+	if input == nil {
+		return nil, errors.New("Error, agent external IP delete handler received nil input.")
+	}
 
-	log.Infof("Agent: received romanaIP for deletion %s\n", ip)
+	ip := input.(*ExternalIP)
 
-	err := a.linkDelIP(*ip)
+	log.Infof("Agent: received IP Address for deletion %s\n", ip.IP)
+
+	err := a.linkDelIP(ip.IP)
 	if err != nil {
 		return nil, err
 	}
 
-	return "OK", nil
+	return ip, nil
 }
