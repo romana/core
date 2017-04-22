@@ -1,10 +1,29 @@
-package logist
+// Copyright (c) 2017 Pani Networks
+// All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License"); you may
+// not use this file except in compliance with the License. You may obtain
+// a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+// License for the specific language governing permissions and limitations
+// under the License.
+
+// The package  advertises list of networks by connecting to the instance
+// of bgpd and executing `networl A.B.C.D/E` command for every network in
+// a list.
+package quagga
 
 import (
 	"bufio"
 	"bytes"
 	"fmt"
 	telnet "github.com/reiver/go-telnet"
+	router "github.com/romana/core/pkg/router/publisher"
 	"io"
 	"log"
 	"net"
@@ -13,30 +32,15 @@ import (
 	"time"
 )
 
-type Config map[string]string
-
-func (c Config) overideDefault(key, defaultValue string) string {
-	if configValue, ok := c[key]; ok {
-		return configValue
-	}
-
-	return defaultValue
-}
-
-type Interface interface {
-	// Updates list of networks advertised via routing protocol.
-	Update([]net.IPNet) error
-}
-
-func New(config Config) (Interface, error) {
+func New(config router.Config) (router.Interface, error) {
 	quagga := QuaggaBgpRoutePublisher{}
 
-	quagga.BgpdHost = config.overideDefault("bgpdHost", "localhost")
-	quagga.BgpdPort = config.overideDefault("bgpdPort", "2605")
-	quagga.UserPrompt = config.overideDefault("userPrompt", "bgpd> ")
-	quagga.AdminPrompt = config.overideDefault("adminPrompt", "bgpd# ")
-	quagga.ConfigPrompt = config.overideDefault("configPrompt", "bgpd(config)# ")
-	quagga.RouterPrompt = config.overideDefault("routerPrompt", "bgpd(config-router)# ")
+	quagga.BgpdHost = config.SetDefault("bgpdHost", "localhost")
+	quagga.BgpdPort = config.SetDefault("bgpdPort", "2605")
+	quagga.UserPrompt = config.SetDefault("userPrompt", "bgpd> ")
+	quagga.AdminPrompt = config.SetDefault("adminPrompt", "bgpd# ")
+	quagga.ConfigPrompt = config.SetDefault("configPrompt", "bgpd(config)# ")
+	quagga.RouterPrompt = config.SetDefault("routerPrompt", "bgpd(config-router)# ")
 
 	if pass, ok := config["password"]; ok {
 		quagga.Password = pass
@@ -68,24 +72,41 @@ func New(config Config) (Interface, error) {
 type QuaggaBgpRoutePublisher struct {
 	// Connect to BGP
 	sync.Mutex
-	BgpdHost     string
-	BgpdPort     string
-	Password     string
-	EnablePass   string
-	UserPrompt   string
-	AdminPrompt  string
+
+	// IP address or hostname bgpd listens on.
+	BgpdHost string
+
+	// bgpd port (defaul 2605)
+	BgpdPort string
+
+	// Quagga password. Required.
+	Password string
+
+	// Enable privilege password. Required.
+	EnablePass string
+
+	// User prompt to expect in telnet session. Optional.
+	UserPrompt string
+
+	// Admin prompt to expect in telnet session. Optional
+	AdminPrompt string
+
+	// Config prompt to expect in telnet session. Optional.
 	ConfigPrompt string
+
+	// Router prompt to expect in a telnet session. Optional.
 	RouterPrompt string
 
+	// LocalAS used to identify proper config context in bgpd
+	// `router bgp .LocalAS`. Required.
 	LocalAS string
 
 	// Extra output
 	Debug bool
 
-	// Temporary storage for CallTELNET
+	// Internal.
 	Input bytes.Buffer
 
-	// List of networks to install.
 	networks []net.IPNet
 }
 

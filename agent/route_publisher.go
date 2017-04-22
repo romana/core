@@ -18,75 +18,131 @@ package agent
 import (
 	"fmt"
 	"github.com/romana/core/common"
-	router "github.com/romana/core/pkg/routepublisher/quaggabgp"
+	"github.com/romana/core/pkg/router/bird"
+	router "github.com/romana/core/pkg/router/publisher"
+	"github.com/romana/core/pkg/router/quagga"
 	log "github.com/romana/rlog"
 	"net"
+	"sync"
 	"time"
 )
 
-func PublishRoutesTo(provider string, config map[string]string, client *common.RestClient) {
+func PublishRoutesTo(provider string, config map[string]string, client *common.RestClient, networkConfig *NetworkConfig) chan net.IPNet {
 	var publisher router.Interface
 	var err error
+
+	in := make(chan net.IPNet)
 
 	if config == nil {
 		if provider != "none" {
 			log.Errorf("Route publisher is unable to start provider %s with nil config", provider)
 		}
 
-		return
+		return in
 	}
 
 	switch provider {
 	case "none":
-		return
+		return in
 	case "bgp-quagga":
-		publisher, err = router.New(router.Config(config))
+		publisher, err = quagga.New(router.Config(config))
 		if err != nil {
 			log.Errorf("Failed to start route publisher, err=(%s)", err)
 		}
-		go startPublishing(publisher, client)
+		romanaGw := net.IPNet{IP: networkConfig.RomanaGW(), Mask: networkConfig.RomanaGWMask()}
+		go startPublishing(publisher, client, romanaGw, in)
+	case "bird":
+		publisher, err = bird.New(router.Config(config))
+		if err != nil {
+			log.Errorf("Failed to start route publisher, err=(%s)", err)
+		}
+		romanaGw := net.IPNet{IP: networkConfig.RomanaGW(), Mask: networkConfig.RomanaGWMask()}
+		go startPublishing(publisher, client, romanaGw, in)
 	}
 
-	return
+	return in
 }
 
-const routerPublisherSleepDuration = 30
+const FullSyncPeriod time.Duration = time.Duration(3 * time.Minute)
+const CacheSyncPeriod time.Duration = time.Duration(1 * time.Second)
 
-func startPublishing(publisher router.Interface, client *common.RestClient) {
+func startPublishing(publisher router.Interface, client *common.RestClient, romanaGw net.IPNet, in <-chan net.IPNet) {
+	Cache := NewIpamCache()
+	fullTick := time.Tick(FullSyncPeriod)
+	cacheTick := time.Tick(CacheSyncPeriod)
+
 	for {
-		// TODO stas, timer duration not configurable because it's terrible idea
-		// anyway. Client would expect subsecond convergance wich can't be achieved
-		// through polling DB and harrasing routing daemon every second.
-		// There has to be some queue.
-		time.Sleep(time.Duration(routerPublisherSleepDuration * time.Second))
-
-		ipamUrl, err := client.GetServiceUrl("ipam")
-		if err != nil {
-			log.Errorf("Route publisher failed to connect to IPAM, err=(%s)", err)
-			continue
-		}
-
-		ipamUrl += "/endpoints"
-		var endpoints []common.IPAMEndpoint
-
-		err = client.Get(ipamUrl, &endpoints)
-		if err != nil {
-			log.Errorf("Route publisher failed to connect to IPAM, err=(%s)", err)
-			continue
-		}
-
-		var networks []net.IPNet
-		for _, endpoint := range endpoints {
-			_, network, err := net.ParseCIDR(fmt.Sprintf("%s/32", endpoint.Ip))
-			if err != nil {
-				log.Errorf("Route publisher skipping %s, err=(%s)", endpoint.Ip, err)
+		select {
+		case net, ok := <-in:
+			log.Debugf("Route publisher: net network %s", net)
+			if !ok {
+				log.Debug("Route publisher: input channel closed")
+				continue
 			}
+			Cache.Add(net)
+		case <-fullTick:
+			log.Debugf("Route publisher: full tick")
+			networks, err := getSlash32Networks(client)
+			if err != nil {
+				log.Errorf("Route publisher: %s", err)
+			}
+			Cache.Replace(filterNetworksByRomanaGw(romanaGw, networks))
+		case <-cacheTick:
+			log.Debugf("Route publisher: cache tick")
+			if networks, ok := Cache.ListIfClean(); ok {
+				publisher.Update(networks)
+			}
+		}
+	}
+}
 
-			networks = append(networks, *network)
+// ListIpamEndpoints returns list of ipam endpoints.
+func ListIpamEndpoints(client *common.RestClient) ([]common.IPAMEndpoint, error) {
+	var endpoints []common.IPAMEndpoint
+
+	ipamUrl, err := client.GetServiceUrl("ipam")
+	if err != nil {
+		return endpoints, fmt.Errorf("Route publisher failed to connect to IPAM, err=(%s)", err)
+	}
+
+	ipamUrl += "/endpoints"
+
+	err = client.Get(ipamUrl, &endpoints)
+	if err != nil {
+		return endpoints, fmt.Errorf("Route publisher failed to connect to IPAM, err=(%s)", err)
+	}
+
+	return endpoints, nil
+}
+
+func getSlash32Networks(client *common.RestClient) ([]net.IPNet, error) {
+	endpoints, err := ListIpamEndpoints(client)
+	if err != nil {
+		return nil, err
+	}
+
+	var networks []net.IPNet
+	for _, endpoint := range endpoints {
+		_, network, err := net.ParseCIDR(fmt.Sprintf("%s/32", endpoint.Ip))
+		if err != nil {
+			log.Errorf("Route publisher skipping %s, err=(%s)", endpoint.Ip, err)
 		}
 
-		publisher.Update(networks)
+		networks = append(networks, *network)
 	}
+
+	return networks, nil
+}
+
+func filterNetworksByRomanaGw(romanaGw net.IPNet, allNetworks []net.IPNet) []net.IPNet {
+	var networks []net.IPNet
+	for _, network := range allNetworks {
+		if romanaGw.Contains(network.IP) {
+			networks = append(networks, network)
+		}
+	}
+
+	return networks
 }
 
 // ParseRoutePublisherConfig attempts to parse configuration value of
@@ -109,4 +165,60 @@ func ParseRoutePublisherConfig(incoming interface{}) (map[string]string, error) 
 	}
 
 	return configMap, nil
+}
+
+func NewIpamCache() IpamCache {
+	data := make(map[string]net.IPNet)
+	return IpamCache{data: data}
+}
+
+type IpamCache struct {
+	sync.Mutex
+	dirty bool
+	// use map just to ensure uniquness
+	data map[string]net.IPNet
+}
+
+func (i *IpamCache) Add(network net.IPNet) {
+	i.Lock()
+	defer i.Unlock()
+	i.data[network.String()] = network
+	i.dirty = true
+}
+
+func (i *IpamCache) Remove(network net.IPNet) {
+	i.Lock()
+	defer i.Unlock()
+	delete(i.data, network.String())
+	i.dirty = true
+}
+
+func (i *IpamCache) Replace(networks []net.IPNet) {
+	i.Lock()
+	defer i.Unlock()
+	data := make(map[string]net.IPNet)
+
+	for _, net := range networks {
+		data[net.String()] = net
+	}
+	i.data = data
+	i.dirty = true
+}
+
+// ListIfClean returns contents of a the cache only if it's dirty
+// otherwise returns empty list.
+func (i *IpamCache) ListIfClean() ([]net.IPNet, bool) {
+	i.Lock()
+	defer i.Unlock()
+
+	var list []net.IPNet
+	if !i.dirty {
+		return list, false
+	}
+
+	for _, net := range i.data {
+		list = append(list, net)
+	}
+	i.dirty = false
+	return list, true
 }

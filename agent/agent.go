@@ -18,6 +18,7 @@ package agent
 
 import (
 	"fmt"
+	"net"
 
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/log/trace"
@@ -71,6 +72,9 @@ type Agent struct {
 
 	// configuration for external publisher
 	routePublisherConfig map[string]string
+
+	// channel that is used by route publisher to receive notifications
+	routec chan net.IPNet
 
 	// Manages iptables rules to reflect romana policies.
 	enforcer enforcer.Interface
@@ -293,7 +297,7 @@ func (a *Agent) Initialize(client *common.RestClient) error {
 		}
 	}
 
-	PublishRoutesTo(a.routePublisher, a.routePublisherConfig, a.client)
+	a.routec = PublishRoutesTo(a.routePublisher, a.routePublisherConfig, a.client, a.networkConfig)
 
 	if checkFeatureSnatEnabled() {
 		iptables := &iptsave.IPtables{}
