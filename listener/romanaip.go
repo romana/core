@@ -50,11 +50,11 @@ type ExposedIPSpec struct {
 
 type ExposedIPSpecMap struct {
 	sync.Mutex
-	E map[string]ExposedIPSpec
+	IPForService map[string]ExposedIPSpec
 }
 
 var (
-	RomanaExposedIPSpecMap = ExposedIPSpecMap{E: make(map[string]ExposedIPSpec)}
+	RomanaExposedIPSpecMap = ExposedIPSpecMap{IPForService: make(map[string]ExposedIPSpec)}
 )
 
 func (l *KubeListener) startRomanaIPSync(stop <-chan struct{}) {
@@ -144,7 +144,7 @@ func (l *KubeListener) updateRomanaIP(service *v1.Service) error {
 	annotation := service.GetAnnotations()
 	romanaAnnotation, ok := annotation["romanaip"]
 	if ok {
-		_, foundService := RomanaExposedIPSpecMap.E[serviceName]
+		_, foundService := RomanaExposedIPSpecMap.IPForService[serviceName]
 		if foundService {
 			fmt.Printf("Service (%s) already has romanaIP associated with it.",
 				serviceName)
@@ -207,10 +207,10 @@ func (l *KubeListener) updateRomanaIP(service *v1.Service) error {
 		}
 
 		l.agentAddRomanaIP(exposedIPSpec)
-		RomanaExposedIPSpecMap.E[serviceName] = exposedIPSpec
+		RomanaExposedIPSpecMap.IPForService[serviceName] = exposedIPSpec
 
-		log.Tracef(trace.Private, "RomanaExposedIPSpecMap.E: %v\n",
-			RomanaExposedIPSpecMap.E)
+		log.Tracef(trace.Private, "RomanaExposedIPSpecMap.IPForService: %v\n",
+			RomanaExposedIPSpecMap.IPForService)
 
 	}
 
@@ -221,17 +221,17 @@ func (l *KubeListener) deleteRomanaIP(service *v1.Service) {
 	RomanaExposedIPSpecMap.Lock()
 	defer RomanaExposedIPSpecMap.Unlock()
 
-	exposedIPSpec, ok := RomanaExposedIPSpecMap.E[service.GetName()]
+	exposedIPSpec, ok := RomanaExposedIPSpecMap.IPForService[service.GetName()]
 	if !ok {
 		log.Printf("Error service not found in the list: %s", service.GetName())
 		return
 	}
 
 	l.agentDeleteRomanaIP(exposedIPSpec)
-	delete(RomanaExposedIPSpecMap.E, service.GetName())
+	delete(RomanaExposedIPSpecMap.IPForService, service.GetName())
 
-	log.Tracef(trace.Private, "RomanaExposedIPSpecMap.E: %v\n",
-		RomanaExposedIPSpecMap.E)
+	log.Tracef(trace.Private, "RomanaExposedIPSpecMap.IPForService: %v\n",
+		RomanaExposedIPSpecMap.IPForService)
 }
 
 func (l *KubeListener) agentDeleteRomanaIP(e ExposedIPSpec) {
