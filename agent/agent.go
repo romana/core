@@ -65,7 +65,7 @@ type Agent struct {
 	policyEnabled bool
 
 	// disables interhost routes managed by the agent.
-	routeMeshEnabled bool
+	interhostRoutesEnabled bool
 
 	// enables publishing routes to external route manager.
 	routePublisher string
@@ -101,9 +101,9 @@ func (a *Agent) SetConfig(config common.ServiceConfig) error {
 		a.policyEnabled = true
 	}
 
-	a.routeMeshEnabled, ok = config.ServiceSpecific["route_mesh_enabled"].(bool)
+	a.interhostRoutesEnabled, ok = config.ServiceSpecific["interhost_routes_enabled"].(bool)
 	if !ok {
-		a.routeMeshEnabled = true
+		a.interhostRoutesEnabled = true
 	}
 
 	a.routePublisher, ok = config.ServiceSpecific["route_publisher"].(string)
@@ -283,8 +283,8 @@ func (a *Agent) Initialize(client *common.RestClient) error {
 		routeRefreshSeconds = defaultRouteRefreshSeconds
 	}
 
-	if a.routeMeshEnabled {
-		log.Infof("Agent: starting route mesh")
+	if a.interhostRoutesEnabled {
+		log.Infof("Agent: starting interhost routes manager")
 
 		// Channel for stopping route update mechanism.
 		stopRouteUpdater := make(chan struct{})
