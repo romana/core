@@ -484,8 +484,19 @@ func (n notFoundHandler) ServeHTTP(writer http.ResponseWriter, request *http.Req
 		writer.Write(dataOut)
 		return
 	}
-	dataOut, _ := marshaller.Marshal(NewError404("URI", request.RequestURI))
-	writer.Write(dataOut)
+	reqURL := request.URL
+	resource := ""
+	if reqURL != nil {
+		resource = reqURL.Path
+		if reqURL.RawQuery != "" {
+			resource += "?..."
+		}
+		if reqURL.Fragment != "" {
+			resource += "#..."
+		}
+	}
+	dataOut, _ := marshaller.Marshal(NewError404("URI", resource))
+	http.Error(writer, string(dataOut), http.StatusNotFound)
 	return
 }
 
