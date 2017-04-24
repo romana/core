@@ -179,15 +179,15 @@ func romanaHostRemove(l *KubeListener, node string) error {
 	}
 
 	/* TODO Find doesn't work with kv store + topology.
-		host := common.Host{
-			Name: node,
-		}
+	host := common.Host{
+		Name: node,
+	}
 
-		err = l.restClient.Find(&host, common.FindExactlyOne)
-		if err != nil {
-			log.Errorf("Error: couldn't find node(%s): (%s)", node, err)
-			return err
-		}
+	err = l.restClient.Find(&host, common.FindExactlyOne)
+	if err != nil {
+		log.Errorf("Error: couldn't find node(%s): (%s)", node, err)
+		return err
+	}
 	*/
 	hosts := []common.Host{}
 	host := common.Host{}
