@@ -237,7 +237,7 @@ func IPtoBig(ip net.IP) *big.Int {
 	return bigIP
 }
 
-// IPNETtoUint attempts to convert CIDR into uint which is useful for 
+// IPNETtoUint attempts to convert CIDR into uint which is useful for
 // MatchNetId method
 // It takes provided cidr e.g. "10.0.0.0/8" in net.IPnet format
 // and shifts it to the right to produce 10 as uint.
@@ -254,7 +254,6 @@ func IPNETtoUint(ipnet *net.IPNet) uint {
 
 	bigIP := IPtoBig(ipnet.IP)
 	bigIP = bigIP.Rsh(bigIP, uint(shift))
-
 
 	return uint(bigIP.Int64())
 }
