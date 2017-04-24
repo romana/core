@@ -84,7 +84,7 @@ func (a *Agent) romanaIPPostHandler(input interface{}, ctx common.RestContext) (
 
 	log.Infof("Agent: received IP Address for addition %s\n", ip.IP)
 
-	err := a.linkAddIP(ip.IP)
+	err := a.linkAddIP(ip.IP + "/32")
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +101,7 @@ func (a *Agent) romanaIPDeleteHandler(input interface{}, ctx common.RestContext)
 
 	log.Infof("Agent: received IP Address for deletion %s\n", ip.IP)
 
-	err := a.linkDelIP(ip.IP)
+	err := a.linkDelIP(ip.IP + "/32")
 	if err != nil {
 		return nil, err
 	}
