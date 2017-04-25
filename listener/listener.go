@@ -325,6 +325,8 @@ func (l *KubeListener) Initialize(client *common.RestClient) error {
 
 	ProduceNewPolicyEvents(eventc, done, l)
 
+	l.startRomanaIPSync(done)
+
 	log.Info("All routines started")
 	return nil
 }

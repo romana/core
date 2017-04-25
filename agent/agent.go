@@ -17,6 +17,8 @@
 package agent
 
 import (
+	"fmt"
+
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/log/trace"
 	enforcer "github.com/romana/core/pkg/policy/enforcer"
@@ -24,6 +26,7 @@ import (
 	policyCache "github.com/romana/core/pkg/util/policy/cache"
 	tenantCache "github.com/romana/core/pkg/util/tenant/cache"
 	log "github.com/romana/rlog"
+	"github.com/vishvananda/netlink"
 )
 
 // Agent provides access to configuration and helper functions, shared across
@@ -65,6 +68,9 @@ type Agent struct {
 
 	// Stops policy enforcer.
 	policyStop chan struct{}
+
+	// default host interface link
+	defaultLink netlink.Link
 }
 
 // SetConfig implements SetConfig function of the Service interface.
@@ -115,6 +121,24 @@ func (a *Agent) Routes() common.Routes {
 			Handler: a.vmDownHandler,
 			MakeMessage: func() interface{} {
 				return &NetIf{}
+			},
+			UseRequestToken: false,
+		},
+		common.Route{
+			Method:  "POST",
+			Pattern: "/romanaip",
+			Handler: a.romanaIPPostHandler,
+			MakeMessage: func() interface{} {
+				return &ExternalIP{}
+			},
+			UseRequestToken: false,
+		},
+		common.Route{
+			Method:  "DELETE",
+			Pattern: "/romanaip",
+			Handler: a.romanaIPDeleteHandler,
+			MakeMessage: func() interface{} {
+				return &ExternalIP{}
 			},
 			UseRequestToken: false,
 		},
@@ -183,10 +207,17 @@ const (
 // Initialize implements the Initialize method of common.Service
 // interface.
 func (a *Agent) Initialize(client *common.RestClient) error {
+	var err error
+
 	log.Trace(trace.Public, "Entering Agent.Initialize()")
 	a.client = client
 
-	err := a.store.Connect()
+	a.defaultLink, err = a.getDefaultLink()
+	if err != nil {
+		return fmt.Errorf("Failed to get default link: %s\n", err)
+	}
+
+	err = a.store.Connect()
 	if err != nil {
 		log.Error("Agent.Initialize() : Failed to connect to database.")
 		return err
