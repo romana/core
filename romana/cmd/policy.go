@@ -147,7 +147,7 @@ func policyAdd(cmd *cli.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("File error: %s\n", err)
 		}
-		err = json.Unmarshal(pBuf, &reqPolicies)
+		err = json.Unmarshal(pBuf, &reqPolicies.SecurityPolicies)
 		if err != nil || len(reqPolicies.SecurityPolicies) == 0 {
 			reqPolicies.SecurityPolicies = make([]common.Policy, 1)
 			err = json.Unmarshal(pBuf, &reqPolicies.SecurityPolicies[0])
@@ -156,7 +156,7 @@ func policyAdd(cmd *cli.Command, args []string) error {
 			}
 		}
 	} else {
-		err = json.Unmarshal(buf, &reqPolicies)
+		err = json.Unmarshal(buf, &reqPolicies.SecurityPolicies)
 		if err != nil || len(reqPolicies.SecurityPolicies) == 0 {
 			reqPolicies.SecurityPolicies = make([]common.Policy, 1)
 			err = json.Unmarshal(buf, &reqPolicies.SecurityPolicies[0])
