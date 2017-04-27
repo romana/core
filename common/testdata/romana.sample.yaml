@@ -13,8 +13,10 @@ services:
       port: 9601
     config:
       store: 
-        type: sqlite3
-        database: /var/tmp/ipam.sqlite3
+        type: etcd
+        host: localhost
+        port: 2379
+        database: /romana
   - service: tenant
     api:
       host: localhost

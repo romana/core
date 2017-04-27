@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Pani Networks
+// Copyright (c) 2016-2017 Pani Networks
 // All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -25,8 +25,7 @@ import (
 )
 
 var (
-	IDRingOverflowError          = NewError("No more available IDs")
-	IDRingCannotReclaimZeroError = NewError("Cannot reclaim ID 0")
+	IDRingOverflowError = NewError("No more available IDs")
 )
 
 // Range represents a range of uint64s that can be
@@ -47,16 +46,16 @@ func (irr Range) String() string {
 	return s
 }
 
-// idRing is responsible for allocating first available ID. Initially
-// the available range is from 1 to math.MaxUint64. As IDs are allocated,
-// the range shrinks. IDs can be returned to the ring. An instance of this SHOULD NOT
+// IDRing is responsible for allocating first available ID. Initially
+// the available range is from OrigMin to OrigMax as provided in the creation.
+// As IDs are allocated (see GetID), the range shrinks. IDs can be returned
+// to the Ring (see ReclaimID). An instance of this SHOULD NOT
 // be created directly, use NewIDRing() to create it.
 type IDRing struct {
 	// Ranges is an ordered set of ranges from which we allocate IDs.
-	// Initially this should include a single Range,
-	// from 1 to MaxUint64.
+	// Initially this should include a single Range.
 	// When this is nil, it means that we have exhausted the entire
-	// range from 1 to MaxInt, and, unless an ID is reclaimed, no more
+	// range from OrigMin to OrigMax, and, unless an ID is reclaimed, no more
 	// IDs can be given out.
 	// TODO this implementation is probably better (memory-wise) for a lot of allocations, with few
 	// reclaimed IDs, as is often the case. But if there are intended to be relatively
@@ -66,22 +65,28 @@ type IDRing struct {
 	// reclamations, and intended for few allocations with a lot of reclamations.
 	Ranges []Range
 	// To ensure that GetID and ReclaimID are atomic.
-	mutex *sync.Mutex
+	mutex   *sync.Mutex
+	OrigMin uint64
+	OrigMax uint64
 }
 
-// NewIDRing constructs a new IDRing instance with a single range, from 1 to
-// MaxInt, and initialized mutex.
-func NewIDRing() IDRing {
-	idRing := IDRing{Ranges: []Range{Range{Min: 1, Max: math.MaxUint64}},
-		mutex: &sync.Mutex{},
+// NewIDRing constructs a new IDRing instance with a single range for
+// provided min and max
+func NewIDRing(min uint64, max uint64) *IDRing {
+	r := Range{Min: min,
+		Max: max,
 	}
-	return idRing
+	idRing := IDRing{Ranges: []Range{r},
+		mutex:   &sync.Mutex{},
+		OrigMin: min,
+		OrigMax: max,
+	}
+	return &idRing
 }
 
 // Encode encodes the IDRing into an array of bytes.
 func (ir IDRing) Encode() ([]byte, error) {
 	return json.Marshal(ir)
-
 }
 
 // DecodeIDRing decodes IDRing object from the byte array.
@@ -98,27 +103,72 @@ func DecodeIDRing(data []byte) (IDRing, error) {
 
 // String returns a human-readable representation of the ring.
 func (ir IDRing) String() string {
-	s := ""
 	if ir.Ranges == nil || len(ir.Ranges) == 0 {
 		return "()"
 	}
-
+	sBegin := fmt.Sprintf("{%d ", ir.OrigMin)
+	sEnd := fmt.Sprintf(" %d}", ir.OrigMax)
 	if len(ir.Ranges) == 1 {
-		return ir.Ranges[0].String()
+		return sBegin + ir.Ranges[0].String() + sEnd
 	}
 
-	s += "("
+	s := sBegin + "("
 	for i, r := range ir.Ranges {
 		if i > 0 {
 			s += ", "
 		}
 		s += r.String()
 	}
-	s += ")"
+	s += ")" + sEnd
 	return s
 }
 
-// GetID returns the first available ID, starting with 1.
+// Invert() returns an IDRing that is the inverse of this IDRing
+// (that is, containing Ranges that are ranges not of available, but
+// of taken IDs).
+func (ir IDRing) Invert() *IDRing {
+	ir.mutex.Lock()
+	defer ir.mutex.Unlock()
+
+	ranges := make([]Range, 0)
+	prevMin := ir.OrigMin
+
+	for _, r := range ir.Ranges {
+		if prevMin < r.Min {
+			ranges = append(ranges, Range{Min: prevMin, Max: r.Min - 1})
+			if r.Max == ir.OrigMax {
+				prevMin = r.Max
+			} else {
+				prevMin = r.Max + 1
+			}
+		}
+	}
+	lastRange := ir.Ranges[len(ir.Ranges)-1]
+	if lastRange.Max < ir.OrigMax {
+		ranges = append(ranges, Range{Min: lastRange.Max + 1, Max: ir.OrigMax})
+	}
+
+	retval := IDRing{OrigMax: ir.OrigMax,
+		OrigMin: ir.OrigMin,
+		Ranges:  ranges,
+		mutex:   &sync.Mutex{},
+	}
+	log.Tracef(trace.Private, "Inversion of %s is %s", ir, retval)
+	return &retval
+}
+
+// IsEmpty returns true if there is are allocated IDs.
+func (ir IDRing) IsEmpty() bool {
+	ir.mutex.Lock()
+	defer ir.mutex.Unlock()
+	if len(ir.Ranges) > 1 {
+		return false
+	}
+	r := ir.Ranges[0]
+	return r.Min == ir.OrigMin && r.Max == ir.OrigMax
+}
+
+// GetID returns the first available ID, starting with OrigMin.
 // It will return an IDRingOverflowError if no more IDs can be returned.
 func (idRing *IDRing) GetID() (uint64, error) {
 	log.Tracef(trace.Inside, "GetID: Trying to get ID from %s", idRing.String())
@@ -143,20 +193,38 @@ func (idRing *IDRing) GetID() (uint64, error) {
 	return retval, nil
 }
 
-// ReclaimID returns the provided ID into the pool, so it can
-// be returned again upon some future call to GetID.
+// ReclaimID returns and ID to the pool.
 func (idRing *IDRing) ReclaimID(id uint64) error {
-	log.Tracef(trace.Inside, "ReclaimID: Trying to reclaim ID %d into %s", id, *idRing)
 	idRing.mutex.Lock()
 	defer idRing.mutex.Unlock()
-	if id == 0 {
-		log.Tracef(trace.Inside, "ReclaimID: Returning error for 0")
-		return IDRingCannotReclaimZeroError
+	return idRing.ReclaimIDNoLock(id)
+}
+
+// ReclaimIDs reclaims a list of IDs. If an error occurs, what
+// additionally a list of IDs that could not be reclaimed is returned.
+func (idRing *IDRing) ReclaimIDs(ids []uint64) (error, []uint64) {
+	// TODO this can be optimized for cases where ids are sequential.
+	idRing.mutex.Lock()
+	defer idRing.mutex.Unlock()
+	for idx, id := range ids {
+		err := idRing.ReclaimIDNoLock(id)
+		if err != nil {
+			return NewError("Could not reclaim ID %d at %d: %s", id, idx, err), ids[idx:]
+		}
 	}
+	return nil, nil
+}
+
+// ReclaimIDNoLock returns the provided ID into the pool, so it can
+// be returned again upon some future call to GetID.
+func (idRing *IDRing) ReclaimIDNoLock(id uint64) error {
 	if idRing.Ranges == nil || len(idRing.Ranges) == 0 {
 		idRing.Ranges = []Range{Range{Min: id, Max: id}}
 		log.Tracef(trace.Inside, "ReclaimID: Reclaimed ID %d to get %s", id, *idRing)
 		return nil
+	}
+	if id < idRing.OrigMin || id > idRing.OrigMax {
+		return NewError("Cannot reclaim %d as it is outside of range %d-%d", id, idRing.OrigMin, idRing.OrigMax)
 	}
 
 	done := false
@@ -185,12 +253,11 @@ func (idRing *IDRing) ReclaimID(id uint64) error {
 			return NewError("ReclaimID: Cannot reclaim id %d: it has not been allocated and is part of range %d: %s", id, i, *idRing)
 		}
 	}
+
 	if !done {
 		// At this point this can only mean that the ID being
 		// reclaimed is higher than the Max of the last range
-		// which is not possible.
-		return NewError("ReclaimID: Cannot reclaim id %d: it could not been", id)
-
+		idRing.Ranges = append(idRing.Ranges, Range{Min: id, Max: id})
 	}
 	// Now we need to merge the ranges
 	idRing.mergeRanges()

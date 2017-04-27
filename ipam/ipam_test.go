@@ -1,11 +1,11 @@
-// Copyright (c) 2016 Pani Networks
+// Copyright (c) 2017 Pani Networks
 // All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License"); you may
 // not use this file except in compliance with the License. You may obtain
 // a copy of the License at
 //
-//   http://www.apache.org/licenses/LICENSE-2.0
+// http://www.apache.org/licenses/LICENSE-2.0
 //
 // Unless required by applicable law or agreed to in writing, software
 // distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
@@ -16,131 +16,474 @@
 package ipam
 
 import (
-	"fmt"
-	"github.com/go-check/check"
-	"github.com/romana/core/common"
-	"log"
-
-	"net"
+	"encoding/json"
 	"testing"
 )
 
-// Hook up gocheck into the "go test" runner.
-func Test(t *testing.T) {
-	check.TestingT(t)
+var (
+	testSaver *TestSaver
+)
+
+func init() {
+	testSaver = &TestSaver{}
 }
 
-type MySuite struct {
-	common.RomanaTestSuite
+type TestSaver struct {
+	lastJson string
 }
 
-var _ = check.Suite(&MySuite{})
+func (s *TestSaver) save(ipam *ChunkIPAM) error {
+	b, err := json.MarshalIndent(ipam, "", "  ")
+	if err != nil {
+		return err
+	}
+	s.lastJson = string(b)
 
-func (s *MySuite) TearDownSuite(c *check.C) {
-	s.RomanaTestSuite.CleanUp()
+	return nil
 }
 
-func (s *MySuite) TestStore(c *check.C) {
-	var err error
+func TestNewCIDR(t *testing.T) {
+	cidr, err := NewCIDR("10.0.0.0/8")
+	if err != nil {
+		t.Error(err)
+	}
 
-	store := ipamStore{}
-	store.ServiceStore = &store
+	if cidr.StartIP.String() != "10.0.0.0" {
+		t.Errorf("Expected start to be 10.0.0.0, got %s", cidr.StartIP)
+	}
 
-	storeConfigMap := make(map[string]interface{})
-	storeConfigMap["type"] = "sqlite3"
-	storeConfigMap["database"] = s.RomanaTestSuite.GetMockSqliteFile("ipam")
-	storeConfig, err := common.MakeStoreConfig(storeConfigMap)
-	c.Assert(err, check.IsNil)
-	err = store.SetConfig(storeConfig)
-	c.Assert(err, check.IsNil)
-	cidr := "10.0.0.0/8"
-	ip, _, _ := net.ParseCIDR(cidr)
+	if cidr.EndIP.String() != "10.255.255.255" {
+		t.Errorf("Expected start to be 10.255.255.255 got %s", cidr.StartIP)
+	}
+}
 
-	dc := common.Datacenter{Cidr: cidr, IpVersion: 4, Prefix: common.IPv4ToInt(ip), PrefixBits: 8, PortBits: 8, TenantBits: 4, SegmentBits: 4}
+func TestChunkBlackout(t *testing.T) {
+	cidr1, err := NewCIDR("10.0.0.0/30")
+	if err != nil {
+		t.Error(err)
+	}
 
-	_, network, _ := net.ParseCIDR("10.1.0.0/16")
-	hostIpInt := common.IPv4ToInt(network.IP)
+	network1 := Network{CIDR: cidr1,
+		BlockMask: 30,
+	}
 
-	segmentBitShift := uint64(8)
-	tenantBitShift := uint64(segmentBitShift + 4)
-	upToEndpointIpInt := hostIpInt | (1 << tenantBitShift) | (1 << segmentBitShift)
-	// 253
-	// 127
-	// 63
-	// 31
-	for _, stride := range []uint{0, 1, 2, 4} {
-		//	for _, stride := range []uint{0} {
-		err = store.CreateSchema(true)
-		if err != nil {
-			panic(err)
-		}
-		err = store.Connect()
-		if err != nil {
-			panic(err)
-		}
-		dc.EndpointSpaceBits = stride
-		dc.EndpointBits = 8 - stride
-		endpoint := &common.IPAMEndpoint{Id: 0, EffectiveNetworkID: 0, HostId: "X", SegmentID: "X", TenantID: "X"}
-		i := uint(1)
-		firstIp := ""
-		var upperBound uint
-		switch stride {
-		case 0:
-			upperBound = 253
-		case 1:
-			upperBound = 127
-		case 2:
-			upperBound = 64
-		case 4:
-			upperBound = 16
-		}
-		log.Printf("For %d/%d go until 1= %d", dc.EndpointBits, stride, upperBound)
-		for i = 1; i <= uint(upperBound); i++ {
-			endpoint.Id = 0
-			msg := fmt.Sprintf("For stride %d, endpoint bits %d, try %d\n", stride, dc.EndpointBits, i)
-			log.Println(msg)
-			err = store.addEndpoint(endpoint, upToEndpointIpInt, dc)
-			if err != nil {
-				c.Error(fmt.Sprintf("Unexpected error on try %d: %v", i, err))
-				c.FailNow()
-			}
-			log.Printf("%s: Got IP: %s (effective network ID %d)", msg, endpoint.Ip, endpoint.EffectiveNetworkID)
-			if firstIp == "" {
-				firstIp = endpoint.Ip
-			}
+	networks := []Network{network1}
+	ipam, err := NewIPAM(testSaver.save, nil)
+	if err != nil {
+		t.Error(err)
+	}
 
-		}
-		// Here we have reached the end...
-		endpoint.Id = 0
-		err = store.addEndpoint(endpoint, upToEndpointIpInt, dc)
-		if err == nil {
-			c.Error(fmt.Sprintf("Expected error, but got %+v", endpoint))
-			c.FailNow()
-		}
+	// 1. Black out something random
+	err = ipam.BlackOut("10.100.100.100/24")
+	if err == nil {
+		t.Errorf("Expected error that no network found")
+	}
 
-		endpoint.Id = 0
-		_, err = store.deleteEndpoint(firstIp)
-		if err != nil {
-			c.Error(fmt.Sprintf("Unexpected error on try %d: %v", i, err))
-			c.FailNow()
-		}
-		endpoint.Id = 0
-		err = store.addEndpoint(endpoint, upToEndpointIpInt, dc)
-		if err != nil {
-			c.Error(fmt.Sprintf("Unexpected error on try %d: %v", i, err))
-			c.Fail()
-		}
-		c.Assert(endpoint.Ip, check.Equals, firstIp)
-		if c.Failed() {
-			return
-		}
+	// 2. Black out 10.0.0.0/30 - should be an error
+	err = ipam.BlackOut("10.0.0.0/30")
+	if err == nil {
+		t.Error("Expected error because cannot contain entire network")
+	}
+	t.Logf("Received expected error: %s", err)
 
-		endpoint.Id = 0
-		err = store.addEndpoint(endpoint, upToEndpointIpInt, dc)
-		if err == nil {
-			c.Error(fmt.Sprintf("Expected error, but got %+v", endpoint))
-			c.FailNow()
-		}
+	// 3. Black out 10.0.0.0/32
+	err = ipam.BlackOut("10.0.0.0/32")
+	if err != nil {
+		t.Error(err)
+	}
 
+	// 4. Black out 10.0.0.0/31 -- it should silently succeed but,
+	// will replace /32
+	err = ipam.BlackOut("10.0.0.0/31")
+	if err != nil {
+		t.Error(err)
+	}
+
+	// 4. Allocate IP - should start with 10.0.0.2
+	ip, err := ipam.AllocateIP("bla", "host1", "ten1", "seg1")
+	t.Logf("TestChunkBlackout: Allocated %s for ten1:seg1", ip)
+	if err != nil {
+		t.Error(err)
+	}
+	if ip.String() != "10.0.0.2" {
+		t.Errorf("Expected 10.0.0.2, got %s", ip)
+	}
+
+	ip, err = ipam.AllocateIP("bla", "host1", "ten1", "seg1")
+	t.Logf("TestChunkBlackout: Allocated %s for ten1:seg1", ip)
+	if err != nil {
+		t.Error(err)
+	}
+	if ip.String() != "10.0.0.3" {
+		t.Errorf("Expected 10.0.0.3, got %s", ip)
+	}
+
+	// Now this should fail.
+	ip, err = ipam.AllocateIP("ten1", "seg1")
+	t.Logf("TestChunkBlackout: Allocated %s for ten1:seg1", ip)
+	if err == nil {
+		t.Errorf("Expected an error, received an IP: %s", ip)
+	}
+
+	if err.Error() != msgNoAvailableIP {
+		t.Errorf("Expected error \"%s\", got %s", msgNoAvailableIP, err)
+	}
+
+	// 6. Try to black out already allocated chunk, should get error.
+	err = ipam.BlackOut("10.0.0.2/31")
+	if err == nil {
+		t.Error("Expected error because trying to black out allocated IPs")
+	}
+	t.Logf("Received expected error: %s", err)
+
+	// 7. Remove blackout
+	err = ipam.UnBlackOut("10.0.0.0/30")
+	if err == nil {
+		t.Error("Expected error as no such CIDR to remove from blackout, got nothing")
+	}
+	t.Logf("Received expected error %s", err)
+
+	err = ipam.UnBlackOut("10.0.0.0/31")
+	if err != nil {
+		t.Error(err)
+	}
+	// 8. Try allocating IPs again, will get them from the previously blacked out range.
+	ip, err = ipam.AllocateIP("ten1", "seg1")
+	t.Logf("TestChunkBlackout: Allocated %s for ten1:seg1", ip)
+	if err != nil {
+		t.Error(err)
+	}
+	if ip.String() != "10.0.0.0" {
+		t.Errorf("Expected 10.0.0.0, got %s", ip)
+	}
+	ip, err = ipam.AllocateIP("ten1", "seg1")
+	t.Logf("TestChunkBlackout: Allocated %s for ten1:seg1", ip)
+	if err != nil {
+		t.Error(err)
+	}
+	if ip.String() != "10.0.0.1" {
+		t.Errorf("Expected 10.0.0.1, got %s", ip)
+	}
+
+	// 9. Now this should fail -- network is full
+	ip, err = ipam.AllocateIP("ten1", "seg1")
+	t.Logf("TestChunkBlackout: Allocated %s for ten1:seg1", ip)
+	if err == nil {
+		t.Errorf("Expected an error, received an IP: %s", ip)
+	}
+
+	if err.Error() != msgNoAvailableIP {
+		t.Errorf("Expected error \"%s\", got %s", msgNoAvailableIP, err)
+	}
+}
+
+// TestChunkIPReuse tests that an IP can be reused.
+func TestChunkIPReuse(t *testing.T) {
+	cidr1, err := NewCIDR("10.0.0.0/31")
+	if err != nil {
+		t.Error(err)
+	}
+	network1 := Network{CIDR: cidr1,
+		BlockMask:      31,
+		AllowedTenants: []string{"*"},
+	}
+
+	networks := []Network{network1}
+	ipam, err := NewChunkIPAM(networks, testSaver.save, nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	ip, err := ipam.AllocateIP("ten1", "seg1")
+	t.Logf("TestChunkIPReuse: Allocated %s for ten1:seg1", ip)
+	if err != nil {
+		t.Error(err)
+	}
+	if ip.String() != "10.0.0.0" {
+		t.Errorf("Expected 10.0.0.0, got %s", ip)
+	}
+
+	ip, err = ipam.AllocateIP("ten1", "seg1")
+	t.Logf("TestChunkIPReuse: Allocated %s for ten1:seg1", ip)
+	if err != nil {
+		t.Error(err)
+	}
+	if ip.String() != "10.0.0.1" {
+		t.Errorf("Expected 10.0.0.1, got %s", ip)
+	}
+
+	// Now this should fail.
+	ip, err = ipam.AllocateIP("ten1", "seg1")
+	t.Logf("TestChunkIPReuse: Allocated %s for ten1:seg1", ip)
+	if err == nil {
+		t.Errorf("Expected an error, received an IP: %s", ip)
+	}
+
+	if err.Error() != msgNoAvailableIP {
+		t.Errorf("Expected error \"%s\", got %s", msgNoAvailableIP, err)
+	}
+
+	// Deallocate first IP
+	err = ipam.DeallocateIP("10.0.0.0")
+	if err != nil {
+		t.Error(err)
+	}
+
+	// This should succeed
+	ip, err = ipam.AllocateIP("ten1", "seg1")
+	t.Logf("TestChunkIPReuse: Allocated %s for ten1:seg1", ip)
+	if err != nil {
+		t.Error(err)
+	}
+	if ip.String() != "10.0.0.0" {
+		t.Errorf("Expected 10.0.0.0, got %s", ip)
+	}
+}
+
+// TestChunkBlockReuse tests that a block can be reused.
+func TestChunkBlockReuse(t *testing.T) {
+	cidr1, err := NewCIDR("10.0.0.0/31")
+	if err != nil {
+		t.Error(err)
+	}
+	network1 := Network{CIDR: cidr1,
+		BlockMask:      32,
+		AllowedTenants: []string{"*"},
+	}
+
+	networks := []Network{network1}
+	ipam, err := NewChunkIPAM(networks, testSaver.save, nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	ip, err := ipam.AllocateIP("ten1", "seg1")
+	t.Logf("TestChunkBlockReuse: Allocated %s for ten1:seg1", ip)
+	if err != nil {
+		t.Error(err)
+	}
+	if ip.String() != "10.0.0.0" {
+		t.Errorf("Expected 10.0.0.0, got %s", ip)
+	}
+
+	ip, err = ipam.AllocateIP("ten1", "seg1")
+	t.Logf("TestChunkBlockReuse: Allocated %s for ten1:seg1", ip)
+	if err != nil {
+		t.Error(err)
+	}
+	if ip.String() != "10.0.0.1" {
+		t.Errorf("Expected 10.0.0.1, got %s", ip)
+	}
+
+	// Now this should fail.
+	ip, err = ipam.AllocateIP("ten1", "seg1")
+	t.Logf("TestChunkBlockReuse: Allocated %s for ten1:seg1", ip)
+	if err == nil {
+		t.Errorf("Expected an error, received an IP: %s", ip)
+	}
+
+	if err.Error() != msgNoAvailableIP {
+		t.Errorf("Expected error \"%s\", got %s", msgNoAvailableIP, err)
+	}
+
+	// Deallocate first IP
+	err = ipam.DeallocateIP("10.0.0.0")
+	if err != nil {
+		t.Error(err)
+	}
+
+	// This should succeed
+	ip, err = ipam.AllocateIP("ten1", "seg1")
+	t.Logf("TestChunkBlockReuse: Allocated %s for ten1:seg1", ip)
+	if err != nil {
+		t.Error(err)
+	}
+	if ip.String() != "10.0.0.0" {
+		t.Errorf("Expected 10.0.0.0, got %s", ip)
+	}
+}
+
+// TestChunk32 tests bitmask size 32 - as a corner case.
+func TestChunk32(t *testing.T) {
+	// Part 1. Simple /32 block size test
+	cidr1, err := NewCIDR("10.0.0.0/24")
+	if err != nil {
+		t.Error(err)
+	}
+	network1 := Network{CIDR: cidr1,
+		BlockMask:      32,
+		AllowedTenants: []string{"*"},
+	}
+
+	networks := []Network{network1}
+	ipam, err := NewChunkIPAM(networks, testSaver.save, nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	ip, err := ipam.AllocateIP("ten1", "seg1")
+	t.Logf("TestChunkSegments: Allocated %s for ten1:seg1", ip)
+	if err != nil {
+		t.Error(err)
+	}
+	if ip.String() != "10.0.0.0" {
+		t.Errorf("Expected 10.0.0.0, got %s", ip)
+	}
+
+	ip, err = ipam.AllocateIP("ten1", "seg1")
+	t.Logf("TestChunkSegments: Allocated %s for ten1:seg1", ip)
+	if err != nil {
+		t.Error(err)
+	}
+	if ip.String() != "10.0.0.1" {
+		t.Errorf("Expected 10.0.0.1, got %s", ip)
+	}
+
+	// Part 2. Here we add a /32 block size to a /32 CIDR.
+	cidr2, err := NewCIDR("10.0.0.0/32")
+	if err != nil {
+		t.Error(err)
+	}
+	network2 := Network{CIDR: cidr2,
+		BlockMask:      32,
+		AllowedTenants: []string{"*"},
+	}
+
+	networks = []Network{network2}
+	ipam, err = NewChunkIPAM(networks, testSaver.save, nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	ip, err = ipam.AllocateIP("ten1", "seg1")
+	t.Logf("TestChunkSegments: Allocated %s for ten1:seg1", ip)
+	if err != nil {
+		t.Error(err)
+	}
+	if ip.String() != "10.0.0.0" {
+		t.Errorf("Expected 10.0.0.0, got %s", ip)
+	}
+
+	// Now this should fail - only one /32 block can be there on a /32 net.
+	ip, err = ipam.AllocateIP("ten1", "seg1")
+	t.Logf("TestChunkSegments: Allocated %s for ten1:seg1", ip)
+	if err == nil {
+		t.Errorf("Expected an error, received an IP: %s", ip)
+	}
+
+	if err.Error() != msgNoAvailableIP {
+		t.Errorf("Expected error \"%s\", got %s", msgNoAvailableIP, err)
+	}
+}
+
+// TestSegments tests that segments get different blocks.
+func TestChunkSegments(t *testing.T) {
+	cidr1, err := NewCIDR("10.0.0.0/24")
+	if err != nil {
+		t.Error(err)
+	}
+	network1 := Network{CIDR: cidr1,
+		BlockMask:      30,
+		AllowedTenants: []string{"*"},
+	}
+
+	networks := []Network{network1}
+	ipam, err := NewChunkIPAM(networks, testSaver.save, nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	ip, err := ipam.AllocateIP("ten1", "seg1")
+	t.Logf("TestChunkSegments: Allocated %s for ten1:seg1", ip)
+	if err != nil {
+		t.Error(err)
+	}
+	if ip.String() != "10.0.0.0" {
+		t.Errorf("Expected 10.0.0.0, got %s", ip)
+	}
+
+	ip, err = ipam.AllocateIP("ten1", "seg1")
+	t.Logf("TestChunkSegments: Allocated %s for ten1:seg1", ip)
+	if err != nil {
+		t.Error(err)
+	}
+	if ip.String() != "10.0.0.1" {
+		t.Errorf("Expected 10.0.0.0, got %s", ip)
+	}
+
+	// This should go into a separate chunk
+	ip, err = ipam.AllocateIP("ten1", "seg2")
+	t.Logf("TestChunkSegments: Allocated %s for ten1:seg2", ip)
+	if err != nil {
+		t.Error(err)
+	}
+	if ip.String() != "10.0.0.4" {
+		t.Errorf("Expected 10.0.0.4, got %s", ip)
+	}
+}
+
+func TestChunkTenants(t *testing.T) {
+	cidr1, err := NewCIDR("10.200.0.0/16")
+	if err != nil {
+		t.Error(err)
+	}
+	network1 := Network{CIDR: cidr1,
+		BlockMask:      29,
+		AllowedTenants: []string{"tenant1", "tenant2"},
+	}
+
+	cidr2, err := NewCIDR("10.220.0.0/16")
+	if err != nil {
+		t.Error(err)
+	}
+	network2 := Network{CIDR: cidr2,
+		BlockMask:      28,
+		AllowedTenants: []string{"tenant3"},
+	}
+
+	cidr3, err := NewCIDR("10.240.0.0/16")
+	if err != nil {
+		t.Error(err)
+	}
+	network3 := Network{CIDR: cidr3,
+		BlockMask:      28,
+		AllowedTenants: []string{"*"},
+	}
+	networks := []Network{network1, network2, network3}
+	ipam, err := NewChunkIPAM(networks, testSaver.save, nil)
+	if err != nil {
+		t.Error(err)
+	}
+
+	ip, err := ipam.AllocateIP("tenant1", "")
+	if err != nil {
+		t.Error(err)
+	}
+	if ip.String() != "10.200.0.0" {
+		t.Errorf("Expected 10.200.0.0, got %s", ip.String())
+	}
+
+	ip, err = ipam.AllocateIP("tenant2", "")
+	if err != nil {
+		t.Error(err)
+	}
+	if ip.String() != "10.200.0.8" {
+		t.Errorf("Expected 10.200.0.8, got %s", ip.String())
+	}
+
+	ip, err = ipam.AllocateIP("tenant3", "")
+	if err != nil {
+		t.Error(err)
+	}
+	if ip.String() != "10.220.0.0" {
+		t.Errorf("Expected 10.220.0.0, got %s", ip.String())
+	}
+
+	ip, err = ipam.AllocateIP("someothertenant", "")
+	if err != nil {
+		t.Error(err)
+	}
+	if ip.String() != "10.240.0.0" {
+		t.Errorf("Expected 10.240.0.0, got %s", ip.String())
 	}
 }

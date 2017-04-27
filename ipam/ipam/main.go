@@ -25,7 +25,7 @@ import (
 // Main entry point for the IPAM microservice
 func main() {
 	cs := common.NewCliState()
-	ipam := &ipam.IPAM{}
+	ipam := &ipam.IPAMSvc{}
 	svcInfo, err := cs.StartService(ipam)
 	if err != nil {
 		panic(err)

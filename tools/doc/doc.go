@@ -26,9 +26,7 @@ import (
 	"github.com/romana/core/ipam"
 	"github.com/romana/core/policy"
 	"github.com/romana/core/root"
-	"github.com/romana/core/tenant"
 	"github.com/romana/core/tools"
-	"github.com/romana/core/topology"
 )
 
 func main() {
@@ -46,7 +44,7 @@ func main() {
 	//	implementors := a.FindImplementors(serviceInterfaceName)
 	//	log.Printf("The following implement the %s interface: %+v", serviceInterfaceName, implementors)
 
-	services := []common.Service{&tenant.TenantSvc{}, &ipam.IPAM{}, &topology.TopologySvc{}, &root.Root{}, &agent.Agent{}, &policy.PolicySvc{}}
+	services := []common.Service{&ipam.IPAMSvc{}, &root.Root{}, &agent.Agent{}, &policy.PolicySvc{}}
 	for _, service := range services {
 		rd := tools.NewSwaggerer(a, service)
 		json, err := rd.Process()

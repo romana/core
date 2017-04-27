@@ -29,7 +29,7 @@ import (
 // NewError constructs an error by formatting
 // text with arguments.
 func NewError(text string, args ...interface{}) error {
-	return errors.New(fmt.Sprintf(text, args))
+	return errors.New(fmt.Sprintf(text, args...))
 }
 
 // HttpError is a structure that represents, well, an HTTP error.
