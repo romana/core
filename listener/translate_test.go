@@ -21,6 +21,7 @@ import (
 
 	"github.com/romana/core/common"
 
+	"k8s.io/client-go/pkg/api/unversioned"
 	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
 	"k8s.io/client-go/pkg/util/intstr"
@@ -58,12 +59,12 @@ func TestTranslateTarget(t *testing.T) {
 	}
 
 	testCases := []struct {
-		PodSelector  v1beta1.LabelSelector
+		PodSelector  unversioned.LabelSelector
 		RomanaPolicy common.Policy
 		expected     func(*common.Policy) bool
 	}{
 		{
-			PodSelector: v1beta1.LabelSelector{
+			PodSelector: unversioned.LabelSelector{
 				MatchLabels: map[string]string{},
 			},
 			RomanaPolicy: common.Policy{
@@ -73,7 +74,7 @@ func TestTranslateTarget(t *testing.T) {
 				return p.AppliedTo[0].TenantID == 3
 			},
 		}, {
-			PodSelector: v1beta1.LabelSelector{
+			PodSelector: unversioned.LabelSelector{
 				MatchLabels: map[string]string{
 					"role": "TestSegment",
 				},
@@ -157,7 +158,7 @@ func TestMakeNextIngressPeer(t *testing.T) {
 		{
 			From: []v1beta1.NetworkPolicyPeer{
 				v1beta1.NetworkPolicyPeer{
-					PodSelector: &v1beta1.LabelSelector{},
+					PodSelector: &unversioned.LabelSelector{},
 				},
 			},
 			RomanaPolicy: common.Policy{
@@ -172,7 +173,7 @@ func TestMakeNextIngressPeer(t *testing.T) {
 		}, {
 			From: []v1beta1.NetworkPolicyPeer{
 				v1beta1.NetworkPolicyPeer{
-					NamespaceSelector: &v1beta1.LabelSelector{
+					NamespaceSelector: &unversioned.LabelSelector{
 						MatchLabels: map[string]string{
 							"tenantName": "source-tenant",
 						},
@@ -191,14 +192,14 @@ func TestMakeNextIngressPeer(t *testing.T) {
 		}, {
 			From: []v1beta1.NetworkPolicyPeer{
 				v1beta1.NetworkPolicyPeer{
-					PodSelector: &v1beta1.LabelSelector{
+					PodSelector: &unversioned.LabelSelector{
 						MatchLabels: map[string]string{
 							"role": "TestSegment",
 						},
 					},
 				},
 				v1beta1.NetworkPolicyPeer{
-					PodSelector: &v1beta1.LabelSelector{
+					PodSelector: &unversioned.LabelSelector{
 						MatchLabels: map[string]string{
 							"role": "AnotherTestSegment",
 						},
