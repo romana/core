@@ -26,9 +26,9 @@ import (
 	"github.com/romana/core/common/log/trace"
 	log "github.com/romana/rlog"
 
-	"k8s.io/client-go/1.5/kubernetes"
-	"k8s.io/client-go/1.5/tools/cache"
-	"k8s.io/client-go/1.5/tools/clientcmd"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 type networkPolicyAction int

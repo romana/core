@@ -27,10 +27,10 @@ import (
 	"github.com/romana/core/common"
 	log "github.com/romana/rlog"
 
-	"k8s.io/client-go/1.5/pkg/api"
-	"k8s.io/client-go/1.5/pkg/api/v1"
-	"k8s.io/client-go/1.5/pkg/fields"
-	"k8s.io/client-go/1.5/tools/cache"
+	"k8s.io/client-go/pkg/api"
+	"k8s.io/client-go/pkg/api/v1"
+	"k8s.io/client-go/pkg/fields"
+	"k8s.io/client-go/tools/cache"
 )
 
 // ProcessNodeEvents processes kubernetes node events, there by
