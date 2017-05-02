@@ -290,7 +290,7 @@ func (l *KubeListener) nsWatch(done <-chan struct{}, url string) (chan Event, er
 
 	// watcher watches all namespaces.
 	watcher := cache.NewListWatchFromClient(
-		l.kubeClient.CoreClient,
+		l.kubeClient.CoreV1Client.RESTClient(),
 		"namespaces",
 		api.NamespaceAll,
 		fields.Everything(),
@@ -334,7 +334,7 @@ func ProduceNewPolicyEvents(out chan Event, done <-chan struct{}, KubeListener *
 
 	// watcher watches all network policy.
 	watcher := cache.NewListWatchFromClient(
-		KubeListener.kubeClient.ExtensionsClient,
+		KubeListener.kubeClient.ExtensionsV1beta1Client.RESTClient(),
 		"networkpolicies",
 		api.NamespaceAll,
 		fields.Everything(),
