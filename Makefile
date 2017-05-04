@@ -11,18 +11,19 @@ services = $$GOPATH/bin/root\
 		   $$GOPATH/bin/romana\
 		   $$GOPATH/bin/policy\
 		   $$GOPATH/bin/listener\
+		   $$GOPATH/bin/cni\
 		   $$GOPATH/bin/doc\
 		   $$GOPATH/bin/topology
 
 UPX_VERSION := $(shell upx --version 2>/dev/null)
+
+all: fmt vet install
 
 install:
 	go list -f '{{.ImportPath}}' "./..." | \
 		grep -v /vendor/ | xargs go install -ldflags \
 		"-X github.com/romana/core/common.buildInfo=`git describe --always` \
 		-X github.com/romana/core/common.buildTimeStamp=`date -u '+%Y-%m-%d_%I:%M:%S%p'`"
-
-all: install fmt vet test
 
 test:
 	go list -f '{{.ImportPath}}' "./..." | \
