@@ -18,6 +18,13 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"net"
+	"os"
+	"runtime"
+	"syscall"
+
+	"github.com/romana/core/common"
+
 	"github.com/containernetworking/cni/pkg/ip"
 	"github.com/containernetworking/cni/pkg/ns"
 	"github.com/containernetworking/cni/pkg/skel"
@@ -27,13 +34,7 @@ import (
 	log "github.com/romana/rlog"
 	"github.com/vishvananda/netlink"
 	"k8s.io/client-go/kubernetes"
-	"net"
-	"os"
-	"runtime"
-
-	"github.com/romana/core/common"
 	"k8s.io/client-go/tools/clientcmd"
-	//	"github.com/romana/core/common/log/trace"
 )
 
 var hostname string
@@ -337,7 +338,7 @@ func getRomanaGwAddr() (netlink.Link, *net.IPNet, error) {
 		return nil, nil, err
 	}
 
-	addr, err := netlink.AddrList(romanaGw, netlink.FAMILY_V4)
+	addr, err := netlink.AddrList(romanaGw, syscall.AF_INET)
 	if err != nil {
 		return nil, nil, err
 	}
