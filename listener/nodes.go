@@ -48,7 +48,7 @@ func (l *KubeListener) kubeClientInit() error {
 
 	// Get a set of REST clients which connect to kubernetes services
 	// from the config generated above.
-	l.kubeClient, err = kubernetes.NewForConfig(kConfig)
+	l.kubeClientSet, err = kubernetes.NewForConfig(kConfig)
 	if err != nil {
 		return fmt.Errorf("Error while connecting to kubernetes: %s", err)
 	}
@@ -63,9 +63,9 @@ func (l *KubeListener) ProcessNodeEvents(done <-chan struct{}) {
 	log.Debug("In ProcessNodeEvents()")
 
 	// nodeWatcher is a new ListWatch object created from the specified
-	// kubeClient which k8s.io/client-go exports for watching node events.
+	// kubeClientSet which k8s.io/client-go exports for watching node events.
 	nodeWatcher := cache.NewListWatchFromClient(
-		l.kubeClient.CoreV1Client.RESTClient(),
+		l.kubeClientSet.CoreV1Client.RESTClient(),
 		"nodes",
 		api.NamespaceAll,
 		fields.Everything())

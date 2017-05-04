@@ -61,8 +61,8 @@ type KubeListener struct {
 	lastEventPerNamespace         map[string]uint64
 	namespaceBufferSize           uint64
 
-	kubeClient *kubernetes.Clientset
-	Watchers   map[string]cache.ListerWatcher
+	kubeClientSet *kubernetes.Clientset
+	Watchers      map[string]cache.ListerWatcher
 }
 
 // Routes returns various routes used in the service.
