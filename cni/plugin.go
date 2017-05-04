@@ -26,13 +26,13 @@ import (
 	"github.com/containernetworking/cni/pkg/version"
 	log "github.com/romana/rlog"
 	"github.com/vishvananda/netlink"
-	"k8s.io/client-go/1.5/kubernetes"
+	"k8s.io/client-go/kubernetes"
 	"net"
 	"os"
 	"runtime"
 
 	"github.com/romana/core/common"
-	"k8s.io/client-go/1.5/tools/clientcmd"
+	"k8s.io/client-go/tools/clientcmd"
 	//	"github.com/romana/core/common/log/trace"
 )
 
