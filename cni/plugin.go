@@ -178,7 +178,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 	// Topology, find host id.
 	hosts, err := client.ListHosts()
 	if err != nil {
-		fmt.Errorf("Failed to list romana hosts err=(%s)", err)
+		return fmt.Errorf("Failed to list romana hosts err=(%s)", err)
 	}
 	var currentHost common.Host
 	for hostNum, host := range hosts {
