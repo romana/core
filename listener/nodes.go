@@ -27,11 +27,34 @@ import (
 	"github.com/romana/core/common"
 	log "github.com/romana/rlog"
 
-	"k8s.io/client-go/1.5/pkg/api"
-	"k8s.io/client-go/1.5/pkg/api/v1"
-	"k8s.io/client-go/1.5/pkg/fields"
-	"k8s.io/client-go/1.5/tools/cache"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/pkg/api"
+	"k8s.io/client-go/pkg/api/v1"
+	"k8s.io/client-go/pkg/fields"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/cache"
 )
+
+func (l *KubeListener) kubeClientInit() error {
+	var err error
+
+	// Try generating config for kubernetes client-go from
+	// in-cluster variables like KUBERNETES_SERVICE_HOST, etc
+	// so that we can connect to kubernetes using them.
+	kConfig, err := rest.InClusterConfig()
+	if err != nil {
+		return fmt.Errorf("Error: %s", err)
+	}
+
+	// Get a set of REST clients which connect to kubernetes services
+	// from the config generated above.
+	l.kubeClientSet, err = kubernetes.NewForConfig(kConfig)
+	if err != nil {
+		return fmt.Errorf("Error while connecting to kubernetes: %s", err)
+	}
+
+	return nil
+}
 
 // ProcessNodeEvents processes kubernetes node events, there by
 // adding/deleting nodes to/from romana cluster automatically
@@ -40,9 +63,9 @@ func (l *KubeListener) ProcessNodeEvents(done <-chan struct{}) {
 	log.Debug("In ProcessNodeEvents()")
 
 	// nodeWatcher is a new ListWatch object created from the specified
-	// kubeClient which k8s.io/client-go exports for watching node events.
+	// kubeClientSet which k8s.io/client-go exports for watching node events.
 	nodeWatcher := cache.NewListWatchFromClient(
-		l.kubeClient.CoreClient,
+		l.kubeClientSet.CoreV1Client.RESTClient(),
 		"nodes",
 		api.NamespaceAll,
 		fields.Everything())

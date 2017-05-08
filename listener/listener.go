@@ -17,7 +17,6 @@
 package listener
 
 import (
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -26,9 +25,8 @@ import (
 	"github.com/romana/core/common/log/trace"
 	log "github.com/romana/rlog"
 
-	"k8s.io/client-go/1.5/kubernetes"
-	"k8s.io/client-go/1.5/tools/cache"
-	"k8s.io/client-go/1.5/tools/clientcmd"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/cache"
 )
 
 type networkPolicyAction int
@@ -63,8 +61,8 @@ type KubeListener struct {
 	lastEventPerNamespace         map[string]uint64
 	namespaceBufferSize           uint64
 
-	kubeClient *kubernetes.Clientset
-	Watchers   map[string]cache.ListerWatcher
+	kubeClientSet *kubernetes.Clientset
+	Watchers      map[string]cache.ListerWatcher
 }
 
 // Routes returns various routes used in the service.
@@ -126,17 +124,9 @@ func (l *KubeListener) SetConfig(config common.ServiceConfig) error {
 		return common.NewError("Listener: kubernetes_config parameter is required to start.")
 	}
 
-	// TODO, this loads kubernetes config from flags provided in main
-	// should be loading from path provided by romana-root. Stas.
-	kubeClientConfig, err := clientcmd.BuildConfigFromFlags("", m["kubernetes_config"].(string))
-	if err != nil {
-		return errors.New(fmt.Sprintf("Failed to load kubernetes kubeClientConfig %s", err))
+	if err := l.kubeClientInit(); err != nil {
+		return fmt.Errorf("Error while loading kubernetes client %s", err)
 	}
-	clientset, err := kubernetes.NewForConfig(kubeClientConfig)
-	if err != nil {
-		return fmt.Errorf("Failed to make kubernetes client %s", err)
-	}
-	l.kubeClient = clientset
 
 	return nil
 }

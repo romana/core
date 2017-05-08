@@ -27,11 +27,11 @@ import (
 	"github.com/romana/core/common/log/trace"
 	log "github.com/romana/rlog"
 
-	"k8s.io/client-go/1.5/pkg/api"
-	"k8s.io/client-go/1.5/pkg/api/v1"
-	"k8s.io/client-go/1.5/pkg/apis/extensions/v1beta1"
-	"k8s.io/client-go/1.5/pkg/fields"
-	"k8s.io/client-go/1.5/tools/cache"
+	"k8s.io/client-go/pkg/api"
+	"k8s.io/client-go/pkg/api/v1"
+	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
+	"k8s.io/client-go/pkg/fields"
+	"k8s.io/client-go/tools/cache"
 )
 
 const (
@@ -290,7 +290,7 @@ func (l *KubeListener) nsWatch(done <-chan struct{}, url string) (chan Event, er
 
 	// watcher watches all namespaces.
 	watcher := cache.NewListWatchFromClient(
-		l.kubeClient.CoreClient,
+		l.kubeClientSet.CoreV1Client.RESTClient(),
 		"namespaces",
 		api.NamespaceAll,
 		fields.Everything(),
@@ -334,7 +334,7 @@ func ProduceNewPolicyEvents(out chan Event, done <-chan struct{}, KubeListener *
 
 	// watcher watches all network policy.
 	watcher := cache.NewListWatchFromClient(
-		KubeListener.kubeClient.ExtensionsClient,
+		KubeListener.kubeClientSet.ExtensionsV1beta1Client.RESTClient(),
 		"networkpolicies",
 		api.NamespaceAll,
 		fields.Everything(),

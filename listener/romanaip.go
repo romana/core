@@ -26,11 +26,11 @@ import (
 	"github.com/romana/core/common/log/trace"
 	log "github.com/romana/rlog"
 
-	"k8s.io/client-go/1.5/pkg/api"
-	"k8s.io/client-go/1.5/pkg/api/v1"
-	"k8s.io/client-go/1.5/pkg/fields"
-	"k8s.io/client-go/1.5/pkg/labels"
-	"k8s.io/client-go/1.5/tools/cache"
+	"k8s.io/client-go/pkg/api"
+	"k8s.io/client-go/pkg/api/v1"
+	"k8s.io/client-go/pkg/fields"
+	"k8s.io/client-go/pkg/labels"
+	"k8s.io/client-go/tools/cache"
 )
 
 type RomanaIP struct {
@@ -61,7 +61,7 @@ func (l *KubeListener) startRomanaIPSync(stop <-chan struct{}) {
 	// serviceWatcher is a new ListWatch object created from the specified
 	// CoreClientSet above for watching service events.
 	serviceWatcher := cache.NewListWatchFromClient(
-		l.kubeClient.CoreClient,
+		l.kubeClientSet.CoreV1Client.RESTClient(),
 		"services",
 		api.NamespaceAll,
 		fields.Everything())
@@ -163,15 +163,15 @@ func (l *KubeListener) updateRomanaIP(service *v1.Service) error {
 
 		updatedService := *service
 		updatedService.Spec.ExternalIPs = []string{romanaIP.IP}
-		_, err = l.kubeClient.CoreClient.Services(updatedService.GetNamespace()).Update(&updatedService)
+		_, err = l.kubeClientSet.CoreV1Client.Services(updatedService.GetNamespace()).Update(&updatedService)
 		if err != nil {
 			return fmt.Errorf("Error: externalIP couldn't be updated for service (%s): %s",
 				serviceName, err)
 		}
 
-		pods, err := l.kubeClient.CoreClient.Endpoints(updatedService.GetNamespace()).List(
-			api.ListOptions{
-				LabelSelector: labels.SelectorFromSet(updatedService.GetLabels()),
+		pods, err := l.kubeClientSet.CoreV1Client.Endpoints(updatedService.GetNamespace()).List(
+			v1.ListOptions{
+				LabelSelector: labels.FormatLabels(updatedService.GetLabels()),
 			})
 		if len(pods.Items) < 1 {
 			return fmt.Errorf("Error: pod not found for service (%s)",
@@ -189,7 +189,7 @@ func (l *KubeListener) updateRomanaIP(service *v1.Service) error {
 
 		// use first pod to get node address for now until we support ipam
 		// for romanaIP allocations.
-		node, err := l.kubeClient.CoreClient.Nodes().Get(*pods.Items[0].Subsets[0].Addresses[0].NodeName)
+		node, err := l.kubeClientSet.CoreV1Client.Nodes().Get(*pods.Items[0].Subsets[0].Addresses[0].NodeName)
 		if err != nil {
 			return fmt.Errorf("Error: node not found for pod for service (%s): %s",
 				serviceName, err)
