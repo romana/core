@@ -13,7 +13,8 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Package allocates ip address.
+// Package provides tools for romana CNI plugin to interact with other
+// Romana services.
 package cni
 
 import (
@@ -25,15 +26,15 @@ import (
 	"net"
 )
 
+// RomanaAddresManager describes functions that allow allocating and deallocating
+// IP addresses from Romana.
 type RomanaAddresManager interface {
 	Allocate(NetConf, RomanaAllocatorPodDescription) (*net.IPNet, error)
 	Deallocate(NetConf, string) error
 }
 
-type RomanaAddressManagerProvider string
-
-const DefaultProvider RomanaAddressManagerProvider = "default"
-
+// NewRomanaAddressManager returns structure that satisfies RomanaAddresManager,
+// it allows multiple implementations.
 func NewRomanaAddressManager(provider RomanaAddressManagerProvider) (RomanaAddresManager, error) {
 	if provider == DefaultProvider {
 		return DefaultAddressManager{}, nil
@@ -42,6 +43,13 @@ func NewRomanaAddressManager(provider RomanaAddressManagerProvider) (RomanaAddre
 	return nil, fmt.Errorf("Unknown provider type %s", provider)
 }
 
+type RomanaAddressManagerProvider string
+
+// DefaultProvider allocates and deallocates IP addresses using rest requests
+// to Romana IPAM.
+const DefaultProvider RomanaAddressManagerProvider = "default"
+
+// RomanaAllocatorPodDescription represents collection of parameters used to allocate IP address.
 type RomanaAllocatorPodDescription struct {
 	Name        string
 	Hostname    string
@@ -50,6 +58,7 @@ type RomanaAllocatorPodDescription struct {
 	Annotations map[string]string
 }
 
+// NetConf represents parameters CNI plugin receives via stdin.
 type NetConf struct {
 	FeatureIP6TW
 	types.NetConf
@@ -196,7 +205,6 @@ func (DefaultAddressManager) Deallocate(config NetConf, targetName string) error
 	}
 
 	for eNum, endpoint := range endpoints {
-		log.Debugf("Testing endpoint %v for name %s", endpoint, targetName)
 		if endpoint.Name == targetName && endpoint.InUse {
 			podEndpoints = append(podEndpoints, endpoints[eNum])
 		}

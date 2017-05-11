@@ -105,15 +105,11 @@ func cmdAdd(args *skel.CmdArgs) error {
 	// Networking setup
 	_, gwAddr, err := GetRomanaGwAddr()
 	if err != nil {
-		log.Errorf("romana gw error=(%s)", err)
-		// TODO deallocateIP hern
 		return fmt.Errorf("Failed to detect ipv4 address on romana-gw interface, err=(%s)", err)
 	}
 
 	netns, err := ns.GetNS(args.Netns)
 	if err != nil {
-		log.Errorf("get ns error=(%s)", err)
-		// TODO deallocateIP hern
 		return fmt.Errorf("failed to open netns %q: %v", args.Netns, err)
 	}
 	defer netns.Close()
@@ -145,8 +141,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 		// sets up transport route to allow installing default route
 		err = netlink.RouteAdd(&transportRoute)
 		if err != nil {
-			log.Errorf("route add error=(%s)", err)
-			return nil
+			return fmt.Errorf("route add error=(%s)", err)
 		}
 
 		// default route for the pod
@@ -188,7 +183,6 @@ func cmdAdd(args *skel.CmdArgs) error {
 	vethExternalName := k8sargs.MakeVethName()
 	err = RenameLink(hostIface.Name, vethExternalName)
 	if err != nil {
-		log.Errorf("Failed to rename host part of veth interface from %s to %s, err=(%s)", hostIface.Name, vethExternalName, err)
 		return fmt.Errorf("Failed to rename host part of veth interface from %s to %s, err=(%s)", hostIface.Name, vethExternalName, err)
 	}
 

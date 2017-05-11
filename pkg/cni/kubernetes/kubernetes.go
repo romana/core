@@ -13,7 +13,7 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Package has structures for CNI plugin to interact with Kubernetes.
+// Package provides tool for Romana CNI plugin to interact with kubernetes.
 package kubernetes
 
 import (
@@ -32,7 +32,7 @@ type PodDescription struct {
 	Annotations map[string]string
 }
 
-// K8sArgs is the valid CNI_ARGS used for Kubernetes
+// K8sArgs is the valid CNI_ARGS used for Kubernetes.
 type K8sArgs struct {
 	types.CommonArgs
 	IP                         net.IP
@@ -41,6 +41,7 @@ type K8sArgs struct {
 	K8S_POD_INFRA_CONTAINER_ID types.UnmarshallableString
 }
 
+// MakePodName returns unique pod name.
 func (k8s K8sArgs) MakePodName() string {
 	const suffixLength = 8
 	var suffix string
@@ -54,6 +55,8 @@ func (k8s K8sArgs) MakePodName() string {
 	return fmt.Sprintf("%s.%s.%s", k8s.K8S_POD_NAME, k8s.K8S_POD_NAMESPACE, suffix)
 }
 
+// MakeVethName generates veth name that can be used for external part
+// of the veth interface.
 func (k8s K8sArgs) MakeVethName() string {
 	const suffixLength = 8
 	const vethPrefix = "romana"
@@ -68,22 +71,20 @@ func (k8s K8sArgs) MakeVethName() string {
 	return fmt.Sprintf("%s-%s", vethPrefix, suffix)
 }
 
+// GetPodDescription retrieves additional information about pod that being created
+// or deleted using CNI.
 func GetPodDescription(args K8sArgs, configFile string) (*PodDescription, error) {
 	// Init kubernetes client. Attempt to load from statically configured k8s config or fallback on in-cluster
 	kubeClientConfig, err := clientcmd.BuildConfigFromFlags("", configFile)
 	if err != nil {
 		return nil, err
 	}
-	log.Debugf("Created kube config err=(%s)", err)
 	kubeClient, err := kubernetes.NewForConfig(kubeClientConfig)
-	log.Debugf("Created kube client err=(%s)", err)
 
 	pod, err := kubeClient.Core().Pods(string(args.K8S_POD_NAMESPACE)).Get(fmt.Sprintf("%s", args.K8S_POD_NAME))
 	if err != nil {
-		log.Errorf("Failed to discover a pod %s, err=(%s)", args.K8S_POD_NAME, err)
-		return nil, err
+		return nil, fmt.Errorf("Failed to discover a pod %s, err=(%s)", args.K8S_POD_NAME, err)
 	}
-	log.Debugf("Discovered a pod %v", pod)
 
 	res := PodDescription{
 		Name:        args.MakePodName(),
