@@ -17,6 +17,7 @@
 package enforcer
 
 import (
+	"os/exec"
 	"strings"
 	"time"
 
@@ -69,8 +70,29 @@ type Enforcer struct {
 }
 
 // New returns new policy enforcer.
-func New(tenantCache tenantCache.Interface, policyCache policyCache.Interface, network firewall.NetConfig, exec utilexec.Executable, refreshSeconds int) Interface {
-	return &Enforcer{tenantCache: tenantCache, policyCache: policyCache, netConfig: network, exec: exec, refreshSeconds: refreshSeconds}
+func New(tenantCache tenantCache.Interface,
+	policyCache policyCache.Interface,
+	network firewall.NetConfig,
+	utilexec utilexec.Executable,
+	refreshSeconds int) (Interface, error) {
+
+	var err error
+
+	if iptablesSaveBin, err = exec.LookPath("iptables-save"); err != nil {
+		return nil, err
+	}
+
+	if iptablesRestoreBin, err = exec.LookPath("iptables-restore"); err != nil {
+		return nil, err
+	}
+
+	return &Enforcer{
+		tenantCache:    tenantCache,
+		policyCache:    policyCache,
+		netConfig:      network,
+		exec:           utilexec,
+		refreshSeconds: refreshSeconds,
+	}, nil
 }
 
 // Run implements Interface.  It reads notifications

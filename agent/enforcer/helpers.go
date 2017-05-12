@@ -29,9 +29,9 @@ import (
 	log "github.com/romana/rlog"
 )
 
-const (
-	iptablesSaveBin    = `/sbin/iptables-save`
-	iptablesRestoreBin = `/sbin/iptables-restore`
+var (
+	iptablesSaveBin    string
+	iptablesRestoreBin string
 )
 
 // MakeIngressTenantJumpRule makes a rule to send traffic from romana ingress chain
