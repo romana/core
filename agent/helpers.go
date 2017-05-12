@@ -24,6 +24,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"os/exec"
 	"strconv"
 	"strings"
 	"sync"
@@ -38,7 +39,7 @@ import (
 
 // NewAgentHelper returns Helper with initialized default implementations
 // for all interfaces.
-func NewAgentHelper(agent *Agent) Helper {
+func NewAgentHelper(agent *Agent) (*Helper, error) {
 	helper := new(Helper)
 	helper.Executor = new(utilexec.DefaultExecutor)
 	helper.OS = new(utilos.DefaultOS)
@@ -46,7 +47,20 @@ func NewAgentHelper(agent *Agent) Helper {
 	helper.ensureLineMutex = &sync.Mutex{}
 	helper.ensureRouteToEndpointMutex = &sync.Mutex{}
 	helper.ensureInterHostRoutesMutex = &sync.Mutex{}
-	return *helper
+
+	if ip, err := exec.LookPath("ip"); err != nil {
+		return nil, err
+	} else {
+		helper.CommandIP = ip
+	}
+
+	if ps, err := exec.LookPath("ps"); err != nil {
+		return nil, err
+	} else {
+		helper.CommandPS = ps
+	}
+
+	return helper, nil
 }
 
 // sendSighup is attempting to send SIGHUP signal to the process.
@@ -66,11 +80,10 @@ func (h Helper) sendSighup(pid int) error {
 // or error otherwise.
 // TODO Only works with single daemon, maybe implement support for more.
 func (h Helper) DhcpPid() (int, error) {
-	cmd := "ps"
 	args := []string{"-C", "dnsmasq-calico", "-o", "pid", "--no-headers"}
-	out, err := h.Executor.Exec(cmd, args)
+	out, err := h.Executor.Exec(h.CommandPS, args)
 	if err != nil {
-		return -1, shelloutError(err, cmd, args)
+		return -1, shelloutError(err, h.CommandPS, args)
 	}
 
 	// TODO Deal with list of pids coming in from shellout
@@ -79,7 +92,7 @@ func (h Helper) DhcpPid() (int, error) {
 	// TODO Improve sanity check, we want to be sure that we're on to our
 	// dnsmasq and not some other process which happened to match our search.
 	if pid > 65535 || pid < 1 || err != nil {
-		return pid, shelloutError(err, cmd, args)
+		return pid, shelloutError(err, h.CommandPS, args)
 	}
 	return pid, nil
 }
@@ -87,12 +100,11 @@ func (h Helper) DhcpPid() (int, error) {
 // isRouteExist checks if route exists, returns nil if it is and error otherwise.
 // Idea is - `ip ro show A.B.C.D/M` will came up empty if route does not exist.
 func (h Helper) isRouteExist(ip net.IP, netmask string) error {
-	cmd := "/sbin/ip"
 	target := fmt.Sprintf("%s/%v", ip, netmask)
 	args := []string{"ro", "show", target}
-	out, err := h.Executor.Exec(cmd, args)
+	out, err := h.Executor.Exec(h.CommandIP, args)
 	if err != nil {
-		return shelloutError(err, cmd, args)
+		return shelloutError(err, h.CommandIP, args)
 	}
 
 	if l := len(out); l > 0 {
@@ -105,12 +117,11 @@ func (h Helper) isRouteExist(ip net.IP, netmask string) error {
 // createRoute creates IP route, returns nil if success and error otherwise.
 func (h Helper) createRoute(ip net.IP, netmask string, via string, dest string, extraArgs ...string) error {
 	log.Trace(trace.Private, "Helper: creating route")
-	cmd := "/sbin/ip"
 	targetIP := fmt.Sprintf("%s/%v", ip, netmask)
 	args := []string{"ro", "add", targetIP, via, dest}
 	args = append(args, extraArgs...)
-	if _, err := h.Executor.Exec(cmd, args); err != nil {
-		return shelloutError(err, cmd, args)
+	if _, err := h.Executor.Exec(h.CommandIP, args); err != nil {
+		return shelloutError(err, h.CommandIP, args)
 	}
 	return nil // success
 }

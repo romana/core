@@ -256,8 +256,12 @@ func (s *MySuite) TestAgentStart(c *check.C) {
 	myLog(c, "STARTING Agent SERVICE")
 
 	a := &agent.Agent{TestMode: true}
-	helper := agent.NewAgentHelper(a)
-	a.Helper = &helper
+	helper, err := agent.NewAgentHelper(a)
+	if err != nil {
+		c.Errorf("Error, failed to intitialize agent: %s\n", err)
+		c.FailNow()
+	}
+	a.Helper = helper
 	agentInfo, err := common.SimpleStartService(a, urlInfo.rootURL, nil)
 	if err != nil {
 		c.Error(err)

@@ -26,6 +26,7 @@
 package agent
 
 import (
+	"fmt"
 	"net"
 	"sync"
 
@@ -48,12 +49,14 @@ type Helper struct {
 	ensureRouteToEndpointMutex *sync.Mutex
 	ensureLineMutex            *sync.Mutex
 	ensureInterHostRoutesMutex *sync.Mutex
+	CommandIP                  string
+	CommandPS                  string
 }
 
 // mockAgent creates the agent with the configuration
 // needed for tests without the need to go through
 // configuration files.
-func mockAgent() Agent {
+func mockAgent() (*Agent, error) {
 
 	host0 := common.Host{Ip: "172.17.0.1", RomanaIp: "127.0.0.1/8"}
 
@@ -75,8 +78,12 @@ func mockAgent() Agent {
 
 	networkConfig.dc = dc
 	agent := &Agent{networkConfig: networkConfig}
-	helper := NewAgentHelper(agent)
-	agent.Helper = &helper
+	helper, err := NewAgentHelper(agent)
+	if err != nil {
+		return nil, fmt.Errorf("Error while starting agent helper: %s\n", err)
+	}
+
+	agent.Helper = helper
 
 	storeConfigMain := common.ServiceConfig{ServiceSpecific: map[string]interface{}{
 		"type":     "sqlite3",
@@ -89,5 +96,5 @@ func mockAgent() Agent {
 
 	agent.CreateSchema(true) // overwrite
 
-	return *agent
+	return agent, nil
 }
