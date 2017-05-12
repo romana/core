@@ -20,6 +20,7 @@ package firewall
 import (
 	"fmt"
 	"net"
+	"os/exec"
 	"strconv"
 	"strings"
 
@@ -45,14 +46,20 @@ type IPtables struct {
 }
 
 // Init implements Firewall interface.
-func (fw *IPtables) Init(exec utilexec.Executable, store FirewallStore, nc NetConfig) error {
+func (fw *IPtables) Init(utilexec utilexec.Executable, store FirewallStore, nc NetConfig) error {
+	var err error
+
 	fwstore := firewallStore{}
 	fwstore.RdbmsStore = store.GetDb()
 	fwstore.mu = store.GetMutex()
 
 	fw.Store = fwstore
-	fw.os = exec
+	fw.os = utilexec
 	fw.networkConfig = nc
+
+	if iptablesCmd, err = exec.LookPath("iptables"); err != nil {
+		return err
+	}
 
 	return nil
 }
