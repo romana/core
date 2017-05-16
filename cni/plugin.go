@@ -102,7 +102,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 	}
 
 	// Networking setup
-	_, gwAddr, err := GetRomanaGwAddr()
+	gwAddr, err := GetRomanaGwAddr()
 	if err != nil {
 		return fmt.Errorf("Failed to detect ipv4 address on romana-gw interface, err=(%s)", err)
 	}
@@ -236,23 +236,23 @@ func cmdDel(args *skel.CmdArgs) error {
 }
 
 // GetRomanaGwAddr detects ip address assigned to romana-gw interface.
-func GetRomanaGwAddr() (netlink.Link, *net.IPNet, error) {
+func GetRomanaGwAddr() (*net.IPNet, error) {
 	const gwIface = "romana-gw"
 	romanaGw, err := netlink.LinkByName(gwIface)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	addr, err := netlink.AddrList(romanaGw, syscall.AF_INET)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	if len(addr) != 1 {
-		return nil, nil, fmt.Errorf("Expected exactly 1 ipv4 address on romana-gw interface, found %d", len(addr))
+		return nil, fmt.Errorf("Expected exactly 1 ipv4 address on romana-gw interface, found %d", len(addr))
 	}
 
-	return romanaGw, addr[0].IPNet, nil
+	return addr[0].IPNet, nil
 }
 
 // RenameLink renames interface.
