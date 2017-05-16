@@ -59,7 +59,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 	k8sargs := kubernetes.K8sArgs{}
 	err = types.LoadArgs(args.Args, &k8sargs)
 	if err != nil {
-		return fmt.Errorf("Failed to types.LoadArgs, err=%(err)", err)
+		return fmt.Errorf("Failed to types.LoadArgs, err=(%s)", err)
 	}
 	log.Debugf("Loaded Kubernetes args %v", k8sargs)
 
