@@ -79,7 +79,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 
 			// don't want to panic here
 			if netConf != nil && err == nil {
-				log.Errorf("Deallocating IP on exist, something went wrong")
+				log.Errorf("Deallocating IP on exit, something went wrong")
 				_ = deallocator.Deallocate(*netConf, pod.Name)
 			}
 		}
