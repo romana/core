@@ -72,7 +72,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 	// Deferring deallocation before allocating ip address,
 	// deallocation will be called on any return unless
 	// flag set to false.
-	var deallocateOnExit bool = true
+	var deallocateOnExit = true
 	defer func() {
 		if deallocateOnExit {
 			deallocator, err := util.NewRomanaAddressManager(util.DefaultProvider)
