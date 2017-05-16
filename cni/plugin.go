@@ -178,15 +178,8 @@ func cmdAdd(args *skel.CmdArgs) error {
 		return fmt.Errorf("Failed to create veth interfaces in namespace %v, err=(%s)", netns, err)
 	}
 
-	// Rename host part of veth to something convinient.
-	vethExternalName := k8sargs.MakeVethName()
-	err = RenameLink(hostIface.Name, vethExternalName)
-	if err != nil {
-		return fmt.Errorf("Failed to rename host part of veth interface from %s to %s, err=(%s)", hostIface.Name, vethExternalName, err)
-	}
-
 	// Return route.
-	err = AddEndpointRoute(vethExternalName, podAddress)
+	err = AddEndpointRoute(hostIface.Name, podAddress)
 	if err != nil {
 		return fmt.Errorf("Failed to setup return route to %s via interface %s, err=(%s)", podAddress, hostIface.Name, err)
 	}
@@ -253,35 +246,6 @@ func GetRomanaGwAddr() (*net.IPNet, error) {
 	}
 
 	return addr[0].IPNet, nil
-}
-
-// RenameLink renames interface.
-func RenameLink(curName, newName string) error {
-	curVeth, err := netlink.LinkByName(curName)
-	if err != nil {
-		return fmt.Errorf("failed to lookup %q: %v", curName, err)
-	}
-
-	if err = netlink.LinkSetDown(curVeth); err != nil {
-		return fmt.Errorf("failed to set %q up: %v", curName, err)
-	}
-
-	err = netlink.LinkSetName(curVeth, newName)
-	if err != nil {
-		return fmt.Errorf("failed to rename %q: %v", curVeth, newName)
-	}
-
-	newVeth, err := netlink.LinkByName(newName)
-	if err != nil {
-		return fmt.Errorf("failed to lookup %q: %v", newName, err)
-	}
-
-	err = netlink.LinkSetUp(newVeth)
-	if err != nil {
-		return fmt.Errorf("failed to set %q up: %v", newVeth, err)
-	}
-
-	return nil
 }
 
 // AddEndpointRoute adds return /32 route from host to pod.
