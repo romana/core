@@ -61,7 +61,6 @@ type RomanaAllocatorPodDescription struct {
 
 // NetConf represents parameters CNI plugin receives via stdin.
 type NetConf struct {
-	FeatureIP6TW
 	types.NetConf
 	KubernetesConfig string `json:"kubernetes_config"`
 	RomanaRoot       string `json:"romana_root"`
@@ -72,11 +71,6 @@ type NetConf struct {
 	SegmentLabelName string `json:"segment_label_name"`
 	TenantLabelName  string `json:"tenant_label_name"` // TODO for stas, we don't use it. May be it should go away.
 	UseAnnotations   bool   `json:"use_annotattions"`
-}
-
-// The structure should be in separate file.
-type FeatureIP6TW struct {
-	// Fields relative to the feature.
 }
 
 type DefaultAddressManager struct{}
