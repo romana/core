@@ -50,7 +50,10 @@ func cmdAdd(args *skel.CmdArgs) error {
 	var err error
 	// netConf stores Romana related config
 	// that comes form stdin.
-	netConf, _, _ := loadConf(args.StdinData)
+	netConf, err := loadConf(args.StdinData)
+	if err != nil {
+		return err
+	}
 	cniVersion := netConf.CNIVersion
 	log.Debugf("Loaded netConf %v", netConf)
 
@@ -206,7 +209,10 @@ func cmdDel(args *skel.CmdArgs) error {
 	var err error
 	// netConf stores Romana related config
 	// that comes form stdin.
-	netConf, _, _ := loadConf(args.StdinData)
+	netConf, err := loadConf(args.StdinData)
+	if err != nil {
+		return err
+	}
 
 	// LoadArgs parses kubernetes related parameters from CNI
 	// environment variables.
@@ -266,10 +272,10 @@ func AddEndpointRoute(ifaceName string, ip *net.IPNet) error {
 }
 
 // loadConf initializes romana config from stdin.
-func loadConf(bytes []byte) (*util.NetConf, string, error) {
+func loadConf(bytes []byte) (*util.NetConf, error) {
 	n := &util.NetConf{}
 	if err := json.Unmarshal(bytes, n); err != nil {
-		return nil, "", fmt.Errorf("failed to load netconf: %s", err)
+		return nil, fmt.Errorf("failed to load netconf: %s", err)
 	}
 
 	// TODO for stas
@@ -277,13 +283,13 @@ func loadConf(bytes []byte) (*util.NetConf, string, error) {
 	if n.RomanaHostName == "" {
 		hostname, err := os.Hostname()
 		if err != nil {
-			return nil, "", fmt.Errorf("failed to load netconf: %s", err)
+			return nil, fmt.Errorf("failed to load netconf: %s", err)
 		}
 
 		n.RomanaHostName = hostname
 	}
 
-	return n, n.CNIVersion, nil
+	return n, nil
 }
 
 func main() {
