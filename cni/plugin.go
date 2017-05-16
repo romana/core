@@ -165,7 +165,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 
 		err = netlink.AddrAdd(containerVethLink, podIP)
 		if err != nil {
-			return fmt.Errorf("failed to add ip address %s to the interface %s, err=(%s)", podIP, containerVeth, err)
+			return fmt.Errorf("failed to add ip address %s to the interface %s, err=(%s)", podIP, containerVeth.Name, err)
 		}
 
 		contIface.Name = containerVeth.Name
