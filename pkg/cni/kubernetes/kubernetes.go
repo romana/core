@@ -55,22 +55,6 @@ func (k8s K8sArgs) MakePodName() string {
 	return fmt.Sprintf("%s.%s.%s", k8s.K8S_POD_NAME, k8s.K8S_POD_NAMESPACE, suffix)
 }
 
-// MakeVethName generates veth name that can be used for external part
-// of the veth interface.
-func (k8s K8sArgs) MakeVethName() string {
-	const suffixLength = 8
-	const vethPrefix = "romana"
-	var suffix string
-	infra := string(k8s.K8S_POD_INFRA_CONTAINER_ID)
-	if len(infra) > suffixLength {
-		suffix = infra[:suffixLength]
-	} else {
-		suffix = infra
-	}
-
-	return fmt.Sprintf("%s-%s", vethPrefix, suffix)
-}
-
 // GetPodDescription retrieves additional information about pod that being created
 // or deleted using CNI.
 func GetPodDescription(args K8sArgs, configFile string) (*PodDescription, error) {
