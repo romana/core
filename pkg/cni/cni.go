@@ -19,11 +19,12 @@ package cni
 
 import (
 	"fmt"
+	"net"
+
 	"github.com/containernetworking/cni/pkg/types"
 	"github.com/romana/core/common"
 	log "github.com/romana/rlog"
 	"github.com/vishvananda/netlink"
-	"net"
 )
 
 // RomanaAddresManager describes functions that allow allocating and deallocating

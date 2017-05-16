@@ -24,16 +24,15 @@ import (
 	"runtime"
 	"syscall"
 
+	"github.com/romana/core/pkg/cni/kubernetes"
+
 	"github.com/containernetworking/cni/pkg/ip"
 	"github.com/containernetworking/cni/pkg/ns"
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
 	"github.com/containernetworking/cni/pkg/types/current"
 	"github.com/containernetworking/cni/pkg/version"
-
 	util "github.com/romana/core/pkg/cni"
-	"github.com/romana/core/pkg/cni/kubernetes"
-
 	log "github.com/romana/rlog"
 	"github.com/vishvananda/netlink"
 )

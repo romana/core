@@ -18,11 +18,11 @@ package kubernetes
 
 import (
 	"fmt"
+	"net"
+
 	"github.com/containernetworking/cni/pkg/types"
-	log "github.com/romana/rlog"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
-	"net"
 )
 
 type PodDescription struct {
