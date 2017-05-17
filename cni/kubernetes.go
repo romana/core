@@ -13,8 +13,7 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Package provides tool for Romana CNI plugin to interact with kubernetes.
-package kubernetes
+package main
 
 import (
 	"fmt"

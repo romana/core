@@ -13,9 +13,7 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Package provides tools for romana CNI plugin to interact with other
-// Romana services.
-package cni
+package main
 
 import (
 	"fmt"

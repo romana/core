@@ -24,15 +24,12 @@ import (
 	"runtime"
 	"syscall"
 
-	"github.com/romana/core/pkg/cni/kubernetes"
-
 	"github.com/containernetworking/cni/pkg/ip"
 	"github.com/containernetworking/cni/pkg/ns"
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
 	"github.com/containernetworking/cni/pkg/types/current"
 	"github.com/containernetworking/cni/pkg/version"
-	util "github.com/romana/core/pkg/cni"
 	log "github.com/romana/rlog"
 	"github.com/vishvananda/netlink"
 )
@@ -59,7 +56,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 
 	// LoadArgs parses kubernetes related parameters from CNI
 	// environment variables.
-	k8sargs := kubernetes.K8sArgs{}
+	k8sargs := K8sArgs{}
 	err = types.LoadArgs(args.Args, &k8sargs)
 	if err != nil {
 		return fmt.Errorf("Failed to types.LoadArgs, err=(%s)", err)
@@ -67,7 +64,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 	log.Debugf("Loaded Kubernetes args %v", k8sargs)
 
 	// Retrieves additional information about the pod
-	pod, err := kubernetes.GetPodDescription(k8sargs, netConf.KubernetesConfig)
+	pod, err := GetPodDescription(k8sargs, netConf.KubernetesConfig)
 	if err != nil {
 		return err
 	}
@@ -78,7 +75,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 	var deallocateOnExit = true
 	defer func() {
 		if deallocateOnExit {
-			deallocator, err := util.NewRomanaAddressManager(util.DefaultProvider)
+			deallocator, err := NewRomanaAddressManager(DefaultProvider)
 
 			// don't want to panic here
 			if netConf != nil && err == nil {
@@ -89,11 +86,11 @@ func cmdAdd(args *skel.CmdArgs) error {
 	}()
 
 	// Allocating ip address.
-	allocator, err := util.NewRomanaAddressManager(util.DefaultProvider)
+	allocator, err := NewRomanaAddressManager(DefaultProvider)
 	if err != nil {
 		return err
 	}
-	podAddress, err := allocator.Allocate(*netConf, util.RomanaAllocatorPodDescription{
+	podAddress, err := allocator.Allocate(*netConf, RomanaAllocatorPodDescription{
 		Name:        pod.Name,
 		Hostname:    netConf.RomanaHostName,
 		Namespace:   pod.Namespace,
@@ -216,13 +213,13 @@ func cmdDel(args *skel.CmdArgs) error {
 
 	// LoadArgs parses kubernetes related parameters from CNI
 	// environment variables.
-	k8sargs := kubernetes.K8sArgs{}
+	k8sargs := K8sArgs{}
 	err = types.LoadArgs(args.Args, &k8sargs)
 	if err != nil {
 		return err
 	}
 
-	deallocator, err := util.NewRomanaAddressManager(util.DefaultProvider)
+	deallocator, err := NewRomanaAddressManager(DefaultProvider)
 	if err != nil {
 		return err
 	}
@@ -272,8 +269,8 @@ func AddEndpointRoute(ifaceName string, ip *net.IPNet) error {
 }
 
 // loadConf initializes romana config from stdin.
-func loadConf(bytes []byte) (*util.NetConf, error) {
-	n := &util.NetConf{}
+func loadConf(bytes []byte) (*NetConf, error) {
+	n := &NetConf{}
 	if err := json.Unmarshal(bytes, n); err != nil {
 		return nil, fmt.Errorf("failed to load netconf: %s", err)
 	}
