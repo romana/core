@@ -90,7 +90,10 @@ func startPublishing(publisher router.Interface, client *common.RestClient, roma
 		case <-cacheTick:
 			log.Debugf("Route publisher: cache tick")
 			if networks, ok := Cache.ListIfClean(); ok {
-				publisher.Update(networks)
+				err1 := publisher.Update(networks)
+				if err1 != nil {
+					log.Errorf("Failed to publish routes, err=(%s)", err1)
+				}
 			}
 		}
 	}
