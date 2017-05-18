@@ -25,16 +25,16 @@ import (
 	"github.com/vishvananda/netlink"
 )
 
-// RomanaAddresManager describes functions that allow allocating and deallocating
+// RomanaAddressManager describes functions that allow allocating and deallocating
 // IP addresses from Romana.
-type RomanaAddresManager interface {
+type RomanaAddressManager interface {
 	Allocate(NetConf, RomanaAllocatorPodDescription) (*net.IPNet, error)
 	Deallocate(NetConf, string) error
 }
 
 // NewRomanaAddressManager returns structure that satisfies RomanaAddresManager,
 // it allows multiple implementations.
-func NewRomanaAddressManager(provider RomanaAddressManagerProvider) (RomanaAddresManager, error) {
+func NewRomanaAddressManager(provider RomanaAddressManagerProvider) (RomanaAddressManager, error) {
 	if provider == DefaultProvider {
 		return DefaultAddressManager{}, nil
 	}
