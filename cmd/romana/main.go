@@ -17,7 +17,7 @@
 package main
 
 import (
-	"github.com/romana/core/romana/cmd"
+	"github.com/romana/core/cli/cmd"
 )
 
 func main() {

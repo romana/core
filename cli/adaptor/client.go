@@ -20,9 +20,9 @@
 package adaptor
 
 import (
-	"github.com/romana/core/romana/kubernetes"
-	"github.com/romana/core/romana/openstack"
-	"github.com/romana/core/romana/util"
+	"github.com/romana/core/cli/kubernetes"
+	"github.com/romana/core/cli/openstack"
+	"github.com/romana/core/cli/util"
 
 	config "github.com/spf13/viper"
 )

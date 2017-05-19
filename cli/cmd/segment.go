@@ -21,9 +21,9 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/romana/core/cli/romana"
+	"github.com/romana/core/cli/util"
 	"github.com/romana/core/common"
-	"github.com/romana/core/romana/romana"
-	"github.com/romana/core/romana/util"
 
 	ms "github.com/mitchellh/mapstructure"
 	cli "github.com/spf13/cobra"

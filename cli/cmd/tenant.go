@@ -22,9 +22,9 @@ import (
 	"os"
 	"text/tabwriter"
 
+	"github.com/romana/core/cli/adaptor"
+	"github.com/romana/core/cli/util"
 	"github.com/romana/core/common"
-	"github.com/romana/core/romana/adaptor"
-	"github.com/romana/core/romana/util"
 
 	ms "github.com/mitchellh/mapstructure"
 	cli "github.com/spf13/cobra"

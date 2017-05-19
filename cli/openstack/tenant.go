@@ -20,7 +20,7 @@ package openstack
 import (
 	"os"
 
-	"github.com/romana/core/romana/util"
+	"github.com/romana/core/cli/util"
 	log "github.com/romana/rlog"
 
 	"github.com/gophercloud/gophercloud"

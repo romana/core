@@ -22,8 +22,8 @@ import (
 	"strconv"
 	"text/tabwriter"
 
+	"github.com/romana/core/cli/util"
 	"github.com/romana/core/common"
-	"github.com/romana/core/romana/util"
 
 	cli "github.com/spf13/cobra"
 	config "github.com/spf13/viper"

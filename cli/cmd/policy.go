@@ -22,8 +22,8 @@ import (
 	"os"
 	"text/tabwriter"
 
+	"github.com/romana/core/cli/util"
 	"github.com/romana/core/common"
-	"github.com/romana/core/romana/util"
 	log "github.com/romana/rlog"
 
 	ms "github.com/mitchellh/mapstructure"

@@ -18,7 +18,7 @@
 package kubernetes
 
 import (
-	"github.com/romana/core/romana/util"
+	"github.com/romana/core/cli/util"
 )
 
 // GetTenantName returns kubernetes tenant name corresponding
