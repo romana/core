@@ -5,7 +5,7 @@
 #
 
 services = $$GOPATH/bin/agent\
-		   $$GOPATH/bin/ipam\
+		   $$GOPATH/bin/romanad\
 		   $$GOPATH/bin/romana\
 		   $$GOPATH/bin/policy\
 		   $$GOPATH/bin/listener\

@@ -23,8 +23,8 @@ import (
 
 	"github.com/romana/core/agent"
 	"github.com/romana/core/common"
-	"github.com/romana/core/ipam"
 	"github.com/romana/core/policy"
+	"github.com/romana/core/service"
 	"github.com/romana/core/tools"
 )
 
