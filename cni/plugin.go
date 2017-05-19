@@ -14,7 +14,7 @@
 // under the License.
 
 // Romana CNI plugin configures kubernetes pods on Romana network.
-package main
+package cni
 
 import (
 	"encoding/json"
@@ -28,7 +28,6 @@ import (
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
 	"github.com/containernetworking/cni/pkg/types/current"
-	"github.com/containernetworking/cni/pkg/version"
 	log "github.com/romana/rlog"
 	"github.com/vishvananda/netlink"
 )
@@ -42,7 +41,7 @@ func init() {
 
 // cmdAdd is a callback functions that gets called by skel.PluginMain
 // in response to ADD method.
-func cmdAdd(args *skel.CmdArgs) error {
+func CmdAdd(args *skel.CmdArgs) error {
 	var err error
 	// netConf stores Romana related config
 	// that comes form stdin.
@@ -211,7 +210,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 
 // cmdDel is a callback functions that gets called by skel.PluginMain
 // in response to DEL method.
-func cmdDel(args *skel.CmdArgs) error {
+func CmdDel(args *skel.CmdArgs) error {
 	var err error
 	// netConf stores Romana related config
 	// that comes form stdin.
@@ -307,8 +306,4 @@ func loadConf(bytes []byte) (*NetConf, error) {
 	}
 
 	return n, nil
-}
-
-func main() {
-	skel.PluginMain(cmdAdd, cmdDel, version.All)
 }

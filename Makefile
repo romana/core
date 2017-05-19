@@ -7,9 +7,9 @@
 services = $$GOPATH/bin/romanad\
 		   $$GOPATH/bin/romana\
 		   $$GOPATH/bin/romana_agent\
+		   $$GOPATH/bin/romana_cni\
 		   $$GOPATH/bin/policy\
 		   $$GOPATH/bin/listener\
-		   $$GOPATH/bin/cni\
 		   $$GOPATH/bin/doc
 
 UPX_VERSION := $(shell upx --version 2>/dev/null)
