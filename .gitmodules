@@ -130,4 +130,5 @@
 	url = https://github.com/golang/glog
 [submodule "vendor/github.com/containernetworking/cni"]
 	path = vendor/github.com/containernetworking/cni
-	url = https://github.com/containernetworking/cni
+	url = https://github.com/romana/cni
+	branch = vendor-fix
