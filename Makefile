@@ -6,14 +6,12 @@
 
 services = $$GOPATH/bin/root\
 		   $$GOPATH/bin/agent\
-		   $$GOPATH/bin/tenant\
 		   $$GOPATH/bin/ipam\
 		   $$GOPATH/bin/romana\
 		   $$GOPATH/bin/policy\
 		   $$GOPATH/bin/listener\
 		   $$GOPATH/bin/cni\
-		   $$GOPATH/bin/doc\
-		   $$GOPATH/bin/topology
+		   $$GOPATH/bin/doc
 
 UPX_VERSION := $(shell upx --version 2>/dev/null)
 
