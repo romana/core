@@ -4,8 +4,7 @@
 # lint: run golint.
 #
 
-services = $$GOPATH/bin/root\
-		   $$GOPATH/bin/agent\
+services = $$GOPATH/bin/agent\
 		   $$GOPATH/bin/ipam\
 		   $$GOPATH/bin/romana\
 		   $$GOPATH/bin/policy\
