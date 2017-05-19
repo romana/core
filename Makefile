@@ -8,7 +8,7 @@ services = $$GOPATH/bin/romanad\
 		   $$GOPATH/bin/romana\
 		   $$GOPATH/bin/romana_agent\
 		   $$GOPATH/bin/romana_cni\
-		   $$GOPATH/bin/policy\
+		   $$GOPATH/bin/romana_policy\
 		   $$GOPATH/bin/listener\
 		   $$GOPATH/bin/doc
 
