@@ -19,7 +19,7 @@ package main
 import (
 	"fmt"
 	"github.com/romana/core/common"
-	"github.com/romana/core/service"
+	"github.com/romana/core/server"
 )
 
 // Main entry point for the IPAM microservice

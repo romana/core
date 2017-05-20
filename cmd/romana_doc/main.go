@@ -25,7 +25,7 @@ import (
 	"github.com/romana/core/common"
 	"github.com/romana/core/doc/tools"
 	"github.com/romana/core/policy"
-	"github.com/romana/core/service"
+	"github.com/romana/core/server"
 )
 
 func main() {
