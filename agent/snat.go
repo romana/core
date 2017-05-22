@@ -17,14 +17,16 @@ package agent
 
 import (
 	"fmt"
+	"os"
+	"strings"
+
+	"github.com/romana/core/agent/enforcer"
 	"github.com/romana/core/common"
-	"github.com/romana/core/pkg/policy/enforcer"
 	utilexec "github.com/romana/core/pkg/util/exec"
 	"github.com/romana/core/pkg/util/firewall"
 	"github.com/romana/core/pkg/util/iptsave"
+
 	log "github.com/romana/rlog"
-	"os"
-	"strings"
 )
 
 type snatConfig struct {
