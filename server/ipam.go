@@ -27,7 +27,8 @@ import (
 
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/log/trace"
-	"github.com/romana/core/pkg/api"
+	"github.com/romana/core/server/api"
+
 	log "github.com/romana/rlog"
 )
 

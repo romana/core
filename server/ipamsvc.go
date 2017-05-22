@@ -21,11 +21,11 @@ import (
 	"strconv"
 	"time"
 
-	libkvStore "github.com/docker/libkv/store"
-
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/store"
-	"github.com/romana/core/pkg/api"
+	"github.com/romana/core/server/api"
+
+	libkvStore "github.com/docker/libkv/store"
 	log "github.com/romana/rlog"
 )
 
