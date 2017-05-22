@@ -18,9 +18,10 @@ package u32
 
 import (
 	"fmt"
-	"github.com/romana/core/pkg/util/firewall"
 	"math/big"
 	"net"
+
+	"github.com/romana/core/agent/firewall"
 )
 
 // U32  provides facilities for generating expressions for iptables u32 module.

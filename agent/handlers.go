@@ -18,9 +18,10 @@ package agent
 import (
 	"fmt"
 
+	"github.com/romana/core/agent/firewall"
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/log/trace"
-	"github.com/romana/core/pkg/util/firewall"
+
 	log "github.com/romana/rlog"
 )
 

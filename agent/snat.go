@@ -21,9 +21,9 @@ import (
 	"strings"
 
 	"github.com/romana/core/agent/enforcer"
+	"github.com/romana/core/agent/firewall"
 	"github.com/romana/core/common"
 	utilexec "github.com/romana/core/pkg/util/exec"
-	"github.com/romana/core/pkg/util/firewall"
 	"github.com/romana/core/pkg/util/iptsave"
 
 	log "github.com/romana/rlog"

@@ -17,16 +17,18 @@
 package enforcer
 
 import (
+	"strings"
+	"time"
+
+	"github.com/romana/core/agent/firewall"
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/log/trace"
 	utilexec "github.com/romana/core/pkg/util/exec"
-	"github.com/romana/core/pkg/util/firewall"
 	"github.com/romana/core/pkg/util/iptsave"
 	policyCache "github.com/romana/core/pkg/util/policy/cache"
 	tenantCache "github.com/romana/core/pkg/util/tenant/cache"
+
 	log "github.com/romana/rlog"
-	"strings"
-	"time"
 )
 
 // Interface defines policy enforcer behavior.
