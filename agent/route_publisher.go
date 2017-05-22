@@ -126,6 +126,10 @@ func getSlash32Networks(client *common.RestClient) ([]net.IPNet, error) {
 
 	var networks []net.IPNet
 	for _, endpoint := range endpoints {
+		if !endpoint.InUse {
+			continue
+		}
+
 		_, network, err := net.ParseCIDR(fmt.Sprintf("%s/32", endpoint.Ip))
 		if err != nil {
 			log.Errorf("Route publisher skipping %s, err=(%s)", endpoint.Ip, err)
