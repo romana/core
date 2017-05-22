@@ -55,7 +55,7 @@ func initIdentityClient() (*gophercloud.ServiceClient, error) {
 		log.Println("Error fetching openstack env vars: ", err)
 		return nil, err
 	}
-	if opts.DomainID == ""  && opts.DomainName == "" {
+	if opts.DomainID == "" && opts.DomainName == "" {
 		opts.DomainName = os.Getenv("OS_PROJECT_DOMAIN_NAME")
 	}
 	provider, err := openstack.AuthenticatedClient(opts)
@@ -64,7 +64,7 @@ func initIdentityClient() (*gophercloud.ServiceClient, error) {
 		return nil, err
 	}
 	client, err := openstack.NewIdentityV3(provider, gophercloud.EndpointOpts{
-			Region: os.Getenv("OS_REGION_NAME"),
+		Region: os.Getenv("OS_REGION_NAME"),
 	})
 	if err != nil {
 		log.Println("Error creating identity client:", err)
