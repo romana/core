@@ -28,4 +28,4 @@
 // is the main library behind providing usage, flag support and various
 // other command line features.
 //
-package cmd
+package commands

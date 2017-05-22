@@ -17,9 +17,9 @@
 package main
 
 import (
-	"github.com/romana/core/cli/cmd"
+	"github.com/romana/core/cli/commands"
 )
 
 func main() {
-	cmd.Execute()
+	commands.Execute()
 }
