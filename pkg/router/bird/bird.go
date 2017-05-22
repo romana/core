@@ -105,7 +105,7 @@ func (q BirdRoutePublisher) Update(networks []net.IPNet) error {
 	}
 
 	// open file
-	file, err := os.OpenFile(q.birdConfigName, os.O_RDWR|os.O_CREATE, 644)
+	file, err := os.OpenFile(q.birdConfigName, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
 		return err
 	}
@@ -141,7 +141,7 @@ func (q BirdRoutePublisher) Update(networks []net.IPNet) error {
 }
 
 func (q BirdRoutePublisher) pidFromFile() (int, error) {
-	file, err := os.Open("pid")
+	file, err := os.Open(q.pidFile)
 	if err != nil {
 		return 0, err
 	}
