@@ -29,8 +29,9 @@ import (
 	"sync"
 	"time"
 
-	telnet "github.com/reiver/go-telnet"
 	router "github.com/romana/core/agent/router/publisher"
+
+	telnet "github.com/reiver/go-telnet"
 )
 
 func New(config router.Config) (router.Interface, error) {

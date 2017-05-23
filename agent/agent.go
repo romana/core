@@ -27,6 +27,7 @@ import (
 	policyCache "github.com/romana/core/pkg/util/policy/cache"
 	tenantCache "github.com/romana/core/pkg/util/tenant/cache"
 	log "github.com/romana/rlog"
+
 	"github.com/vishvananda/netlink"
 )
 

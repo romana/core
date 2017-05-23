@@ -25,6 +25,7 @@ import (
 	router "github.com/romana/core/agent/router/publisher"
 	"github.com/romana/core/agent/router/quagga"
 	"github.com/romana/core/common"
+
 	log "github.com/romana/rlog"
 )
 
