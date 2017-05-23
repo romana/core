@@ -30,8 +30,8 @@ import (
 	"syscall"
 	"time"
 
+	utilexec "github.com/romana/core/agent/exec"
 	"github.com/romana/core/common/log/trace"
-	utilexec "github.com/romana/core/pkg/util/exec"
 	utilos "github.com/romana/core/pkg/util/os"
 	log "github.com/romana/rlog"
 )

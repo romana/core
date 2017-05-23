@@ -21,10 +21,10 @@ import (
 	"strings"
 
 	"github.com/romana/core/agent/enforcer"
+	utilexec "github.com/romana/core/agent/exec"
 	"github.com/romana/core/agent/firewall"
 	"github.com/romana/core/agent/iptsave"
 	"github.com/romana/core/common"
-	utilexec "github.com/romana/core/pkg/util/exec"
 
 	log "github.com/romana/rlog"
 )

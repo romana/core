@@ -21,9 +21,9 @@ import (
 	"bytes"
 	"fmt"
 
+	utilexec "github.com/romana/core/agent/exec"
 	"github.com/romana/core/agent/iptsave"
 	"github.com/romana/core/common/log/trace"
-	utilexec "github.com/romana/core/pkg/util/exec"
 
 	log "github.com/romana/rlog"
 )

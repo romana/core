@@ -25,7 +25,7 @@ import (
 	"strings"
 	"testing"
 
-	utilexec "github.com/romana/core/pkg/util/exec"
+	utilexec "github.com/romana/core/agent/exec"
 )
 
 // TestCreateChains is checking that CreateChains generates correct OS commands

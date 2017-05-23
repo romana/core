@@ -21,7 +21,7 @@ import (
 	"fmt"
 	"net"
 
-	utilexec "github.com/romana/core/pkg/util/exec"
+	utilexec "github.com/romana/core/agent/exec"
 )
 
 // Firewall interface allows different implementations to be used with

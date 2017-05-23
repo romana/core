@@ -19,13 +19,15 @@ package firewall
 
 import (
 	"fmt"
-	"github.com/romana/core/common"
-	"github.com/romana/core/common/log/trace"
-	utilexec "github.com/romana/core/pkg/util/exec"
-	log "github.com/romana/rlog"
 	"net"
 	"strconv"
 	"strings"
+
+	utilexec "github.com/romana/core/agent/exec"
+	"github.com/romana/core/common"
+	"github.com/romana/core/common/log/trace"
+
+	log "github.com/romana/rlog"
 )
 
 // IPtables implements romana Firewall using iptables.

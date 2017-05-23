@@ -18,11 +18,12 @@ package agent
 
 import (
 	"fmt"
-	utilexec "github.com/romana/core/pkg/util/exec"
-	utilos "github.com/romana/core/pkg/util/os"
 	"net"
 	"strings"
 	"testing"
+
+	utilexec "github.com/romana/core/agent/exec"
+	utilos "github.com/romana/core/pkg/util/os"
 )
 
 // TestAppendLineToFile writes data to fake file and ensures it's got written.
