@@ -23,7 +23,7 @@ import (
 	"testing"
 
 	utilexec "github.com/romana/core/agent/exec"
-	utilos "github.com/romana/core/pkg/util/os"
+	utilos "github.com/romana/core/agent/os"
 )
 
 // TestAppendLineToFile writes data to fake file and ensures it's got written.

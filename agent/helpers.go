@@ -31,8 +31,8 @@ import (
 	"time"
 
 	utilexec "github.com/romana/core/agent/exec"
+	utilos "github.com/romana/core/agent/os"
 	"github.com/romana/core/common/log/trace"
-	utilos "github.com/romana/core/pkg/util/os"
 	log "github.com/romana/rlog"
 )
 
