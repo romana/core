@@ -20,9 +20,9 @@ import (
 	"fmt"
 
 	"github.com/romana/core/agent/enforcer"
+	"github.com/romana/core/agent/iptsave"
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/log/trace"
-	"github.com/romana/core/pkg/util/iptsave"
 	policyCache "github.com/romana/core/pkg/util/policy/cache"
 	tenantCache "github.com/romana/core/pkg/util/tenant/cache"
 

@@ -1,9 +1,10 @@
 package enforcer
 
 import (
-	"github.com/romana/core/common"
-	"github.com/romana/core/pkg/util/iptsave"
 	"testing"
+
+	"github.com/romana/core/agent/iptsave"
+	"github.com/romana/core/common"
 )
 
 func TestMakeBase(t *testing.T) {

@@ -16,10 +16,11 @@
 package enforcer
 
 import (
-	"github.com/romana/core/common"
-	"github.com/romana/core/pkg/util/iptsave"
 	"net"
 	"testing"
+
+	"github.com/romana/core/agent/iptsave"
+	"github.com/romana/core/common"
 )
 
 type MockNC struct {

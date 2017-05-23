@@ -20,11 +20,11 @@ import (
 	"fmt"
 
 	"github.com/romana/core/agent/firewall"
+	"github.com/romana/core/agent/iptsave"
 	"github.com/romana/core/agent/u32"
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/log/trace"
 	utilexec "github.com/romana/core/pkg/util/exec"
-	"github.com/romana/core/pkg/util/iptsave"
 
 	log "github.com/romana/rlog"
 )

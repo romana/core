@@ -19,7 +19,7 @@
 package enforcer
 
 import (
-	"github.com/romana/core/pkg/util/iptsave"
+	"github.com/romana/core/agent/iptsave"
 )
 
 func MakeBaseRules() []*iptsave.IPchain {

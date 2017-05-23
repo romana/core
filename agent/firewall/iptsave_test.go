@@ -19,9 +19,10 @@ package firewall
 
 import (
 	"bytes"
-	"github.com/romana/core/pkg/util/iptsave"
 	"net"
 	"testing"
+
+	"github.com/romana/core/agent/iptsave"
 )
 
 const (

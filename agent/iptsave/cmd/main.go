@@ -3,8 +3,9 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/romana/core/pkg/util/iptsave"
 	"os"
+
+	"github.com/romana/core/agent/iptsave"
 )
 
 func main() {
