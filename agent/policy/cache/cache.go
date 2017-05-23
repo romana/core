@@ -20,12 +20,14 @@ package cache
 
 import (
 	"fmt"
-	"github.com/romana/core/common"
-	"github.com/romana/core/common/log/trace"
-	"github.com/romana/core/pkg/util/policy/hasher"
-	log "github.com/romana/rlog"
 	"sync"
 	"time"
+
+	"github.com/romana/core/agent/policy/hasher"
+	"github.com/romana/core/common"
+	"github.com/romana/core/common/log/trace"
+
+	log "github.com/romana/rlog"
 )
 
 // Interface defines policy cache behavior.

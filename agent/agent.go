@@ -21,9 +21,9 @@ import (
 
 	"github.com/romana/core/agent/enforcer"
 	"github.com/romana/core/agent/iptsave"
+	policyCache "github.com/romana/core/agent/policy/cache"
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/log/trace"
-	policyCache "github.com/romana/core/pkg/util/policy/cache"
 	tenantCache "github.com/romana/core/pkg/util/tenant/cache"
 
 	log "github.com/romana/rlog"

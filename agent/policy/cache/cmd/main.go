@@ -18,8 +18,9 @@ package main
 import (
 	"flag"
 	"fmt"
+
+	"github.com/romana/core/agent/policy/cache"
 	"github.com/romana/core/common"
-	"github.com/romana/core/pkg/util/policy/cache"
 )
 
 func main() {
