@@ -48,17 +48,19 @@ func NewAgentHelper(agent *Agent) (*Helper, error) {
 	helper.ensureRouteToEndpointMutex = &sync.Mutex{}
 	helper.ensureInterHostRoutesMutex = &sync.Mutex{}
 
-	if ip, err := exec.LookPath("ip"); err != nil {
+	ip, err := exec.LookPath("ip")
+	if err != nil {
 		return nil, err
-	} else {
-		helper.CommandIP = ip
 	}
 
-	if ps, err := exec.LookPath("ps"); err != nil {
+	helper.CommandIP = ip
+
+	ps, err := exec.LookPath("ps")
+	if err != nil {
 		return nil, err
-	} else {
-		helper.CommandPS = ps
 	}
+
+	helper.CommandPS = ps
 
 	return helper, nil
 }
