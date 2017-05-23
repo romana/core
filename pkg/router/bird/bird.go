@@ -130,7 +130,7 @@ func (q BirdRoutePublisher) Update(networks []net.IPNet) error {
 			return fmt.Errorf("Failed to find process with pid %d, err=(%s)", pid, err)
 		}
 
-		sighup := syscall.Signal(0x1)
+		sighup := syscall.Signal(syscall.SIGHUP)
 		err = process.Signal(sighup)
 		if err != nil {
 			return fmt.Errorf("Failed to send SIGHUP to %d, err=(%s)", pid, err)

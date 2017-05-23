@@ -74,7 +74,7 @@ type Agent struct {
 	routePublisherConfig map[string]string
 
 	// channel that is used by route publisher to receive notifications
-	routec chan net.IPNet
+	routeChan chan net.IPNet
 
 	// Manages iptables rules to reflect romana policies.
 	enforcer enforcer.Interface
@@ -297,7 +297,7 @@ func (a *Agent) Initialize(client *common.RestClient) error {
 		}
 	}
 
-	a.routec = PublishRoutesTo(a.routePublisher, a.routePublisherConfig, a.client, a.networkConfig)
+	a.routeChan = PublishRoutesTo(a.routePublisher, a.routePublisherConfig, a.client, a.networkConfig)
 
 	if checkFeatureSnatEnabled() {
 		iptables := &iptsave.IPtables{}
