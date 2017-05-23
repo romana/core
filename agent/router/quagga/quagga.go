@@ -30,7 +30,7 @@ import (
 	"time"
 
 	telnet "github.com/reiver/go-telnet"
-	router "github.com/romana/core/pkg/router/publisher"
+	router "github.com/romana/core/agent/router/publisher"
 )
 
 func New(config router.Config) (router.Interface, error) {

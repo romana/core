@@ -21,10 +21,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/romana/core/agent/router/bird"
+	router "github.com/romana/core/agent/router/publisher"
+	"github.com/romana/core/agent/router/quagga"
 	"github.com/romana/core/common"
-	"github.com/romana/core/pkg/router/bird"
-	router "github.com/romana/core/pkg/router/publisher"
-	"github.com/romana/core/pkg/router/quagga"
 	log "github.com/romana/rlog"
 )
 

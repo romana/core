@@ -29,7 +29,7 @@ import (
 	"sync"
 	"syscall"
 
-	router "github.com/romana/core/pkg/router/publisher"
+	router "github.com/romana/core/agent/router/publisher"
 )
 
 // Default implementation of router.Interface that publishes routes via
