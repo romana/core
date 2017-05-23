@@ -37,9 +37,9 @@
 [submodule "vendor/github.com/spf13/viper"]
 	path = vendor/github.com/spf13/viper
 	url = https://github.com/spf13/viper
-[submodule "vendor/github.com/rackspace/gophercloud"]
-	path = vendor/github.com/rackspace/gophercloud
-	url = https://github.com/rackspace/gophercloud
+[submodule "vendor/github.com/gophercloud/gophercloud"]
+	path = vendor/github.com/gophercloud/gophercloud
+	url = https://github.com/gophercloud/gophercloud
 [submodule "vendor/github.com/hashicorp/hcl"]
 	path = vendor/github.com/hashicorp/hcl
 	url = https://github.com/hashicorp/hcl
