@@ -25,6 +25,8 @@ import (
 	"github.com/vishvananda/netlink"
 )
 
+const DefaultSegmentName = "default"
+
 // RomanaAddressManager describes functions that allow allocating and deallocating
 // IP addresses from Romana.
 type RomanaAddressManager interface {
@@ -83,7 +85,8 @@ func (DefaultAddressManager) Allocate(config NetConf, pod RomanaAllocatorPodDesc
 		segmentLabel, ok = pod.Labels[config.SegmentLabelName]
 	}
 	if !ok {
-		return nil, fmt.Errorf("Failed to discover segment label for a pod")
+		log.Warnf("Failed to discover segment label for a pod, using %s", DefaultSegmentName)
+		segmentLabel = DefaultSegmentName
 	}
 	log.Infof("Discovered segment %s for a pod", segmentLabel)
 
@@ -132,20 +135,9 @@ func (DefaultAddressManager) Allocate(config NetConf, pod RomanaAllocatorPodDesc
 	if currentTenant.Name == "" {
 		return nil, fmt.Errorf("Failed to find romana tenant with name %s, err=(%s)", pod.Namespace, err)
 	}
-	var segments []common.Segment
-	segmentsUrl := fmt.Sprintf("%s/%d/segments", tenantUrl, currentTenant.ID)
-	err = client.Get(segmentsUrl, &segments)
+
+	currentSegment, err := getOrCreateSegment(client, segmentLabel, tenantUrl, currentTenant.ID)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to fetch segments from %s, err=(%s)", segmentsUrl, err)
-	}
-	var currentSegment common.Segment
-	for segmentNum, segment := range segments {
-		if segment.Name == segmentLabel {
-			currentSegment = segments[segmentNum]
-			break
-		}
-	}
-	if currentSegment.Name == "" {
 		return nil, fmt.Errorf("Failed to discover segment %s within tenant %s", pod.Namespace, segmentLabel)
 	}
 	log.Infof("Discovered tenant=%d, segment=%d, host=%d", currentTenant.ID, currentSegment.ID, currentHost.ID)
@@ -218,4 +210,31 @@ func (DefaultAddressManager) Deallocate(config NetConf, targetName string) error
 	}
 
 	return nil
+}
+
+func getOrCreateSegment(client *common.RestClient, segmentLabel, tenantUrl string, tenantId uint64) (*common.Segment, error) {
+	var segments []common.Segment
+	segmentsUrl := fmt.Sprintf("%s/%d/segments", tenantUrl, tenantId)
+	err := client.Get(segmentsUrl, &segments)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to fetch segments from %s, err=(%s)", segmentsUrl, err)
+	}
+
+	for segmentNum, segment := range segments {
+		if segment.Name == segmentLabel {
+			return &segments[segmentNum], nil
+		}
+	}
+
+	log.Errorf("no segment %s found, trying to create", segmentLabel)
+
+	var newSegment common.Segment
+	err = client.Post(segmentsUrl, common.Segment{Name: segmentLabel}, &newSegment)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create segment %s, err=(%s)", segmentsUrl, err)
+	}
+
+	log.Infof("new segment created %v for tenant with id %d", newSegment, tenantId)
+
+	return &newSegment, nil
 }
