@@ -22,14 +22,15 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	telnet "github.com/reiver/go-telnet"
-	router "github.com/romana/core/pkg/router/publisher"
 	"io"
 	"log"
 	"net"
 	"os"
 	"sync"
 	"time"
+
+	telnet "github.com/reiver/go-telnet"
+	router "github.com/romana/core/pkg/router/publisher"
 )
 
 func New(config router.Config) (router.Interface, error) {

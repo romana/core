@@ -17,14 +17,15 @@ package agent
 
 import (
 	"fmt"
+	"net"
+	"sync"
+	"time"
+
 	"github.com/romana/core/common"
 	"github.com/romana/core/pkg/router/bird"
 	router "github.com/romana/core/pkg/router/publisher"
 	"github.com/romana/core/pkg/router/quagga"
 	log "github.com/romana/rlog"
-	"net"
-	"sync"
-	"time"
 )
 
 func PublishRoutesTo(provider string, config map[string]string, client *common.RestClient, networkConfig *NetworkConfig) chan net.IPNet {

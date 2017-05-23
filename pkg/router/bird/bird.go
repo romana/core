@@ -20,7 +20,7 @@ package bird
 import (
 	"bytes"
 	"fmt"
-	router "github.com/romana/core/pkg/router/publisher"
+	"html/template"
 	"io/ioutil"
 	"log"
 	"net"
@@ -28,7 +28,8 @@ import (
 	"strconv"
 	"sync"
 	"syscall"
-	"text/template"
+
+	router "github.com/romana/core/pkg/router/publisher"
 )
 
 // Default implementation of router.Interface that publishes routes via
