@@ -328,8 +328,8 @@ func (h Helper) waitForIface(expectedIface string) bool {
 }
 
 // IpToNet is a convinience function that transforms net.IP into net.IPNet/32
-func IpToNet(ip net.IP) (net.IPNet, error) {
+func IpToNet(ip net.IP) (*net.IPNet, error) {
 	cidr := fmt.Sprintf("%s/32", ip)
 	_, ipnet, err := net.ParseCIDR(cidr)
-	return *ipnet, err
+	return ipnet, err
 }

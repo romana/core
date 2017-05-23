@@ -253,7 +253,7 @@ func (a *Agent) podUpHandlerAsync(netReq NetworkRequest) error {
 		}
 
 		if ip, err := IpToNet(netif.IP.IP); err == nil {
-			a.routec <- ip
+			a.routeChan <- *ip
 		}
 	}
 
@@ -433,7 +433,7 @@ func (a *Agent) vmUpHandlerAsync(netif NetIf) error {
 		}
 
 		if ip, err := IpToNet(netif.IP.IP); err == nil {
-			a.routec <- ip
+			a.routeChan <- *ip
 		}
 	}
 
