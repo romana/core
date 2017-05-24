@@ -106,7 +106,7 @@ func (q BirdRoutePublisher) Update(networks []net.IPNet) error {
 	}
 
 	// open file
-	file, err := os.OpenFile(q.birdConfigName, os.O_RDWR|os.O_CREATE, 0644)
+	file, err := os.OpenFile(q.birdConfigName, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		return err
 	}
