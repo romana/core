@@ -30,6 +30,8 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/romana/core/common/log/trace"
+
 	"github.com/K-Phoen/negotiation"
 	"github.com/gorilla/context"
 	"github.com/gorilla/mux"
@@ -378,7 +380,13 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 				}
 			}
 		}
-		user := context.Get(request, ContextKeyUser).(User)
+
+		var user User
+		userObj := context.Get(request, ContextKeyUser)
+		if userObj != nil {
+			user = context.Get(request, ContextKeyUser).(User)
+		}
+
 		restContext := RestContext{PathVariables: mux.Vars(request),
 			QueryVariables: request.Form,
 			RequestToken:   token,
@@ -752,6 +760,24 @@ func (m UnmarshallerMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request
 		w.Write(dataOut)
 	}
 
+}
+
+type panicRecoveryHandler struct {
+}
+
+func newPanicRecoveryHandler() *panicRecoveryHandler {
+	return &panicRecoveryHandler{}
+}
+
+func (p panicRecoveryHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request, next http.HandlerFunc) {
+	log.Tracef(trace.Inside, "panicRecoveryHandler: Entered on %s", request.URL)
+	defer func() {
+		if err := recover(); err != nil {
+			log.Errorf("Panic occurred: %s", err)
+			write500(writer, ContentTypeMarshallers["application/json"], NewError("Panic: %s", err))
+		}
+	}()
+	next(writer, request)
 }
 
 type NegotiatorMiddleware struct {
