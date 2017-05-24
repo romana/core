@@ -195,8 +195,11 @@ func (DefaultAddressManager) Deallocate(config NetConf, targetName string) error
 		}
 	}
 
+	// Not reporting an error here because kubelet will keep trying
+	// to deallocate this endpoint until we return success.
 	if len(podEndpoints) == 0 {
-		return fmt.Errorf("No IPAM endpoints found for pod %s", targetName)
+		log.Errorf("cni tried to deallocate %s but couldn't find such endpoint", targetName)
+		return nil
 	}
 
 	if len(podEndpoints) > 1 {
@@ -216,7 +219,10 @@ func getOrCreateSegment(client *common.RestClient, segmentLabel, tenantUrl strin
 	var segments []common.Segment
 	segmentsUrl := fmt.Sprintf("%s/%d/segments", tenantUrl, tenantId)
 	err := client.Get(segmentsUrl, &segments)
-	if err != nil {
+	// ignore 404 error here which means no segments
+	// considered to be a zero segments rather then
+	// an error.
+	if err != nil && !checkHttp404(err) {
 		return nil, fmt.Errorf("Failed to fetch segments from %s, err=(%s)", segmentsUrl, err)
 	}
 
@@ -237,4 +243,15 @@ func getOrCreateSegment(client *common.RestClient, segmentLabel, tenantUrl strin
 	log.Infof("new segment created %v for tenant with id %d", newSegment, tenantId)
 
 	return &newSegment, nil
+}
+
+func checkHttp404(err error) (ret bool) {
+	switch e := err.(type) {
+	case common.HttpError:
+		if e.StatusCode == 404 {
+			ret = true
+		}
+	}
+
+	return
 }
