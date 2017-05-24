@@ -18,18 +18,19 @@ package ipam
 import (
 	"encoding/json"
 	"errors"
+	"strconv"
+	"time"
+
 	libkvStore "github.com/docker/libkv/store"
+
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/store"
 	"github.com/romana/core/pkg/api"
 	log "github.com/romana/rlog"
-	"strconv"
-	"time"
 )
 
 // IPAMSvc provides REST services for IPAM functionality.
 type IPAMSvc struct {
-	ipam   *IPAM
 	client *common.RestClient
 	config common.ServiceConfig
 	store  *store.KvStore
@@ -131,18 +132,18 @@ func (svc *IPAMSvc) Initialize(client *common.RestClient) error {
 			return err
 		}
 
-		svc.ipam, err = ParseIPAM(string(kv.Value), svc.save, svc)
+		ipam, err = ParseIPAM(string(kv.Value), svc.save, svc)
 		if err != nil {
 			return err
 		}
 	} else {
 		// If does not exist, initialize and save
 		log.Infof("No IPAM data found at %s, initializing", key)
-		svc.ipam, err = NewIPAM(svc.save, svc)
+		ipam, err = NewIPAM(svc.save, svc)
 		if err != nil {
 			return err
 		}
-		err = svc.save(svc.ipam)
+		err = svc.save(ipam)
 		if err != nil {
 			return err
 		}
@@ -191,26 +192,10 @@ func (svc *IPAMSvc) Routes() common.Routes {
 // The network is specified with the "network" query parameter.
 func (svc *IPAMSvc) listBlocks(input interface{}, ctx common.RestContext) (interface{}, error) {
 	netName := ctx.PathVariables["network"]
-	if network, ok := svc.ipam.Networks[netName]; ok {
-
-		resp := api.IPAMBlocksResponse{}
-		resp.Revision = network.Revison
-		resp.Blocks = make([]api.IPAMBlockResponse, 0)
-		hosts := network.HostsGroups.Hosts
-
-		for _, host := range hosts {
-			for blockID, block := range host.Blocks {
-				owner := host.BlockToOwner[blockID]
-				tenant, segment := parseOwner(owner)
-				blockResp := api.IPAMBlockResponse{
-					CIDR:     api.IPNet{IPNet: *block.CIDR.IPNet},
-					Host:     host.Name,
-					Revision: block.Revision,
-					Segment:  segment,
-					Tenant:   tenant,
-				}
-				resp.Blocks = append(resp.Blocks, blockResp)
-			}
+	if network, ok := ipam.Networks[netName]; ok {
+		resp := api.IPAMBlocksResponse{
+			Revision: network.Revison,
+			Blocks:   network.HostsGroups.getBlocksResponse(),
 		}
 		return resp, nil
 	} else {
@@ -221,34 +206,27 @@ func (svc *IPAMSvc) listBlocks(input interface{}, ctx common.RestContext) (inter
 func (svc *IPAMSvc) listAddresses(input interface{}, ctx common.RestContext) (interface{}, error) {
 	netName := ctx.PathVariables["network"]
 	blockID, err := strconv.Atoi(ctx.PathVariables["block"])
+	addresses := make([]string, 0)
 	if err != nil {
 		return nil, err
 	}
-	if network, ok := svc.ipam.Networks[netName]; ok {
-		hosts := network.HostsGroups.listHosts()
-		for _, host := range hosts {
-			for i, block := range host.Blocks {
-				if i == blockID {
-					owner := host.BlockToOwner[i]
-					tenant, segment := parseOwner(owner)
-					blockResp := api.IPAMBlockResponse{
-						CIDR:     api.IPNet{IPNet: *block.CIDR.IPNet},
-						Host:     host.Name,
-						Revision: block.Revision,
-						Segment:  segment,
-						Tenant:   tenant,
-					}
-					return blockResp, nil
-				}
+	if network, ok := ipam.Networks[netName]; ok {
+		blocks := network.HostsGroups.listBlocks()
+
+		for i, block := range blocks {
+			if i == blockID {
+				blockAddresses := block.listAddresses()
+				addresses = append(addresses, blockAddresses...)
 			}
 		}
+		return addresses, nil
 	}
 	return nil, common.NewError404("network", netName)
 }
 
 func (svc *IPAMSvc) listNetworks(input interface{}, ctx common.RestContext) (interface{}, error) {
 	resp := make([]api.IPAMNetworkResponse, 0)
-	for _, network := range svc.ipam.Networks {
+	for _, network := range ipam.Networks {
 		n := api.IPAMNetworkResponse{
 			CIDR:     api.IPNet{IPNet: *network.CIDR.IPNet},
 			Name:     network.Name,
@@ -263,17 +241,17 @@ func (svc *IPAMSvc) listNetworks(input interface{}, ctx common.RestContext) (int
 // "addressName".
 func (svc *IPAMSvc) deallocateIP(input interface{}, ctx common.RestContext) (interface{}, error) {
 	addressName := ctx.QueryVariables.Get("addressName")
-	return nil, svc.ipam.DeallocateIP(addressName)
+	return nil, ipam.DeallocateIP(addressName)
 }
 
 func (svc *IPAMSvc) allocateIP(input interface{}, ctx common.RestContext) (interface{}, error) {
 	req := input.(api.IPAMAddressRequest)
-	return svc.ipam.AllocateIP(req.Name, req.Host, req.Tenant, req.Segment)
+	return ipam.AllocateIP(req.Name, req.Host, req.Tenant, req.Segment)
 }
 
 // updateTopology serves to update topology information in the Romana service
 // as
 func (svc *IPAMSvc) updateTopology(input interface{}, ctx common.RestContext) (interface{}, error) {
 	topoReq := input.(api.TopologyUpdateRequest)
-	return nil, svc.ipam.updateTopology(topoReq)
+	return nil, ipam.updateTopology(topoReq)
 }

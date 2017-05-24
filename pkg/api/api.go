@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Pani Networks
+// Copyright (c) 2017 Pani Networks
 // All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -60,6 +60,8 @@ type NetworkDefinition struct {
 	Name      string `json:"name"`
 	CIDR      string `json:"cidr"`
 	BlockMask uint   `json:"block_mask"`
+	// List of allowed tenants.
+	Tenants []string `json:"tenants,omitempty"`
 }
 
 type TopologyDefinition struct {
