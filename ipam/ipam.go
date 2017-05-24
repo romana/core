@@ -169,6 +169,15 @@ func (hg *HostsGroups) String() string {
 	}
 }
 
+func (hg *HostsGroups) AddHost(hostName string) error {
+	if hg.Hosts == nil {
+		return errors.New("Cannot add host to this group, group contains only other groups.")
+	}
+	newHost := &Host{Name: hostName, group: hg}
+	hg.Hosts = append(hg.Hosts, newHost)
+	return nil
+}
+
 func (hg *HostsGroups) allocateIP(network *Network, hostName string, owner string) net.IP {
 	ownedBlockIDs := hg.OwnerToBlocks[owner]
 	var ip net.IP
@@ -384,7 +393,6 @@ func (hg *HostsGroups) parse(arr []interface{}, cidr *CIDR, network *Network) er
 		hg.ReusableBlocks = make([]int, 0)
 	}
 
-	kind := ""
 	// Figure out in the given array, what would be the size per
 	// element.
 	ones, bits := cidr.Mask.Size()
@@ -394,38 +402,45 @@ func (hg *HostsGroups) parse(arr []interface{}, cidr *CIDR, network *Network) er
 		return nil
 	}
 
-	rem := free % len(arr)
+	// First we see what kind of elements we have here - groups or hosts
+	eltVal := reflect.ValueOf(arr[0])
+	eltValKind := eltVal.Kind()
 
-	if rem != 0 {
-		// Let's allocate a few more empty slots to complete the power of 2
-		remArr := make([]interface{}, rem)
-		arr = append(arr, remArr)
+	if eltValKind != reflect.Slice && eltValKind != reflect.String {
+		return errors.New(fmt.Sprintf("Unknown type %s", eltVal.Kind()))
+	}
+	// Just started parsing this entity.
+	kind := eltValKind.String()
+	if kind == "string" {
+		hg.Hosts = make([]*Host, len(arr))
+		hg.CIDR = cidr
+		hg.BlockToOwner = make(map[int]string)
+		hg.Blocks = make([]*Block, 0)
+		hg.OwnerToBlocks = make(map[string][]int)
+		hg.ReusableBlocks = make([]int, 0)
+	} else {
+		hg.Groups = make([]*HostsGroups, len(arr))
+
+		// Pad the array to the next power of 2
+		rem := free % len(arr)
+		if rem != 0 {
+			// Let's allocate a few more empty slots to complete the power of 2
+			remArr := make([]interface{}, rem)
+			arr = append(arr, remArr)
+		}
 	}
 
 	bitsPerElement := free / len(arr)
-
 	for i, elt := range arr {
-		eltVal := reflect.ValueOf(elt)
-		if eltVal.Kind() != reflect.Slice && eltVal.Kind() != reflect.String {
-			return errors.New(fmt.Sprintf("Unknown type %s", eltVal.Kind()))
-		} else if kind == "" {
-			// Just started parsing this entity.
-			kind = eltVal.Kind().String()
-			if kind == "string" {
-				hg.Hosts = make([]*Host, len(arr))
-				hg.CIDR = cidr
-				hg.BlockToOwner = make(map[int]string)
-				hg.Blocks = make([]*Block, 0)
-				hg.OwnerToBlocks = make(map[string][]int)
-				hg.ReusableBlocks = make([]int, 0)
-
-			} else {
-				hg.Groups = make([]*HostsGroups, len(arr))
+		if i > 0 {
+			// Sanity check - whether element types are mixed here. It would be an error
+			// if they are.
+			eltVal = reflect.ValueOf(elt)
+			eltValKind = eltVal.Kind()
+			if eltValKind.String() != kind {
+				return common.NewError("Mixed types")
 			}
-		} else if eltVal.Kind().String() != kind {
-			return errors.New(fmt.Sprintf("Mixed types"))
 		}
-
 		if kind == "string" {
 			// This is host, we inherit the CIDR
 			hg.Hosts[i] = &Host{Name: elt.(string),
@@ -674,7 +689,15 @@ func NewIPAM(saver Saver, locker sync.Locker) (*IPAM, error) {
 	return ipam, nil
 }
 
-//func (ipam *IPAM) AddHost(networkName string, hostName string
+// GetGroupsForNetwork retrieves HostsGroups for the network
+// with the provided name, or nil if not found.
+func (ipam *IPAM) GetGroupsForNetwork(netName string) *HostsGroups {
+	if network, ok := ipam.Networks[netName]; ok {
+		return network.HostsGroups
+	} else {
+		return nil
+	}
+}
 
 // AllocateIP allocates an IP for the provided tenant and segment.
 // It will first attempt to allocate an IP from an existing block,
