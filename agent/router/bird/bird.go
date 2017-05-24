@@ -20,7 +20,6 @@ package bird
 import (
 	"bytes"
 	"fmt"
-	"html/template"
 	"io/ioutil"
 	"log"
 	"net"
@@ -28,6 +27,7 @@ import (
 	"strconv"
 	"sync"
 	"syscall"
+	"text/template"
 
 	router "github.com/romana/core/agent/router/publisher"
 )
