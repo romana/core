@@ -18,10 +18,11 @@ package common
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/romana/core/common/log/trace"
-	log "github.com/romana/rlog"
 	"math"
 	"sync"
+
+	"github.com/romana/core/common/log/trace"
+	log "github.com/romana/rlog"
 )
 
 var (
@@ -29,7 +30,8 @@ var (
 )
 
 // Range represents a range of uint64s that can be
-// used as sequential IDs. The range is inclusive.
+// used as sequential IDs. The range is inclusive (meaning
+// that the first available ID is Min, and the last is Max).
 type Range struct {
 	Min uint64
 	Max uint64
@@ -272,7 +274,7 @@ func (idRing *IDRing) mergeRanges() {
 	// sense that we go over the array of ranges as many times
 	// as needed until no merges have occurred.
 	// But it'll do for now.
-	log.Tracef(trace.Inside, "mergeRanges: Before: %s", *idRing)
+	//	log.Tracef(trace.Inside, "mergeRanges: Before: %s", *idRing)
 	var changes bool
 	for {
 		changes = false
@@ -302,8 +304,8 @@ func (idRing *IDRing) mergeRanges() {
 					newRanges = append(newRanges, follRanges...)
 					idRing.Ranges = newRanges
 					changes = true
-					log.Tracef(trace.Inside, "mergeRanges: %d, prevRanges %s, follRanges %s, newRanges %s", i, prevRanges, follRanges, newRanges)
-					log.Tracef(trace.Inside, "mergeRanges: During %s", *idRing)
+					//					log.Tracef(trace.Inside, "mergeRanges: %d, prevRanges %s, follRanges %s, newRanges %s", i, prevRanges, follRanges, newRanges)
+					//					log.Tracef(trace.Inside, "mergeRanges: During %s", *idRing)
 					break
 				}
 			}
@@ -312,5 +314,5 @@ func (idRing *IDRing) mergeRanges() {
 			break
 		}
 	}
-	log.Tracef(trace.Inside, "mergeRanges: After: %s", *idRing)
+	//	log.Tracef(trace.Inside, "mergeRanges: After: %s", *idRing)
 }

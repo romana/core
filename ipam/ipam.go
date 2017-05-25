@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Pani Networks
+// Copyright (c) 2016-2017 Pani Networks
 // All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -169,6 +169,8 @@ func (hg *HostsGroups) String() string {
 	}
 }
 
+// AddHost adds hosts to this group. If the group contains
+// other groups, it is an error.
 func (hg *HostsGroups) AddHost(hostName string) error {
 	if hg.Hosts == nil {
 		return errors.New("Cannot add host to this group, group contains only other groups.")
@@ -203,8 +205,8 @@ func (hg *HostsGroups) allocateIP(network *Network, hostName string, owner strin
 			log.Tracef(trace.Private, "Reusing block %d for owner %s", blockID, owner)
 			hg.ReusableBlocks = append(hg.ReusableBlocks[:blockID], hg.ReusableBlocks[blockID+1:]...)
 			hg.OwnerToBlocks[owner] = append(hg.OwnerToBlocks[owner], blockID)
-			hg.BlockToHost[blockID] = hostName
 			hg.BlockToOwner[blockID] = owner
+			hg.BlockToHost[blockID] = hostName
 			return ip
 		}
 	}
@@ -260,7 +262,7 @@ func (hg *HostsGroups) deallocateIP(ip net.IP) error {
 		// This is the right group
 		for blockID, block := range hg.Blocks {
 			if block.CIDR.IPNet.Contains(ip) {
-				log.Tracef(trace.Private, "IP to deallocate %s belongs to block %s", ip, block.CIDR)
+				log.Tracef(trace.Private, "HostsGroups.deallocateIP: IP to deallocate %s belongs to block %s", ip, block.CIDR)
 				err := block.deallocateIP(ip)
 				if err != nil {
 					return err
@@ -273,6 +275,7 @@ func (hg *HostsGroups) deallocateIP(ip net.IP) error {
 					hg.OwnerToBlocks[owner] = append(ownerBlocks[:blockID], ownerBlocks[blockID+1:]...)
 					delete(hg.BlockToHost, blockID)
 				}
+				return nil
 			}
 		}
 	} else {
@@ -383,6 +386,10 @@ func (hg *HostsGroups) parse(arr []interface{}, cidr *CIDR, network *Network) er
 	if hg.BlockToOwner == nil {
 		hg.BlockToOwner = make(map[int]string)
 	}
+	if hg.BlockToHost == nil {
+		hg.BlockToHost = make(map[int]string)
+	}
+
 	if hg.OwnerToBlocks == nil {
 		hg.OwnerToBlocks = make(map[string][]int)
 	}
@@ -471,8 +478,11 @@ func (hg *HostsGroups) parse(arr []interface{}, cidr *CIDR, network *Network) er
 type Block struct {
 	CIDR     *CIDR          `json:"cidr"`
 	Pool     *common.IDRing `json:"pool"`
-	ipam     *IPAM
-	Revision int `json:"revision"`
+	Revision int            `json:"revision"`
+}
+
+func (b Block) String() string {
+	return fmt.Sprintf("Block %s (rev. %d): %s", b.CIDR, b.Revision, b.Pool)
 }
 
 // newBlock creates a new Block on the given host.
@@ -521,10 +531,10 @@ func (b *Block) allocateIP(network *Network) net.IP {
 		if err == nil {
 			ip = common.IntToIPv4(ipInt)
 			blackedOutBy := network.blackedOutBy(ip)
-			log.Tracef(trace.Private, "IP %s is blacked out by %s", ip, blackedOutBy)
 			if blackedOutBy == nil {
 				break
 			} else {
+				log.Tracef(trace.Private, "IP %s is blacked out by %s", ip, blackedOutBy)
 				blackedOutIPInts = append(blackedOutIPInts, ipInt)
 				ip = nil
 			}
@@ -549,8 +559,9 @@ func (b *Block) allocateIP(network *Network) net.IP {
 
 // deallocateIP deallocates the specified IP within the block.
 func (b *Block) deallocateIP(ip net.IP) error {
+	log.Tracef(trace.Inside, "Block.deallocateIP: Deallocating IP %s from block %s", ip, b)
 	if !b.CIDR.IPNet.Contains(ip) {
-		return common.NewError("IP %s not in this block %s", ip, b.CIDR)
+		return common.NewError("Block.deallocateIP: IP %s not in this block %s", ip, b.CIDR)
 	}
 	ipInt := common.IPv4ToInt(ip)
 	err := b.Pool.ReclaimID(ipInt)
@@ -699,7 +710,9 @@ func (ipam *IPAM) GetGroupsForNetwork(netName string) *HostsGroups {
 	}
 }
 
-// AllocateIP allocates an IP for the provided tenant and segment.
+// AllocateIP allocates an IP for the provided tenant and segment,
+// and associates the provided name with it. That name can afterwards
+// be used for deallocation.
 // It will first attempt to allocate an IP from an existing block,
 // and if all are exhausted, will try to allocate a new block for
 // this tenant/segment pair. Will return nil as IP if the entire
@@ -707,6 +720,10 @@ func (ipam *IPAM) GetGroupsForNetwork(netName string) *HostsGroups {
 func (ipam *IPAM) AllocateIP(addressName string, host string, tenant string, segment string) (net.IP, error) {
 	ipam.locker.Lock()
 	defer ipam.locker.Unlock()
+
+	if addr, ok := ipam.AddressNameToIP[addressName]; ok {
+		return nil, common.NewError("Address with name %s already allocated: %s", addressName, addr)
+	}
 
 	// Find eligible networks for the specified tenant
 	networksForTenant, err := ipam.getNetworksForTenant(tenant)
@@ -738,10 +755,11 @@ func (ipam *IPAM) DeallocateIP(addressName string) error {
 	ipam.locker.Lock()
 	defer ipam.locker.Unlock()
 
-	log.Tracef(trace.Private, "Request to deallocate %s", addressName)
 	if ip, ok := ipam.AddressNameToIP[addressName]; ok {
+		log.Tracef(trace.Inside, "IPAM.DeallocateIP: Request to deallocate %s: %s", addressName, ip)
 		for _, network := range ipam.Networks {
 			if network.CIDR.IPNet.Contains(ip) {
+				log.Tracef(trace.Inside, "IPAM.DeallocateIP: IP %s belongs to network %s", ip, network.Name)
 				return network.deallocateIP(ip)
 			}
 		}
@@ -853,7 +871,7 @@ func (ipam *IPAM) updateTopology(req api.TopologyUpdateRequest) error {
 func (ipam *IPAM) BlackOut(cidrStr string) error {
 	ipam.locker.Lock()
 	defer ipam.locker.Unlock()
-	log.Tracef(trace.Private, "Black out request for %s", cidrStr)
+	log.Tracef(trace.Private, "BlackOut: Black out request for %s", cidrStr)
 	cidr, err := NewCIDR(cidrStr)
 	if err != nil {
 		return err
@@ -876,15 +894,18 @@ func (ipam *IPAM) BlackOut(cidrStr string) error {
 	}
 
 	for i, blackedOut := range network.BlackedOut {
+		log.Tracef(trace.Inside, "BlackOut: Checking if %s contains %s in network %s", blackedOut, cidr, network.Name)
 		if blackedOut.Contains(cidr) {
 			// We already have a bigger CIDR in the list. Do nothing.
 			log.Tracef(trace.Private, "Already have a CIDR equivalent or bigger to requested %s: %s", cidr, blackedOut)
 			return nil
 		}
+		log.Tracef(trace.Inside, "BlackOut: Checking if %s contains %s in network %s", cidr, blackedOut, network.Name)
 		if cidr.Contains(blackedOut) {
 			// Replace existing one with this one as it is bigger. But first check
 			// if it has allocated IPs.
 			networkBlocks := network.HostsGroups.listBlocks()
+			log.Tracef(trace.Inside, "BlackOut: Checking blocks %v if they have IP in %s", networkBlocks, cidr)
 			for _, block := range networkBlocks {
 				if block.hasIPInCIDR(*cidr) {
 					return errors.New("Blackout block contains already allocated IPs.")
@@ -897,6 +918,17 @@ func (ipam *IPAM) BlackOut(cidrStr string) error {
 			}
 			log.Tracef(trace.Private, "Blacked out %s; current list of blacked out CIDRs for %s: %s", cidr, network.CIDR, network.BlackedOut)
 			return nil
+		}
+	}
+
+	// Check if proposed black out cidr contains allocated IPs
+	// Replace existing one with this one as it is bigger. But first check
+	// if it has allocated IPs.
+	networkBlocks := network.HostsGroups.listBlocks()
+	log.Tracef(trace.Inside, "BlackOut: Checking blocks %v if they have IP in %s", networkBlocks, cidr)
+	for _, block := range networkBlocks {
+		if block.hasIPInCIDR(*cidr) {
+			return errors.New("Blackout block contains already allocated IPs.")
 		}
 	}
 
