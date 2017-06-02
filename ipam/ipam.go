@@ -145,7 +145,7 @@ type HostsGroups struct {
 	BlockToOwner  map[int]string   `json:"block_to_owner"`
 	OwnerToBlocks map[string][]int `json:"owner_to_block"`
 
-	BlockToHost map[int]string `json:"block_to_owner"`
+	BlockToHost map[int]string `json:"block_to_host"`
 
 	Blocks         []*Block `json:"blocks"`
 	ReusableBlocks []int    `json:"reusable_blocks"`
@@ -666,7 +666,7 @@ type IPAM struct {
 	save            Saver
 	locker          sync.Locker
 
-	TenantToNetwork map[string][]string `"json:tenant_to_network"`
+	TenantToNetwork map[string][]string `json:"tenant_to_network"`
 }
 
 // injectParents is intended to add references to parent objects where appropriate
