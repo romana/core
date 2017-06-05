@@ -270,9 +270,9 @@ const (
 func NotifyAgent(client *common.RestClient, ip *net.IPNet, iface string, op string) (err error) {
 	var address agent.IP
 	if ip != nil {
-		address = agent.IP{net.IP: ip.IP}
+		address = agent.IP{IP: ip.IP}
 	} else {
-		address = agent.IP{net.IP: net.ParseIP("127.0.0.1")}
+		address = agent.IP{IP: net.ParseIP("127.0.0.1")}
 	}
 	log.Infof("Notify romana agent about %s with ip %v, on interface %s", op, address, iface)
 
