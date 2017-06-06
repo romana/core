@@ -18,12 +18,14 @@ package agent
 
 import (
 	"fmt"
+	"sync"
+
+	"github.com/romana/core/agent/firewall"
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/log/trace"
 	"github.com/romana/core/common/store"
-	"github.com/romana/core/pkg/util/firewall"
+
 	log "github.com/romana/rlog"
-	"sync"
 )
 
 // agentStore is a backing storage. Agent will likely use

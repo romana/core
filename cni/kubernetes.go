@@ -13,7 +13,7 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-package main
+package cni
 
 import (
 	"fmt"
@@ -38,6 +38,22 @@ type K8sArgs struct {
 	K8S_POD_NAME               types.UnmarshallableString
 	K8S_POD_NAMESPACE          types.UnmarshallableString
 	K8S_POD_INFRA_CONTAINER_ID types.UnmarshallableString
+}
+
+// MakeVethName generates veth name that can be used for external part
+// of the veth interface.
+func (k8s K8sArgs) MakeVethName() string {
+	const suffixLength = 8
+	const vethPrefix = "romana"
+	var suffix string
+	infra := string(k8s.K8S_POD_INFRA_CONTAINER_ID)
+	if len(infra) > suffixLength {
+		suffix = infra[:suffixLength]
+	} else {
+		suffix = infra
+	}
+
+	return fmt.Sprintf("%s-%s", vethPrefix, suffix)
 }
 
 // MakePodName returns unique pod name.

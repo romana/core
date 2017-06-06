@@ -4,16 +4,13 @@
 # lint: run golint.
 #
 
-services = $$GOPATH/bin/root\
-		   $$GOPATH/bin/agent\
-		   $$GOPATH/bin/tenant\
-		   $$GOPATH/bin/ipam\
+services = $$GOPATH/bin/romanad\
 		   $$GOPATH/bin/romana\
-		   $$GOPATH/bin/policy\
-		   $$GOPATH/bin/listener\
-		   $$GOPATH/bin/cni\
-		   $$GOPATH/bin/doc\
-		   $$GOPATH/bin/topology
+		   $$GOPATH/bin/romana_agent\
+		   $$GOPATH/bin/romana_cni\
+		   $$GOPATH/bin/romana_policy\
+		   $$GOPATH/bin/romana_listener\
+		   $$GOPATH/bin/romana_doc
 
 UPX_VERSION := $(shell upx --version 2>/dev/null)
 
