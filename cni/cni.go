@@ -20,6 +20,7 @@ import (
 	"net"
 
 	"github.com/containernetworking/cni/pkg/types"
+	"github.com/romana/core/agent"
 	"github.com/romana/core/common"
 	log "github.com/romana/rlog"
 	"github.com/vishvananda/netlink"
@@ -27,11 +28,16 @@ import (
 
 const DefaultSegmentName = "default"
 
+// AgentUrl is a constant since CNI plugin should always live on the same node
+// as the agent and port should probably stay the same. This might require attention
+// in future.
+const AgentUrl = "http://localhost:9604/pod"
+
 // RomanaAddressManager describes functions that allow allocating and deallocating
 // IP addresses from Romana.
 type RomanaAddressManager interface {
-	Allocate(NetConf, RomanaAllocatorPodDescription) (*net.IPNet, error)
-	Deallocate(NetConf, string) error
+	Allocate(NetConf, *common.RestClient, RomanaAllocatorPodDescription) (*net.IPNet, error)
+	Deallocate(NetConf, *common.RestClient, string) error
 }
 
 // NewRomanaAddressManager returns structure that satisfies RomanaAddresManager,
@@ -75,7 +81,7 @@ type NetConf struct {
 
 type DefaultAddressManager struct{}
 
-func (DefaultAddressManager) Allocate(config NetConf, pod RomanaAllocatorPodDescription) (*net.IPNet, error) {
+func (DefaultAddressManager) Allocate(config NetConf, client *common.RestClient, pod RomanaAllocatorPodDescription) (*net.IPNet, error) {
 	// Discover pod segment.
 	var segmentLabel string
 	var ok bool
@@ -89,14 +95,6 @@ func (DefaultAddressManager) Allocate(config NetConf, pod RomanaAllocatorPodDesc
 		segmentLabel = DefaultSegmentName
 	}
 	log.Infof("Discovered segment %s for a pod", segmentLabel)
-
-	// Rest client config
-	clientConfig := common.GetDefaultRestClientConfig(config.RomanaRoot, nil)
-	client, err := common.NewRestClient(clientConfig)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to reach romana root at %s, err=(%s)", config.RomanaRoot, err)
-	}
-	log.Infof("Created romana client %v", client)
 
 	// Topology, find host id.
 	hosts, err := client.ListHosts()
@@ -168,15 +166,7 @@ func (DefaultAddressManager) Allocate(config NetConf, pod RomanaAllocatorPodDesc
 	return ipamIP, nil
 }
 
-func (DefaultAddressManager) Deallocate(config NetConf, targetName string) error {
-	// Rest client config
-	clientConfig := common.GetDefaultRestClientConfig(config.RomanaRoot, nil)
-	client, err := common.NewRestClient(clientConfig)
-	if err != nil {
-		return fmt.Errorf("Failed to reach romana root at %s, err=(%s)", config.RomanaRoot, err)
-	}
-	log.Infof("Created romana client %v", client)
-
+func (DefaultAddressManager) Deallocate(config NetConf, client *common.RestClient, targetName string) error {
 	ipamUrl, err := client.GetServiceUrl("ipam")
 	if err != nil {
 		return fmt.Errorf("Failed to discover ipam url from romana root err=(%s)", err)
@@ -254,4 +244,46 @@ func checkHttp404(err error) (ret bool) {
 	}
 
 	return
+}
+
+// MakeRomanaClient creates romana rest client from CNI config.
+func MakeRomanaClient(config *NetConf) (*common.RestClient, error) {
+	clientConfig := common.GetDefaultRestClientConfig(config.RomanaRoot, nil)
+	client, err := common.NewRestClient(clientConfig)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to reach romana root at %s, err=(%s)", config.RomanaRoot, err)
+	}
+	log.Infof("Created romana client %v", client)
+
+	return client, nil
+}
+
+const (
+	// Parameter for NotifyAgent, notifies Romana agent that pod is added.
+	NotifyPodUp = "pod added"
+
+	// Parameter for NotifyAgent, notifies Romana agent that pod is deleted.
+	NotifyPodDown = "pod deleted"
+)
+
+// NotifyAgent notifies Romana agent that Pod is added or deleted.
+func NotifyAgent(client *common.RestClient, ip *net.IPNet, iface string, op string) (err error) {
+	var address agent.IP
+	if ip != nil {
+		address = agent.IP{IP: ip.IP}
+	} else {
+		address = agent.IP{IP: net.ParseIP("127.0.0.1")}
+	}
+	log.Infof("Notify romana agent about %s with ip %v, on interface %s", op, address, iface)
+
+	netif := agent.NetIf{Name: iface, IP: address}
+	switch op {
+	case NotifyPodUp:
+		err = client.Post(AgentUrl, agent.NetworkRequest{NetIf: netif}, nil)
+	case NotifyPodDown:
+		err = client.Delete(AgentUrl, agent.NetworkRequest{NetIf: netif}, nil)
+	default:
+	}
+
+	return nil
 }
