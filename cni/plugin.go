@@ -24,7 +24,6 @@ import (
 	"runtime"
 	"syscall"
 
-	"github.com/containernetworking/cni/pkg/ip"
 	"github.com/containernetworking/cni/pkg/ns"
 	"github.com/containernetworking/cni/pkg/skel"
 	"github.com/containernetworking/cni/pkg/types"
@@ -69,6 +68,11 @@ func cmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
+	romanaClient, err := MakeRomanaClient(netConf)
+	if err != nil {
+		return err
+	}
+
 	// Deferring deallocation before allocating ip address,
 	// deallocation will be called on any return unless
 	// flag set to false.
@@ -80,7 +84,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 			// don't want to panic here
 			if netConf != nil && err == nil {
 				log.Errorf("Deallocating IP on exit, something went wrong")
-				_ = deallocator.Deallocate(*netConf, pod.Name)
+				_ = deallocator.Deallocate(*netConf, romanaClient, pod.Name)
 			}
 		}
 	}()
@@ -90,7 +94,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 	if err != nil {
 		return err
 	}
-	podAddress, err := allocator.Allocate(*netConf, RomanaAllocatorPodDescription{
+	podAddress, err := allocator.Allocate(*netConf, romanaClient, RomanaAllocatorPodDescription{
 		Name:        pod.Name,
 		Hostname:    netConf.RomanaHostName,
 		Namespace:   pod.Namespace,
@@ -125,7 +129,7 @@ func cmdAdd(args *skel.CmdArgs) error {
 	// but still, callback within a callback.
 	err = netns.Do(func(hostNS ns.NetNS) error {
 		// Creates veth interfacces.
-		hostVeth, containerVeth, err := ip.SetupVeth(ifName, mtu, hostNS)
+		hostVeth, containerVeth, err := SetupVeth(ifName, k8sargs.MakeVethName(), mtu, hostNS)
 		if err != nil {
 			return err
 		}
@@ -184,6 +188,11 @@ func cmdAdd(args *skel.CmdArgs) error {
 		return fmt.Errorf("Failed to setup return route to %s via interface %s, err=(%s)", podAddress, hostIface.Name, err)
 	}
 
+	err = NotifyAgent(romanaClient, podAddress, hostIface.Name, NotifyPodUp)
+	if err != nil {
+		return err
+	}
+
 	result := &current.Result{
 		IPs: []*current.IPConfig{
 			&current.IPConfig{
@@ -219,13 +228,24 @@ func cmdDel(args *skel.CmdArgs) error {
 		return err
 	}
 
+	romanaClient, err := MakeRomanaClient(netConf)
+	if err != nil {
+		return err
+	}
+
 	deallocator, err := NewRomanaAddressManager(DefaultProvider)
 	if err != nil {
 		return err
 	}
-	err = deallocator.Deallocate(*netConf, k8sargs.MakePodName())
+
+	err = deallocator.Deallocate(*netConf, romanaClient, k8sargs.MakePodName())
 	if err != nil {
 		return fmt.Errorf("Failed to tear down pod network for %s, err=(%s)", k8sargs.MakePodName(), err)
+	}
+
+	err = NotifyAgent(romanaClient, nil, k8sargs.MakeVethName(), NotifyPodDown)
+	if err != nil {
+		return err
 	}
 
 	return nil

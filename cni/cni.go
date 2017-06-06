@@ -20,16 +20,24 @@ import (
 	"net"
 
 	"github.com/containernetworking/cni/pkg/types"
+	"github.com/romana/core/agent"
 	"github.com/romana/core/common"
 	log "github.com/romana/rlog"
 	"github.com/vishvananda/netlink"
 )
 
+const DefaultSegmentName = "default"
+
+// AgentUrl is a constant since CNI plugin should always live on the same node
+// as the agent and port should probably stay the same. This might require attention
+// in future.
+const AgentUrl = "http://localhost:9604/pod"
+
 // RomanaAddressManager describes functions that allow allocating and deallocating
 // IP addresses from Romana.
 type RomanaAddressManager interface {
-	Allocate(NetConf, RomanaAllocatorPodDescription) (*net.IPNet, error)
-	Deallocate(NetConf, string) error
+	Allocate(NetConf, *common.RestClient, RomanaAllocatorPodDescription) (*net.IPNet, error)
+	Deallocate(NetConf, *common.RestClient, string) error
 }
 
 // NewRomanaAddressManager returns structure that satisfies RomanaAddresManager,
@@ -73,7 +81,7 @@ type NetConf struct {
 
 type DefaultAddressManager struct{}
 
-func (DefaultAddressManager) Allocate(config NetConf, pod RomanaAllocatorPodDescription) (*net.IPNet, error) {
+func (DefaultAddressManager) Allocate(config NetConf, client *common.RestClient, pod RomanaAllocatorPodDescription) (*net.IPNet, error) {
 	// Discover pod segment.
 	var segmentLabel string
 	var ok bool
@@ -83,17 +91,10 @@ func (DefaultAddressManager) Allocate(config NetConf, pod RomanaAllocatorPodDesc
 		segmentLabel, ok = pod.Labels[config.SegmentLabelName]
 	}
 	if !ok {
-		return nil, fmt.Errorf("Failed to discover segment label for a pod")
+		log.Warnf("Failed to discover segment label for a pod, using %s", DefaultSegmentName)
+		segmentLabel = DefaultSegmentName
 	}
 	log.Infof("Discovered segment %s for a pod", segmentLabel)
-
-	// Rest client config
-	clientConfig := common.GetDefaultRestClientConfig(config.RomanaRoot, nil)
-	client, err := common.NewRestClient(clientConfig)
-	if err != nil {
-		return nil, fmt.Errorf("Failed to reach romana root at %s, err=(%s)", config.RomanaRoot, err)
-	}
-	log.Infof("Created romana client %v", client)
 
 	// Topology, find host id.
 	hosts, err := client.ListHosts()
@@ -132,20 +133,9 @@ func (DefaultAddressManager) Allocate(config NetConf, pod RomanaAllocatorPodDesc
 	if currentTenant.Name == "" {
 		return nil, fmt.Errorf("Failed to find romana tenant with name %s, err=(%s)", pod.Namespace, err)
 	}
-	var segments []common.Segment
-	segmentsUrl := fmt.Sprintf("%s/%d/segments", tenantUrl, currentTenant.ID)
-	err = client.Get(segmentsUrl, &segments)
+
+	currentSegment, err := getOrCreateSegment(client, segmentLabel, tenantUrl, currentTenant.ID)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to fetch segments from %s, err=(%s)", segmentsUrl, err)
-	}
-	var currentSegment common.Segment
-	for segmentNum, segment := range segments {
-		if segment.Name == segmentLabel {
-			currentSegment = segments[segmentNum]
-			break
-		}
-	}
-	if currentSegment.Name == "" {
 		return nil, fmt.Errorf("Failed to discover segment %s within tenant %s", pod.Namespace, segmentLabel)
 	}
 	log.Infof("Discovered tenant=%d, segment=%d, host=%d", currentTenant.ID, currentSegment.ID, currentHost.ID)
@@ -176,15 +166,7 @@ func (DefaultAddressManager) Allocate(config NetConf, pod RomanaAllocatorPodDesc
 	return ipamIP, nil
 }
 
-func (DefaultAddressManager) Deallocate(config NetConf, targetName string) error {
-	// Rest client config
-	clientConfig := common.GetDefaultRestClientConfig(config.RomanaRoot, nil)
-	client, err := common.NewRestClient(clientConfig)
-	if err != nil {
-		return fmt.Errorf("Failed to reach romana root at %s, err=(%s)", config.RomanaRoot, err)
-	}
-	log.Infof("Created romana client %v", client)
-
+func (DefaultAddressManager) Deallocate(config NetConf, client *common.RestClient, targetName string) error {
 	ipamUrl, err := client.GetServiceUrl("ipam")
 	if err != nil {
 		return fmt.Errorf("Failed to discover ipam url from romana root err=(%s)", err)
@@ -203,8 +185,11 @@ func (DefaultAddressManager) Deallocate(config NetConf, targetName string) error
 		}
 	}
 
+	// Not reporting an error here because kubelet will keep trying
+	// to deallocate this endpoint until we return success.
 	if len(podEndpoints) == 0 {
-		return fmt.Errorf("No IPAM endpoints found for pod %s", targetName)
+		log.Errorf("cni tried to deallocate %s but couldn't find such endpoint", targetName)
+		return nil
 	}
 
 	if len(podEndpoints) > 1 {
@@ -215,6 +200,89 @@ func (DefaultAddressManager) Deallocate(config NetConf, targetName string) error
 	err = client.Delete(endpointDeleteUrl, nil, nil)
 	if err != nil {
 		return fmt.Errorf("Failed to delete IPAM endpoint %v", podEndpoints[0])
+	}
+
+	return nil
+}
+
+func getOrCreateSegment(client *common.RestClient, segmentLabel, tenantUrl string, tenantId uint64) (*common.Segment, error) {
+	var segments []common.Segment
+	segmentsUrl := fmt.Sprintf("%s/%d/segments", tenantUrl, tenantId)
+	err := client.Get(segmentsUrl, &segments)
+	// ignore 404 error here which means no segments
+	// considered to be a zero segments rather then
+	// an error.
+	if err != nil && !checkHttp404(err) {
+		return nil, fmt.Errorf("Failed to fetch segments from %s, err=(%s)", segmentsUrl, err)
+	}
+
+	for segmentNum, segment := range segments {
+		if segment.Name == segmentLabel {
+			return &segments[segmentNum], nil
+		}
+	}
+
+	log.Errorf("no segment %s found, trying to create", segmentLabel)
+
+	var newSegment common.Segment
+	err = client.Post(segmentsUrl, common.Segment{Name: segmentLabel}, &newSegment)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create segment %s, err=(%s)", segmentsUrl, err)
+	}
+
+	log.Infof("new segment created %v for tenant with id %d", newSegment, tenantId)
+
+	return &newSegment, nil
+}
+
+func checkHttp404(err error) (ret bool) {
+	switch e := err.(type) {
+	case common.HttpError:
+		if e.StatusCode == 404 {
+			ret = true
+		}
+	}
+
+	return
+}
+
+// MakeRomanaClient creates romana rest client from CNI config.
+func MakeRomanaClient(config *NetConf) (*common.RestClient, error) {
+	clientConfig := common.GetDefaultRestClientConfig(config.RomanaRoot, nil)
+	client, err := common.NewRestClient(clientConfig)
+	if err != nil {
+		return nil, fmt.Errorf("Failed to reach romana root at %s, err=(%s)", config.RomanaRoot, err)
+	}
+	log.Infof("Created romana client %v", client)
+
+	return client, nil
+}
+
+const (
+	// Parameter for NotifyAgent, notifies Romana agent that pod is added.
+	NotifyPodUp = "pod added"
+
+	// Parameter for NotifyAgent, notifies Romana agent that pod is deleted.
+	NotifyPodDown = "pod deleted"
+)
+
+// NotifyAgent notifies Romana agent that Pod is added or deleted.
+func NotifyAgent(client *common.RestClient, ip *net.IPNet, iface string, op string) (err error) {
+	var address agent.IP
+	if ip != nil {
+		address = agent.IP{IP: ip.IP}
+	} else {
+		address = agent.IP{IP: net.ParseIP("127.0.0.1")}
+	}
+	log.Infof("Notify romana agent about %s with ip %v, on interface %s", op, address, iface)
+
+	netif := agent.NetIf{Name: iface, IP: address}
+	switch op {
+	case NotifyPodUp:
+		err = client.Post(AgentUrl, agent.NetworkRequest{NetIf: netif}, nil)
+	case NotifyPodDown:
+		err = client.Delete(AgentUrl, agent.NetworkRequest{NetIf: netif}, nil)
+	default:
 	}
 
 	return nil
