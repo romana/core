@@ -23,6 +23,7 @@ import (
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/log/trace"
 	log "github.com/romana/rlog"
+	"math"
 	"net/url"
 	"reflect"
 
@@ -239,7 +240,7 @@ func (kvStore *KvStore) getID(key string) (uint64, error) {
 
 // CreateSchema creates the schema in this DB. If force flag
 // is specified, the schema is dropped and recreated.
-func (kvStore *KvStore) CreateSchema(force bool) error {
+func (kvStore KvStore) CreateSchema(force bool) error {
 	log.Debugf("Creating schema for %s", kvStore.Config.Database)
 	err := kvStore.Connect()
 	if err != nil {
@@ -248,7 +249,7 @@ func (kvStore *KvStore) CreateSchema(force bool) error {
 	toInit := []string{"hosts_ids", "tenants_ids", "segments_ids"}
 	for _, s := range toInit {
 		key := kvStore.makeKey(s)
-		ring := common.NewIDRing()
+		ring := common.NewIDRing(1, math.MaxUint64)
 		data, err := ring.Encode()
 		if err != nil {
 			return err

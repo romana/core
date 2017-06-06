@@ -124,11 +124,6 @@ type Store interface {
 	// Here "entities" *must* be a pointer to an array
 	// of entities to find (for example, it has to be &[]Tenant{}, not Tenant{}).
 	Find(query url.Values, entities interface{}, flag FindFlag) (interface{}, error)
-
-	AddHost(dc Datacenter, host *Host) error
-	DeleteHost(hostID uint64) error
-	GetHost(hostID uint64) (Host, error)
-	ListHosts() ([]Host, error)
 }
 
 // ServiceStore interface is what each service's store needs to implement.

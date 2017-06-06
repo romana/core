@@ -20,12 +20,8 @@ package common
 import (
 	"bytes"
 	"encoding/json"
+
 	"fmt"
-	"github.com/K-Phoen/negotiation"
-	"github.com/gorilla/context"
-	"github.com/gorilla/mux"
-	"github.com/pborman/uuid"
-	log "github.com/romana/rlog"
 	"io"
 	"io/ioutil"
 	"net/url"
@@ -33,6 +29,12 @@ import (
 	"os/exec"
 	"reflect"
 	"strings"
+
+	"github.com/K-Phoen/negotiation"
+	"github.com/gorilla/context"
+	"github.com/gorilla/mux"
+	"github.com/pborman/uuid"
+	log "github.com/romana/rlog"
 	//	"log"
 	"net/http"
 )

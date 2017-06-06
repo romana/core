@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Pani Networks
+// Copyright (c) 2016-2017 Pani Networks
 // All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -24,7 +24,7 @@ import (
 // in the struct equivalent to the original.
 func TestIDRingEncodeDecode(t *testing.T) {
 	var err error
-	idRing := NewIDRing()
+	idRing := NewIDRing(1, math.MaxUint64)
 
 	// 1. Test constructor
 	if idRing.Ranges == nil {
@@ -64,9 +64,15 @@ func TestIDRingEncodeDecode(t *testing.T) {
 func TestIDRingAllocation(t *testing.T) {
 	var err error
 	var id uint64
-	idRing := NewIDRing()
+	idRing := NewIDRing(1, math.MaxUint64)
 
-	// 1. Test allocation
+	// 1. Test invert
+	invert := idRing.Invert()
+	if len(invert) != 0 {
+		t.Errorf("Expected empty array for an inversion of an original ring, got %s", invert)
+	}
+
+	// 2. Test allocation
 	// First ID given out should be 1
 	id, err = idRing.GetID()
 	if err != nil {
@@ -87,7 +93,16 @@ func TestIDRingAllocation(t *testing.T) {
 		}
 	}
 
-	// 2. Test reclaiming.
+	// 3. Test invert again.
+	invert = idRing.Invert()
+	if len(invert) != 1 {
+		t.Errorf("Expected a single range for an inversion, got %s", invert)
+	}
+	if invert[0].Min != 1 || invert[0].Max != 100 {
+		t.Errorf("Expected 1:100, got %d:%d", invert[0].Min, invert[0].Max)
+	}
+
+	// 4. Test reclaiming.
 	// 500 should be an error, because that ID was never given out.
 	err = idRing.ReclaimID(500)
 	if err == nil {
