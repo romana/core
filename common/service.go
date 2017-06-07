@@ -22,8 +22,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/codegangsta/negroni"
-	"github.com/spf13/viper"
 	clog "log"
 	"net"
 	"net/http"
@@ -32,6 +30,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/codegangsta/negroni"
+	"github.com/spf13/viper"
 
 	log "github.com/romana/rlog"
 )
@@ -212,6 +213,7 @@ func initNegroni(routes Routes, service Service, config ServiceConfig, client *R
 	var err error
 	// Create negroni
 	negroni := negroni.New()
+	negroni.Use(newPanicRecoveryHandler())
 
 	// Add content-negotiation middleware.
 	// This is an example of using a middleware.
