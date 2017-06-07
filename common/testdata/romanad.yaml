@@ -1,0 +1,20 @@
+romanad:
+  host: localhost
+  port: 9600
+  etcd_prefix: /romana
+  etcd_endpoints:
+    - localhost:2379
+agent:
+  host: 0.0.0.0
+  port: 9604
+  lease_file : "/etc/ethers"
+  wait_for_iface_try : 6
+kubernetesListener 
+  host: 0.0.0.0
+  port: 9606
+  kubernetes_url : "http://localhost"
+  namespace_notification_path: "/api/v1/namespaces/?watch=true"
+  policy_notification_path_prefix : "/apis/extensions/v1beta1/namespaces/"
+  policy_notification_path_postfix : "/networkpolicies/?watch=true"
+  segment_label_name: "tier"
+     

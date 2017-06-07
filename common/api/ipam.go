@@ -69,6 +69,10 @@ type TopologyDefinition struct {
 	Map      []interface{} `json:"map"`
 }
 
+type Host struct {
+	Name string `json:"name"`
+}
+
 type IPNet struct {
 	net.IPNet
 }

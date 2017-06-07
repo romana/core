@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Pani Networks
+// Copyright (c) 2016-2017 Pani Networks
 // All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -17,14 +17,10 @@ package common
 
 import (
 	"bufio"
-	"database/sql"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"github.com/go-check/check"
-	"github.com/pborman/uuid"
-	"github.com/romana/core/common/log/trace"
-	log "github.com/romana/rlog"
 	"io/ioutil"
 	"os"
 	"reflect"
@@ -32,6 +28,11 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
+
+	"github.com/go-check/check"
+	"github.com/pborman/uuid"
+	"github.com/romana/core/common/log/trace"
+	log "github.com/romana/rlog"
 )
 
 const (
@@ -74,64 +75,7 @@ func initEnviron() {
 
 // RomanaTestSuite holds state for use in testing.
 type RomanaTestSuite struct {
-	tmpFiles   []string
-	ConfigFile string
-	Config     Config
-}
-
-// MockConfig will take the config file specified
-// and mock things up, by:
-// 1. Replacing all ports with 0 (making the services use ephemeral ports)
-// 2. Replacing all database instance names with the result of GetMockDbName
-//    and write it out to /tmp/romana.yaml
-func (rts *RomanaTestSuite) MockConfig(romanaConfigFile string) error {
-	log.Infof("MockConfig():")
-	overrideConfigFile := os.ExpandEnv("${ROMANA_CONFIG_FILE}")
-	if overrideConfigFile != "" {
-		log.Infof("\tOverriding %s with value of ROMANA_CONFIG_FILE: %s", romanaConfigFile, overrideConfigFile)
-		romanaConfigFile = overrideConfigFile
-	}
-	log.Infof("\tWill use config file %s", romanaConfigFile)
-	var err error
-	location := GetCaller()
-	log.Infof("\tCalled from %s", location)
-	config, err := ReadConfig(romanaConfigFile)
-	if err != nil {
-		return err
-	}
-	services := []string{ServiceNameRoot, "topology", "ipam", "agent", "tenant", "policy"}
-
-	for _, svc := range services {
-		svcConfig := config.Services[svc]
-		log.Infof("\tMocking for service %s:", svc)
-		svcConfig.Common.Api.Port = 0
-		storeConfig := svcConfig.ServiceSpecific["store"].(map[string]interface{})
-		if storeConfig["type"] == "sqlite3" {
-			sqliteFile := rts.GetMockSqliteFile(svc)
-			storeConfig["database"] = sqliteFile
-		} else {
-			// For now it's just mysql
-			// TODO add this to RomanaTestSuite list of resources to destroy
-			storeConfig["database"] = GetMockDbName(svc)
-		}
-		log.Infof("\t\tDB config: %v", storeConfig["database"])
-
-	}
-
-	outFile := fmt.Sprintf("/tmp/romana_%s.yaml", getUniqueMockNameComponent())
-	err = WriteConfig(config, outFile)
-	if err != nil {
-		log.Infof("\tRead %s, trying to write %s: %v", romanaConfigFile, outFile, err)
-		return err
-	}
-	wrote, _ := ioutil.ReadFile(outFile)
-	rts.Config, err = ReadConfig(outFile)
-	if err != nil {
-		return err
-	}
-	rts.ConfigFile = outFile
-	log.Infof("\tRead %s, wrote to %s:\n%s\n------------------------", romanaConfigFile, outFile, string(wrote))
-	return nil
+	tmpFiles []string
 }
 
 // ReadKeyFile reads a key from the provided file.
@@ -146,6 +90,14 @@ func ReadKeyFile(filename string) (*pem.Block, error) {
 		return nil, NewError("No key found in %s", filename)
 	}
 	return block, nil
+}
+
+func String(i interface{}) string {
+	j, e := json.Marshal(i)
+	if e != nil {
+		return fmt.Sprintf("%+v", i)
+	}
+	return string(j)
 }
 
 func (rts *RomanaTestSuite) CleanUp() {
@@ -170,10 +122,6 @@ var (
 	mockSeqNum  = int64(0)
 	mockSeqLock sync.Mutex
 )
-
-func SqlNullStringUuid() sql.NullString {
-	return sql.NullString{String: uuid.New(), Valid: true}
-}
 
 // IsZeroValue checks whether the provided value is equal to the
 // zero value for the type. Zero values would be:
@@ -317,29 +265,4 @@ func In(needle string, haystack []string) bool {
 		}
 	}
 	return false
-}
-
-// GetTestServiceConfig builds up configuration for test services that is
-// enough for not erroring out, because real services expect it.
-func GetTestServiceConfig() *ServiceConfig {
-	api := &Api{Port: 0,
-		RootServiceUrl:    "http://localhost",
-		RestTimeoutMillis: 100,
-	}
-
-	// If we call this fake service not root,
-	// it'll try to register it's port with root service which
-	// doesn't currently run. If we call it  root, then it'll try
-	// to get the configuration to check if auth flag is on or not.
-	// If the config is wrong, it'll error out, so we build up this config
-	// as necessary.
-	fullConfig := make(map[string]interface{})
-	svcConfig := make(map[string]ServiceConfig)
-	fullConfig[FullConfigKey] = Config{Services: svcConfig}
-	rootConfig := make(map[string]interface{})
-	svcConfig[ServiceNameRoot] = ServiceConfig{ServiceSpecific: rootConfig}
-	cfg := &ServiceConfig{Common: CommonConfig{Api: api},
-		ServiceSpecific: fullConfig,
-	}
-	return cfg
 }

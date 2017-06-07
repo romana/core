@@ -20,7 +20,6 @@ package common
 import (
 	"errors"
 	"fmt"
-	"github.com/jinzhu/gorm"
 
 	"net/http"
 	"os/exec"
@@ -217,22 +216,4 @@ func (m *MultiError) Error() string {
 		s += m.errors[i].Error()
 	}
 	return s
-}
-
-// GetDbErrors creates MultiError on error from DB.
-func GetDbErrors(db *gorm.DB) error {
-	errors := db.GetErrors()
-	if errors == nil {
-		if db.Error != nil {
-			return DbToHttpError(db.Error)
-		}
-		return nil
-	}
-	// If errors array is present, it already includes the db.Error value,
-	// so we do not need to include it.
-	specificErrors := make([]error, len(errors))
-	for i, err := range errors {
-		specificErrors[i] = DbToHttpError(err)
-	}
-	return MakeMultiError(specificErrors)
 }

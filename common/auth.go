@@ -21,15 +21,15 @@ import (
 	"crypto/rsa"
 	"flag"
 	"fmt"
+	"net/http"
+	"syscall"
+
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gorilla/context"
 	log "github.com/romana/rlog"
 	cli "github.com/spf13/cobra"
 	config "github.com/spf13/viper"
 	"golang.org/x/crypto/ssh/terminal"
-	"io/ioutil"
-	"net/http"
-	"syscall"
 )
 
 const (
@@ -206,52 +206,54 @@ type AuthMiddleware struct {
 // Its behavior depends on whether it is for root (in which case
 // the public key is gotten from the config file) or another
 // service (in which case the public key is gotten from the root).
-func NewAuthMiddleware(service Service, config ServiceConfig, client *RestClient) (AuthMiddleware, error) {
-	var err error
+func NewAuthMiddleware(service Service) (AuthMiddleware, error) {
 	authMiddleware := AuthMiddleware{}
-	// If we are in the Root service...
-	if service.Name() == ServiceNameRoot {
-		// Really it would be most convenient to just use root.Root.publicKey but that
-		// would create a circular import dependency.
-		fullConfig := config.ServiceSpecific[FullConfigKey].(Config)
-		rootConfig := fullConfig.Services[ServiceNameRoot].ServiceSpecific
-		auth, err := ToBool(rootConfig["auth"])
-		if err != nil {
-			return authMiddleware, err
-		}
-		if auth {
-			// If authentication is on, get the public key from local file
-			// and parse and store it.
-			publicKeyLocation := config.Common.Api.AuthPublic
-			log.Debugf("Creating AuthMiddleware for Root: reading public key from %s", publicKeyLocation)
-			data, err := ioutil.ReadFile(publicKeyLocation)
-			if err != nil {
-				return authMiddleware, err
-			}
-			key, err := jwt.ParseRSAPublicKeyFromPEM(data)
-			if err != nil {
-				log.Errorf("Error parsing RSA public key from %s: %T: %s", publicKeyLocation, err, err)
-				return authMiddleware, err
-			}
-			authMiddleware.PublicKey = key
-			// These URLs for Root are allowed to be accessed w/o authentication
-			authMiddleware.AllowedURLs = []string{"/", "/auth", "/publicKey"}
-		} else {
-			// If the authentication is not turned on, just
-			// set this to nil
-			authMiddleware.PublicKey = nil
-		}
-		return authMiddleware, nil
-	}
-	// This is NOT root service - in this path
-	// we are constructing AuthMiddleware for some other service.
-	// So, first, get the public key to verify tokens with
-	// from Root:
-	authMiddleware.PublicKey, err = client.GetPublicKey()
-	if err != nil {
-		return authMiddleware, err
-	}
 	return authMiddleware, nil
+	//	var err error
+	//
+	//	// If we are in the Root service...
+	//	if service.Name() == ServiceNameRoot {
+	//		// Really it would be most convenient to just use root.Root.publicKey but that
+	//		// would create a circular import dependency.
+	//		fullConfig := config.ServiceSpecific[FullConfigKey].(Config)
+	//		rootConfig := fullConfig.Services[ServiceNameRoot].ServiceSpecific
+	//		auth, err := ToBool(rootConfig["auth"])
+	//		if err != nil {
+	//			return authMiddleware, err
+	//		}
+	//		if auth {
+	//			// If authentication is on, get the public key from local file
+	//			// and parse and store it.
+	//			publicKeyLocation := config.Common.Api.AuthPublic
+	//			log.Debugf("Creating AuthMiddleware for Root: reading public key from %s", publicKeyLocation)
+	//			data, err := ioutil.ReadFile(publicKeyLocation)
+	//			if err != nil {
+	//				return authMiddleware, err
+	//			}
+	//			key, err := jwt.ParseRSAPublicKeyFromPEM(data)
+	//			if err != nil {
+	//				log.Errorf("Error parsing RSA public key from %s: %T: %s", publicKeyLocation, err, err)
+	//				return authMiddleware, err
+	//			}
+	//			authMiddleware.PublicKey = key
+	//			// These URLs for Root are allowed to be accessed w/o authentication
+	//			authMiddleware.AllowedURLs = []string{"/", "/auth", "/publicKey"}
+	//		} else {
+	//			// If the authentication is not turned on, just
+	//			// set this to nil
+	//			authMiddleware.PublicKey = nil
+	//		}
+	//		return authMiddleware, nil
+	//	}
+	//	// This is NOT root service - in this path
+	//	// we are constructing AuthMiddleware for some other service.
+	//	// So, first, get the public key to verify tokens with
+	//	// from Root:
+	//	authMiddleware.PublicKey, err = client.GetPublicKey()
+	//	if err != nil {
+	//		return authMiddleware, err
+	//	}
+	//	return authMiddleware, nil
 }
 
 // Keyfunc implements jwt.Keyfunc (https://godoc.org/github.com/dgrijalva/jwt-go#Keyfunc)

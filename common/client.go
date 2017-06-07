@@ -23,19 +23,26 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/dgrijalva/jwt-go"
 	"io/ioutil"
 	"math"
 	"net/http"
 	"net/url"
 	"reflect"
-	"strings"
 	"sync"
 	"time"
+
+	"github.com/dgrijalva/jwt-go"
 
 	log "github.com/romana/rlog"
 
 	"github.com/pborman/uuid"
+)
+
+const (
+	DefaultRestTimeout           = 1000
+	DefaultRestRetries           = 3
+	RestRetryStrategyExponential = "exponential"
+	RestRetryStrategyFibonacci   = "fibonacci"
 )
 
 // Rest Client for the Romana services. Incorporates facilities to deal with
@@ -68,23 +75,6 @@ func GetDefaultRestClientConfig(rootURL string, cred *Credential) RestClientConf
 		Retries:    DefaultRestRetries,
 		RootURL:    rootURL,
 		Credential: cred,
-	}
-}
-
-// GetRestClientConfig returns a RestClientConfig based on a ServiceConfig. That is,
-// the information provided in the service configuration is used for the client
-// configuration.
-func GetRestClientConfig(config ServiceConfig, cred *Credential) RestClientConfig {
-	retries := config.Common.Api.RestRetries
-	if retries <= 0 {
-		retries = DefaultRestRetries
-	}
-	return RestClientConfig{
-		TimeoutMillis: getTimeoutMillis(config.Common),
-		Retries:       retries,
-		RootURL:       config.Common.Api.RootServiceUrl,
-		TestMode:      config.Common.Api.RestTestMode,
-		Credential:    cred,
 	}
 }
 
@@ -178,167 +168,6 @@ func (rc *RestClient) NewUrl(dest string) error {
 // was not a 4xx or 5xx HTTP error.
 func (rc *RestClient) GetStatusCode() int {
 	return rc.lastStatusCode
-}
-
-// ListHost queries the Topology service in order to return a list of currently
-// configured hosts in a Romana cluster.
-func (rc *RestClient) ListHosts() ([]Host, error) {
-	// Save the current state of things, so we can restore after call to root.
-	savedUrl := rc.url
-	// Restore this after we're done so we don't lose this
-	defer func() {
-		rc.url = savedUrl
-	}()
-
-	topoUrl, err := rc.GetServiceUrl("topology")
-	if err != nil {
-		return nil, err
-	}
-	topIndex := IndexResponse{}
-	err = rc.Get(topoUrl, &topIndex)
-	if err != nil {
-		return nil, err
-	}
-	hostsRelURL := topIndex.Links.FindByRel("host-list")
-
-	var hostList []Host
-	err = rc.Get(hostsRelURL, &hostList)
-	return hostList, err
-}
-
-// Find is a convenience function, which queries the appropriate service
-// and retrieves one entity based on provided structure, and puts the results
-// into the same structure. The provided argument, entity, should be a pointer
-// to the desired structure, e.g., &common.Host{}.
-func (rc *RestClient) Find(entity interface{}, flag FindFlag) error {
-	structType := reflect.TypeOf(entity).Elem()
-	if flag == FindAll {
-		structType = structType.Elem()
-	}
-
-	entityName := structType.String()
-	entityDottedNames := strings.Split(entityName, ".")
-	if len(entityDottedNames) > 1 {
-		entityName = entityDottedNames[1]
-	}
-	entityName = strings.ToLower(entityName)
-	var serviceName string
-	switch entityName {
-	case "tenant":
-		serviceName = "tenant"
-	case "segment":
-		serviceName = "tenant"
-	case "host":
-		serviceName = "topology"
-	default:
-		return NewError("Do not know where to find entity '%s'", entityName)
-	}
-	svcURL, err := rc.GetServiceUrl(serviceName)
-	rc.logf("Attempting to get URL for service %s: %s (%+v)", serviceName, svcURL, err)
-	if err != nil {
-		return err
-	}
-	if !strings.HasSuffix(svcURL, "/") {
-		svcURL += "/"
-	}
-	svcURL += fmt.Sprintf("%s/%ss?", flag, entityName)
-	queryString := ""
-
-	structValue := reflect.ValueOf(entity).Elem()
-	// Whether findAll is constrained -- the provided pointer is to a slice
-	// that has an element with the filled in struct.
-	var findAllConstrained bool
-	if flag == FindAll {
-		if structValue.Kind() != reflect.Slice && structValue.Kind() != reflect.Array {
-			return NewError("Expected slice or array with FindAll, received %s", structValue.Kind())
-		}
-		// If we have an empty array, then we just want to do a FindAll. But if there is
-		// any constituent in the array, then that element has constraints.
-		if structValue.Len() > 0 {
-			findAllConstrained = true
-			structValue = structValue.Index(0)
-		}
-	}
-
-	// Construct querystring only if flag is not FindAll or findAllConstrained is true --
-	// see above.
-	if flag != FindAll || findAllConstrained {
-		for i := 0; i < structType.NumField(); i++ {
-			structField := structType.Field(i)
-			fieldTag := structField.Tag
-			fieldName := structField.Name
-			queryStringFieldName := strings.ToLower(fieldName)
-			omitEmpty := false
-			if fieldTag != "" {
-				jTag := fieldTag.Get("json")
-				if jTag != "" {
-					jTagElts := strings.Split(jTag, ",")
-					// This takes care of ",omitempty"
-					if len(jTagElts) > 1 {
-						queryStringFieldName = jTagElts[0]
-						for _, jTag2 := range jTagElts {
-							if jTag2 == "omitempty" {
-								omitEmpty = true
-								break
-							} // if jTag2
-						} // for / jTagElts
-					} else {
-						queryStringFieldName = jTag
-					}
-				} // if jTag
-			} // if fieldTag
-			//
-			if !structValue.Field(i).CanInterface() {
-				continue
-			}
-			fieldValue := structValue.Field(i).Interface()
-			if omitEmpty && IsZeroValue(fieldValue) {
-				continue
-			}
-
-			if queryString != "" {
-				queryString += "&"
-			}
-			queryString += fmt.Sprintf("%s=%v", queryStringFieldName, fieldValue)
-		}
-	}
-	url := svcURL + queryString
-	rc.logf("Trying to find %s %s at %s, results go into %+v", entityName, flag, url, entity)
-	return rc.Get(url, entity)
-} // func
-
-// GetServiceUrl is a convenience function, which, given the root
-// service URL and name of desired service, returns the URL of that service.
-func (rc *RestClient) GetServiceUrl(name string) (string, error) {
-	// Save the current state of things, so we can restore after call to root.
-	savedUrl := rc.url
-	// Restore this after we're done so we don't lose this
-	defer func() {
-		rc.url = savedUrl
-	}()
-	resp := RootIndexResponse{}
-
-	err := rc.Get(rc.config.RootURL, &resp)
-	if err != nil {
-		return ErrorNoValue, err
-	}
-	for i := range resp.Services {
-		service := resp.Services[i]
-		if service.Name == name {
-			href := service.Links.FindByRel("service")
-			if href != "" {
-				// Now for a bit of a trick - this href could be relative...
-				// Need to normalize.
-				err = rc.NewUrl(href)
-				if err != nil {
-					return ErrorNoValue, err
-				}
-				return rc.url.String(), nil
-			}
-			return ErrorNoValue, errors.New(fmt.Sprintf("Cannot find service %s in response from %s: %+v", name, rc.config.RootURL, resp))
-		}
-	}
-	return ErrorNoValue, errors.New(fmt.Sprintf("Cannot find service %s in response from %s: %+v", name, rc.config.RootURL, resp))
 }
 
 // modifyUrl sets the client's new URL to dest, possibly updating it with
@@ -684,36 +513,4 @@ func (rc *RestClient) GetPublicKey() (*rsa.PublicKey, error) {
 		return nil, err
 	}
 	return key, nil
-}
-
-// GetServiceConfig retrieves configuration
-// for the given service from the root service.
-func (rc *RestClient) GetServiceConfig(name string) (*ServiceConfig, error) {
-	rootIndexResponse := &RootIndexResponse{}
-	if rc.config.RootURL == "" {
-		return nil, errors.New("RootURL not set")
-	}
-	err := rc.Get(rc.config.RootURL, rootIndexResponse)
-	if err != nil {
-		return nil, err
-	}
-
-	config := &ServiceConfig{}
-	config.Common.Api = &Api{RootServiceUrl: rc.config.RootURL}
-	relName := name + "-config"
-	configUrl := rootIndexResponse.Links.FindByRel(relName)
-	if configUrl == "" {
-		return nil, errors.New(fmt.Sprintf("Could not find %s at %s", relName, rc.config.RootURL))
-	}
-	rc.logf("GetServiceConfig(): Found config url %s in %s from %s", configUrl, rootIndexResponse, relName)
-	err = rc.Get(configUrl, config)
-	if err != nil {
-		return nil, err
-	}
-	// Save the credential from the client in the resulting service config --
-	// if the resulting config is to be used in InitializeService(), it's useful;
-	// otherwise, it will be ignored.
-	config.Common.Credential = rc.config.Credential
-	rc.logf("Saved from %v to %v", rc.config.Credential, config.Common.Credential)
-	return config, nil
 }

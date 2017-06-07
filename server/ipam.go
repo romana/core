@@ -13,7 +13,7 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-package ipam
+package server
 
 import (
 	"encoding/json"
@@ -26,8 +26,9 @@ import (
 	"sync"
 
 	"github.com/romana/core/common"
+	"github.com/romana/core/common/api"
 	"github.com/romana/core/common/log/trace"
-	"github.com/romana/core/server/api"
+	"github.com/romana/core/server/idring"
 
 	log "github.com/romana/rlog"
 )
@@ -478,7 +479,7 @@ func (hg *HostsGroups) parse(arr []interface{}, cidr *CIDR, network *Network) er
 // and thus can have addresses allocated in it it.
 type Block struct {
 	CIDR     *CIDR          `json:"cidr"`
-	Pool     *common.IDRing `json:"pool"`
+	Pool     *idring.IDRing `json:"pool"`
 	Revision int            `json:"revision"`
 }
 
@@ -489,7 +490,7 @@ func (b Block) String() string {
 // newBlock creates a new Block on the given host.
 func newBlock(cidr *CIDR) *Block {
 	eb := &Block{CIDR: cidr,
-		Pool: common.NewIDRing(cidr.StartIPInt, cidr.EndIPInt),
+		Pool: idring.NewIDRing(cidr.StartIPInt, cidr.EndIPInt),
 	}
 	return eb
 }
@@ -699,6 +700,16 @@ func NewIPAM(saver Saver, locker sync.Locker) (*IPAM, error) {
 		return nil, err
 	}
 	return ipam, nil
+}
+
+func (ipam *IPAM) listHosts() []api.Host {
+	retval := make([]api.Host, 0)
+	for _, network := range ipam.Networks {
+		for _, host := range network.HostsGroups.listHosts() {
+			retval = append(retval, api.Host{Name: host.Name})
+		}
+	}
+	return retval
 }
 
 // GetGroupsForNetwork retrieves HostsGroups for the network

@@ -17,23 +17,44 @@
 package main
 
 import (
+	"flag"
 	"fmt"
+	"log"
+	"strings"
+
 	"github.com/romana/core/common"
 	"github.com/romana/core/server"
+	log "github.com/romana/rlog"
 )
 
-// Main entry point for the IPAM microservice
 func main() {
-	cs := common.NewCliState()
-	ipam := &ipam.IPAMSvc{}
-	svcInfo, err := cs.StartService(ipam)
+	endpointsStr := flag.String("etcd-endpoints", "localhost:2379", "Comma-separated list of etcd endpoints.")
+	host := flag.String("host", "localhost", "Host to listen on.")
+	port := flag.Int("port", 9600, "Port to listen on.")
+	prefix := flag.String("etcd-prefix", "/romana", "Prefix to use for etcd data.")
+	flag.Parse()
+	if endpointsStr == nil {
+		log.Errorf("No etcd endpoints specified")
+		return
+	}
+	endpoints := strings.Split(endpointsStr, ",")
+	romanad := &server.Romanad{addr: fmt.Sprintf("%s:%d", *host, *port)}
+
+	if !strings.HasPrefix(prefix, "/") {
+		prefix = "/" + prefix
+	}
+	storeConfig := common.StoreConfig{Endpoints: endpoints,
+		Prefix: prefix,
+	}
+	svcInfo, err := common.InitializeService(romanad, storeConfig)
 	if err != nil {
-		panic(err)
+		log.Error(err)
+		return
 	}
 	if svcInfo != nil {
 		for {
 			msg := <-svcInfo.Channel
-			fmt.Println(msg)
+			log.Info(msg)
 		}
 	}
 }

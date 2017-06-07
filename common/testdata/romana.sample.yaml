@@ -6,47 +6,29 @@ services:
     config:
       store: 
         type: sqlite3
-        database: /var/tmp/root.sqlite3
+        database: /var/tmp/ipam.sqlite3
   - service: ipam
     api:
       host: localhost
       port: 9601
     config:
       store: 
-        type: etcd
-        host: localhost
-        port: 2379
-        database: /romana
-  - service: tenant
+        endpoints:
+           - localhost:2379
+        prefix: /romana/ipam
+  - service: policy
     api:
       host: localhost
       port: 9602
     config:
       store: 
-        type: sqlite3
-        database: /var/tmp/tenant.sqlite3
-  - service: topology
-    api:
-      host: localhost
-      port: 9603
-    config:
-      store: 
-        type: etcd
-        host: localhost
-        port: 2379
-        database: /romana
-      datacenter: 
-        ip_version: 4
-        cidr: 10.0.0.0/8
-        host_bits: 8
-        tenant_bits: 4
-        segment_bits: 4
-        endpoint_space_bits: 0
-        endpoint_bits: 8 
+        endpoints:
+           - localhost:2379
+        prefix: /romana/policy
   - service: agent 
     api:
       host: 0.0.0.0
-      port: 9604
+      port: 9603
       hooks:
           - executable: ../common/testdata/agent_proxy_add_policy.sh
             pattern: /policies
@@ -64,18 +46,10 @@ services:
       store:
         type: sqlite3
         database: /var/tmp/agent.sqlite3
-  - service: policy
-    api:
-      host: localhost
-      port: 9605
-    config:
-      store: 
-        type: sqlite3
-        database: /var/tmp/policy.sqlite3
   - service: kubernetesListener 
     api:
       host: 0.0.0.0
-      port: 9606
+      port: 9604
     config:
       kubernetes_url : "http://localhost"
       namespace_notification_path: "/api/v1/namespaces/?watch=true"
