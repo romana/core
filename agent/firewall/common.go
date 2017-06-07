@@ -31,12 +31,14 @@ const (
 	targetDrop   = "DROP"
 	targetAccept = "ACCEPT"
 
-	iptablesCmd = "/sbin/iptables"
-
 	ChainNameEndpointToHost  = "ROMANA-INPUT"
 	ChainNameHostToEndpoint  = "ROMANA-FORWARD-IN"
 	ChainNameEndpointEgress  = "ROMANA-FORWARD-OUT"
 	ChainNameEndpointIngress = "ROMANA-FORWARD-IN"
+)
+
+var (
+	iptablesCmd string
 )
 
 // prepareU32Rules generates IPtables Rules for U32 iptables module.

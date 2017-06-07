@@ -20,6 +20,7 @@ package firewall
 import (
 	"bytes"
 	"fmt"
+	"os/exec"
 
 	utilexec "github.com/romana/core/agent/exec"
 	"github.com/romana/core/agent/iptsave"
@@ -28,9 +29,9 @@ import (
 	log "github.com/romana/rlog"
 )
 
-const (
-	iptablesSaveBin    = `/sbin/iptables-save`
-	iptablesRestoreBin = `/sbin/iptables-restore`
+var (
+	iptablesSaveBin    string
+	iptablesRestoreBin string
 )
 
 // IPTsaveFirewall implements romana Firewall using iptables-save|iptables-restore.
@@ -51,15 +52,26 @@ type IPTsaveFirewall struct {
 }
 
 // Init implements Firewall interface
-func (i *IPTsaveFirewall) Init(exec utilexec.Executable, store FirewallStore, nc NetConfig) error {
+func (i *IPTsaveFirewall) Init(utilexec utilexec.Executable, store FirewallStore, nc NetConfig) error {
+	var err error
 
 	fwstore := firewallStore{}
 	fwstore.RdbmsStore = store.GetDb()
 	fwstore.mu = store.GetMutex()
 
 	i.Store = fwstore
-	i.os = exec
+	i.os = utilexec
 	i.networkConfig = nc
+
+	if iptablesSaveBin, err = exec.LookPath("iptables-save"); err != nil {
+		log.Errorf("Error, ailed to locate iptables-save, %s", err)
+		return err
+	}
+
+	if iptablesRestoreBin, err = exec.LookPath("iptables-restore"); err != nil {
+		log.Errorf("Error, failed to locate iptables-restore, %s", err)
+		return err
+	}
 
 	// Read current iptables config.
 	output, err := i.os.Exec(iptablesSaveBin, []string{})

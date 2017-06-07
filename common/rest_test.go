@@ -49,7 +49,6 @@ func TestPanicHandler(t *testing.T) {
 
 	handlerPanic := func(input interface{}, context RestContext) (interface{}, error) {
 		panic("Panic!!!")
-		return "", nil
 	}
 	route = Route{Handler: handlerOk,
 		Method:  "GET",

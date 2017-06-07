@@ -19,6 +19,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 
 	"github.com/romana/core/agent"
 	"github.com/romana/core/common"
@@ -28,8 +29,12 @@ import (
 func main() {
 	cs := common.NewCliState()
 	a := &agent.Agent{TestMode: false}
-	helper := agent.NewAgentHelper(a)
-	a.Helper = &helper
+	helper, err := agent.NewAgentHelper(a)
+	if err != nil {
+		fmt.Printf("Error while starting agent helper: %s\n", err)
+		os.Exit(1)
+	}
+	a.Helper = helper
 	svcInfo, err := cs.StartService(a)
 	if err != nil {
 		panic(err)

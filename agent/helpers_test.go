@@ -153,7 +153,7 @@ func TestIsRouteExist(t *testing.T) {
 		t.Errorf("TestIsRouteExist failed with %q", err)
 	}
 
-	expect := "/sbin/ip ro show 127.0.0.1/32"
+	expect := fmt.Sprintf("%s ro show 127.0.0.1/32", agent.Helper.CommandIP)
 	got := *E.Commands
 	if expect != got {
 		t.Errorf("TestIsRouteExist returned unexpected command, expect %s, got %s", expect, got)
@@ -184,7 +184,7 @@ func TestCreateRoute(t *testing.T) {
 	_ = agent.Helper.createRoute(ip, "0", "dev", "eth0")
 
 	// expect
-	expect := "/sbin/ip ro add 127.0.0.1/0 dev eth0"
+	expect := fmt.Sprintf("%s ro add 127.0.0.1/0 dev eth0", agent.Helper.CommandIP)
 	got := *E.Commands
 	if expect != got {
 		t.Errorf("TestIsRouteExist returned unexpected command, expect %s, got %s", expect, got)
@@ -194,7 +194,10 @@ func TestCreateRoute(t *testing.T) {
 // TestCreateInterhostRoutes is checking that ensureInterHostRoutes generates
 // correct commands to create IP routes to other romana hosts.
 func TestCreateInterhostRoutes(t *testing.T) {
-	agent := mockAgent()
+	agent, err := mockAgent()
+	if err != nil {
+		t.Fatalf("Error, failed to intitialize agent: %s\n", err)
+	}
 	// when
 
 	// we only care for recorded commands, no need for fake output or errors
@@ -203,8 +206,9 @@ func TestCreateInterhostRoutes(t *testing.T) {
 	_ = agent.Helper.ensureInterHostRoutes()
 
 	// expect
-	expect := strings.Join([]string{"/sbin/ip ro show 10.65.0.0/16",
-		"/sbin/ip ro add 10.65.0.0/16 via 192.168.0.12"}, "\n")
+	cmd1 := fmt.Sprintf("%s ro show 10.65.0.0/16", agent.Helper.CommandIP)
+	cmd2 := fmt.Sprintf("%s ro add 10.65.0.0/16 via 192.168.0.12", agent.Helper.CommandIP)
+	expect := strings.Join([]string{cmd1, cmd2}, "\n")
 	got := *E.Commands
 	if expect != got {
 		t.Errorf("TestCreateInterhostRoutes returned unexpected command, expect %s, got %s", expect, got)

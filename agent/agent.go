@@ -276,6 +276,8 @@ func (a *Agent) Initialize(client *common.RestClient) error {
 	if a.policyEnabled {
 		// Tenant and Policy cache will poll backend storage every cacheTickTime seconds.
 		var cacheTickTime int
+		var err error
+
 		if a.config.ServiceSpecific["cache_tick_time"] != nil {
 			cacheTickTime = int(a.config.ServiceSpecific["cache_tick_time"].(float64))
 		} else {
@@ -293,7 +295,11 @@ func (a *Agent) Initialize(client *common.RestClient) error {
 		a.policyStop = make(chan struct{})
 		tenantCache := tenantCache.New(a.client, tenantCache.Config{CacheTickSeconds: cacheTickTime})
 		policyCache := policyCache.New(a.client, policyCache.Config{CacheTickSeconds: cacheTickTime})
-		a.enforcer = enforcer.New(tenantCache, policyCache, a.networkConfig, a.Helper.Executor, policyRefreshSeconds)
+		a.enforcer, err = enforcer.New(tenantCache, policyCache, a.networkConfig, a.Helper.Executor, policyRefreshSeconds)
+		if err != nil {
+			log.Error("Agent.Initialize() : Failed to connect to database.")
+			return err
+		}
 		a.enforcer.Run(a.policyStop)
 	}
 
