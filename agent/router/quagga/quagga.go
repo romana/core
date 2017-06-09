@@ -114,7 +114,7 @@ type QuaggaBgpRoutePublisher struct {
 
 // Update implements Interact, it publishes provided networks with
 // quagga managed bgp.
-func (q QuaggaBgpRoutePublisher) Update(networks []net.IPNet) error {
+func (q QuaggaBgpRoutePublisher) Update(networks []net.IPNet, args map[string]interface{}) error {
 	q.Lock()
 	defer q.Unlock()
 	log.Printf("Starting bgp update at %s:%s", q.BgpdHost, q.BgpdPort)

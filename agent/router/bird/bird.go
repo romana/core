@@ -46,7 +46,7 @@ type BirdRoutePublisher struct {
 	birdConfigName string
 
 	// .NeighborIP can be used inside the template
-	// optional.
+	// optional
 	NeighborIP string
 
 	// .NeighborAS can be used inside the template
@@ -58,11 +58,14 @@ type BirdRoutePublisher struct {
 	pidFile string
 
 	// .LocalAS can be used inside the template
-	// required
+	// optional
 	LocalAS string
 
 	// Extra output
 	Debug bool
+
+	// .Args available inside the template as a map
+	Args map[string]interface{}
 
 	// .Networks can be used inside the template
 	Networks []net.IPNet
@@ -94,11 +97,12 @@ func New(config router.Config) (router.Interface, error) {
 
 // Update implements router.Interface by rendering new config file
 // for the bird.
-func (q BirdRoutePublisher) Update(networks []net.IPNet) error {
+func (q BirdRoutePublisher) Update(networks []net.IPNet, args map[string]interface{}) error {
 	q.Lock()
 	defer q.Unlock()
 	log.Printf("Starting bgp update at %s -> %s:%s with %d networks", q.LocalAS, q.NeighborIP, q.NeighborAS, len(networks))
 
+	q.Args = args
 	q.Networks = networks
 	template, err := template.ParseFiles(q.templateFileName)
 	if err != nil {

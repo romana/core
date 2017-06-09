@@ -51,16 +51,16 @@ func PublishRoutesTo(provider string, config map[string]string, client *common.R
 		if err != nil {
 			log.Errorf("Failed to start route publisher, err=(%s)", err)
 		}
-		romanaGw := net.IPNet{IP: networkConfig.RomanaGW(), Mask: networkConfig.RomanaGWMask()}
-		go startPublishing(publisher, client, romanaGw, in)
 	case "bird":
 		publisher, err = bird.New(router.Config(config))
 		if err != nil {
 			log.Errorf("Failed to start route publisher, err=(%s)", err)
 		}
-		romanaGw := net.IPNet{IP: networkConfig.RomanaGW(), Mask: networkConfig.RomanaGWMask()}
-		go startPublishing(publisher, client, romanaGw, in)
+	default:
+		log.Errorf("Failed to start route publisher with unknown provider type %s", provider)
+		return in
 	}
+	go startPublishing(publisher, client, networkConfig, in)
 
 	return in
 }
@@ -68,10 +68,11 @@ func PublishRoutesTo(provider string, config map[string]string, client *common.R
 const FullSyncPeriod time.Duration = time.Duration(3 * time.Minute)
 const CacheSyncPeriod time.Duration = time.Duration(1 * time.Second)
 
-func startPublishing(publisher router.Interface, client *common.RestClient, romanaGw net.IPNet, in <-chan net.IPNet) {
+func startPublishing(publisher router.Interface, client *common.RestClient, networkConfig *NetworkConfig, in <-chan net.IPNet) {
 	Cache := NewIpamCache()
 	fullTick := time.Tick(FullSyncPeriod)
 	cacheTick := time.Tick(CacheSyncPeriod)
+	romanaGw := net.IPNet{IP: networkConfig.RomanaGW(), Mask: networkConfig.RomanaGWMask()}
 
 	for {
 		select {
@@ -91,8 +92,11 @@ func startPublishing(publisher router.Interface, client *common.RestClient, roma
 			Cache.Replace(filterNetworksByRomanaGw(romanaGw, networks))
 		case <-cacheTick:
 			log.Debugf("Route publisher: cache tick")
+			args := make(map[string]interface{})
+			args["RomanaNeighbors"] = networkConfig.otherHosts
+
 			if networks, ok := Cache.ListIfClean(); ok {
-				err1 := publisher.Update(networks)
+				err1 := publisher.Update(networks, args)
 				if err1 != nil {
 					log.Errorf("Failed to publish routes, err=(%s)", err1)
 				}

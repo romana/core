@@ -33,5 +33,5 @@ func (c Config) SetDefault(key, defaultValue string) string {
 
 type Interface interface {
 	// Updates list of networks advertised via routing protocol.
-	Update([]net.IPNet) error
+	Update([]net.IPNet, map[string]interface{}) error
 }
