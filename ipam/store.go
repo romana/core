@@ -19,10 +19,11 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"github.com/romana/core/common"
-	"github.com/romana/core/common/store"
 	"log"
 	"strings"
+
+	"github.com/romana/core/common"
+	"github.com/romana/core/common/store"
 )
 
 type ipamStore struct {
@@ -171,7 +172,12 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *common.IPAMEndpoint, upToEndpo
 	if netID.Valid {
 		log.Printf("IpamStore: Reusing %d: %s", netID.Int64, ip)
 		endpoint.Ip = ip
-		tx = tx.Model(common.IPAMEndpoint{}).Where("ip = ?", ip).Update("in_use", true)
+
+		// Warning! this code will reuse tenant/segment/host values
+		// for the new endpoint. It just happens to be valid now, but
+		// can be dangerous. Should probably update all the fields?
+		tx = tx.Model(common.IPAMEndpoint{}).Where("ip = ?", ip).
+			Update(common.IPAMEndpoint{Name: endpoint.Name, InUse: true})
 		err = common.GetDbErrors(tx)
 		if err != nil {
 			log.Printf("IPAM Errors 7: %v", err)
