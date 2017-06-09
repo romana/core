@@ -285,5 +285,5 @@ func NotifyAgent(client *common.RestClient, ip *net.IPNet, iface string, op stri
 	default:
 	}
 
-	return nil
+	return err
 }
