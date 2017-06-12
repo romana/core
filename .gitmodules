@@ -132,3 +132,6 @@
 [submodule "vendor/github.com/go-resty/resty"]
 	path = vendor/github.com/go-resty/resty
 	url = https://github.com/go-resty/resty.git
+[submodule "vendor/github.com/hashicorp/go-multierror"]
+	path = vendor/github.com/hashicorp/go-multierror
+	url = https://github.com/hashicorp/go-multierror.git
