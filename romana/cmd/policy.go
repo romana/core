@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -111,6 +112,7 @@ func policyAdd(cmd *cli.Command, args []string) error {
 	var buf []byte
 	var policyFile string
 	var err error
+	somePoliciesFailed := false
 	isFile := true
 	isJSON := config.GetString("Format") == "json"
 
@@ -172,6 +174,7 @@ func policyAdd(cmd *cli.Command, args []string) error {
 		reqPolicies.AppliedSuccessfully[i] = false
 		err = client.Post(policyURL+"/policies", pol, &result[i])
 		if err != nil {
+			somePoliciesFailed = true
 			log.Printf("Error in client.Post(): %v", err)
 			continue
 		}
@@ -248,6 +251,14 @@ func policyAdd(cmd *cli.Command, args []string) error {
 			}
 		}
 		w.Flush()
+	}
+
+	if somePoliciesFailed {
+		if isJSON {
+			os.Exit(255)
+		} else {
+			return errors.New("Some policies failed to apply.\n")
+		}
 	}
 
 	return nil
