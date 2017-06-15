@@ -98,19 +98,12 @@ type Tag struct {
 // 1. https://github.com/romana/core/blob/master/policy/policy.sample.json
 // 2. https://github.com/romana/core/blob/master/policy/policy.example.agent.json
 type Policy struct {
+	ID string `json:"id"`
 	// Direction is one of common.PolicyDirectionIngress or common.PolicyDirectionIngress,
 	// otherwise common.Validate will return an error.
 	Direction string `json:"direction,omitempty" romana:"desc:Direction is one of 'ingress' or egress'."`
 	// Description is human-redable description of the policy.
 	Description string `json:"description,omitempty"`
-	// Name is human-readable name for this policy.
-	Name string `json:"name" romana:"desc:Name is human-readable name for this policy."`
-	// ID is Romana-generated unique (within Romana deployment) ID of this policy,
-	// to be used in REST requests. It will be ignored when set by user.
-	ID uint64 `json:"id,omitempty" sql:"AUTO_INCREMENT"`
-	// ExternalID is an optional identifier of this policy in an external system working
-	// with Romana in this deployment (e.g., Open Stack).
-	ExternalID string `json:"external_id,omitempty"`
 	// Datacenter describes a Romana deployment.
 	AppliedTo []Endpoint      `json:"applied_to,omitempty"`
 	Ingress   []RomanaIngress `json:"ingress,omitempty"`
@@ -290,16 +283,6 @@ func (p *Policy) Validate() error {
 				}
 			}
 		}
-	}
-
-	// 4. Validate name/external ID
-	// TODO add test
-	if p.Name == "" && p.ExternalID == "" {
-		errMsg = append(errMsg, "At least one of name, external_id must be specified.")
-	} else if p.Name == "" {
-		p.Name = p.ExternalID
-	} else {
-		p.ExternalID = p.Name
 	}
 
 	if len(errMsg) == 0 {

@@ -55,9 +55,9 @@ func (a Agent) createRomanaGW() error {
 	rgw := &netlink.Dummy{LinkAttrs: netlink.LinkAttrs{Name: "romana-gw", TxQLen: 1000}}
 	if err := netlink.LinkAdd(rgw); err != nil {
 		if err == syscall.EEXIST {
-			log.Warn("romana gateway already exists.")
+			log.Warn("Romana gateway already exists.")
 		} else {
-			log.Info("Error adding romana gateway to node:", err)
+			log.Info("Error adding Romana gateway to node:", err)
 			return err
 		}
 	} else {

@@ -20,9 +20,11 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 
 	"github.com/romana/core/common"
+	"github.com/romana/core/common/client"
 	"github.com/romana/core/server"
 	log "github.com/romana/rlog"
 )
@@ -35,7 +37,7 @@ func main() {
 	flag.Parse()
 	if endpointsStr == nil {
 		log.Errorf("No etcd endpoints specified")
-		return
+		os.Exit(1)
 	}
 	endpoints := strings.Split(endpointsStr, ",")
 	romanad := &server.Romanad{addr: fmt.Sprintf("%s:%d", *host, *port)}
@@ -43,13 +45,13 @@ func main() {
 	if !strings.HasPrefix(prefix, "/") {
 		prefix = "/" + prefix
 	}
-	storeConfig := common.StoreConfig{Endpoints: endpoints,
-		Prefix: prefix,
+	config := client.Config{EtcdEndpoints: endpoints,
+		EtcdPrefix: prefix,
 	}
-	svcInfo, err := common.InitializeService(romanad, storeConfig)
+	svcInfo, err := common.InitializeService(romanad, config)
 	if err != nil {
 		log.Error(err)
-		return
+		os.Exit(2)
 	}
 	if svcInfo != nil {
 		for {

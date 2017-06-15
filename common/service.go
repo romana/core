@@ -27,6 +27,7 @@ import (
 
 	"github.com/codegangsta/negroni"
 
+	"github.com/romana/core/common/client"
 	log "github.com/romana/rlog"
 )
 
@@ -93,9 +94,9 @@ func (links Links) FindByRel(rel string) string {
 
 }
 
-// Service is the interface that microservices implement.
+// Service is the interface that services implement.
 type Service interface {
-	Initialize(storeConfig StoreConfig) error
+	Initialize(clientConfig client.Config) error
 
 	// Returns the routes that this service works with
 	Routes() Routes

@@ -24,7 +24,7 @@ import (
 	policyCache "github.com/romana/core/agent/policy/cache"
 	tenantCache "github.com/romana/core/agent/tenant/cache"
 	"github.com/romana/core/common"
-	"github.com/romana/core/common/log/trace"
+	"github.com/romana/core/common/client"
 
 	log "github.com/romana/rlog"
 	"github.com/vishvananda/netlink"
@@ -52,17 +52,22 @@ type Agent struct {
 	// Agent structure as a set of global variables.
 	Helper *Helper
 
+	// BEGIN Agent configuration
+	localDbFile string
+
 	waitForIfaceTry int
+
+	routeRefreshSeconds int
+
+	cacheTickTime int
+
+	policyRefreshSeconds int
+
+	policyEnabled bool
+	// END Agent configuration
 
 	// Whether this is running in test mode.
 	TestMode bool
-
-	// Agent store to keep records about managed resources.
-	store agentStore
-
-	client *common.RestClient
-
-	policyEnabled bool
 
 	// Manages iptables rules to reflect romana policies.
 	enforcer enforcer.Interface
@@ -72,30 +77,62 @@ type Agent struct {
 
 	// default host interface link
 	defaultLink netlink.Link
+
+	// Address string (host:port) to listen on
+	addr string
+
+	// Agent store to keep records about managed resources.
+	store agentStore
+
+	// Romana client library object
+	client *client.Client
 }
 
-// SetConfig implements SetConfig function of the Service interface.
-func (a *Agent) SetConfig(config common.ServiceConfig) error {
+func (a *Agent) loadConfig() error {
 	var err error
-	log.Trace(trace.Public, config)
-	a.config = config
-	leaseFileName := config.ServiceSpecific["lease_file"].(string)
-	lf := NewLeaseFile(leaseFileName, a)
-	a.leaseFile = &lf
+	configPrefix := "/agent/config/"
 
-	var ok bool
-	a.policyEnabled, ok = config.ServiceSpecific["policy_enabled"].(bool)
-	if !ok {
-		a.policyEnabled = true
-	}
-	a.waitForIfaceTry = int(config.ServiceSpecific["wait_for_iface_try"].(float64))
-	a.networkConfig = &NetworkConfig{}
-	store, err := NewStore(config)
+	leaseFileName, err := a.client.store.GetString(configPrefix+"lease_file", defaultLeaseFile)
 	if err != nil {
 		return err
 	}
-	a.store = *store
-	log.Trace(trace.Inside, "Agent.SetConfig() finished.")
+
+	lf := NewLeaseFile(leaseFileName, a)
+	a.leaseFile = &lf
+
+	policyEnabled, err := a.client.store.GetBool(configPrefix+"policy_enabled", false)
+	if err != nil {
+		return err
+	}
+
+	a.waitForIfaceTry, err = a.client.store.GetInt(configPrefix+"wait_for_iface_try", defaultWaitForIfaceTry)
+	if err != nil {
+		return err
+	}
+
+	a.routeRefreshSeconds, err = a.client.store.GetInt(configPrefix+"route_refresh_seconds", defaultRouteRefreshSeconds)
+	if err != nil {
+		return err
+	}
+
+	a.policyRefreshSeconds, err = a.client.store.GetInt(configPrefix+"policy_refresh_seconds", defaultPolicyRefreshSeconds)
+	if err != nil {
+		return err
+	}
+
+	a.cacheTickTime, err = a.client.store.GetInt(configPrefix+"cache_tick_time", defaultCacheTickTime)
+	if err != nil {
+		return err
+	}
+
+	a.localDbFile, err = a.client.store.GetString(configPrefix+"local_db_file", defaultLocalDbFile)
+	if err != nil {
+		return err
+	}
+
+	a.networkConfig = &NetworkConfig{}
+
+	a.store = NewStore(a)
 	return nil
 }
 
@@ -193,6 +230,12 @@ func (a *Agent) Name() string {
 }
 
 const (
+	defaultWaitForIfaceTry = 6
+
+	defaultLeaseFile = "/etc/ethers"
+
+	defaultPolicyEnabled = false
+
 	// defaultCacheTickTime controls how oftend storage cache is updated.
 	defaultCacheTickTime = 5
 
@@ -203,28 +246,29 @@ const (
 	// defaultRouteRefreshSeconds controls how often agent checks
 	// for route update and applies changes if any.
 	defaultRouteRefreshSeconds = 120
+
+	defaultLocalDbFile = "/var/tmp/agent.sqlite3"
 )
 
 // Initialize implements the Initialize method of common.Service
 // interface.
-func (a *Agent) Initialize(client *common.RestClient) error {
+func (a *Agent) Initialize(clientConfig client.Config) error {
 	var err error
-
-	log.Trace(trace.Public, "Entering Agent.Initialize()")
-	a.client = client
+	a.client, err = client.NewClient(clientConfig)
+	if err != nil {
+		return err
+	}
+	err = a.readConfig()
+	if err != nil {
+		return err
+	}
 
 	a.defaultLink, err = a.getDefaultLink()
 	if err != nil {
 		return fmt.Errorf("Failed to get default link: %s\n", err)
 	}
 
-	err = a.store.Connect()
-	if err != nil {
-		log.Error("Agent.Initialize() : Failed to connect to database.")
-		return err
-	}
-
-	// identifyCurrentHost() needs to be called at-least once before
+	// identifyCurrentHost() needs to be called at least once before
 	// calling createRomanaGW() to populate romanaGW and romanaGWMask.
 	log.Info("Agent: Attempting to identify current host.")
 	if err := a.identifyCurrentHost(); err != nil {
@@ -246,20 +290,12 @@ func (a *Agent) Initialize(client *common.RestClient) error {
 		return err
 	}
 
-	// Will try to refresh routes every routeRefreshSeconds.
-	var routeRefreshSeconds int
-	if a.config.ServiceSpecific["route_refresh_seconds"] != nil {
-		routeRefreshSeconds = int(a.config.ServiceSpecific["route_refresh_seconds"].(float64))
-	} else {
-		routeRefreshSeconds = defaultRouteRefreshSeconds
-	}
-
 	// Channel for stopping route update mechanism.
 	stopRouteUpdater := make(chan struct{})
 
 	// a.RouteUpdater updates routes on the current node for
 	// the newly added or removed nodes in romana cluster.
-	if err := a.routeUpdater(stopRouteUpdater, routeRefreshSeconds); err != nil {
+	if err := a.routeUpdater(stopRouteUpdater, a.routeRefreshSeconds); err != nil {
 		log.Errorf("Agent: Failed to start route updater on the node: %s", err)
 		return err
 	}
@@ -275,27 +311,12 @@ func (a *Agent) Initialize(client *common.RestClient) error {
 
 	if a.policyEnabled {
 		// Tenant and Policy cache will poll backend storage every cacheTickTime seconds.
-		var cacheTickTime int
 		var err error
 
-		if a.config.ServiceSpecific["cache_tick_time"] != nil {
-			cacheTickTime = int(a.config.ServiceSpecific["cache_tick_time"].(float64))
-		} else {
-			cacheTickTime = defaultCacheTickTime
-		}
-
-		// Will try to refresh policies every policyRefreshSeconds.
-		var policyRefreshSeconds int
-		if a.config.ServiceSpecific["policy_refresh_seconds"] != nil {
-			policyRefreshSeconds = int(a.config.ServiceSpecific["policy_refresh_seconds"].(float64))
-		} else {
-			policyRefreshSeconds = defaultPolicyRefreshSeconds
-		}
-
 		a.policyStop = make(chan struct{})
-		tenantCache := tenantCache.New(a.client, tenantCache.Config{CacheTickSeconds: cacheTickTime})
-		policyCache := policyCache.New(a.client, policyCache.Config{CacheTickSeconds: cacheTickTime})
-		a.enforcer, err = enforcer.New(tenantCache, policyCache, a.networkConfig, a.Helper.Executor, policyRefreshSeconds)
+		tenantCache := tenantCache.New(a.client, tenantCache.Config{CacheTickSeconds: a.cacheTickTime})
+		policyCache := policyCache.New(a.client, policyCache.Config{CacheTickSeconds: a.cacheTickTime})
+		a.enforcer, err = enforcer.New(tenantCache, policyCache, a.networkConfig, a.Helper.Executor, a.policyRefreshSeconds)
 		if err != nil {
 			log.Error("Agent.Initialize() : Failed to connect to database.")
 			return err
@@ -304,9 +325,4 @@ func (a *Agent) Initialize(client *common.RestClient) error {
 	}
 
 	return nil
-}
-
-// CreateSchema creates database schema.
-func (a *Agent) CreateSchema(overwrite bool) error {
-	return a.store.CreateSchema(overwrite)
 }

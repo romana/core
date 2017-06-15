@@ -18,17 +18,18 @@
 package firewall
 
 import (
+	"database/sql"
+	"sync"
+
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/log/trace"
-	"github.com/romana/core/common/store"
 	log "github.com/romana/rlog"
-	"sync"
 )
 
 // FirewallStore defines how database should be passed into firewall instance.
 type FirewallStore interface {
 	// GetDb Returns fully initialized DbStore object
-	GetDb() store.RdbmsStore
+	GetDb() *sql.DB
 
 	// GetMutex return instance of mutex used guard firewall database.
 	GetMutex() *sync.RWMutex
@@ -36,31 +37,18 @@ type FirewallStore interface {
 
 // firewallStore implement FirewallStore
 type firewallStore struct {
-	store.RdbmsStore
+	db *sql.DB
 	mu *sync.RWMutex
-}
-
-// Entities implements Entities method of
-// Service interface.
-func (firewallStore *firewallStore) Entities() []interface{} {
-	retval := make([]interface{}, 1)
-	retval[0] = new(IPtablesRule)
-	return retval
-}
-
-// CreateSchemaPostProcess implements  common.ServiceStore.CreateSchemaPostProcess()
-func (fs firewallStore) CreateSchemaPostProcess() error {
-	return nil
-}
-
-// GetDb implements firewall.FirewallStore
-func (fs firewallStore) GetDb() store.DbStore {
-	return fs.DbStore
 }
 
 // GetMutex implements firewall.FirewallStore
 func (fs firewallStore) GetMutex() *sync.RWMutex {
 	return fs.mu
+}
+
+// GetMutex implements firewall.FirewallStore
+func (fs firewallStore) GetDB() *sql.DB {
+	return fs.db
 }
 
 // IPtablesRule represents a single iptables rule managed by the agent.

@@ -13,7 +13,7 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-package server
+package client
 
 import (
 	"encoding/json"
@@ -27,8 +27,8 @@ import (
 
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
+	"github.com/romana/core/common/client/idring"
 	"github.com/romana/core/common/log/trace"
-	"github.com/romana/core/server/idring"
 
 	log "github.com/romana/rlog"
 )
@@ -46,10 +46,6 @@ const (
 var (
 	err              error
 	tenantNameRegexp = regexp.MustCompile("^[a-zA-Z0-9_]*$")
-	// ipam is assumed to be a singleton representing the IPAM object.
-	// The singleton is not enforced. It is the responsibility of the
-	// callers to take care of that.
-	ipam *IPAM
 )
 
 // makeOwner makes an "owner" string -- which is "<tenant>:<segment>".
@@ -127,7 +123,7 @@ func (cidr *CIDR) UnmarshalJSON(data []byte) error {
 
 // Host represents a host in Romana topology.
 type Host struct {
-	Name  string `json:"name"`
+	IP    net.IP `json:"ip"`
 	group *HostsGroups
 }
 
@@ -173,11 +169,12 @@ func (hg *HostsGroups) String() string {
 
 // AddHost adds hosts to this group. If the group contains
 // other groups, it is an error.
-func (hg *HostsGroups) AddHost(hostName string) error {
+func (hg *HostsGroups) AddHost(host api.Host) error {
 	if hg.Hosts == nil {
 		return errors.New("Cannot add host to this group, group contains only other groups.")
 	}
-	newHost := &Host{Name: hostName, group: hg}
+
+	newHost := &Host{IP: host.IP, group: hg}
 	hg.Hosts = append(hg.Hosts, newHost)
 	return nil
 }
@@ -706,7 +703,7 @@ func (ipam *IPAM) listHosts() []api.Host {
 	retval := make([]api.Host, 0)
 	for _, network := range ipam.Networks {
 		for _, host := range network.HostsGroups.listHosts() {
-			retval = append(retval, api.Host{Name: host.Name})
+			retval = append(retval, api.Host{IP: host.IP})
 		}
 	}
 	return retval
@@ -763,7 +760,6 @@ func (ipam *IPAM) AllocateIP(addressName string, host string, tenant string, seg
 // DeallocateIP will deallocate the provided IP (returning an
 // error if it never was allocated in the first place).
 func (ipam *IPAM) DeallocateIP(addressName string) error {
-
 	ipam.locker.Lock()
 	defer ipam.locker.Unlock()
 

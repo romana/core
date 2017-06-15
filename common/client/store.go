@@ -13,56 +13,36 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-package common
+package client
 
 import (
+	"encoding/json"
+	"strconv"
 	"sync"
 	"time"
 
 	"github.com/docker/libkv"
 	libkvStore "github.com/docker/libkv/store"
 	libkvEtcd "github.com/docker/libkv/store/etcd"
+	"github.com/romana/core/common"
 	log "github.com/romana/rlog"
 )
-
-// StoreConfig stores information needed for a connection to backing store.
-// It is just a typed collection of all possible required parameters, a
-// superset of them.
-type StoreConfig struct {
-	Endpoints []string
-	Prefix    string
-}
 
 // Store is a structure storing information specific to KV-based
 // implementation of Store.
 type Store struct {
-	Config StoreConfig
+	prefix string
 	libkvStore.Store
 }
 
-func (s *Store) Exists(key string) (bool, error) {
-	return s.Store.Exists(s.Config.Prefix + key)
-}
-
-func (s *Store) Put(key string, val []byte) error {
-	return s.Store.Put(s.Config.Prefix + key, val, nil )
-}
-
-
-(ipamDataKey, b, nil)
-
-func (s *Store) Get(key string) (*libkvStore.KVPair, error) {
-	return s.Store.Get(s.Config.Prefix + key)
-}
-
-func NewStore(config StoreConfig) (*Store, error) {
+func NewStore(etcdEndpoints []string, prefix string) (*Store, error) {
 	var err error
 
-	myStore := &Store{Config: config}
+	myStore := &Store{prefix: prefix}
 
 	myStore.Store, err = libkv.NewStore(
 		libkvStore.ETCD,
-		config.Endpoints,
+		etcdEndpoints,
 		&libkvStore.Config{},
 	)
 	if err != nil {
@@ -71,6 +51,83 @@ func NewStore(config StoreConfig) (*Store, error) {
 
 	return myStore, nil
 }
+
+// BEGIN WRAPPER METHODS
+
+// For now, the wrapper methods (below) just ensure the specified
+// prefix is added to all keys (and this is mostly so that tests can
+// run concurrently). Perhaps other things can be added later.
+
+func (s *Store) Exists(key string) (bool, error) {
+	return s.Store.Exists(s.Config.Prefix + key)
+}
+
+func (s *Store) Delete(key string) error {
+	return s.Store.Delete(s.Config.Prefix + key)
+}
+
+func (s *Store) PutObject(key string, v interface{}) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	return s.Store.Put(s.Config.Prefix+key, b, nil)
+}
+
+func (s *Store) Get(key string) (*libkvStore.KVPair, error) {
+	return s.Store.Get(s.Config.Prefix + key)
+}
+
+func (s *Store) GetBool(key string, defaultValue bool) (bool, error) {
+	kvp, err := s.Store.Get(s.Config.Prefix + key)
+	if err != nil {
+		if err == libkvStore.ErrKeyNotFound {
+			return defaultValue, nil
+		}
+		return false, err
+	}
+	return common.ToBool(string(kvp.Value)), nil
+}
+
+func (s *Store) GetObject(key string, obj interface{}) error {
+	kvp, err := s.Store.Get(s.Config.Prefix + key)
+	if err != nil {
+		if err == libkvStore.ErrKeyNotFound {
+			return obj, nil
+		}
+		return nil, err
+	}
+	return json.Unmarshal(kvp.Value, obj)
+}
+
+func (s *Store) GetString(key string, defaultValue string) (string, error) {
+	kvp, err := s.Store.Get(s.Config.Prefix + key)
+	if err != nil {
+		if err == libkvStore.ErrKeyNotFound {
+			return defaultValue, nil
+		}
+		return 0, err
+	}
+	return string(kvp.Value), nil
+}
+
+func (s *Store) GetInt(key string, defaultValue int) (int, error) {
+	kvp, err := s.Store.Get(s.Config.Prefix + key)
+	if err != nil {
+		if err == libkvStore.ErrKeyNotFound {
+			return defaultValue, nil
+		}
+		return "", err
+	}
+	s := string(kvp.Value)
+	return strconv.ParseInt(s, 32, 10)
+}
+
+func (s *Store) Delete(key string) error {
+	return s.Store.Delete(s.Config.Prefix + key)
+}
+
+// END WRAPPER METHODS
 
 // StoreLocker implements sync.Locker interface using the
 // lock form the backend store.

@@ -16,17 +16,14 @@
 package server
 
 import (
-	"sync"
-
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
 )
 
 type Romanad struct {
-	addr       string
-	store      *common.Store
-	ipamLocker sync.Locker
-	routes     common.Route
+	addr   string
+	client *Client
+	routes common.Route
 }
 
 // Name provides name of this service.
@@ -38,17 +35,12 @@ func (r *Romanad) Name() string {
 	return "romanad"
 }
 
-func (r *Romanad) Initialize(storeConfig common.StoreConfig) error {
+func (r *Romanad) Initialize(clientConfig client.Config) error {
 	var err error
-	r.store, err = common.NewStore(storeConfig)
+	r.client, err = client.NewClient(clientConfig)
 	if err != nil {
 		return err
 	}
-	err = r.initIPAM()
-	if err != nil {
-		return err
-	}
-
 	return nil
 }
 

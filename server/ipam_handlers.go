@@ -16,83 +16,22 @@
 package server
 
 import (
-	"encoding/json"
 	"strconv"
 
 	"github.com/debedb/core/common"
 	"github.com/romana/core/common/api"
-	log "github.com/romana/rlog"
 )
-
-const (
-	ipamDataKey = "/ipam/data"
-)
-
-func (r *Romanad) initIPAM() error {
-	r.ipamLocker, err = r.store.NewLocker("ipam")
-	if err != nil {
-		return err
-	}
-
-	r.ipamLocker.Lock()
-	defer r.ipamLocker.Unlock()
-
-	// Check if IPAM info exists in the store
-	ipamExists, err := r.store.Exists(r.store.Config.Prefix + ipamDataKey)
-	if err != nil {
-		return err
-	}
-	if ipamExists {
-		// Load if exists
-		log.Infof("Loading IPAM data from %s", ipamDataKey)
-		kv, err := r.store.Get(ipamDataKey)
-		if err != nil {
-			return err
-		}
-
-		ipam, err = ParseIPAM(string(kv.Value), r.save, r.ipamLocker)
-		if err != nil {
-			return err
-		}
-	} else {
-		// If does not exist, initialize and save
-		log.Infof("No IPAM data found at %s, initializing", key)
-		ipam, err = NewIPAM(r.save, r.ipamLocker)
-		if err != nil {
-			return err
-		}
-		err = r.save(ipam)
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// save implements the Saver interface of IPAM.
-func (r *Romanad) save(ipam *IPAM) error {
-	b, err := json.Marshal(ipam)
-	if err != nil {
-		return err
-	}
-	err = r.store.Put(ipamDataKey, b, nil)
-	if err != nil {
-		return err
-	}
-	return nil
-}
 
 // listHosts returns all hosts.
 func (r *Romanad) listHosts(input interface{}, ctx common.RestContext) (interface{}, error) {
-	return ipam.listHosts(), nil
+	return r.client.IPAM.listHosts(), nil
 }
 
 // listBlocks returns api.IPAMBlocksResponse containing blocks in the given network.
 // The network is specified with the "network" query parameter.
 func (r *Romanad) listBlocks(input interface{}, ctx common.RestContext) (interface{}, error) {
 	netName := ctx.PathVariables["network"]
-	if network, ok := ipam.Networks[netName]; ok {
+	if network, ok := r.client.IPAM.Networks[netName]; ok {
 		resp := api.IPAMBlocksResponse{
 			Revision: network.Revison,
 			Blocks:   network.HostsGroups.getBlocksResponse(),
@@ -110,7 +49,7 @@ func (r *Romanad) listAddresses(input interface{}, ctx common.RestContext) (inte
 	if err != nil {
 		return nil, err
 	}
-	if network, ok := ipam.Networks[netName]; ok {
+	if network, ok := r.client.IPAM.Networks[netName]; ok {
 		blocks := network.HostsGroups.listBlocks()
 
 		for i, block := range blocks {
@@ -126,7 +65,7 @@ func (r *Romanad) listAddresses(input interface{}, ctx common.RestContext) (inte
 
 func (r *Romanad) listNetworks(input interface{}, ctx common.RestContext) (interface{}, error) {
 	resp := make([]api.IPAMNetworkResponse, 0)
-	for _, network := range ipam.Networks {
+	for _, network := range r.client.IPAM.Networks {
 		n := api.IPAMNetworkResponse{
 			CIDR:     api.IPNet{IPNet: *network.CIDR.IPNet},
 			Name:     network.Name,
@@ -141,17 +80,17 @@ func (r *Romanad) listNetworks(input interface{}, ctx common.RestContext) (inter
 // "addressName".
 func (r *Romanad) deallocateIP(input interface{}, ctx common.RestContext) (interface{}, error) {
 	addressName := ctx.QueryVariables.Get("addressName")
-	return nil, ipam.DeallocateIP(addressName)
+	return nil, r.client.IPAM.DeallocateIP(addressName)
 }
 
 func (r *Romanad) allocateIP(input interface{}, ctx common.RestContext) (interface{}, error) {
 	req := input.(api.IPAMAddressRequest)
-	return ipam.AllocateIP(req.Name, req.Host, req.Tenant, req.Segment)
+	return r.client.IPAM.AllocateIP(req.Name, req.Host, req.Tenant, req.Segment)
 }
 
 // updateTopology serves to update topology information in the Romana service
 // as
 func (r *Romanad) updateTopology(input interface{}, ctx common.RestContext) (interface{}, error) {
 	topoReq := input.(api.TopologyUpdateRequest)
-	return nil, ipam.updateTopology(topoReq)
+	return nil, r.client.IPAM.updateTopology(topoReq)
 }

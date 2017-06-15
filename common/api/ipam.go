@@ -70,7 +70,7 @@ type TopologyDefinition struct {
 }
 
 type Host struct {
-	Name string `json:"name"`
+	IP net.IP `json:"ip"`
 }
 
 type IPNet struct {

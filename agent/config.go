@@ -107,36 +107,11 @@ func (c *NetworkConfig) updateRomanaGWMask(ipnet *net.IPNet) {
 	c.romanaGWMask = ipnet.Mask
 }
 
-// identifyCurrentHost contacts topology service and get
-// details about the node the agent is running on, it then
-// populates IP and Mask fields, by comparing hostname with
-// one received from topology service.
+// identifyCurrentHost gets details about the node the agent
+// is running on. It then populates IP and Mask fields
 func (a Agent) identifyCurrentHost() error {
 	log.Trace(trace.Private, "In Agent identifyCurrentHost()")
-
-	topologyURL, err := a.client.GetServiceUrl("topology")
-	if err != nil {
-		return agentError(err)
-	}
-	index := common.IndexResponse{}
-	err = a.client.Get(topologyURL, &index)
-	if err != nil {
-		return agentError(err)
-	}
-	dcURL := index.Links.FindByRel("datacenter")
-	a.networkConfig.dc = common.Datacenter{}
-	err = a.client.Get(dcURL, &a.networkConfig.dc)
-	if err != nil {
-		return agentError(err)
-	}
-
-	hostURL := index.Links.FindByRel("host-list")
-	hosts := []common.Host{}
-	err = a.client.Get(hostURL, &hosts)
-	if err != nil {
-		return agentError(err)
-	}
-	log.Trace(trace.Inside, "Retrieved hosts list, found", len(hosts), "hosts")
+	hosts := a.client.IPAM.listHosts()
 
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
@@ -147,7 +122,7 @@ func (a Agent) identifyCurrentHost() error {
 
 	for _, host := range hosts {
 		for _, addr := range addrs {
-			if strings.Contains(addr.String(), host.Ip) {
+			if strings.Contains(addr.String(), host.IP.String()) {
 
 				_, ipnet, err := net.ParseCIDR(host.RomanaIp)
 				if err != nil {
