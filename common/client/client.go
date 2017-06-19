@@ -5,17 +5,18 @@ import (
 	"sync"
 
 	"github.com/romana/core/common"
+	log "github.com/romana/rlog"
 )
 
 type Client struct {
 	config     *common.Config
-	Store      *common.Store
+	Store      *Store
 	ipamLocker sync.Locker
 	IPAM       *IPAM
 }
 
 // NewClient creates a new Client object based on provided config
-func NewClient(config *Config) (*Client, error) {
+func NewClient(config *common.Config) (*Client, error) {
 	store, err := NewStore(config.EtcdEndpoints, config.EtcdPrefix)
 	if err != nil {
 		return nil, err
@@ -26,7 +27,7 @@ func NewClient(config *Config) (*Client, error) {
 		Store:  store,
 	}
 
-	err = c.initIPAM()
+	err = client.initIPAM()
 	if err != nil {
 		return nil, err
 	}
@@ -39,23 +40,23 @@ const (
 )
 
 func (c *Client) initIPAM() error {
-	c.ipamLocker, err = c.store.NewLocker(c.store.prefix + "/ipam/lock")
+	c.ipamLocker, err = c.Store.NewLocker(c.Store.prefix + "/ipam/lock")
 	if err != nil {
 		return err
 	}
 
 	c.ipamLocker.Lock()
-	defer r.ipamLocker.Unlock()
+	defer c.ipamLocker.Unlock()
 
 	// Check if IPAM info exists in the store
-	ipamExists, err := c.store.Exists(ipamDataKey)
+	ipamExists, err := c.Store.Exists(ipamDataKey)
 	if err != nil {
 		return err
 	}
 	if ipamExists {
 		// Load if exists
 		log.Infof("Loading IPAM data from %s", ipamDataKey)
-		kv, err := c.store.Get(ipamDataKey)
+		kv, err := c.Store.Get(ipamDataKey)
 		if err != nil {
 			return err
 		}
@@ -66,7 +67,7 @@ func (c *Client) initIPAM() error {
 		}
 	} else {
 		// If does not exist, initialize and save
-		log.Infof("No IPAM data found at %s, initializing", key)
+		log.Infof("No IPAM data found at %s, initializing", ipamDataKey)
 		c.IPAM, err = NewIPAM(c.save, c.ipamLocker)
 		if err != nil {
 			return err
@@ -86,7 +87,7 @@ func (c *Client) save(ipam *IPAM) error {
 	if err != nil {
 		return err
 	}
-	err = c.store.Put(ipamDataKey, b, nil)
+	err = c.Store.Put(ipamDataKey, b, nil)
 	if err != nil {
 		return err
 	}

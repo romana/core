@@ -19,12 +19,13 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
-	"github.com/romana/core/common"
 	"strings"
+
+	"github.com/romana/core/common/api"
 )
 
 // HashRomanaPolicies generates unique hash for a list of romana policies.
-func HashRomanaPolicies(policies []common.Policy) string {
+func HashRomanaPolicies(policies []api.Policy) string {
 	var hashes []string
 	for _, policy := range policies {
 		hashes = append(hashes, HashRomanaPolicy(policy))
@@ -34,12 +35,12 @@ func HashRomanaPolicies(policies []common.Policy) string {
 }
 
 // HashRomanaPolicies generates sha1 hash from a canonical form of the policy.
-func HashRomanaPolicy(policy common.Policy) string {
+func HashRomanaPolicy(policy api.Policy) string {
 	sorted := PolicyToCanonical(policy)
 
 	var data string
 
-	data = fmt.Sprintf("%s.%s.%s.%d.%s", policy.Direction, policy.Description, policy.Name, policy.ID, policy.ExternalID)
+	data = fmt.Sprintf("%s.%s.%s.%s.%s", policy.Direction, policy.Description, policy.Name, policy.ID, policy.ExternalID)
 
 	for _, e := range sorted.AppliedTo {
 		data = fmt.Sprintf("%s.%s", data, EndpointToString(e))

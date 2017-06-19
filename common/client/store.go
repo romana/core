@@ -59,11 +59,7 @@ func NewStore(etcdEndpoints []string, prefix string) (*Store, error) {
 // run concurrently). Perhaps other things can be added later.
 
 func (s *Store) Exists(key string) (bool, error) {
-	return s.Store.Exists(s.Config.Prefix + key)
-}
-
-func (s *Store) Delete(key string) error {
-	return s.Store.Delete(s.Config.Prefix + key)
+	return s.Store.Exists(s.prefix + key)
 }
 
 func (s *Store) PutObject(key string, v interface{}) error {
@@ -71,60 +67,77 @@ func (s *Store) PutObject(key string, v interface{}) error {
 	if err != nil {
 		return err
 	}
-	return s.Store.Put(s.Config.Prefix+key, b, nil)
+	return s.Store.Put(s.prefix+key, b, nil)
 }
 
 func (s *Store) Get(key string) (*libkvStore.KVPair, error) {
-	return s.Store.Get(s.Config.Prefix + key)
+	return s.Store.Get(s.prefix + key)
 }
 
 func (s *Store) GetBool(key string, defaultValue bool) (bool, error) {
-	kvp, err := s.Store.Get(s.Config.Prefix + key)
+	kvp, err := s.Store.Get(s.prefix + key)
 	if err != nil {
 		if err == libkvStore.ErrKeyNotFound {
 			return defaultValue, nil
 		}
 		return false, err
 	}
-	return common.ToBool(string(kvp.Value)), nil
+	return common.ToBool(string(kvp.Value))
+}
+
+func (s *Store) ListObjects(key string, obj interface{}) ([]interface{}, error) {
+	kvps, err := s.Store.List(s.prefix + key)
+	if err != nil {
+		return nil, err
+	}
+	retval := make([]interface{}, len(kvps))
+	for i, kvp := range kvps {
+		err = json.Unmarshal(kvp.Value, obj)
+		if err != nil {
+			return nil, err
+		}
+		retval[i] = obj
+	}
+	return retval, nil
 }
 
 func (s *Store) GetObject(key string, obj interface{}) error {
-	kvp, err := s.Store.Get(s.Config.Prefix + key)
+	kvp, err := s.Store.Get(s.prefix + key)
 	if err != nil {
 		if err == libkvStore.ErrKeyNotFound {
-			return obj, nil
+			return nil
 		}
-		return nil, err
+		return err
 	}
 	return json.Unmarshal(kvp.Value, obj)
 }
 
 func (s *Store) GetString(key string, defaultValue string) (string, error) {
-	kvp, err := s.Store.Get(s.Config.Prefix + key)
-	if err != nil {
-		if err == libkvStore.ErrKeyNotFound {
-			return defaultValue, nil
-		}
-		return 0, err
-	}
-	return string(kvp.Value), nil
-}
-
-func (s *Store) GetInt(key string, defaultValue int) (int, error) {
-	kvp, err := s.Store.Get(s.Config.Prefix + key)
+	kvp, err := s.Store.Get(s.prefix + key)
 	if err != nil {
 		if err == libkvStore.ErrKeyNotFound {
 			return defaultValue, nil
 		}
 		return "", err
 	}
-	s := string(kvp.Value)
-	return strconv.ParseInt(s, 32, 10)
+	return string(kvp.Value), nil
+}
+
+func (s *Store) GetInt(key string, defaultValue int) (int, error) {
+	kvp, err := s.Store.Get(s.prefix + key)
+	if err != nil {
+		if err == libkvStore.ErrKeyNotFound {
+			return defaultValue, nil
+		}
+		return 0, err
+	}
+	str := string(kvp.Value)
+	val, err := strconv.ParseInt(str, 32, 10)
+	return int(val), err
 }
 
 func (s *Store) Delete(key string) error {
-	return s.Store.Delete(s.Config.Prefix + key)
+	return s.Store.Delete(s.prefix + key)
 }
 
 // END WRAPPER METHODS

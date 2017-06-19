@@ -26,12 +26,14 @@ package hasher
 
 import (
 	"fmt"
-	"github.com/romana/core/common"
 	"sort"
+
+	"github.com/romana/core/common"
+	"github.com/romana/core/common/api"
 )
 
 // PolicyToCanonical sorts romana policy Ingress and AppliedTo fields.
-func PolicyToCanonical(unsorted common.Policy) common.Policy {
+func PolicyToCanonical(unsorted api.Policy) api.Policy {
 	sorted := common.Policy{
 		Direction:   unsorted.Direction,
 		Description: unsorted.Description,
@@ -61,7 +63,7 @@ func (p EndpointList) Swap(i, j int) { p.items[i], p.items[j] = p.items[j], p.it
 func (p EndpointList) Less(i, j int) bool { return p.items[i].key < p.items[j].key }
 
 // NewEndpointList converts list of common.Endpoint into EndpointList for later sorting.
-func NewEndpointList(endpoints []common.Endpoint) EndpointList {
+func NewEndpointList(endpoints []api.Endpoint) EndpointList {
 	endpointList := EndpointList{}
 
 	for _, e := range endpoints {

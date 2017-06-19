@@ -70,7 +70,8 @@ type TopologyDefinition struct {
 }
 
 type Host struct {
-	IP net.IP `json:"ip"`
+	IP        net.IP `json:"ip"`
+	AgentPort int    `json:"agent_port"`
 }
 
 type IPNet struct {

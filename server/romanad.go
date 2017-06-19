@@ -18,26 +18,27 @@ package server
 import (
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
+	"github.com/romana/core/common/client"
 )
 
 type Romanad struct {
-	addr   string
-	client *Client
+	Addr   string
+	client *client.Client
 	routes common.Route
 }
 
 // Name provides name of this service.
 func (r *Romanad) GetAddress() string {
-	return r.addr
+	return r.Addr
 }
 
 func (r *Romanad) Name() string {
 	return "romanad"
 }
 
-func (r *Romanad) Initialize(clientConfig client.Config) error {
+func (r *Romanad) Initialize(clientConfig common.Config) error {
 	var err error
-	r.client, err = client.NewClient(clientConfig)
+	r.client, err = client.NewClient(&clientConfig)
 	if err != nil {
 		return err
 	}
@@ -47,6 +48,41 @@ func (r *Romanad) Initialize(clientConfig client.Config) error {
 // Routes provided by ipam.
 func (r *Romanad) Routes() common.Routes {
 	routes := common.Routes{
+		common.Route{
+			Method:          "POST",
+			Pattern:         "/policies",
+			Handler:         r.addPolicy,
+			MakeMessage:     func() interface{} { return &api.Policy{} },
+			UseRequestToken: false,
+		},
+		common.Route{
+			Method:          "DELETE",
+			Pattern:         "/policies",
+			Handler:         r.deletePolicy,
+			MakeMessage:     func() interface{} { return &api.Policy{} },
+			UseRequestToken: false,
+		},
+		common.Route{
+			Method:          "DELETE",
+			Pattern:         "policies/{policyID}",
+			Handler:         r.deletePolicy,
+			MakeMessage:     func() interface{} { return &api.Policy{} },
+			UseRequestToken: false,
+		},
+		common.Route{
+			Method:          "GET",
+			Pattern:         "/policies",
+			Handler:         r.listPolicies,
+			MakeMessage:     nil,
+			UseRequestToken: false,
+		},
+		common.Route{
+			Method:          "GET",
+			Pattern:         "/policies/{policyID}",
+			Handler:         r.getPolicy,
+			MakeMessage:     nil,
+			UseRequestToken: false,
+		},
 		common.Route{
 			Method:  "GET",
 			Pattern: "/networks/{network}/blocks/",
@@ -79,46 +115,6 @@ func (r *Romanad) Routes() common.Routes {
 			Method:  "GET",
 			Pattern: "/hosts",
 			Handler: r.listHosts,
-		},
-		common.Route{
-			Method:          "POST",
-			Pattern:         policiesPath,
-			Handler:         r.addPolicy,
-			MakeMessage:     func() interface{} { return &api.Policy{} },
-			UseRequestToken: false,
-		},
-		common.Route{
-			Method:          "DELETE",
-			Pattern:         policiesPath,
-			Handler:         r.deletePolicy,
-			MakeMessage:     func() interface{} { return &api.Policy{} },
-			UseRequestToken: false,
-		},
-		common.Route{
-			Method:          "DELETE",
-			Pattern:         policiesPath + "/{policyID}",
-			Handler:         r.deletePolicy,
-			MakeMessage:     func() interface{} { return &api.Policy{} },
-			UseRequestToken: false,
-		},
-		common.Route{
-			Method:          "GET",
-			Pattern:         policiesPath,
-			Handler:         r.listPolicies,
-			MakeMessage:     nil,
-			UseRequestToken: false,
-		},
-		common.Route{
-			Method:          "GET",
-			Pattern:         policiesPath + "/{policyID}",
-			Handler:         r.getPolicy,
-			MakeMessage:     nil,
-			UseRequestToken: false,
-		},
-		common.Route{
-			Method:  "GET",
-			Pattern: findPath + policiesPath + "/{policyName}",
-			Handler: r.findPolicyByName,
 		},
 	}
 	return routes

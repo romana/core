@@ -27,7 +27,6 @@ import (
 
 	"github.com/codegangsta/negroni"
 
-	"github.com/romana/core/common/client"
 	log "github.com/romana/rlog"
 )
 
@@ -96,7 +95,7 @@ func (links Links) FindByRel(rel string) string {
 
 // Service is the interface that services implement.
 type Service interface {
-	Initialize(clientConfig client.Config) error
+	Initialize(clientConfig Config) error
 
 	// Returns the routes that this service works with
 	Routes() Routes
@@ -146,9 +145,9 @@ func initNegroni(service Service) (*RestServiceInfo, error) {
 // allows the caller to wait for a message from the running
 // service. Messages are of type ServiceMessage above.
 // It can be used for launching service from tests, etc.
-func InitializeService(service Service, storeConfig StoreConfig) (*RestServiceInfo, error) {
+func InitializeService(service Service, config Config) (*RestServiceInfo, error) {
 	var err error
-	err = service.Initialize(storeConfig)
+	err = service.Initialize(config)
 	if err != nil {
 		return nil, err
 	}

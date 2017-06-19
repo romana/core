@@ -50,7 +50,7 @@ func (fw *IPtables) Init(utilexec utilexec.Executable, store FirewallStore, nc N
 	var err error
 
 	fwstore := firewallStore{}
-	fwstore.RdbmsStore = store.GetDb()
+	fwstore.db = store.GetDb()
 	fwstore.mu = store.GetMutex()
 
 	fw.Store = fwstore
