@@ -284,18 +284,14 @@ func (a *Agent) Initialize(client *common.RestClient) error {
 		routeRefreshSeconds = defaultRouteRefreshSeconds
 	}
 
-	if a.interhostRoutesEnabled {
-		log.Infof("Agent: starting interhost routes manager")
+	// Channel for stopping route update mechanism.
+	stopRouteUpdater := make(chan struct{})
 
-		// Channel for stopping route update mechanism.
-		stopRouteUpdater := make(chan struct{})
-
-		// a.RouteUpdater updates routes on the current node for
-		// the newly added or removed nodes in romana cluster.
-		if err := a.routeUpdater(stopRouteUpdater, routeRefreshSeconds); err != nil {
-			log.Errorf("Agent: Failed to start route updater on the node: %s", err)
-			return err
-		}
+	// a.RouteUpdater updates routes on the current node for
+	// the newly added or removed nodes in romana cluster.
+	if err := a.routeUpdater(stopRouteUpdater, routeRefreshSeconds); err != nil {
+		log.Errorf("Agent: Failed to start route updater on the node: %s", err)
+		return err
 	}
 
 	a.routeChan = PublishRoutesTo(a.routePublisher, a.routePublisherConfig, a.client, a.networkConfig)
