@@ -35,7 +35,7 @@ import (
 )
 
 func New(config router.Config) (router.Interface, error) {
-	quagga := QuaggaBgpRoutePublisher{}
+	quagga := QuaggaBgpRoutePublisher{Mutex: &sync.Mutex{}}
 
 	quagga.BgpdHost = config.SetDefault("bgpdHost", "localhost")
 	quagga.BgpdPort = config.SetDefault("bgpdPort", "2605")
@@ -73,7 +73,7 @@ func New(config router.Config) (router.Interface, error) {
 // of bgpd managed by quagga.
 type QuaggaBgpRoutePublisher struct {
 	// Connect to BGP
-	sync.Mutex
+	*sync.Mutex
 
 	// IP address or hostname bgpd listens on.
 	BgpdHost string

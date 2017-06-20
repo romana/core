@@ -36,7 +36,7 @@ import (
 // bird BGP daemon.
 type BirdRoutePublisher struct {
 	// Connect to BGP
-	sync.Mutex
+	*sync.Mutex
 
 	// Name of template used to generate
 	// bird config file
@@ -73,7 +73,7 @@ type BirdRoutePublisher struct {
 
 func New(config router.Config) (router.Interface, error) {
 	var ok bool
-	publisher := BirdRoutePublisher{}
+	publisher := BirdRoutePublisher{Mutex: &sync.Mutex{}}
 	if publisher.templateFileName, ok = config["templateFileName"]; !ok {
 		return nil, fmt.Errorf("Missing field templateFileName")
 	}
