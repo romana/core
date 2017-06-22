@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Pani Networks
+// Copyright (c) 2016-2017 Pani Networks
 // All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -13,7 +13,7 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Command for running the IPAM service.
+// Command for running the Kubernetes Listener.
 package main
 
 import (
