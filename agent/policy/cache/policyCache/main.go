@@ -18,27 +18,26 @@ package main
 import (
 	"flag"
 	"fmt"
+	"strings"
 
 	"github.com/romana/core/agent/policy/cache"
 	"github.com/romana/core/common"
+	"github.com/romana/core/common/client"
 )
 
 func main() {
-	var rootURL = flag.String("rootURL", "", "URL to root service URL")
+	endpointsStr := flag.String("etcd-endpoints", "localhost:2379", "Comma-separated list of etcd endpoints.")
 	flag.Parse()
 
-	if *rootURL == "" {
-		fmt.Println("Must specify rootURL.")
-		return
-	}
+	endpoints := strings.Split(*endpointsStr, ",")
 
-	clientConfig := common.GetDefaultRestClientConfig(*rootURL, nil)
-	client, err := common.NewRestClient(clientConfig)
+	clientConfig := common.Config{EtcdEndpoints: endpoints,
+		EtcdPrefix: "romana",
+	}
+	client, err := client.NewClient(&clientConfig)
 	if err != nil {
-		fmt.Printf("Error %s", err)
-		return
+		panic(err)
 	}
-
 	c := cache.New(client, cache.Config{CacheTickSeconds: 10})
 
 	stop := make(chan struct{})
@@ -56,7 +55,7 @@ func main() {
 func PrintPolicy(cache cache.Interface) {
 	policies := cache.List()
 	for policyNum, policy := range policies {
-		fmt.Printf("Policy %d name %s\n", policyNum, policy.Name)
+		fmt.Printf("Policy %d ID %s\n", policyNum, policy.ID)
 	}
 
 	fmt.Printf("Detected %d romana policies\n", len(cache.List()))

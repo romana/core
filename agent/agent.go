@@ -24,6 +24,7 @@ import (
 	policyCache "github.com/romana/core/agent/policy/cache"
 	tenantCache "github.com/romana/core/agent/tenant/cache"
 	"github.com/romana/core/common"
+	"github.com/romana/core/common/api"
 	"github.com/romana/core/common/client"
 
 	log "github.com/romana/rlog"
@@ -38,7 +39,6 @@ type Agent struct {
 	// Discovered run-time configuration.
 	networkConfig *NetworkConfig
 
-	config common.ServiceConfig
 	// Leasefile is a type that manages DHCP leases in the file
 	leaseFile *LeaseFile
 
@@ -53,7 +53,7 @@ type Agent struct {
 	Helper *Helper
 
 	// BEGIN Agent configuration
-	localDbFile string
+	localDBFile string
 
 	waitForIfaceTry int
 
@@ -64,6 +64,8 @@ type Agent struct {
 	policyRefreshSeconds int
 
 	policyEnabled bool
+
+	firewallProvider string
 	// END Agent configuration
 
 	// Whether this is running in test mode.
@@ -79,7 +81,7 @@ type Agent struct {
 	defaultLink netlink.Link
 
 	// Address string (host:port) to listen on
-	addr string
+	Addr string
 
 	// Agent store to keep records about managed resources.
 	store agentStore
@@ -88,11 +90,15 @@ type Agent struct {
 	client *client.Client
 }
 
+func (a *Agent) GetAddress() string {
+	return a.Addr
+}
+
 func (a *Agent) loadConfig() error {
 	var err error
 	configPrefix := "/agent/config/"
 
-	leaseFileName, err := a.client.store.GetString(configPrefix+"lease_file", defaultLeaseFile)
+	leaseFileName, err := a.client.Store.GetString(configPrefix+"leaseFileName", defaultLeaseFile)
 	if err != nil {
 		return err
 	}
@@ -100,40 +106,46 @@ func (a *Agent) loadConfig() error {
 	lf := NewLeaseFile(leaseFileName, a)
 	a.leaseFile = &lf
 
-	policyEnabled, err := a.client.store.GetBool(configPrefix+"policy_enabled", false)
+	a.policyEnabled, err = a.client.Store.GetBool(configPrefix+"policyEnabled", false)
 	if err != nil {
 		return err
 	}
 
-	a.waitForIfaceTry, err = a.client.store.GetInt(configPrefix+"wait_for_iface_try", defaultWaitForIfaceTry)
+	a.waitForIfaceTry, err = a.client.Store.GetInt(configPrefix+"waitForIfaceTry", defaultWaitForIfaceTry)
 	if err != nil {
 		return err
 	}
 
-	a.routeRefreshSeconds, err = a.client.store.GetInt(configPrefix+"route_refresh_seconds", defaultRouteRefreshSeconds)
+	a.routeRefreshSeconds, err = a.client.Store.GetInt(configPrefix+"routeRefreshSeconds", defaultRouteRefreshSeconds)
 	if err != nil {
 		return err
 	}
 
-	a.policyRefreshSeconds, err = a.client.store.GetInt(configPrefix+"policy_refresh_seconds", defaultPolicyRefreshSeconds)
+	a.policyRefreshSeconds, err = a.client.Store.GetInt(configPrefix+"policyRefreshSeconds", defaultPolicyRefreshSeconds)
 	if err != nil {
 		return err
 	}
 
-	a.cacheTickTime, err = a.client.store.GetInt(configPrefix+"cache_tick_time", defaultCacheTickTime)
+	a.cacheTickTime, err = a.client.Store.GetInt(configPrefix+"cacheTickTime", defaultCacheTickTime)
 	if err != nil {
 		return err
 	}
 
-	a.localDbFile, err = a.client.store.GetString(configPrefix+"local_db_file", defaultLocalDbFile)
+	a.localDBFile, err = a.client.Store.GetString(configPrefix+"localDBFile", defaultLocalDBFile)
+	if err != nil {
+		return err
+	}
+
+	a.firewallProvider, err = a.client.Store.GetString(configPrefix+"firewallProvider", defaultFirewallProvider)
 	if err != nil {
 		return err
 	}
 
 	a.networkConfig = &NetworkConfig{}
 
-	a.store = NewStore(a)
-	return nil
+	a.store, err = NewStore(a)
+
+	return err
 }
 
 // Routes implements Routes function of Service interface.
@@ -203,7 +215,7 @@ func (a *Agent) Routes() common.Routes {
 			Pattern: "/policies",
 			Handler: a.addPolicy,
 			MakeMessage: func() interface{} {
-				return &common.Policy{}
+				return &api.Policy{}
 			},
 			UseRequestToken: false,
 		},
@@ -211,7 +223,7 @@ func (a *Agent) Routes() common.Routes {
 			Method:  "DELETE",
 			Pattern: "/policies",
 			MakeMessage: func() interface{} {
-				return &common.Policy{}
+				return &api.Policy{}
 			},
 			Handler: a.deletePolicy,
 		},
@@ -247,18 +259,20 @@ const (
 	// for route update and applies changes if any.
 	defaultRouteRefreshSeconds = 120
 
-	defaultLocalDbFile = "/var/tmp/agent.sqlite3"
+	defaultLocalDBFile = "/var/tmp/agent.sqlite3"
+
+	defaultFirewallProvider = "shellex"
 )
 
 // Initialize implements the Initialize method of common.Service
 // interface.
-func (a *Agent) Initialize(clientConfig client.Config) error {
+func (a *Agent) Initialize(clientConfig common.Config) error {
 	var err error
-	a.client, err = client.NewClient(clientConfig)
+	a.client, err = client.NewClient(&clientConfig)
 	if err != nil {
 		return err
 	}
-	err = a.readConfig()
+	err = a.loadConfig()
 	if err != nil {
 		return err
 	}

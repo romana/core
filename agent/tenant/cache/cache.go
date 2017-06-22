@@ -16,12 +16,13 @@
 package cache
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
 	"github.com/romana/core/agent/tenant/hasher"
 	"github.com/romana/core/common"
+	"github.com/romana/core/common/api"
+	"github.com/romana/core/common/client"
 	"github.com/romana/core/common/log/trace"
 
 	log "github.com/romana/rlog"
@@ -37,7 +38,7 @@ type Interface interface {
 	Run(stop <-chan struct{}) <-chan string
 
 	// Returns a list of objects in cache.
-	List() []common.Tenant
+	List() []api.Tenant
 }
 
 // Config represents configuration for the tenant cache.
@@ -48,12 +49,12 @@ type Config struct {
 
 // Cache implements tenant/cache.Interface.
 type Cache struct {
-	client *common.RestClient
+	client *client.Client
 
 	// Delay between main loop runs.
 	ticker <-chan time.Time
 
-	store []common.Tenant
+	store []api.Tenant
 
 	mu *sync.Mutex
 
@@ -63,7 +64,7 @@ type Cache struct {
 }
 
 // New creates new empty tenant cache.
-func New(client *common.RestClient, config Config) Interface {
+func New(client *client.Client, config Config) Interface {
 	t := time.Tick(time.Duration(config.CacheTickSeconds) * time.Second)
 	return &Cache{client: client, ticker: t, mu: &sync.Mutex{}}
 }
@@ -111,7 +112,7 @@ func (c *Cache) Run(stop <-chan struct{}) <-chan string {
 }
 
 // List implements Interface.
-func (c *Cache) List() []common.Tenant {
+func (c *Cache) List() []api.Tenant {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -120,33 +121,9 @@ func (c *Cache) List() []common.Tenant {
 }
 
 // getNewState retrieves tenants from romana Tenant service.
-func (c *Cache) getNewState(client *common.RestClient) ([]common.Tenant, error) {
-	tenants := []common.Tenant{}
+func (c *Cache) getNewState(client *client.Client) ([]api.Tenant, error) {
+	return c.client.ListTenants(), nil
 
-	tenantURL, err := client.GetServiceUrl("tenant")
-	if err != nil {
-		return tenants, err
-	}
-	tenantsURL := fmt.Sprintf("%s/tenants", tenantURL)
-
-	err = client.Get(tenantsURL, &tenants)
-	if err != nil {
-		return tenants, err
-	}
-
-	for tenantNum, _ := range tenants {
-		fullUrl := fmt.Sprintf("%s/tenants/%d/segments", tenantURL, tenants[tenantNum].ID)
-		err = client.Get(fullUrl, &tenants[tenantNum].Segments)
-
-		// ignore 404 error here which means no segments
-		// considered to be a zero segments rather then
-		// an error.
-		if err != nil && !checkHttp404(err) {
-			return tenants, err
-		}
-	}
-
-	return tenants, nil
 }
 
 func checkHttp404(err error) (ret bool) {
