@@ -130,7 +130,11 @@ func (a Agent) routeUpdater(stopRouteUpdater <-chan struct{}, routeRefreshSecond
 	log.Trace(trace.Private, "In Agent routeUpdater()")
 
 	go a.routePopulate(stopRouteUpdater, routeRefreshSeconds)
-	go a.routeSet(stopRouteUpdater, routeRefreshSeconds)
+	if a.interhostRoutesEnabled {
+		log.Infof("Agent: starting interhost routes manager")
+
+		go a.routeSet(stopRouteUpdater, routeRefreshSeconds)
+	}
 
 	return nil
 }

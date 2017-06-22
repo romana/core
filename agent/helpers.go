@@ -33,6 +33,7 @@ import (
 	"github.com/romana/core/common/log/trace"
 	utilexec "github.com/romana/core/pkg/util/exec"
 	utilos "github.com/romana/core/pkg/util/os"
+
 	log "github.com/romana/rlog"
 )
 
@@ -325,4 +326,11 @@ func (h Helper) waitForIface(expectedIface string) bool {
 		time.Sleep(10 * time.Second)
 	}
 	return false
+}
+
+// IpToNet is a convinience function that transforms net.IP into net.IPNet/32
+func IpToNet(ip net.IP) (*net.IPNet, error) {
+	cidr := fmt.Sprintf("%s/32", ip)
+	_, ipnet, err := net.ParseCIDR(cidr)
+	return ipnet, err
 }

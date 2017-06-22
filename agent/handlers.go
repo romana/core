@@ -251,6 +251,12 @@ func (a *Agent) podUpHandlerAsync(netReq NetworkRequest) error {
 			log.Error(agentError(err))
 			return agentError(err)
 		}
+
+		if ip, err := IpToNet(netif.IP.IP); err != nil {
+			log.Error(agentError(err))
+		} else {
+			a.routeChan <- *ip
+		}
 	}
 
 	log.Trace(trace.Inside, "Agent: All good", netif)
@@ -426,6 +432,12 @@ func (a *Agent) vmUpHandlerAsync(netif NetIf) error {
 		if err := fw.ProvisionEndpoint(); err != nil {
 			log.Error(agentError(err))
 			return agentError(err)
+		}
+
+		if ip, err := IpToNet(netif.IP.IP); err != nil {
+			log.Error(agentError(err))
+		} else {
+			a.routeChan <- *ip
 		}
 	}
 

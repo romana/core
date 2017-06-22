@@ -18,14 +18,16 @@ package agent
 
 import (
 	"fmt"
+	"net"
 
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/log/trace"
-	enforcer "github.com/romana/core/pkg/policy/enforcer"
+	"github.com/romana/core/pkg/policy/enforcer"
 	"github.com/romana/core/pkg/util/iptsave"
 	policyCache "github.com/romana/core/pkg/util/policy/cache"
 	tenantCache "github.com/romana/core/pkg/util/tenant/cache"
 	log "github.com/romana/rlog"
+
 	"github.com/vishvananda/netlink"
 )
 
@@ -63,6 +65,18 @@ type Agent struct {
 
 	policyEnabled bool
 
+	// disables interhost routes managed by the agent.
+	interhostRoutesEnabled bool
+
+	// enables publishing routes to external route manager.
+	routePublisher string
+
+	// configuration for external publisher
+	routePublisherConfig map[string]string
+
+	// channel that is used by route publisher to receive notifications
+	routeChan chan net.IPNet
+
 	// Manages iptables rules to reflect romana policies.
 	enforcer enforcer.Interface
 
@@ -87,6 +101,23 @@ func (a *Agent) SetConfig(config common.ServiceConfig) error {
 	if !ok {
 		a.policyEnabled = true
 	}
+
+	a.interhostRoutesEnabled, ok = config.ServiceSpecific["interhost_routes_enabled"].(bool)
+	if !ok {
+		a.interhostRoutesEnabled = true
+	}
+
+	a.routePublisher, ok = config.ServiceSpecific["route_publisher"].(string)
+	if !ok {
+		a.routePublisher = "none"
+	}
+
+	a.routePublisherConfig, err = ParseRoutePublisherConfig(config.ServiceSpecific["route_publisher_config"])
+	if err != nil {
+		log.Errorf("%s", err)
+		a.routePublisherConfig = nil
+	}
+
 	a.waitForIfaceTry = int(config.ServiceSpecific["wait_for_iface_try"].(float64))
 	a.networkConfig = &NetworkConfig{}
 	store, err := NewStore(config)
@@ -262,6 +293,8 @@ func (a *Agent) Initialize(client *common.RestClient) error {
 		log.Errorf("Agent: Failed to start route updater on the node: %s", err)
 		return err
 	}
+
+	a.routeChan = PublishRoutesTo(a.routePublisher, a.routePublisherConfig, a.client, a.networkConfig)
 
 	if checkFeatureSnatEnabled() {
 		iptables := &iptsave.IPtables{}
