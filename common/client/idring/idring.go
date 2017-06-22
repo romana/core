@@ -21,7 +21,7 @@ import (
 	"math"
 	"sync"
 
-	"github.com/debedb/core/common"
+	"github.com/romana/core/common"
 	"github.com/romana/core/common/log/trace"
 	log "github.com/romana/rlog"
 )

@@ -24,10 +24,7 @@ import (
 	"github.com/go-resty/resty"
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
-)
-
-const (
-	policiesPrefix = "/policies"
+	"github.com/romana/core/common/client"
 )
 
 // deallocateIP deallocates IP specified by query parameter
@@ -47,19 +44,13 @@ func (r *Romanad) listHosts(input interface{}, ctx common.RestContext) (interfac
 	return r.client.IPAM.ListHosts(), nil
 }
 
-// listBlocks returns api.IPAMBlocksResponse containing blocks in the given network.
-// The network is specified with the "network" query parameter.
-func (r *Romanad) listBlocks(input interface{}, ctx common.RestContext) (interface{}, error) {
+func (r *Romanad) listNetworkBlocks(input interface{}, ctx common.RestContext) (interface{}, error) {
 	netName := ctx.PathVariables["network"]
-	if network, ok := r.client.IPAM.Networks[netName]; ok {
-		resp := api.IPAMBlocksResponse{
-			Revision: network.Revison,
-			Blocks:   network.HostsGroups.GetBlocksResponse(),
-		}
-		return resp, nil
-	} else {
-		return nil, common.NewError404("network", netName)
-	}
+	return r.client.IPAM.ListNetworkBlocks(netName), nil
+}
+
+func (r *Romanad) listAllBlocks(input interface{}, ctx common.RestContext) (interface{}, error) {
+	return r.client.IPAM.ListAllBlocks(), nil
 }
 
 func (r *Romanad) listAddresses(input interface{}, ctx common.RestContext) (interface{}, error) {
@@ -142,7 +133,7 @@ func (r *Romanad) distributePolicy(policy *api.Policy) error {
 func (r *Romanad) getPolicy(input interface{}, ctx common.RestContext) (interface{}, error) {
 	policyName := ctx.PathVariables["policy"]
 	policy := &api.Policy{}
-	err := r.client.Store.GetObject(policiesPrefix+policyName, policy)
+	err := r.client.Store.GetObject(client.PoliciesPrefix+policyName, policy)
 	if err != nil {
 		return nil, err
 	}
@@ -150,8 +141,8 @@ func (r *Romanad) getPolicy(input interface{}, ctx common.RestContext) (interfac
 }
 
 func (r *Romanad) deletePolicy(input interface{}, ctx common.RestContext) (interface{}, error) {
-	policyName := strings.TrimSpace(ctx.PathVariables["policy"])
-	if policyName == "" {
+	policyID := strings.TrimSpace(ctx.PathVariables["policy"])
+	if policyID == "" {
 		// This means we need to find information about what to delete in the body
 		if input == nil {
 			return nil, common.NewError400("Request must either be to /policies/{policy} or have a body.")
@@ -161,18 +152,26 @@ func (r *Romanad) deletePolicy(input interface{}, ctx common.RestContext) (inter
 		if err != nil {
 			return nil, err
 		}
-		policyName = policy.ID
+		policyID = policy.ID
 	}
-	return nil, r.client.Store.Delete(policiesPrefix + policyName)
+	found, err := r.client.DeletePolicy(policyID)
+	if err != nil {
+		return nil, err
+	}
+	if found {
+		return nil, nil
+	} else {
+		return nil, common.NewError404("policy", policyID)
+	}
 }
 
 // listPolicies lists all policices.
 func (r *Romanad) listPolicies(input interface{}, ctx common.RestContext) (interface{}, error) {
-	return r.client.Store.ListObjects(policiesPrefix, &api.Policy{})
+	return r.client.ListPolicies()
 }
 
 // addPolicy stores the new policy and sends it to all agents.
 func (r *Romanad) addPolicy(input interface{}, ctx common.RestContext) (interface{}, error) {
 	policy := input.(*api.Policy)
-	return nil, r.client.Store.PutObject(policiesPrefix+policy.ID, policy)
+	return nil, r.client.AddPolicy(*policy)
 }

@@ -27,7 +27,6 @@ type Romanad struct {
 	routes common.Route
 }
 
-// Name provides name of this service.
 func (r *Romanad) GetAddress() string {
 	return r.Addr
 }
@@ -86,7 +85,12 @@ func (r *Romanad) Routes() common.Routes {
 		common.Route{
 			Method:  "GET",
 			Pattern: "/networks/{network}/blocks/",
-			Handler: r.listBlocks,
+			Handler: r.listNetworkBlocks,
+		},
+		common.Route{
+			Method:  "GET",
+			Pattern: "/blocks/",
+			Handler: r.listAllBlocks,
 		},
 		common.Route{
 			Method:      "POST",

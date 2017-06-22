@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/debedb/core/common"
+	"github.com/romana/core/common"
 )
 
 const (
@@ -35,17 +35,11 @@ const (
 // has an IP address and routes to/from. It can be a container,
 // a Kubernetes POD, a VM, etc.
 type Endpoint struct {
-	Peer              string  `json:"peer,omitempty"`
-	Cidr              string  `json:"cidr,omitempty"`
-	Dest              string  `json:"dest,omitempty"`
-	TenantID          uint64  `json:"tenant_id,omitempty"`
-	TenantName        string  `json:"tenant,omitempty"`
-	TenantExternalID  string  `json:"tenant_external_id,omitempty"`
-	TenantNetworkID   *uint64 `json:"tenant_network_id,omitempty"`
-	SegmentID         uint64  `json:"segment_id,omitempty"`
-	SegmentName       string  `json:"segment,omitempty"`
-	SegmentExternalID string  `json:"segment_external_id,omitempty"`
-	SegmentNetworkID  *uint64 `json:"segment_network_id,omitempty"`
+	Peer      string `json:"peer,omitempty"`
+	Cidr      string `json:"cidr,omitempty"`
+	Dest      string `json:"dest,omitempty"`
+	TenantID  string `json:"tenant_id,omitempty"`
+	SegmentID string `json:"segment_id,omitempty"`
 }
 
 func (e Endpoint) String() string {
@@ -239,14 +233,11 @@ func (p *Policy) Validate() error {
 	} else {
 		for i, endpoint := range p.AppliedTo {
 			epNo := i + 1
-			if endpoint.TenantExternalID == "" &&
-				endpoint.TenantID == 0 &&
-				endpoint.TenantName == "" &&
-				endpoint.Dest == "" &&
-				endpoint.TenantNetworkID == nil {
+			if endpoint.TenantID == "" &&
+				endpoint.Dest == "" {
 				errMsg = append(errMsg,
 					fmt.Sprintf("applied_to entry #%d: at least one of: "+
-						"dest, tenant, tenant_id, tenant_external_id or tenant_network_id "+
+						"dest, tenant_id "+
 						"must be specified.", epNo))
 			}
 		}
@@ -269,16 +260,11 @@ func (p *Policy) Validate() error {
 				if endpoint.Peer != "" && endpoint.Peer != Wildcard && endpoint.Peer != "host" && endpoint.Peer != "local" {
 					errMsg = append(errMsg, fmt.Sprintf("peers entry #%d: Invalid value for Any: '%s', only '' and %s allowed.", epNo, endpoint.Peer, Wildcard))
 				}
-				if endpoint.SegmentID != 0 || endpoint.SegmentExternalID != "" {
-					if endpoint.TenantExternalID == "" &&
-						endpoint.TenantID == 0 &&
-						endpoint.TenantNetworkID == nil &&
-						endpoint.TenantName == "" {
+				if endpoint.SegmentID != "" {
+					if endpoint.TenantID == "" {
 						errMsg = append(errMsg,
-							fmt.Sprintf("peers entry #%d: since segment_external_id "+
-								"is specified, at least one of: tenant, tenant_id, "+
-								"tenant_external_id or tenant_network_id must be "+
-								"specified.", epNo))
+							fmt.Sprintf("peers entry #%d: since segment_id "+
+								"is specified, tenant_id must be specified ", epNo))
 					}
 				}
 			}

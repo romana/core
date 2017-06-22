@@ -136,8 +136,19 @@ func (s *Store) GetInt(key string, defaultValue int) (int, error) {
 	return int(val), err
 }
 
-func (s *Store) Delete(key string) error {
-	return s.Store.Delete(s.prefix + key)
+// Delete wrapes Delete operation, returning:
+// - true if deletion succeede
+// - false and no error if deletion failed because key was not found
+// - false and error if another error occurred
+func (s *Store) Delete(key string) (bool, error) {
+	err := s.Store.Delete(s.prefix + key)
+	if err == nil {
+		return true, nil
+	}
+	if err == libkvStore.ErrKeyNotFound {
+		return false, nil
+	}
+	return false, err
 }
 
 // END WRAPPER METHODS

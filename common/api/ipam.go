@@ -19,6 +19,17 @@ import (
 	"net"
 )
 
+// TODO should this really be kept alongside BlocksResponse?
+type Tenant struct {
+	ID       string    `json:"id"`
+	Segments []Segment `json:"segments"`
+}
+
+type Segment struct {
+	ID     string  `json:"id"`
+	Blocks []IPNet `json:"blocks"`
+}
+
 type IPAMAddressResponse struct {
 	Name string `json:"id"`
 	IP   net.IP `json:"ip"`
@@ -72,6 +83,8 @@ type TopologyDefinition struct {
 type Host struct {
 	IP        net.IP `json:"ip"`
 	AgentPort int    `json:"agent_port"`
+	// TODO this is a placeholder for now so that agent builds
+	RomanaIp string `json:"romana_ip"`
 }
 
 type IPNet struct {

@@ -324,10 +324,10 @@ func (hg *HostsGroups) ListBlocks() []*Block {
 	return blocks
 }
 
-// getBlocksResponse returns list of blocks for the provided group
+// GetBlocks returns list of blocks for the provided group
 // including extra information about a block (host, tenant/segment, etc.)
 // - corresponding to api.IPAMBlockResponse.
-func (hg *HostsGroups) GetBlocksResponse() []api.IPAMBlockResponse {
+func (hg *HostsGroups) GetBlocks() []api.IPAMBlockResponse {
 	retval := make([]api.IPAMBlockResponse, 0)
 	if hg.Blocks != nil {
 		for blockID, block := range hg.Blocks {
@@ -344,7 +344,7 @@ func (hg *HostsGroups) GetBlocksResponse() []api.IPAMBlockResponse {
 		}
 	}
 	for _, group := range hg.Groups {
-		br := group.GetBlocksResponse()
+		br := group.GetBlocks()
 		retval = append(retval, br...)
 	}
 	return retval
@@ -613,12 +613,12 @@ func (network *Network) deallocateIP(ip net.IP) error {
 // allocateIP attempts to allocate an IP from one of the existing blocks for the tenant; and
 // if not, reuse a block that belongs to no tenant. Finally, it will try to allocate a
 // new block.
-func (network *Network) allocateIP(hostIP string, tenant string, segment string) (net.IP, error) {
+func (network *Network) allocateIP(hostIP string, owner string) (net.IP, error) {
 	host := network.HostsGroups.findHostByIP(hostIP)
 	if host == nil {
 		return nil, common.NewError("Host %s not found", hostIP)
 	}
-	ip := host.group.allocateIP(network, hostIP, makeOwner(tenant, segment))
+	ip := host.group.allocateIP(network, hostIP, owner)
 	if ip == nil {
 		return nil, nil
 	}
@@ -668,6 +668,9 @@ type IPAM struct {
 	locker          sync.Locker
 
 	TenantToNetwork map[string][]string `json:"tenant_to_network"`
+
+	//	OwnerToIP map[string][]string
+	//	IPToOwner map[string]string
 }
 
 // injectParents is intended to add references to parent objects where appropriate
@@ -687,6 +690,10 @@ func NewIPAM(saver Saver, locker sync.Locker) (*IPAM, error) {
 	ipam.Networks = make(map[string]*Network)
 	ipam.AddressNameToIP = make(map[string]net.IP)
 	ipam.TenantToNetwork = make(map[string][]string)
+
+	//	ipam.OwnerToIP = make(map[string][]string)
+	//	ipam.IPToOwner = make(map[string]string)
+
 	if locker == nil {
 		ipam.locker = &sync.Mutex{}
 	} else {
@@ -742,13 +749,19 @@ func (ipam *IPAM) AllocateIP(addressName string, host string, tenant string, seg
 		return nil, err
 	}
 
+	owner := makeOwner(tenant, segment)
 	for _, network := range networksForTenant {
-		ip, err := network.allocateIP(host, tenant, segment)
+		ip, err := network.allocateIP(host, owner)
+
 		if err != nil {
 			return nil, err
 		}
 		if ip != nil {
 			ipam.AddressNameToIP[addressName] = ip
+
+			//			ipam.OwnerToIP[owner] = append(ipam.OwnerToIP[owner], ip)
+			//			ipam.IPToOwner[ip] = owner
+
 			err = ipam.save(ipam)
 			if err != nil {
 				return nil, err
@@ -871,6 +884,26 @@ func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest) error {
 		}
 	}
 
+	return nil
+}
+
+func (ipam *IPAM) ListAllBlocks() []api.IPAMBlockResponse {
+	blocks := make([]api.IPAMBlockResponse, 0)
+	for _, network := range ipam.Networks {
+		netBlocks := network.HostsGroups.GetBlocks()
+		blocks = append(blocks, netBlocks...)
+	}
+	return blocks
+}
+
+func (ipam *IPAM) ListNetworkBlocks(netName string) *api.IPAMBlocksResponse {
+	if network, ok := ipam.Networks[netName]; ok {
+		resp := &api.IPAMBlocksResponse{
+			Revision: network.Revison,
+			Blocks:   network.HostsGroups.GetBlocks(),
+		}
+		return resp
+	}
 	return nil
 }
 

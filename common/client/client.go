@@ -5,7 +5,13 @@ import (
 	"sync"
 
 	"github.com/romana/core/common"
+	"github.com/romana/core/common/api"
 	log "github.com/romana/rlog"
+)
+
+const (
+	ipamDataKey    = "/ipam/data"
+	PoliciesPrefix = "/policies"
 )
 
 type Client struct {
@@ -22,22 +28,93 @@ func NewClient(config *common.Config) (*Client, error) {
 		return nil, err
 	}
 
-	client := &Client{
+	c := &Client{
 		config: config,
 		Store:  store,
 	}
 
-	err = client.initIPAM()
+	err = c.initIPAM()
 	if err != nil {
 		return nil, err
 	}
 
-	return client, nil
+	return c, nil
 }
 
-const (
-	ipamDataKey = "/ipam/data"
-)
+func (c *Client) ListHosts() []api.Host {
+	return c.IPAM.ListHosts()
+}
+
+func (c *Client) ListPolicies() ([]api.Policy, error) {
+	objs, err := c.Store.ListObjects(PoliciesPrefix, &api.Policy{})
+	if err != nil {
+		return nil, err
+	}
+	policies := make([]api.Policy, len(objs))
+	for i, obj := range objs {
+		policies[i] = obj.(api.Policy)
+	}
+	return policies, nil
+}
+
+// ListTenants is a temporary method to satisfy current agent cache.
+func (c *Client) ListTenants() []api.Tenant {
+	t := make(map[string]api.Tenant)
+	blocks := c.IPAM.ListAllBlocks()
+	for _, block := range blocks {
+		if tenant, ok := t[block.Tenant]; ok {
+			segmentFound := false
+			for _, segment := range tenant.Segments {
+				if segment.ID == block.Segment {
+					segmentFound = true
+					segment.Blocks = append(segment.Blocks, api.IPNet{IPNet: block.CIDR.IPNet})
+					break
+				}
+			}
+			if !segmentFound {
+				segmentBlock := api.IPNet{IPNet: block.CIDR.IPNet}
+				segmentBlocks := []api.IPNet{segmentBlock}
+				segment := api.Segment{
+					ID:     block.Segment,
+					Blocks: segmentBlocks,
+				}
+				tenant.Segments = append(tenant.Segments, segment)
+			}
+		} else {
+			// We don't know about this tenant yet...
+			segmentBlock := api.IPNet{IPNet: block.CIDR.IPNet}
+			segmentBlocks := []api.IPNet{segmentBlock}
+			segment := api.Segment{
+				ID:     block.Segment,
+				Blocks: segmentBlocks,
+			}
+			t[block.Tenant] = api.Tenant{
+				ID:       block.Tenant,
+				Segments: []api.Segment{segment},
+			}
+
+		}
+	}
+	tenants := make([]api.Tenant, len(t))
+	i := 0
+	for _, tenant := range t {
+		tenants[i] = tenant
+		i++
+	}
+	return tenants
+}
+
+// AddPolicy adds a policy (or modifies it if policy with such ID already
+// exists)
+func (c *Client) AddPolicy(policy api.Policy) error {
+	return c.Store.PutObject(PoliciesPrefix+policy.ID, policy)
+}
+
+// DeletePolicy attempts to delete policy. If the policy does
+// not exist, false is returned, instead of an error.
+func (c *Client) DeletePolicy(id string) (bool, error) {
+	return c.Store.Delete(PoliciesPrefix + id)
+}
 
 func (c *Client) initIPAM() error {
 	c.ipamLocker, err = c.Store.NewLocker(c.Store.prefix + "/ipam/lock")
