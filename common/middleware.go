@@ -323,7 +323,6 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 
 		outData, err := restHandler(inData, restContext)
 		if err == nil {
-
 			var wireData []byte
 			switch outData := outData.(type) {
 			case Raw:

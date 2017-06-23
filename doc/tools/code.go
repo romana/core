@@ -98,7 +98,7 @@ func (a *Analyzer) Analyze() error {
 	if err != nil {
 		return err
 	}
-	err = f.Close()
+	f.Close()
 	if !info.IsDir() {
 		return errors.New(fmt.Sprintf("Expected %s to be a directory", a.srcDir))
 	}

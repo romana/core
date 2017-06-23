@@ -181,7 +181,7 @@ func (s *mockSvc) Routes() common.Routes {
 			]
 			}
 			`
-			retval := fmt.Sprintf(strings.Replace(json, "SERVICE_URL", s.mySuite.serviceURL, -1))
+			retval := strings.Replace(json, "SERVICE_URL", s.mySuite.serviceURL, -1)
 			//			log.Printf("Using %s->SERVICE_URL, replaced\n\t%swith\n\t%s", s.mySuite.serviceURL, json, retval)
 			return common.Raw{Body: retval}, nil
 		},

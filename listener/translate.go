@@ -204,7 +204,6 @@ func (tg *TranslateGroup) makeNextIngressPeer(translator *Translator) error {
 	ingress := tg.kubePolicy.Spec.Ingress[tg.ingressIndex]
 
 	for _, fromEntry := range ingress.From {
-
 		// Exactly one of From.PodSelector or From.NamespaceSelector must be specified.
 		if fromEntry.PodSelector == nil && fromEntry.NamespaceSelector == nil {
 			log.Errorf("Either PodSElector or NamespacesSelector must be specified")

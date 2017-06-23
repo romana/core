@@ -604,6 +604,9 @@ func TestTenants(t *testing.T) {
 	if err == nil {
 		t.Fatalf("Expected an error")
 	}
+	if ip != nil {
+		t.Fatalf("Expected a nil ip, got %v", ip)
+	}
 	t.Logf("Got %s", err)
 }
 
