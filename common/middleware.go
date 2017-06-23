@@ -537,8 +537,8 @@ func (f formMarshaller) Unmarshal(data []byte, v interface{}) error {
 	for i := range kvPairs {
 		kv := strings.Split(kvPairs[i], "=")
 		// Of course we have to do checking etc...
-		key := string(kv[0])
-		val := string(kv[1])
+		key := kv[0]
+		val := kv[1]
 		val2, err := url.QueryUnescape(val)
 		if err != nil {
 			return err

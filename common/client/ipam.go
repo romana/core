@@ -112,7 +112,7 @@ func (c CIDR) DebugString() string {
 	if c.IPNet == nil {
 		return ""
 	}
-	return c.IPNet.String() + " (" + (c.StartIP.String()) + "-" + string(c.EndIP.String()) + ")"
+	return c.IPNet.String() + " (" + (c.StartIP.String()) + "-" + c.EndIP.String() + ")"
 }
 
 func (c CIDR) String() string {

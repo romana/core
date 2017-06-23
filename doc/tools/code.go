@@ -127,7 +127,7 @@ func (a *Analyzer) Analyze() error {
 		}
 	}
 
-	ssaProg := ssautil.CreateProgram(lprog, ssa.BuilderMode(ssa.GlobalDebug))
+	ssaProg := ssautil.CreateProgram(lprog, ssa.GlobalDebug)
 	ssaProg.Build()
 
 	for _, p := range a.docPackages {
