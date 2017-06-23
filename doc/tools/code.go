@@ -59,8 +59,8 @@ type Analyzer struct {
 	// All the import paths that we have gone through.
 	importPaths []string
 
-	docPackages   []doc.Package
-	astFiles      []*ast.File
+	docPackages []doc.Package
+	astFiles    []*ast.File
 
 	conf          *loader.Config
 	objects       []types.Object

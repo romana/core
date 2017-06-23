@@ -51,9 +51,9 @@ type mockSvc struct {
 	// Map of tenant ID to external ID
 	tenants map[uint64]string
 	// Map of External ID to tenant ID
-	tenantsStr     map[string]uint64
-	segments       map[uint64]string
-	segmentsStr    map[string]uint64
+	tenantsStr  map[string]uint64
+	segments    map[uint64]string
+	segmentsStr map[string]uint64
 }
 
 func (s *mockSvc) CreateSchema(o bool) error {
