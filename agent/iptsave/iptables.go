@@ -163,16 +163,6 @@ func (ic IPchain) String() string {
 	return fmt.Sprintf("%s\n%s", ic.RenderHeader(), ic.RenderFooter())
 }
 
-// lastRule returns pointer to the last IPrule in IPchain.
-func (i *IPchain) lastRule() *IPrule {
-	if len(i.Rules) == 0 {
-		return nil
-	}
-
-	r := i.Rules[len(i.Rules)-1]
-	return r
-}
-
 // InsertRule inserts new rule into the chain at given index.
 // If index is larger then size of rules slice, this method will append the rule.
 func (ic *IPchain) InsertRule(index int, rule *IPrule) {
@@ -527,16 +517,6 @@ func MergeChains(dstChain, srcChain *IPchain) []*IPrule {
 	}
 
 	return uniqSrc
-}
-
-// removeRuleFromList removes IPrule from the list of IPrules
-// by its id, returns new list.
-func removeRuleFromList(index int, dst []*IPrule) []*IPrule {
-	copy(dst[index:], dst[index+1:])
-	dst[len(dst)-1] = nil
-	dst = dst[:len(dst)-1]
-
-	return dst
 }
 
 // DiffRules compares 2 lists of iptables rules and returns 3 new lists,

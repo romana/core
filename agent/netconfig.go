@@ -23,13 +23,6 @@ import (
 	"net"
 )
 
-const (
-	// Name of the option (see Options field in
-	// NetIf below) that specifies Kubernetes
-	// namespace isolation value (on/off).
-	namespaceIsolationOption = "namespace_isolation"
-)
-
 // NetworkRequest specifies messages sent to the
 // agent containing information on how to configure network
 // on its host.

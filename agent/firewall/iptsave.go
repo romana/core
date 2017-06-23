@@ -43,7 +43,6 @@ type IPTsaveFirewall struct {
 	CurrentState *iptsave.IPtables
 	DesiredState *iptsave.IPtables
 	Store        firewallStore
-	newRules     []IPtablesRule
 
 	os utilexec.Executable
 
@@ -300,23 +299,6 @@ func (i IPTsaveFirewall) enableNewDbRules(ruleList []*IPtablesRule) error {
 		err0 := i.Store.switchIPtablesRule(rule, setRuleActive)
 		if err0 != nil {
 			log.Errorf("In enableNewDbRules() failed to enable rule %v", rule)
-			return err0
-		}
-	}
-
-	return nil
-}
-
-// deleteDbRules is a helper method that deletes a list of firewall rules
-// from a firewall storage.
-func (i IPTsaveFirewall) deleteDbRules(ruleList []*IPtablesRule) error {
-
-	for ruleNum, _ := range ruleList {
-		rule := ruleList[ruleNum]
-		log.Tracef(trace.Inside, "In deleteDbRules() deleting rule %p", rule)
-		err0 := i.Store.deleteIPtablesRule(rule)
-		if err0 != nil {
-			log.Errorf("In deleteDbRules() failed to enable rule %v", rule)
 			return err0
 		}
 	}
