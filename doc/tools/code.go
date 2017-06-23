@@ -59,8 +59,6 @@ type Analyzer struct {
 	// All the import paths that we have gone through.
 	importPaths []string
 
-	buildPackages []build.Package
-	astPackages   []ast.Package
 	docPackages   []doc.Package
 	astFiles      []*ast.File
 
@@ -86,8 +84,6 @@ func NewAnalyzer(path string) *Analyzer {
 	}
 	return a
 }
-
-var pathVariableRegexp regexp.Regexp
 
 func (a *Analyzer) Analyze() error {
 	f, err := os.Open(a.srcDir)
@@ -250,8 +246,6 @@ func (a *Analyzer) analyzePath(path string) error {
 		}
 	}
 
-	//	a.buildPackages = append(a.buildPackages, *bpkg)
-	//	a.astPackages = append(a.astPackages, *apkg)
 	a.docPackages = append(a.docPackages, *dpkg)
 	//	log.Printf("Parsed %s:\nbuildPackage:\n\t%s\nastPackage\n\t%s\ndocPackage:\n\n%s", path, bpkg.Name, apkg.Name, dpkg.Name)
 

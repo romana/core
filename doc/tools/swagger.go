@@ -232,7 +232,6 @@ type SwaggerSecurityScheme struct {
 	In               string            `yaml:"in,omitempty"`
 	Flow             string            `yaml:"flow,omitempty"`
 	AuthorizationURL string            `yaml:"authorizationUrl,omitempty"`
-	tokenURL         string            `yaml:"tokenUrl,omitempty"`
 	Scopes           map[string]string `yaml:"scopes,omitempty"`
 }
 

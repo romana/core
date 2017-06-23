@@ -52,12 +52,6 @@ func expect(t *testing.T, a interface{}, b interface{}) {
 	}
 }
 
-func refute(t *testing.T, a interface{}, b interface{}) {
-	if a == b {
-		t.Errorf("Did not expect %v (type %v) - Got %v (type %v)", b, reflect.TypeOf(b), a, reflect.TypeOf(a))
-	}
-}
-
 func expect2(t *testing.T, msg string, a interface{}, b interface{}) {
 	if a != b {
 		t.Errorf("%s: Expected %v (type %v) - Got %v (type %v)", msg, b, reflect.TypeOf(b), a, reflect.TypeOf(a))

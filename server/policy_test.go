@@ -37,8 +37,6 @@ type MySuite struct {
 	common.RomanaTestSuite
 	serviceURL  string
 	servicePort uint64
-	kubeURL     string
-	c           *check.C
 }
 
 func (s *MySuite) TearDownSuite(c *check.C) {
@@ -50,14 +48,10 @@ var _ = check.Suite(&MySuite{})
 // mockSvc is a Romana Service used in tests.
 type mockSvc struct {
 	mySuite *MySuite
-	// To simulate tenant/segment database.
-	// tenantCounter will provide tenant IDs
-	tenantCounter uint64
 	// Map of tenant ID to external ID
 	tenants map[uint64]string
 	// Map of External ID to tenant ID
 	tenantsStr     map[string]uint64
-	segmentCounter uint64
 	segments       map[uint64]string
 	segmentsStr    map[string]uint64
 }
@@ -249,10 +243,6 @@ func (s *mockSvc) Routes() common.Routes {
 	}
 	log.Printf("mockService: Set up routes: %#v", routes)
 	return routes
-}
-
-type RomanaT struct {
-	testing.T
 }
 
 // TestIcmp tests https://paninetworks.kanbanize.com/ctrl_board/3/cards/395/details

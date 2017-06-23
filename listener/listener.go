@@ -28,14 +28,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-type networkPolicyAction int
-
-const (
-	networkPolicyActionDelete networkPolicyAction = iota
-	networkPolicyActionAdd
-	networkPolicyActionModify
-)
-
 const (
 	defaultSegmentLabelName = "tier"
 	defaultTenantLabelName  = "namespace"
@@ -51,7 +43,6 @@ const (
 type KubeListener struct {
 	Addr   string
 	client *client.Client
-
 	kubeURL                       string
 	namespaceNotificationPath     string
 	policyNotificationPathPrefix  string
