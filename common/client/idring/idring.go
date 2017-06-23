@@ -273,7 +273,6 @@ func (idRing *IDRing) mergeRanges() {
 	var changes bool
 	for {
 		changes = false
-		newRanges := []Range{}
 		for i, _ := range idRing.Ranges {
 			// Prev ranges is ranges from the start up to the
 			// current one being examined.
@@ -295,7 +294,7 @@ func (idRing *IDRing) mergeRanges() {
 					mergedRange := Range{Min: idRing.Ranges[i].Min,
 						Max: idRing.Ranges[i+1].Max,
 					}
-					newRanges = append(prevRanges, mergedRange)
+					newRanges := append(prevRanges, mergedRange)
 					newRanges = append(newRanges, follRanges...)
 					idRing.Ranges = newRanges
 					changes = true
