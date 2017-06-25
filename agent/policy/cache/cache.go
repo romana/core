@@ -49,7 +49,7 @@ type Config struct {
 
 // New creates new policy cache.
 func New(client *client.Client, config Config) Interface {
-	t := time.Tick(time.Duration(config.CacheTickSeconds) * time.Second)
+	t := time.NewTicker(time.Duration(config.CacheTickSeconds) * time.Second)
 	return &Cache{client: client, ticker: t, mu: &sync.Mutex{}}
 }
 
@@ -59,7 +59,7 @@ type Cache struct {
 	client *client.Client
 
 	// Delay between main loop runs.
-	ticker <-chan time.Time
+	ticker *time.Ticker
 
 	// Internal store for romana policies.
 	store []api.Policy
@@ -80,9 +80,10 @@ func (c *Cache) Run(stop <-chan struct{}) <-chan string {
 		for {
 			select {
 			case <-stop:
+				c.ticker.Stop()
 				close(update)
 				return
-			case <-c.ticker:
+			case <-c.ticker.C:
 
 				// Fetch all policies from romana Policy service,
 				currentState, err := c.getNewState(c.client)
