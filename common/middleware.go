@@ -21,11 +21,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"github.com/K-Phoen/negotiation"
-	"github.com/gorilla/context"
-	"github.com/gorilla/mux"
-	"github.com/pborman/uuid"
-	log "github.com/romana/rlog"
 	"io"
 	"io/ioutil"
 	"net/url"
@@ -33,6 +28,13 @@ import (
 	"os/exec"
 	"reflect"
 	"strings"
+
+	"github.com/K-Phoen/negotiation"
+	"github.com/gorilla/context"
+	"github.com/gorilla/mux"
+	"github.com/pborman/uuid"
+	"github.com/romana/core/common/log/trace"
+	log "github.com/romana/rlog"
 	//	"log"
 	"net/http"
 )
@@ -132,7 +134,7 @@ func write500(writer http.ResponseWriter, m Marshaller, err error) {
 	httpErr := NewError500(err)
 	// Should never error out - it's a struct we know.
 	outData, _ := m.Marshal(httpErr)
-	log.Infof("Made\n\t%+v\n\tfrom\n\t%+v\n\t%s", httpErr, err, string(outData))
+	log.Tracef(trace.Inside, "Made\n\t%+v\n\tfrom\n\t%+v\n\t%s", httpErr, err, string(outData))
 	writer.Write(outData)
 }
 
@@ -161,7 +163,7 @@ func write403(writer http.ResponseWriter, m Marshaller) {
 func doHook(before bool, route Route, restContext RestContext, body string) (string, error) {
 	hook := route.Hook
 	if hook == nil {
-		//		log.Infof("doHook(): No hook for %s %s", route.Method, route.Pattern)
+		//		log.Tracef(trace.Inside, "doHook(): No hook for %s %s", route.Method, route.Pattern)
 		return "", nil
 	}
 	hookInfo := fmt.Sprintf("Hook for %s %s: %s", route.Method, route.Pattern, hook.Executable)
@@ -200,19 +202,19 @@ func doHook(before bool, route Route, restContext RestContext, body string) (str
 	var err error
 	writer = nil
 	if hook.Output != "" {
-		log.Infof("doHook(): Writing output of %s to %s", hookInfo, hook.Output)
+		log.Tracef(trace.Inside, "doHook(): Writing output of %s to %s", hookInfo, hook.Output)
 		writer, err = os.Create(hook.Output)
 		if err != nil {
 			return "", err
 		}
 	} else {
-		log.Infof("doHook(): No output specified for %s", hookInfo)
+		log.Tracef(trace.Inside, "doHook(): No output specified for %s", hookInfo)
 	}
 	cmd := exec.Command(hook.Executable, clArgs...)
 	out, errProcess := cmd.CombinedOutput()
-	log.Infof("doHook(): Running hook %s with %s: %s / %v %T", hook.Executable, clArgs, string(out), errProcess, errProcess)
+	log.Tracef(trace.Inside, "doHook(): Running hook %s with %s: %s / %v %T", hook.Executable, clArgs, string(out), errProcess, errProcess)
 	outStr := string(out)
-	log.Infof("\n---------------------------------\n%s\n---------------------------------\n", outStr)
+	log.Tracef(trace.Inside, "\n---------------------------------\n%s\n---------------------------------\n", outStr)
 	if writer != nil {
 		_, err = writer.Write(out)
 		if err != nil {
@@ -233,9 +235,9 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 	// (with self-documenting names), which are called from within this function?
 	makeMessage := route.MakeMessage
 
-	//	log.Infof("Entering wrapHandler(%v,%v)", restHandler, route)
+	//	log.Tracef(trace.Inside, "Entering wrapHandler(%v,%v)", restHandler, route)
 	if route.Hook != nil {
-		log.Infof("wrapHandler(): %s %s %s", route.Method, route.Pattern, route.Hook.Executable)
+		log.Tracef(trace.Inside, "wrapHandler(): %s %s %s", route.Method, route.Pattern, route.Hook.Executable)
 	}
 	if makeMessage != nil && reflect.TypeOf(makeMessage()) == requestType {
 		// This would mean the handler actually wants access to raw request/response
@@ -252,7 +254,7 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 			respReq := UnwrappedRestHandlerInput{writer, request}
 
 			marshaller := ContentTypeMarshallers["application/json"]
-			log.Infof("doHook() will be called before %s %s", route.Method, route.Pattern)
+			log.Tracef(trace.Inside, "doHook() will be called before %s %s", route.Method, route.Pattern)
 			out, err := doHook(true, route, restContext, "")
 			if err != nil {
 				write500(writer, marshaller, err)
@@ -277,7 +279,7 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 
 			restContext.HookOutput = out
 			restHandler(respReq, restContext)
-			log.Infof("doHook() will be called after %s %s", route.Method, route.Pattern)
+			log.Tracef(trace.Inside, "doHook() will be called after %s %s", route.Method, route.Pattern)
 
 			_, err = doHook(false, route, restContext, "")
 			if err != nil {
@@ -304,7 +306,7 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 
 		if marshaller == nil {
 			// This should never happen... Just in case...
-			log.Infof("No marshaler for [%s] found in %s, %s\n", contentType, ContentTypeMarshallers, ContentTypeMarshallers["application/json"])
+			log.Tracef(trace.Inside, "No marshaler for [%s] found in %s, %s\n", contentType, ContentTypeMarshallers, ContentTypeMarshallers["application/json"])
 			writer.WriteHeader(http.StatusUnsupportedMediaType)
 			sct := SupportedContentTypesMessage
 			dataOut, _ := defaultMarshaller.Marshal(sct)
@@ -313,7 +315,7 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 		}
 
 		if inData != nil {
-			log.Infof("httpHandler %s %s: inData addr: %d\n", route.Method, route.Pattern, &inData)
+			log.Tracef(trace.Inside, "httpHandler %s %s: inData addr: %d\n", route.Method, route.Pattern, &inData)
 			ct := request.Header.Get("content-type")
 			buf, err := ioutil.ReadAll(request.Body)
 			if buf == nil || len(buf) == 0 {
@@ -321,14 +323,14 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 				inData = nil
 			} else {
 				bufStr = string(buf)
-				log.Infof("Read %s\n", bufStr)
+				log.Tracef(trace.Inside, "Read %s\n", bufStr)
 				if err != nil {
 					// Error reading...
 					write500(writer, marshaller, err)
 				}
 
 				if unmarshaller, ok := ContentTypeMarshallers[ct]; ok {
-					log.Infof("httpHandler %s %s: Attempting to unmarshal [%s] into %T", route.Method, route.Pattern, string(buf), inData)
+					log.Tracef(trace.Inside, "httpHandler %s %s: Attempting to unmarshal [%s] into %T", route.Method, route.Pattern, string(buf), inData)
 					err = unmarshaller.Unmarshal(buf, inData)
 					if err != nil {
 						// Error unmarshalling...
@@ -357,14 +359,14 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 				v := reflect.Indirect(reflect.ValueOf(inData)).FieldByName(RequestTokenQueryParameter)
 				if v.IsValid() {
 					token = v.String()
-					log.Infof("Token from payload %s (path %s)\n", token, route.Pattern)
+					log.Tracef(trace.Inside, "Token from payload %s (path %s)\n", token, route.Pattern)
 				} else {
 					tokens := request.Form[RequestTokenQueryParameter]
 					if len(tokens) != 1 {
 						token = uuid.New()
-						log.Infof("Token created %s (path %s)\n", token, route.Pattern)
+						log.Tracef(trace.Inside, "Token created %s (path %s)\n", token, route.Pattern)
 					} else {
-						log.Infof("Token from query string %s (path %s)\n", token, route.Pattern)
+						log.Tracef(trace.Inside, "Token from query string %s (path %s)\n", token, route.Pattern)
 					}
 					if len(tokens) == 0 {
 						// Token was not sent, the caller does it at his own
@@ -400,7 +402,7 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 		}
 
 		if route.Hook != nil {
-			log.Infof("doHook() will be called before %s %s: %s", route.Method, route.Pattern, route.Hook.Executable)
+			log.Tracef(trace.Inside, "doHook() will be called before %s %s: %s", route.Method, route.Pattern, route.Hook.Executable)
 		}
 		out, err := doHook(true, route, restContext, bufStr)
 		if err != nil {
@@ -411,7 +413,7 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 		outData, err := restHandler(inData, restContext)
 		if err == nil {
 			if route.Hook != nil {
-				log.Infof("doHook() will be called after %s %s: %s", route.Method, route.Pattern, route.Hook.Executable)
+				log.Tracef(trace.Inside, "doHook() will be called after %s %s: %s", route.Method, route.Pattern, route.Hook.Executable)
 			}
 			out, err = doHook(false, route, restContext, bufStr)
 			if err != nil {
@@ -425,7 +427,7 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 			default:
 				wireData, err = marshaller.Marshal(outData)
 			}
-			//				log.Infof("Out data: %s, wire data: %s, error %s\n", outData, wireData, err)
+			//				log.Tracef(trace.Inside, "Out data: %s, wire data: %s, error %s\n", outData, wireData, err)
 			if err == nil {
 				writer.WriteHeader(http.StatusOK)
 				writer.Write(wireData)
@@ -477,7 +479,7 @@ func (n notFoundHandler) ServeHTTP(writer http.ResponseWriter, request *http.Req
 	// Error in negotiation or marshaller not found.
 	if err != nil || marshaller == nil {
 		// This should never happen... Just in case...
-		log.Infof("No marshaler for [%s] found in %s, %s\n", contentType, ContentTypeMarshallers, ContentTypeMarshallers["application/json"])
+		log.Tracef(trace.Inside, "No marshaler for [%s] found in %s, %s\n", contentType, ContentTypeMarshallers, ContentTypeMarshallers["application/json"])
 		writer.WriteHeader(http.StatusUnsupportedMediaType)
 		sct := SupportedContentTypesMessage
 		dataOut, _ := defaultMarshaller.Marshal(sct)
@@ -507,7 +509,7 @@ func newRouter(routes []Route) *mux.Router {
 	for _, route := range routes {
 		handler := route.Handler
 		if route.Hook != nil {
-			log.Infof("Calling wrapHandler with %s %s %s", route.Method, route.Pattern, route.Hook.Executable)
+			log.Tracef(trace.Inside, "Calling wrapHandler with %s %s %s", route.Method, route.Pattern, route.Hook.Executable)
 		}
 		wrappedHandler := wrapHandler(handler, route)
 		router.
@@ -569,18 +571,18 @@ func (j formMarshaller) Marshal(v interface{}) ([]byte, error) {
 			retval += "&"
 		}
 		retval += formKey + "="
-		log.Infof("form key of %s is %s\n", metaField.Name, formKey)
+		log.Tracef(trace.Inside, "form key of %s is %s\n", metaField.Name, formKey)
 		str := ""
 		if metaField.Type == stringType {
 			str = field.Interface().(string)
 		} else {
 			toString := field.MethodByName("String")
-			log.Infof("Looking for method String on %s: %s\n", field, toString)
+			log.Tracef(trace.Inside, "Looking for method String on %s: %s\n", field, toString)
 			if reflect.Zero(reflect.TypeOf(toString)) != toString {
 				toStringResult := toString.Call(nil)
 				str = toStringResult[0].String()
 			} else {
-				log.Infof("Ignoring field %s of %s\n", metaField.Name, v)
+				log.Tracef(trace.Inside, "Ignoring field %s of %s\n", metaField.Name, v)
 				continue
 			}
 		}
@@ -615,7 +617,7 @@ func (j formMarshaller) Marshal(v interface{}) ([]byte, error) {
 //	return nil
 //}
 func (f formMarshaller) Unmarshal(data []byte, v interface{}) error {
-	log.Infof("Entering formMarshaller.Unmarshal()\n")
+	log.Tracef(trace.Inside, "Entering formMarshaller.Unmarshal()\n")
 	var err error
 	dataStr := string(data)
 	// We'll keep it simple - make a map and use mapstructure
@@ -642,7 +644,7 @@ func (f formMarshaller) Unmarshal(data []byte, v interface{}) error {
 		}
 		m[key] = val2
 	}
-	log.Infof("Unmarshaled form %s to map %s\n", dataStr, m)
+	log.Tracef(trace.Inside, "Unmarshaled form %s to map %s\n", dataStr, m)
 
 	if vType.Kind() == reflect.Map {
 		// At this point we already have filled in the map,
@@ -655,13 +657,13 @@ func (f formMarshaller) Unmarshal(data []byte, v interface{}) error {
 		field := vVal.Field(i)
 		formKey := metaField.Tag.Get("form")
 		formValue := m[formKey]
-		log.Infof("Value of %s is %s\n", metaField.Name, formValue)
+		log.Tracef(trace.Inside, "Value of %s is %s\n", metaField.Name, formValue)
 		if metaField.Type == stringType {
 			field.SetString(formValue.(string))
 		} else {
 			setterMethodName := fmt.Sprintf("Set%s", metaField.Name)
 			setterMethod := vPtr.MethodByName(setterMethodName)
-			log.Infof("Looking for method %s on %s: %s\n", setterMethodName, vPtr, setterMethod)
+			log.Tracef(trace.Inside, "Looking for method %s on %s: %s\n", setterMethodName, vPtr, setterMethod)
 			if reflect.Zero(reflect.TypeOf(setterMethod)) != setterMethod {
 				valueArg := reflect.ValueOf(formValue)
 				valueArgs := []reflect.Value{valueArg}
@@ -726,7 +728,7 @@ func (m UnmarshallerMiddleware) ServeHTTP(w http.ResponseWriter, r *http.Request
 		next(w, r)
 		return
 	}
-	log.Infof("Marshaler %s for %s\n", ContentTypeMarshallers[ct], ct)
+	log.Tracef(trace.Inside, "Marshaler %s for %s\n", ContentTypeMarshallers[ct], ct)
 	if marshaller, ok := ContentTypeMarshallers[ct]; ok {
 		// Solution due to
 		// http://stackoverflow.com/questions/23070876/reading-body-of-http-request-without-modifying-request-state
