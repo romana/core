@@ -52,6 +52,15 @@ func (a Agent) createRomanaGW() error {
 	//		Flags:  net.FlagUp,
 	//	},
 	//}
+	rgwold := &netlink.Dummy{LinkAttrs: netlink.LinkAttrs{Name: "romana-gw", TxQLen: 1000}}
+	if err := netlink.LinkDel(rgwold); err != nil {
+		// The romana-gw link may or may not exists, so just log the info
+		// and continue as is without returning.
+		log.Debug("Removing romana-gw link on the node failed: %s", err)
+	} else {
+		log.Debug("Removing romana-gw link on the node succeeded.")
+	}
+
 	rgw := &netlink.Dummy{LinkAttrs: netlink.LinkAttrs{Name: "romana-gw", TxQLen: 1000}}
 	if err := netlink.LinkAdd(rgw); err != nil {
 		if err == syscall.EEXIST {
