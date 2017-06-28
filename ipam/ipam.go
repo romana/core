@@ -18,10 +18,12 @@ package ipam
 import (
 	"database/sql"
 	"fmt"
-	"github.com/romana/core/common"
-	"github.com/romana/core/common/store"
-	"log"
 	"net"
+
+	"github.com/romana/core/common"
+	"github.com/romana/core/common/log/trace"
+	"github.com/romana/core/common/store"
+	log "github.com/romana/rlog"
 )
 
 // IPAM provides ipam service.
@@ -154,18 +156,18 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 // allocate an IP address.
 func (ipam *IPAM) addEndpoint(input interface{}, ctx common.RestContext) (interface{}, error) {
 	endpoint := input.(*common.IPAMEndpoint)
-	log.Printf("IPAM: Request to add IPAMEndpoint %s, token %s", endpoint.Name, endpoint.RequestToken.String)
+	log.Debugf("IPAM: Attempting to allocate IP for %s", endpoint.Name)
 	// Get host info from topology service
 	topoUrl, err := ipam.client.GetServiceUrl("topology")
 	if err != nil {
-		log.Printf("IPAM: Encountered an error getting a topology service URL %v", err)
+		log.Errorf("IPAM: Encountered an error getting a topology service URL %v", err)
 		return nil, err
 	}
 
 	index := common.IndexResponse{}
 	err = ipam.client.Get(topoUrl, &index)
 	if err != nil {
-		log.Printf("IPAM: Encountered an error querying topology: %v", err)
+		log.Errorf("IPAM: Encountered an error querying topology: %v", err)
 		return nil, err
 	}
 
@@ -176,13 +178,13 @@ func (ipam *IPAM) addEndpoint(input interface{}, ctx common.RestContext) (interf
 	err = ipam.client.Get(hostInfoURL, &host)
 
 	if err != nil {
-		log.Printf("IPAM: Encountered an error querying topology for hosts: %v", err)
+		log.Errorf("IPAM: Encountered an error querying topology for hosts: %v", err)
 		return nil, err
 	}
 
 	tenantUrl, err := ipam.client.GetServiceUrl("tenant")
 	if err != nil {
-		log.Printf("IPAM: Encountered an error getting tenant srevice URL: %v", err)
+		log.Errorf("IPAM: Encountered an error getting tenant srevice URL: %v", err)
 		return nil, err
 	}
 
@@ -190,50 +192,55 @@ func (ipam *IPAM) addEndpoint(input interface{}, ctx common.RestContext) (interf
 
 	t := &common.Tenant{}
 	tenantsUrl := fmt.Sprintf("%s/tenants/%s", tenantUrl, endpoint.TenantID)
-	log.Printf("IPAM: Calling %s\n", tenantsUrl)
 	err = ipam.client.Get(tenantsUrl, t)
 	if err != nil {
-		log.Printf("IPAM: Encountered an error querying tenant service for tenant %s: %v", endpoint.TenantID, err)
+		log.Errorf("IPAM: Encountered an error querying tenant service for tenant %s: %v", endpoint.TenantID, err)
 		return nil, err
 	}
-	log.Printf("IPAM: Received tenant %s ID %d, network ID %d\n", t.Name, t.ID, t.NetworkID)
 
 	segmentUrl := fmt.Sprintf("/tenants/%s/segments/%s", endpoint.TenantID, endpoint.SegmentID)
-	log.Printf("IPAM: calling %s\n", segmentUrl)
 	segment := &common.Segment{}
 	err = ipam.client.Get(segmentUrl, segment)
 	if err != nil {
-		log.Printf("IPAM: Encountered an error querying tenant service for tenant %s and segment %s: %v", endpoint.TenantID, endpoint.SegmentID, err)
+		log.Errorf("IPAM: Encountered an error querying tenant service for tenant %s and segment %s: %v", endpoint.TenantID, endpoint.SegmentID, err)
 		return nil, err
 	}
 
-	log.Printf("IPAM: Constructing IP from Host IP %s, Tenant %d, Segment %d", host.RomanaIp, t.NetworkID, segment.NetworkID)
+	log.Debugf("IPAM: Constructing IP from Host IP %s, Tenant %d (%s %d), Segment %d (%s %d)", host.RomanaIp, t.NetworkID, t.Name, t.ID, segment.NetworkID, segment.Name, segment.ID)
 
 	segmentBitShift := 32 - ipam.dc.PrefixBits - ipam.dc.PortBits - ipam.dc.TenantBits - ipam.dc.SegmentBits
 	//	prefixBitShift := 32 - ipam.dc.PrefixBits
 	tenantBitShift := segmentBitShift + ipam.dc.SegmentBits
-	log.Printf("Parsing Romana IP address of host %s: %s\n", host.Name, host.RomanaIp)
 	_, network, err := net.ParseCIDR(host.RomanaIp)
 	if err != nil {
-		log.Printf("IPAM: Encountered an error parsing %s: %v", host.RomanaIp, err)
+		log.Errorf("IPAM: Encountered an error parsing %s: %v", host.RomanaIp, err)
 		return nil, err
 	}
 	hostIpInt := common.IPv4ToInt(network.IP)
 	upToEndpointIpInt := hostIpInt | (t.NetworkID << tenantBitShift) | (segment.NetworkID << segmentBitShift)
-	log.Printf("IPAM: Before calling addIPAMEndpoint:  %v | (%v << %v) | (%v << %v): %v ", network.IP.String(), t.NetworkID, tenantBitShift, segment.NetworkID, segmentBitShift, common.IntToIPv4(upToEndpointIpInt))
+
+	log.Tracef(trace.Inside, "IPAM: Before calling addIPAMEndpoint:  %v | (%v << %v) | (%v << %v): %v ", network.IP.String(), t.NetworkID, tenantBitShift, segment.NetworkID, segmentBitShift, common.IntToIPv4(upToEndpointIpInt))
 	err = ipam.store.addEndpoint(endpoint, upToEndpointIpInt, ipam.dc)
 	if err != nil {
-		log.Printf("IPAM: Encountered an error adding IPAMEndpoint to db: %v", err)
+		log.Errorf("IPAM: Encountered an error allocating IP: %s", err)
 		return nil, err
 	}
+	log.Infof("IPAM: Allocated %s for %s", endpoint.Ip, endpoint.Name)
 	return endpoint, nil
-
 }
 
-// deleteIPAMEndpoint releases the IP(s) owned by the IPAMEndpoint into assignable
+// deleteEndpoint releases the IP(s) owned by the IPAMEndpoint into assignable
 // pool.
 func (ipam *IPAM) deleteEndpoint(input interface{}, ctx common.RestContext) (interface{}, error) {
-	return ipam.store.deleteEndpoint(ctx.PathVariables["ip"])
+	ip := ctx.PathVariables["ip"]
+	log.Printf("IPAM: Attempting to deallocate %s", ip)
+	ep, err := ipam.store.deleteEndpoint(ip)
+	if err == nil {
+		log.Infof("IPAM: Deallocated %s (%s)", ip, ep.Name)
+	} else {
+		log.Errorf("IPAM: Error deallocating %s: %s", ip, err)
+	}
+	return ep, err
 }
 
 // listEndpoints returns all registered endpoints

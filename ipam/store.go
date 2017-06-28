@@ -19,10 +19,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"log"
 	"strings"
 
+	log "github.com/romana/rlog"
+
 	"github.com/romana/core/common"
+	"github.com/romana/core/common/log/trace"
 	"github.com/romana/core/common/store"
 )
 
@@ -47,8 +49,8 @@ func (ipamStore *ipamStore) deleteEndpoint(ip string) (common.IPAMEndpoint, erro
 		log.Printf(errMsg)
 		return common.IPAMEndpoint{}, common.NewError500(errors.New(errMsg))
 	}
-	tx = tx.Model(common.IPAMEndpoint{}).Where("ip = ?", ip).Update("in_use", false)
-	err := common.MakeMultiError(tx.GetErrors())
+	tx = tx.Model(common.IPAMEndpoint{}).Where("ip = ? AND in_use = ?", ip, true).Update("in_use", false, "name", "")
+	err := common.GetDbErrors(tx)
 	if err != nil {
 		tx.Rollback()
 		return common.IPAMEndpoint{}, err
@@ -70,14 +72,13 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *common.IPAMEndpoint, upToEndpo
 		tx.Where("request_token = ?", endpoint.RequestToken.String).Find(&existingEndpoints).Count(&count)
 		err = common.GetDbErrors(tx)
 		if err != nil {
-			log.Printf("IPAM Errors 1: %v", err)
 			tx.Rollback()
 			return err
 		}
 		if count > 0 {
 			// This will only be 1, because of unique constraint.
 			tx.Rollback()
-			log.Printf("Found existing %s: %+v", endpoint.RequestToken.String, existingEndpoints[0])
+			log.Errorf("IPAM: Found existing %s: %+v", endpoint.RequestToken.String, existingEndpoints[0])
 			endpoint.EffectiveNetworkID = existingEndpoints[0].EffectiveNetworkID
 			endpoint.HostId = existingEndpoints[0].HostId
 			endpoint.Id = existingEndpoints[0].Id
@@ -101,11 +102,10 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *common.IPAMEndpoint, upToEndpo
 	var sel string
 	// First, find the MAX network ID available for this host/segment combination.
 	sel = "IFNULL(MAX(network_id),-1)+1"
-	log.Printf("IpamStore: Calling SELECT %s FROM endpoints WHERE %s;", sel, fmt.Sprintf(strings.Replace(filter, "?", "%s", 3), hostId, tenantId, segId))
+	log.Tracef(trace.Inside, "IPAM: Calling SELECT %s FROM endpoints WHERE %s;", sel, fmt.Sprintf(strings.Replace(filter, "?", "%s", 3), hostId, tenantId, segId))
 	row := tx.Model(common.IPAMEndpoint{}).Where(filter, hostId, tenantId, segId).Select(sel).Row()
 	err = common.GetDbErrors(tx)
 	if err != nil {
-		log.Printf("IPAM Errors 2: %v", err)
 		tx.Rollback()
 		return err
 	}
@@ -114,12 +114,9 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *common.IPAMEndpoint, upToEndpo
 	row.Scan(&netID)
 	err = common.GetDbErrors(tx)
 	if err != nil {
-		log.Printf("IPAM Errors 3: %v", err)
 		tx.Rollback()
 		return err
 	}
-
-	log.Printf("IpamStore: max net ID: %v", netID)
 
 	maxEffNetID := uint64(1<<(dc.EndpointSpaceBits+dc.EndpointBits) - 1)
 
@@ -135,28 +132,25 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *common.IPAMEndpoint, upToEndpo
 		tx = tx.Create(endpoint)
 		err = common.GetDbErrors(tx)
 		if err != nil {
-			log.Printf("IPAM Errors 4: %v", err)
 			tx.Rollback()
 			return err
 		}
-		log.Printf("IpamStore: Allocated %d: %s", endpoint.NetworkID, endpoint.Ip)
 		tx.Commit()
 		return nil
 	}
 
 	// Out of bits, see if we can reuse an earlier allocated address...
-	log.Printf("IpamStore: New effective network ID is %d, exceeds maximum %d\n", endpoint.EffectiveNetworkID, maxEffNetID)
+	log.Printf("IPAM: New effective network ID is %d, exceeds maximum %d, will attempt to reuse...\n", endpoint.EffectiveNetworkID, maxEffNetID)
 	// See if there is a formerly allocated IP already that has been released
 	// (marked "in_use")
 	sel = "MIN(network_id), ip"
-	log.Printf("IpamStore: Calling SELECT %s FROM endpoints WHERE %s;", sel, fmt.Sprintf(strings.Replace(filter+"AND in_use = 0", "?", "%s", 3), hostId, tenantId, segId))
+	log.Tracef(trace.Inside, "IPAM: Calling SELECT %s FROM endpoints WHERE %s;", sel, fmt.Sprintf(strings.Replace(filter+"AND in_use = 0", "?", "%s", 3), hostId, tenantId, segId))
 	// In containerized setup, not using group by leads to failure due to
 	// incompatible sql mode, thus use "GROUP BY network_id, ip" to avoid
 	// this failure.
 	row = tx.Model(common.IPAMEndpoint{}).Where(filter+"AND in_use = 0", hostId, tenantId, segId).Select(sel).Group("ip").Order("MIN(network_id) ASC").Row()
 	err = common.GetDbErrors(tx)
 	if err != nil {
-		log.Printf("IPAM Errors 5: %v", err)
 		tx.Rollback()
 		return err
 	}
@@ -165,22 +159,20 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *common.IPAMEndpoint, upToEndpo
 	row.Scan(&netID, &ip)
 	err = common.GetDbErrors(tx)
 	if err != nil {
-		log.Printf("IPAM Errors 6: %v", err)
 		tx.Rollback()
 		return err
 	}
 	if netID.Valid {
-		log.Printf("IpamStore: Reusing %d: %s", netID.Int64, ip)
+		log.Debugf("IPAM: Reusing %s", ip)
 		endpoint.Ip = ip
 
 		// Warning! this code will reuse tenant/segment/host values
 		// for the new endpoint. It just happens to be valid now, but
 		// can be dangerous. Should probably update all the fields?
-		tx = tx.Model(common.IPAMEndpoint{}).Where("ip = ?", ip).
+		tx = tx.Model(common.IPAMEndpoint{}).Where("ip = ? AND in_use = ?", ip, false).
 			Update(common.IPAMEndpoint{Name: endpoint.Name, InUse: true})
 		err = common.GetDbErrors(tx)
 		if err != nil {
-			log.Printf("IPAM Errors 7: %v", err)
 			tx.Rollback()
 			return err
 		}
@@ -189,7 +181,6 @@ func (ipamStore *ipamStore) addEndpoint(endpoint *common.IPAMEndpoint, upToEndpo
 	}
 	tx.Rollback()
 	return common.NewError("Out of IP addresses.")
-
 }
 
 // listEndpoint lists all registered endpoints.

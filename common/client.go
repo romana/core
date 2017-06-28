@@ -23,7 +23,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/dgrijalva/jwt-go"
 	"io/ioutil"
 	"math"
 	"net/http"
@@ -33,6 +32,8 @@ import (
 	"sync"
 	"time"
 
+	jwt "github.com/dgrijalva/jwt-go"
+	"github.com/romana/core/common/log/trace"
 	log "github.com/romana/rlog"
 
 	"github.com/pborman/uuid"
@@ -155,13 +156,13 @@ func (rc *RestClient) log(arg interface{}) {
 	rc.logf("%+v", arg)
 }
 
-// logf is same as log.Debugf but adds a prefix to the line
+// logf is same as log.Tracef but adds a prefix to the line
 // with the ID of this RestClient instance and the number
 // of the call.
 func (rc *RestClient) logf(s string, args ...interface{}) {
 	// TODO of course using GetCaller() here is
 	s1 := fmt.Sprintf("RestClient.%p.%d: %s: %s\n", rc, rc.callNum, GetCaller2(2), s)
-	log.Debugf(s1, args...)
+	log.Tracef(trace.Inside, s1, args...)
 }
 
 // NewUrl sets the client's new URL (yes, it mutates) to dest.
