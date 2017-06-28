@@ -163,7 +163,6 @@ func write403(writer http.ResponseWriter, m Marshaller) {
 func doHook(before bool, route Route, restContext RestContext, body string) (string, error) {
 	hook := route.Hook
 	if hook == nil {
-		//		log.Tracef(trace.Inside, "doHook(): No hook for %s %s", route.Method, route.Pattern)
 		return "", nil
 	}
 	hookInfo := fmt.Sprintf("Hook for %s %s: %s", route.Method, route.Pattern, hook.Executable)
@@ -235,7 +234,6 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 	// (with self-documenting names), which are called from within this function?
 	makeMessage := route.MakeMessage
 
-	//	log.Tracef(trace.Inside, "Entering wrapHandler(%v,%v)", restHandler, route)
 	if route.Hook != nil {
 		log.Tracef(trace.Inside, "wrapHandler(): %s %s %s", route.Method, route.Pattern, route.Hook.Executable)
 	}
@@ -427,7 +425,6 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 			default:
 				wireData, err = marshaller.Marshal(outData)
 			}
-			//				log.Tracef(trace.Inside, "Out data: %s, wire data: %s, error %s\n", outData, wireData, err)
 			if err == nil {
 				writer.WriteHeader(http.StatusOK)
 				writer.Write(wireData)
