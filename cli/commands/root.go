@@ -16,6 +16,8 @@
 package commands
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -24,8 +26,8 @@ import (
 	"strings"
 
 	"github.com/romana/core/common"
-	log "github.com/romana/rlog"
 
+	log "github.com/romana/rlog"
 	cli "github.com/spf13/cobra"
 	config "github.com/spf13/viper"
 )
@@ -42,13 +44,14 @@ var (
 	credential *common.Credential
 )
 
-// getRestClient gets the rest client instance with the
-// configured root URL and the credential object that was
-// built at initalization.
-func getRestClient() (*common.RestClient, error) {
-	rootURL := config.GetString("RootURL")
-	cfg := common.GetDefaultRestClientConfig(rootURL, credential)
-	return common.NewRestClient(cfg)
+type Error struct {
+	Code    int32
+	Message string
+	Fields  string
+}
+
+func (e Error) Error() string {
+	return fmt.Sprintf("%d: %v: %v", e.Code, e.Message, e.Fields)
 }
 
 // RootCmd represents the base command when called without any subcommands
@@ -221,4 +224,19 @@ func setLogOutput() {
 			log.SetOutput(ioutil.Discard)
 		}
 	}
+}
+
+// JSONFormat indents input json b and writes it to
+// output writer w.
+func JSONFormat(b []byte, w io.Writer) {
+	var out bytes.Buffer
+	if err := json.Indent(&out, b, "", "\t"); err != nil {
+		// reset out since it may have partial output from above.
+		out.Reset()
+		// indentation failed, so write the original string as is.
+		out.Write(b)
+		out.WriteTo(w)
+		return
+	}
+	out.WriteTo(w)
 }
