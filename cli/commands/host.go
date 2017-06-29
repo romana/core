@@ -19,14 +19,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"strconv"
 	"text/tabwriter"
 
-	"github.com/romana/core/cli/util"
-	"github.com/romana/core/common"
+	"github.com/romana/core/common/api"
 
+	"github.com/go-resty/resty"
 	cli "github.com/spf13/cobra"
 	config "github.com/spf13/viper"
+	"net/http"
 )
 
 // hostCmd represents the host commands
@@ -81,174 +81,48 @@ var hostRemoveCmd = &cli.Command{
 }
 
 func hostAdd(cmd *cli.Command, args []string) error {
-	if len(args) < 2 || len(args) > 4 {
-		return util.UsageError(cmd,
-			fmt.Sprintf("expected 2, 3 or 4 arguments, saw %d: %s", len(args), args))
-	}
-
-	hostname := args[0]
-	hostip := args[1]
-	var romanacidr string
-	if len(args) >= 3 {
-		romanacidr = args[2]
-	}
-	var agentport uint64
-	if len(args) == 4 {
-		var err error
-		agentPortInt, err := strconv.Atoi(args[3])
-		if err != nil {
-			return util.UsageError(cmd,
-				fmt.Sprintf("Agent Port number error, saw %s", args[3]))
-		}
-		agentport = uint64(agentPortInt)
-	}
-
-	client, err := getRestClient()
-	if err != nil {
-		return err
-	}
-
-	topologyURL, err := client.GetServiceUrl("topology")
-	if err != nil {
-		return err
-	}
-
-	index := common.IndexResponse{}
-	err = client.Get(topologyURL, &index)
-	if err != nil {
-		return err
-	}
-
-	host := common.Host{
-		Name:      hostname,
-		Ip:        hostip,
-		RomanaIp:  romanacidr,
-		AgentPort: agentport,
-	}
-	fmt.Printf("Host (%v) added successfully.\n", host)
-
-	data := common.Host{}
-	err = client.Post(topologyURL+"/hosts", host, &data)
-	if err != nil {
-		fmt.Printf("Error adding host (%s).\n", hostname)
-		return err
-	}
-
-	fmt.Printf("Host (%s) added successfully.\n", hostname)
+	fmt.Println("Unimplemented: Add host/s.")
 	return nil
 }
 
 func hostShow(cmd *cli.Command, args []string) error {
-	if len(args) < 1 {
-		return util.UsageError(cmd,
-			fmt.Sprintf("expected at-least 1 argument, saw none"))
-	}
-
-	client, err := getRestClient()
-	if err != nil {
-		return err
-	}
-
-	topologyURL, err := client.GetServiceUrl("topology")
-	if err != nil {
-		return err
-	}
-
-	index := common.IndexResponse{}
-	err = client.Get(topologyURL, &index)
-	if err != nil {
-		return err
-	}
-
-	hostURL := index.Links.FindByRel("host-list")
-	data := []common.Host{}
-	hosts := []common.Host{}
-	err = client.Get(hostURL, &data)
-	if err != nil {
-		return err
-	}
-
-	for _, h := range data {
-		for _, n := range args {
-			if h.Name == n {
-				hosts = append(hosts, h)
-			}
-		}
-	}
-
-	if config.GetString("Format") == "json" {
-		body, err := json.MarshalIndent(hosts, "", "\t")
-		if err != nil {
-			return err
-		}
-		fmt.Println(string(body))
-	} else {
-		w := new(tabwriter.Writer)
-		w.Init(os.Stdout, 0, 8, 0, '\t', 0)
-		fmt.Println("Host List")
-		fmt.Fprintln(w, "Id\t",
-			"Host Name\t",
-			"Host IP\t",
-			"Romana CIDR\t",
-			"Agent Port\t")
-		for _, host := range hosts {
-			fmt.Fprintln(w, host.ID, "\t",
-				host.Name, "\t",
-				host.Ip, "\t",
-				host.RomanaIp, "\t",
-				host.AgentPort, "\t")
-		}
-		w.Flush()
-	}
-
+	fmt.Println("Unimplemented: Show host details.")
 	return nil
 }
 
 func hostList(cmd *cli.Command, args []string) error {
-	client, err := getRestClient()
-	if err != nil {
-		return err
-	}
-
-	topologyURL, err := client.GetServiceUrl("topology")
-	if err != nil {
-		return err
-	}
-
-	index := common.IndexResponse{}
-	err = client.Get(topologyURL, &index)
-	if err != nil {
-		return err
-	}
-
-	hostURL := index.Links.FindByRel("host-list")
-	hosts := []common.Host{}
-	err = client.Get(hostURL, &hosts)
+	rootURL := config.GetString("RootURL")
+	resp, err := resty.R().Get(rootURL + "/hosts")
 	if err != nil {
 		return err
 	}
 
 	if config.GetString("Format") == "json" {
-		body, err := json.MarshalIndent(hosts, "", "\t")
-		if err != nil {
-			return err
-		}
-		fmt.Println(string(body))
+		JSONFormat(resp.Body(), os.Stdout)
 	} else {
 		w := new(tabwriter.Writer)
 		w.Init(os.Stdout, 0, 8, 0, '\t', 0)
-		fmt.Println("Host List")
-		fmt.Fprintln(w, "Id\t",
-			"Host Name\t",
-			"Host IP\t",
-			"Romana CIDR\t",
-			"Agent Port\t")
-		for _, host := range hosts {
-			fmt.Fprintln(w, host.ID, "\t",
-				host.Name, "\t",
-				host.Ip, "\t",
-				host.RomanaIp, "\t",
-				host.AgentPort, "\t")
+
+		if resp.StatusCode() == http.StatusOK {
+			hosts := []api.Host{}
+			fmt.Println("Host List")
+			fmt.Fprintln(w,
+				"Host IP\t",
+				"Agent Port\t",
+				"Romana CIDR\t")
+			for _, host := range hosts {
+				fmt.Fprintln(w, host.IP, "\t",
+					host.AgentPort, "\t",
+					host.RomanaIp, "\t")
+			}
+		} else {
+			var e Error
+			json.Unmarshal(resp.Body(), &e)
+
+			fmt.Println("Host Error")
+			fmt.Fprintln(w, "Fields\t", e.Fields)
+			fmt.Fprintln(w, "Message\t", e.Message)
+			fmt.Fprintln(w, "Status\t", resp.StatusCode())
 		}
 		w.Flush()
 	}
