@@ -82,6 +82,7 @@ func init() {
 	cli.OnInitialize(initConfig)
 	RootCmd.AddCommand(hostCmd)
 	RootCmd.AddCommand(policyCmd)
+	RootCmd.AddCommand(networkCmd)
 
 	RootCmd.Flags().BoolVarP(&version, "version", "",
 		false, "Build and Versioning Information.")
@@ -135,7 +136,7 @@ func preConfig(cmd *cli.Command, args []string) {
 		baseURL = "http://localhost"
 	}
 	config.Set("BaseURL", baseURL)
-	rootURL = baseURL + ":" + rootPort + "/"
+	rootURL = baseURL + ":" + rootPort
 	config.Set("RootURL", rootURL)
 
 	// Give command line options higher priority then
