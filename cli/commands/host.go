@@ -18,6 +18,7 @@ package commands
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"text/tabwriter"
 
@@ -26,7 +27,6 @@ import (
 	"github.com/go-resty/resty"
 	cli "github.com/spf13/cobra"
 	config "github.com/spf13/viper"
-	"net/http"
 )
 
 // hostCmd represents the host commands
@@ -49,7 +49,7 @@ func init() {
 }
 
 var hostAddCmd = &cli.Command{
-	Use:          "add [hostname][hostip][(optional)romana cidr][(optional)agent port]",
+	Use:          "add [hostip][(optional)romana cidr][(optional)agent port]",
 	Short:        "Add a new host.",
 	Long:         `Add a new host.`,
 	RunE:         hostAdd,
@@ -57,7 +57,7 @@ var hostAddCmd = &cli.Command{
 }
 
 var hostShowCmd = &cli.Command{
-	Use:          "show [hostname1][hostname2]...",
+	Use:          "show [hostip1][hostip2]...",
 	Short:        "Show details for a specific host.",
 	Long:         `Show details for a specific host.`,
 	RunE:         hostShow,
@@ -73,7 +73,7 @@ var hostListCmd = &cli.Command{
 }
 
 var hostRemoveCmd = &cli.Command{
-	Use:          "remove [hostname|hostip]",
+	Use:          "remove [hostip]",
 	Short:        "Remove a host.",
 	Long:         `Remove a host.`,
 	RunE:         hostRemove,
