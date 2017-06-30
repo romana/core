@@ -203,12 +203,16 @@ func initConfig() {
 // setLogOutput sets the log output to a file of /dev/null
 // depending on the configuration set during initialization.
 func setLogOutput() {
-	logFile, err := os.OpenFile(config.GetString("LogFile"),
+	logFileName := config.GetString("LogFile")
+	if logFileName == "" {
+		logFileName = "/var/tmp/romana-cli.log"
+	}
+	logFile, err := os.OpenFile(logFileName,
 		os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err == nil {
 		if verbose || config.GetBool("Verbose") {
 			// If output is verbose send it to log file
-			// stdout simultenously.
+			// stdout simultaneously.
 			config.Set("Verbose", true)
 			log.SetOutput(io.MultiWriter(logFile, os.Stdout))
 		} else {
