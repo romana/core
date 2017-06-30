@@ -82,7 +82,6 @@ func init() {
 	cli.OnInitialize(initConfig)
 	RootCmd.AddCommand(hostCmd)
 	RootCmd.AddCommand(tenantCmd)
-	RootCmd.AddCommand(segmentCmd)
 	RootCmd.AddCommand(policyCmd)
 
 	RootCmd.Flags().BoolVarP(&version, "version", "",
