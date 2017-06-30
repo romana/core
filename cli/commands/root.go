@@ -153,7 +153,7 @@ func preConfig(cmd *cli.Command, args []string) {
 		platform = config.GetString("Platform")
 	}
 	if platform == "" {
-		platform = "openstack"
+		platform = "kubernetes"
 	}
 	config.Set("Platform", platform)
 
