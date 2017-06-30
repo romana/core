@@ -83,6 +83,7 @@ func init() {
 	RootCmd.AddCommand(hostCmd)
 	RootCmd.AddCommand(policyCmd)
 	RootCmd.AddCommand(networkCmd)
+	RootCmd.AddCommand(blockCmd)
 
 	RootCmd.Flags().BoolVarP(&version, "version", "",
 		false, "Build and Versioning Information.")
