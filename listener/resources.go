@@ -257,7 +257,7 @@ func addDefaultPolicy(o *v1.Namespace, l *KubeListener) {
 
 // NsWatch is a generator that watches namespace related events in
 // kubernetes API and publishes this events to a channel.
-func (l *KubeListener) nsWatch(done <-chan struct{}, url string) (chan Event, error) {
+func (l *KubeListener) nsWatch(done <-chan struct{}) (chan Event, error) {
 	out := make(chan Event, l.namespaceBufferSize)
 
 	// watcher watches all namespaces.

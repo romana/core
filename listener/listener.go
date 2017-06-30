@@ -17,7 +17,6 @@
 package listener
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/romana/core/common"
@@ -38,15 +37,8 @@ const (
 )
 
 const (
-	HttpGetParamWatch           = "watch=true"
-	HttpGetParamResourceVersion = "resourceVersion"
-
-	defaultKubeURL                       = "http://localhost"
-	defaultNamespaceNotificationPath     = "/api/v1/namespaces/?watch=true"
-	defaultPolicyNotificationPathPrefix  = "/apis/extensions/v1beta1/namespaces/"
-	defaultPolicyNotificationPathPostfix = "/networkpolicies/?watch=true"
-	defaultSegmentLabelName              = "tier"
-	defaultTenantLabelName               = "namespace"
+	defaultSegmentLabelName = "tier"
+	defaultTenantLabelName  = "namespace"
 )
 
 // KubeListener is a Service that listens to updates
@@ -92,26 +84,6 @@ func (l *KubeListener) Name() string {
 func (l *KubeListener) loadConfig() error {
 	var err error
 	configPrefix := "/kubelistener/config/"
-
-	l.kubeURL, err = l.client.Store.GetString(configPrefix+"kubeURL", defaultKubeURL)
-	if err != nil {
-		return err
-	}
-
-	l.namespaceNotificationPath, err = l.client.Store.GetString(configPrefix+"namespaceNotificationPath", defaultNamespaceNotificationPath)
-	if err != nil {
-		return err
-	}
-
-	l.policyNotificationPathPrefix, err = l.client.Store.GetString(configPrefix+"policyNotificationPathPrefix", defaultPolicyNotificationPathPrefix)
-	if err != nil {
-		return err
-	}
-
-	l.policyNotificationPathPostfix, err = l.client.Store.GetString(configPrefix+"policyNotificationPathPostfix", defaultPolicyNotificationPathPostfix)
-	if err != nil {
-		return err
-	}
 
 	l.segmentLabelName, err = l.client.Store.GetString(configPrefix+"segmentLabelName", defaultSegmentLabelName)
 	if err != nil {
@@ -166,12 +138,7 @@ func (l *KubeListener) Initialize(clientConfig common.Config) error {
 
 	l.lastEventPerNamespace = make(map[string]uint64)
 	log.Infof("%s: Starting server", l.Name())
-	nsURL, err := common.CleanURL(fmt.Sprintf("%s/%s/?%s", l.kubeURL, l.namespaceNotificationPath, HttpGetParamWatch))
-	if err != nil {
-		return err
-	}
-	log.Infof("Starting to listen on %s", nsURL)
-	eventc, err := l.nsWatch(done, nsURL)
+	eventc, err := l.nsWatch(done)
 	if err != nil {
 		log.Critical("Namespace watcher failed to start", err)
 		os.Exit(255)
