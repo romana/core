@@ -43,9 +43,9 @@ type Policies struct {
 
 // policyCmd represents the policy commands
 var policyCmd = &cli.Command{
-	Use:   "policy [add|remove|list]",
-	Short: "Add, Remove or List a policy.",
-	Long: `Add, Remove or List a policy.
+	Use:   "policy [add|show|list|remove]",
+	Short: "Add, Remove or Show policies for romana services.",
+	Long: `Add, Remove or Show policies for romana services.
 
 For more information, please check http://romana.io
 `,
@@ -59,9 +59,21 @@ func init() {
 }
 
 var policyAddCmd = &cli.Command{
-	Use:          "add [policyFile]",
-	Short:        "Add a new policy.",
-	Long:         `Add a new policy.`,
+	Use:   "add [policyFile][STDIN]",
+	Short: "Add a new policy.",
+	Long: `Add a new policy.
+
+Romana policies can be added for a specific network
+using the policyFile provided or through input pipe.
+The features supported are:
+ * Policy addition through file with single policy in it
+ * Policy addition through file with multiple policies
+   in it
+ * Both the above formats but taking input from standard
+   input (STDIN) instead of a file
+ * Tabular and json output for indication of policy
+   addition
+`,
 	RunE:         policyAdd,
 	SilenceUsage: true,
 }
@@ -84,8 +96,8 @@ var policyListCmd = &cli.Command{
 
 var policyShowCmd = &cli.Command{
 	Use:          "show [PolicyID]",
-	Short:        "Show details about a specific policy using name or external id.",
-	Long:         `Show details about a specific policy using name or external id.`,
+	Short:        "Show details about a specific policy using policyID.",
+	Long:         `Show details about a specific policy using policyID.`,
 	RunE:         policyShow,
 	SilenceUsage: true,
 }
@@ -95,8 +107,7 @@ var policyShowCmd = &cli.Command{
 // The features supported are:
 //  * Policy addition through file with single policy in it
 //  * Policy addition through file with multiple policies
-//    in it supporting the SecurityPolicies construct as
-//    shown in policy/policy.sample.json
+//    in it
 //  * Both the above formats but taking input from standard
 //    input (STDIN) instead of a file
 //  * Tabular and json output for indication of policy
