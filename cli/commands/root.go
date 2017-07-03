@@ -16,6 +16,8 @@
 package commands
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -24,8 +26,8 @@ import (
 	"strings"
 
 	"github.com/romana/core/common"
-	log "github.com/romana/rlog"
 
+	log "github.com/romana/rlog"
 	cli "github.com/spf13/cobra"
 	config "github.com/spf13/viper"
 )
@@ -42,13 +44,14 @@ var (
 	credential *common.Credential
 )
 
-// getRestClient gets the rest client instance with the
-// configured root URL and the credential object that was
-// built at initalization.
-func getRestClient() (*common.RestClient, error) {
-	rootURL := config.GetString("RootURL")
-	cfg := common.GetDefaultRestClientConfig(rootURL, credential)
-	return common.NewRestClient(cfg)
+type Error struct {
+	Code    int32
+	Message string
+	Fields  string
+}
+
+func (e Error) Error() string {
+	return fmt.Sprintf("%d: %v: %v", e.Code, e.Message, e.Fields)
 }
 
 // RootCmd represents the base command when called without any subcommands
@@ -78,9 +81,9 @@ func init() {
 
 	cli.OnInitialize(initConfig)
 	RootCmd.AddCommand(hostCmd)
-	RootCmd.AddCommand(tenantCmd)
-	RootCmd.AddCommand(segmentCmd)
 	RootCmd.AddCommand(policyCmd)
+	RootCmd.AddCommand(networkCmd)
+	RootCmd.AddCommand(blockCmd)
 
 	RootCmd.Flags().BoolVarP(&version, "version", "",
 		false, "Build and Versioning Information.")
@@ -134,7 +137,7 @@ func preConfig(cmd *cli.Command, args []string) {
 		baseURL = "http://localhost"
 	}
 	config.Set("BaseURL", baseURL)
-	rootURL = baseURL + ":" + rootPort + "/"
+	rootURL = baseURL + ":" + rootPort
 	config.Set("RootURL", rootURL)
 
 	// Give command line options higher priority then
@@ -152,7 +155,7 @@ func preConfig(cmd *cli.Command, args []string) {
 		platform = config.GetString("Platform")
 	}
 	if platform == "" {
-		platform = "openstack"
+		platform = "kubernetes"
 	}
 	config.Set("Platform", platform)
 
@@ -200,12 +203,16 @@ func initConfig() {
 // setLogOutput sets the log output to a file of /dev/null
 // depending on the configuration set during initialization.
 func setLogOutput() {
-	logFile, err := os.OpenFile(config.GetString("LogFile"),
+	logFileName := config.GetString("LogFile")
+	if logFileName == "" {
+		logFileName = "/var/tmp/romana-cli.log"
+	}
+	logFile, err := os.OpenFile(logFileName,
 		os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
 	if err == nil {
 		if verbose || config.GetBool("Verbose") {
 			// If output is verbose send it to log file
-			// stdout simultenously.
+			// stdout simultaneously.
 			config.Set("Verbose", true)
 			log.SetOutput(io.MultiWriter(logFile, os.Stdout))
 		} else {
@@ -221,4 +228,19 @@ func setLogOutput() {
 			log.SetOutput(ioutil.Discard)
 		}
 	}
+}
+
+// JSONFormat indents input json b and writes it to
+// output writer w.
+func JSONFormat(b []byte, w io.Writer) {
+	var out bytes.Buffer
+	if err := json.Indent(&out, b, "", "\t"); err != nil {
+		// reset out since it may have partial output from above.
+		out.Reset()
+		// indentation failed, so write the original string as is.
+		out.Write(b)
+		out.WriteTo(w)
+		return
+	}
+	out.WriteTo(w)
 }
