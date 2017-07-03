@@ -19,13 +19,14 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
-	"github.com/romana/core/common"
 	"sort"
 	"strings"
+
+	"github.com/romana/core/common/api"
 )
 
 // HashRomanaTenants generates unique hash for a list of romana tenants.
-func HashRomanaTenants(tenants []common.Tenant) string {
+func HashRomanaTenants(tenants []api.Tenant) string {
 	var hashes []string
 	for _, t := range tenants {
 		hashes = append(hashes, HashRomanaTenant(t))
@@ -45,7 +46,7 @@ func HashListOfStrings(hashes []string) string {
 }
 
 // HashRomanaTenant generates sha1 hash from a canonical form of the tenant.
-func HashRomanaTenant(tenant common.Tenant) string {
+func HashRomanaTenant(tenant api.Tenant) string {
 	data := Tenant(tenant).String()
 
 	hasher := sha1.New()
@@ -56,20 +57,21 @@ func HashRomanaTenant(tenant common.Tenant) string {
 
 }
 
-// Tenant wraps tenant.Tenant to provide new behavior.
-type Tenant common.Tenant
+// Tenant wraps api.Tenant to provide new behavior.
+// TODO maybe move all the below to api?
+type Tenant api.Tenant
 
 // String generates canonical representation of a Tenant.
 func (t Tenant) String() string {
-	return fmt.Sprintf("Tenant %d: ExternalID=%s,Name=%s,NetworkID=%d,Segments=%s", t.ID, t.ExternalID, t.Name, t.NetworkID, Segments{}.From(t.Segments).Sort())
+	return fmt.Sprintf("Tenant %s: Segments=%s", t.ID, Segments{}.From(t.Segments).Sort())
 }
 
-// Segment wraps tenant.Segment to provide new behavior.
-type Segment common.Segment
+// Segment wraps api.Segment to provide new behavior.
+type Segment api.Segment
 
 // String generates canonical representation of a Segment.
 func (s Segment) String() string {
-	return fmt.Sprintf("Segment %d: ExternalID=%s,TenantID=%d,Name=%s,NetworkID=%d", s.ID, s.ExternalID, s.TenantID, s.Name, s.NetworkID)
+	return fmt.Sprintf("Segment %s: Blocks=%v", s.ID, s.Blocks)
 }
 
 // Segments aliases []Segment to provide methods for sort.Interface.
@@ -91,7 +93,7 @@ func (p Segments) Sort() Segments {
 }
 
 // From initializes Segments from a []tenant.Segment.
-func (s Segments) From(originalSegments []common.Segment) (segments Segments) {
+func (s Segments) From(originalSegments []api.Segment) (segments Segments) {
 	for _, segment := range originalSegments {
 		segments = append(segments, Segment(segment))
 	}

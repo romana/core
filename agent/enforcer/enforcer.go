@@ -26,7 +26,7 @@ import (
 	"github.com/romana/core/agent/iptsave"
 	policyCache "github.com/romana/core/agent/policy/cache"
 	tenantCache "github.com/romana/core/agent/tenant/cache"
-	"github.com/romana/core/common"
+	"github.com/romana/core/common/api"
 	"github.com/romana/core/common/log/trace"
 
 	log "github.com/romana/rlog"
@@ -216,11 +216,11 @@ func makeTenantRules(tenantCache tenantCache.Interface, netConfig firewall.NetCo
 			panic("Ingress chain doesn't exist, base rules aren't rendered corretly")
 		}
 		InsertNormalRule(ingressChain, MakeIngressTenantJumpRule(tenant, netConfig))
-		log.Tracef(6, "Policy enforcer processes tenants %s with %d segments", tenant.Name, len(tenant.Segments))
+		log.Tracef(6, "Policy enforcer processes tenants %s with %d segments", tenant.ID, len(tenant.Segments))
 
 		for _, segment := range tenant.Segments {
 			// :ROMANA-T2-S0
-			segmentChain := EnsureChainExists(filter, MakeSegmentPolicyChainName(tenant.NetworkID, segment.NetworkID))
+			segmentChain := EnsureChainExists(filter, MakeSegmentPolicyChainName(tenant.ID, segment.ID))
 
 			// -A ROMANA-FW-T2 -m u32 --u32 "0x10&0xff00ff00=0xa002000" -j ROMANA-T2-S0
 			InsertNormalRule(tenantIngressChain, MakeSegmentPolicyJumpRule(tenant, segment, netConfig))
@@ -230,7 +230,7 @@ func makeTenantRules(tenantCache tenantCache.Interface, netConfig firewall.NetCo
 		}
 
 		// :ROMANA-T2-W
-		tenantWideChain := EnsureChainExists(filter, MakeTenantWideIngressChainName(tenant.NetworkID))
+		tenantWideChain := EnsureChainExists(filter, MakeTenantWideIngressChainName(tenant.ID))
 		// -A ROMANA-T2-W -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
 		tenantWideChain.InsertRule(0, MakeConntrackEstablishedRule())
 		tenantWideChain.AppendRule(MakePolicyChainFooterRule())
@@ -251,7 +251,7 @@ func makePolicies(policyCache policyCache.Interface, netConfig firewall.NetConfi
 	policies := policyCache.List()
 
 	for _, policy := range policies {
-		log.Tracef(5, "Policy enforcer rendering policy %s", policy.Name)
+		log.Tracef(5, "Policy enforcer rendering policy %s", policy.ID)
 
 		policyActive := false
 
@@ -265,11 +265,11 @@ func makePolicies(policyCache policyCache.Interface, netConfig firewall.NetConfi
 			if targetChain, ok := targetExists(target, iptables); ok {
 				InsertNormalRule(targetChain, MakeSimpleJumpRule(MakeRomanaPolicyName(policy)))
 
-				log.Tracef(6, "Policy enforcer rendered target %v for policy %s.", target, policy.Name)
+				log.Tracef(6, "Policy enforcer rendered target %v for policy %s.", target, policy.ID)
 
 				policyActive = true
 			} else {
-				log.Tracef(6, "Policy enforcer skipped  target %v for policy %s.", target, policy.Name)
+				log.Tracef(6, "Policy enforcer skipped  target %v for policy %s.", target, policy.ID)
 			}
 		}
 
@@ -279,7 +279,7 @@ func makePolicies(policyCache policyCache.Interface, netConfig firewall.NetConfi
 			policyChain := EnsureChainExists(filter, MakeRomanaPolicyName(policy))
 
 			for ingressNum, ingress := range policy.Ingress {
-				log.Tracef(6, "Policy enforcer renders ingress %v from policy %s", ingress, policy.Name)
+				log.Tracef(6, "Policy enforcer renders ingress %v from policy %s", ingress, policy.ID)
 
 				// Make ingress chain
 				// -A ROMANA-P-d73a173e1f52-IN_<ingressNum>
@@ -305,13 +305,13 @@ func makePolicies(policyCache policyCache.Interface, netConfig firewall.NetConfi
 				// -A ROMANA-P-c5010560ed3e_ -m comment --comment "PolicyId=c5010560ed3e" -j RETURN
 			}
 		} else {
-			log.Tracef(6, "Policy enforcer skips policy %s, probably no valid AppliedTo exists", policy.Name)
+			log.Tracef(6, "Policy enforcer skips policy %s, probably no valid AppliedTo exists", policy.ID)
 		}
 	}
 }
 
 // targetExists checks if iptables has underlying chains for given target.
-func targetExists(target common.Endpoint, iptables *iptsave.IPtables) (*iptsave.IPchain, bool) {
+func targetExists(target api.Endpoint, iptables *iptsave.IPtables) (*iptsave.IPchain, bool) {
 	log.Trace(trace.Private, "Policy enforcer in targetExists()")
 
 	// For now our policies only exist in a filter tables so we don't care
@@ -339,13 +339,13 @@ func targetExists(target common.Endpoint, iptables *iptsave.IPtables) (*iptsave.
 		// for tenant wide policies add tenant wide jump
 		// :ROMANA-P-c5010560ed3e_
 		// -A ROMANA-T2-W -j ROMANA-P-a2345713hi7b_
-		targetChainName = MakeTenantWideIngressChainName(*target.TenantNetworkID)
+		targetChainName = MakeTenantWideIngressChainName(target.TenantID)
 
 	case TenantSegmentPolicyTarget:
 		// for other policies add segment to policy jump
 		// :ROMANA-P-d73a173e1f52_
 		// -A ROMANA-T2-S0 -j ROMANA-P-d73a173e1f52_
-		targetChainName = MakeSegmentPolicyChainName(*target.TenantNetworkID, *target.SegmentNetworkID)
+		targetChainName = MakeSegmentPolicyChainName(target.TenantID, target.SegmentID)
 
 	default:
 		panic("Uknown policy target type")

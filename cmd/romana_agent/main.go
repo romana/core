@@ -25,6 +25,7 @@ import (
 
 	"github.com/romana/core/agent"
 	"github.com/romana/core/common"
+	log "github.com/romana/rlog"
 )
 
 // main function is entrypoint to everything.
@@ -34,13 +35,10 @@ func main() {
 	port := flag.Int("port", 9601, "Port to listen on.")
 	prefix := flag.String("etcd-prefix", "/romana", "Prefix to use for etcd data.")
 	flag.Parse()
-	if endpointsStr == nil {
-		log.Errorf("No etcd endpoints specified")
-		return
-	}
-	endpoints := strings.Split(endpointsStr, ",")
 
-	a := &agent.Agent{addr: fmt.Sprintf("%s:%d", *host, *port)}
+	endpoints := strings.Split(*endpointsStr, ",")
+
+	a := &agent.Agent{Addr: fmt.Sprintf("%s:%d", *host, *port)}
 	helper, err := agent.NewAgentHelper(a)
 	if err != nil {
 		fmt.Printf("Error while starting agent helper: %s\n", err)
@@ -48,12 +46,14 @@ func main() {
 	}
 	a.Helper = helper
 
-	if !strings.HasPrefix(prefix, "/") {
-		prefix = "/" + prefix
+	pr := *prefix
+	if !strings.HasPrefix(pr, "/") {
+		pr = "/" + pr
 	}
-	config := common.StoreConfig{EtcdEndpoints: endpoints,
-		EtcdPrefix: prefix,
+	config := common.Config{EtcdEndpoints: endpoints,
+		EtcdPrefix: pr,
 	}
+
 	svcInfo, err := common.InitializeService(a, config)
 	if err != nil {
 		log.Error(err)

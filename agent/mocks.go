@@ -33,6 +33,8 @@ import (
 	utilexec "github.com/romana/core/agent/exec"
 	utilos "github.com/romana/core/agent/os"
 	"github.com/romana/core/common"
+	"github.com/romana/core/common/api"
+	"github.com/romana/core/common/client"
 )
 
 // TODO There is a tradeoff, either use global variable for provider
@@ -58,25 +60,25 @@ type Helper struct {
 // configuration files.
 func mockAgent() (*Agent, error) {
 
-	host0 := common.Host{Ip: "172.17.0.1", RomanaIp: "127.0.0.1/8"}
+	host0 := api.Host{IP: net.ParseIP("172.17.0.1"), RomanaIp: "127.0.0.1/8"}
 
 	// romanaIP, romanaNet, _ := net.ParseCIDR(host0.RomanaIp)
 
 	networkConfig := &NetworkConfig{}
-	networkConfig.romanaGW = net.ParseIP(host0.Ip)
+	networkConfig.romanaGW = host0.IP
 
-	host1 := common.Host{Ip: "192.168.0.12", RomanaIp: "10.65.0.0/16"}
-	networkConfig.otherHosts = []common.Host{host1}
+	host1 := api.Host{IP: net.ParseIP("192.168.0.12"), RomanaIp: "10.65.0.0/16"}
+	networkConfig.otherHosts = []api.Host{host1}
 
-	dc := common.Datacenter{}
-	dc.Cidr = "10.0.0.0/8"
-	dc.PortBits = 8
-	dc.TenantBits = 4
-	dc.SegmentBits = 4
-	dc.EndpointSpaceBits = 0
-	dc.EndpointBits = 8
+	//	dc := common.Datacenter{}
+	//	dc.Cidr = "10.0.0.0/8"
+	//	dc.PortBits = 8
+	//	dc.TenantBits = 4
+	//	dc.SegmentBits = 4
+	//	dc.EndpointSpaceBits = 0
+	//	dc.EndpointBits = 8
+	//	networkConfig.dc = dc
 
-	networkConfig.dc = dc
 	agent := &Agent{networkConfig: networkConfig}
 	helper, err := NewAgentHelper(agent)
 	if err != nil {
@@ -85,16 +87,15 @@ func mockAgent() (*Agent, error) {
 
 	agent.Helper = helper
 
-	storeConfigMain := common.ServiceConfig{ServiceSpecific: map[string]interface{}{
-		"type":     "sqlite3",
-		"database": "/tmp/agent.db"}}
-	agent.store = agentStore{}
-	agent.store.ServiceStore = &agent.store
-	storeConfigMap := storeConfigMain.ServiceSpecific
-	storeConfig, _ := common.MakeStoreConfig(storeConfigMap)
-	agent.store.SetConfig(storeConfig)
-
-	agent.CreateSchema(true) // overwrite
-
+	clientConfig := common.Config{Mock: true}
+	agent.client, err = client.NewClient(&clientConfig)
+	if err != nil {
+		return nil, err
+	}
+	agent.localDBFile = "/tmp/agent.db"
+	agent.store, err = NewStore(agent)
+	if err != nil {
+		return nil, err
+	}
 	return agent, nil
 }

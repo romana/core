@@ -93,10 +93,8 @@ func (c mockFirewallEndpoint) GetIP() net.IP {
 }
 
 func makeMockStore() firewallStore {
-
-	mockStore.db, _ = sql.Open("/tmp/agent.db")
-
+	mockStore := firewallStore{}
+	mockStore.db, _ = sql.Open("sqlite3", "/tmp/agent.db")
 	mockStore.mu = new(sync.RWMutex)
-
 	return mockStore
 }

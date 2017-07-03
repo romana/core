@@ -305,16 +305,16 @@ func (h Helper) ensureInterHostRoutes() error {
 		}
 		romanaMaskInt, _ := romanaCidr.Mask.Size()
 		romanaMask := fmt.Sprintf("%d", romanaMaskInt)
-		dest := host.Ip
+		dest := host.IP
 
 		// wait until no one messing with routes
 		// If route doesn't exist yet
 		if err := h.isRouteExist(romanaCidr.IP, romanaMask); err != nil {
 
 			// Create it
-			err2 := h.createRoute(romanaCidr.IP, romanaMask, via, dest)
+			err2 := h.createRoute(romanaCidr.IP, romanaMask, via, dest.String())
 			if err2 != nil {
-				return routeCreateError(err, romanaCidr.IP.String(), romanaMask, dest)
+				return routeCreateError(err, romanaCidr.IP.String(), romanaMask, dest.String())
 			}
 		}
 	}

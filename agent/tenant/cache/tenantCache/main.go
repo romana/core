@@ -20,25 +20,24 @@ package main
 import (
 	"flag"
 	"fmt"
+	"strings"
 
 	"github.com/romana/core/agent/tenant/cache"
 	"github.com/romana/core/common"
+	"github.com/romana/core/common/client"
 )
 
 func main() {
-	var rootURL = flag.String("rootURL", "", "URL to root service URL")
+	endpointsStr := flag.String("etcd-endpoints", "localhost:2379", "Comma-separated list of etcd endpoints.")
 	flag.Parse()
 
-	if *rootURL == "" {
-		fmt.Println("Must specify rootURL.")
-		return
+	endpoints := strings.Split(*endpointsStr, ",")
+	clientConfig := common.Config{EtcdEndpoints: endpoints,
+		EtcdPrefix: "romana",
 	}
-
-	clientConfig := common.GetDefaultRestClientConfig(*rootURL, nil)
-	client, err := common.NewRestClient(clientConfig)
+	client, err := client.NewClient(&clientConfig)
 	if err != nil {
-		fmt.Printf("Error %s", err)
-		return
+		panic(err)
 	}
 
 	c := cache.New(client, cache.Config{CacheTickSeconds: 10})
@@ -58,7 +57,7 @@ func main() {
 func PrintTenant(cache cache.Interface) {
 	tenants := cache.List()
 	for tenantNum, tenant := range tenants {
-		fmt.Printf("Tenant %d name %s\n", tenantNum, tenant.Name)
+		fmt.Printf("Tenant %d ID %s\n", tenantNum, tenant.ID)
 	}
 
 	fmt.Printf("Detected %d romana tenants\n", len(cache.List()))

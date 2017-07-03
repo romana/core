@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/romana/core/common"
+	"github.com/romana/core/common/client"
 
 	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
@@ -28,7 +29,7 @@ func TestSyncNetworkPolicies(t *testing.T) {
 
 	var allRomanaPolicies []common.Policy
 	var kubePolicies []v1beta1.NetworkPolicy
-	getAllPoliciesFunc = func(none *common.RestClient) ([]common.Policy, error) {
+	getAllPoliciesFunc = func(client *client.Client) ([]common.Policy, error) {
 		return allRomanaPolicies, nil
 	}
 

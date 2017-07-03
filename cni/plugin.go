@@ -187,7 +187,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 		return fmt.Errorf("Failed to setup return route to %s via interface %s, err=(%s)", podAddress, hostIface.Name, err)
 	}
 
-	err = NotifyAgent(romanaClient, podAddress, hostIface.Name, NotifyPodUp)
+	err = NotifyAgent(podAddress, hostIface.Name, NotifyPodUp)
 	if err != nil {
 		return err
 	}
@@ -242,7 +242,7 @@ func CmdDel(args *skel.CmdArgs) error {
 		return fmt.Errorf("Failed to tear down pod network for %s, err=(%s)", k8sargs.MakePodName(), err)
 	}
 
-	err = NotifyAgent(romanaClient, nil, k8sargs.MakeVethName(), NotifyPodDown)
+	err = NotifyAgent(nil, k8sargs.MakeVethName(), NotifyPodDown)
 	if err != nil {
 		return err
 	}
