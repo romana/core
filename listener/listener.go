@@ -17,12 +17,11 @@
 package listener
 
 import (
-	"fmt"
-	"net/http"
 	"os"
 
 	"github.com/romana/core/common"
-	"github.com/romana/core/common/log/trace"
+	"github.com/romana/core/common/api"
+	"github.com/romana/core/common/client"
 	log "github.com/romana/rlog"
 
 	"k8s.io/client-go/kubernetes"
@@ -38,8 +37,8 @@ const (
 )
 
 const (
-	HttpGetParamWatch           = "watch=true"
-	HttpGetParamResourceVersion = "resourceVersion"
+	defaultSegmentLabelName = "tier"
+	defaultTenantLabelName  = "namespace"
 )
 
 // KubeListener is a Service that listens to updates
@@ -50,16 +49,18 @@ const (
 // 2. policyNotificationPathPrefix + <namespace name> + policyNotificationPathPostfix
 //    for policy additions/deletions.
 type KubeListener struct {
-	config                        common.ServiceConfig
-	restClient                    *common.RestClient
+	Addr   string
+	client *client.Client
+
 	kubeURL                       string
 	namespaceNotificationPath     string
 	policyNotificationPathPrefix  string
 	policyNotificationPathPostfix string
 	segmentLabelName              string
 	tenantLabelName               string
-	lastEventPerNamespace         map[string]uint64
 	namespaceBufferSize           uint64
+
+	lastEventPerNamespace map[string]uint64
 
 	kubeClientSet *kubernetes.Clientset
 	Watchers      map[string]cache.ListerWatcher
@@ -71,219 +72,56 @@ func (l *KubeListener) Routes() common.Routes {
 	return routes
 }
 
+func (l *KubeListener) GetAddress() string {
+	return l.Addr
+}
+
 // Name implements method of Service interface.
 func (l *KubeListener) Name() string {
 	return "kubernetesListener"
 }
 
-func (l *KubeListener) CreateSchema(overwrite bool) error {
-	return nil
-}
+func (l *KubeListener) loadConfig() error {
+	var err error
+	configPrefix := "/kubelistener/config/"
 
-// SetConfig implements SetConfig function of the Service interface.
-func (l *KubeListener) SetConfig(config common.ServiceConfig) error {
-	// confString used only for trace log, to quickly help find
-	// in which file and where the variables listed below are.
-	confString := "/etc/romana/romana.conf.yml:kubernetesListener:config:"
-	log.Trace(trace.Inside, confString, config)
-
-	m := config.ServiceSpecific
-	if kl, ok := m["kubernetes_url"]; !ok || kl == "" {
-		return fmt.Errorf("%s%s", confString, "kubernetes_url required in config.")
-	}
-	l.kubeURL = m["kubernetes_url"].(string)
-
-	if nnp, ok := m["namespace_notification_path"]; !ok || nnp == "" {
-		return fmt.Errorf("%s%s", confString, "namespace_notification_path required in config.")
-	}
-	l.namespaceNotificationPath = m["namespace_notification_path"].(string)
-
-	if pnppre, ok := m["policy_notification_path_prefix"]; !ok || pnppre == "" {
-		return fmt.Errorf("%s%s", confString, "policy_notification_path_prefix required in config.")
-	}
-	l.policyNotificationPathPrefix = m["policy_notification_path_prefix"].(string)
-
-	if pnppost, ok := m["policy_notification_path_prefix"]; !ok || pnppost == "" {
-		return fmt.Errorf("%s%s", confString, "policy_notification_path_postfix required in config.")
-	}
-	l.policyNotificationPathPostfix = m["policy_notification_path_postfix"].(string)
-
-	if sln, ok := m["segment_label_name"]; !ok || sln == "" {
-		return fmt.Errorf("%s%s", confString, "segment_label_name required in config.")
-	}
-	l.segmentLabelName = m["segment_label_name"].(string)
-
-	if tln, ok := m["tenant_label_name"]; !ok || tln == "" {
-		return fmt.Errorf("%s%s", confString, "tenant_label_name required in config.")
-	}
-	l.tenantLabelName = m["tenant_label_name"].(string)
-
-	l.namespaceBufferSize = 1000
-
-	if kc, ok := m["kubernetes_config"]; !ok || kc == "" {
-		return common.NewError("Listener: kubernetes_config parameter is required to start.")
+	l.segmentLabelName, err = l.client.Store.GetString(configPrefix+"segmentLabelName", defaultSegmentLabelName)
+	if err != nil {
+		return err
 	}
 
-	if err := l.kubeClientInit(); err != nil {
-		return fmt.Errorf("Error while loading kubernetes client %s", err)
+	l.tenantLabelName, err = l.client.Store.GetString(configPrefix+"tenantLabelName", defaultTenantLabelName)
+	if err != nil {
+		return err
 	}
 
 	return nil
+
 }
 
 // TODO there should be a better way to introduce translator
 // then global variable like this one.
 var PTranslator Translator
 
-// getOrAddSegment finds a segment (based on segment selector).
-// If not found, it adds one.
-func (l *KubeListener) getOrAddSegment(namespace string, kubeSegmentName string) (*common.Segment, error) {
-	ten := &common.Tenant{}
-	ten.Name = namespace
-	// TODO this should be changed to find EXACTLY one after deletion functionality is implemented
-	err := l.restClient.Find(ten, common.FindLast)
-	if err != nil {
-		return nil, err
-	}
-
-	seg := &common.Segment{}
-	seg.Name = kubeSegmentName
-	seg.TenantID = ten.ID
-	err = l.restClient.Find(seg, common.FindExactlyOne)
-	if err == nil {
-		return seg, nil
-	}
-
-	switch err := err.(type) {
-	case common.HttpError:
-		if err.StatusCode == http.StatusNotFound {
-			// Not found, so let's create a segment.
-			segreq := common.Segment{Name: kubeSegmentName, TenantID: ten.ID}
-			segURL, err2 := l.restClient.GetServiceUrl("tenant")
-			if err2 != nil {
-				return nil, err2
-			}
-			segURL = fmt.Sprintf("%s/tenants/%d/segments", segURL, ten.ID)
-			err2 = l.restClient.Post(segURL, segreq, seg)
-			if err2 == nil {
-				// Successful creation.
-				return seg, nil
-			}
-			// Creation of non-existing segment gave an error.
-			switch err2 := err2.(type) {
-			case common.HttpError:
-				// Maybe someone else just created a segment between the original
-				// lookup and now?
-				if err2.StatusCode == http.StatusConflict {
-					switch details := err2.Details.(type) {
-					case common.Segment:
-						// We expect the existing segment to be returned in the details field.
-						return &details, nil
-					default:
-						// This is unexpected...
-						return nil, err
-					}
-				}
-				// Any other HTTP error other than a Conflict here - return it.
-				return nil, err2
-			default:
-				// Any other error - return it
-				return nil, err2
-			}
-		}
-		// Any other HTTP error other than a Not found here - return it
-		return nil, err
-	default:
-		// Any other error - return it
-		return nil, err
-	}
-}
-
-// resolveTenantByName retrieves tenant information from romana.
-func (l *KubeListener) resolveTenantByName(tenantName string) (*common.Tenant, error) {
-	t := &common.Tenant{Name: tenantName}
-	err := l.restClient.Find(t, common.FindLast)
-	if err != nil {
-		return t, err
-	}
-	return t, nil
-}
-
-// deleteNetworkPolicyByID deletes the policy specified by the policyID
-func (l *KubeListener) deleteNetworkPolicyByID(policyID uint64) error {
-	policyURL, err := l.restClient.GetServiceUrl("policy")
-	if err != nil {
-		return err
-	}
-	policyURL = fmt.Sprintf("%s/policies/%d", policyURL, policyID)
-	log.Debugf("deleteNetworkPolicyByID: Deleting policy %d", policyID)
-	deletedPolicy := common.Policy{}
-	err = l.restClient.Delete(policyURL, nil, &deletedPolicy)
-	if err != nil {
-		switch err := err.(type) {
-		default:
-			return err
-		case common.HttpError:
-			if err.StatusCode == http.StatusNotFound {
-				log.Warnf("deleteNetworkPolicyByID: Policy %d not found, ignoring", policyID)
-				return nil
-			} else {
-				return err
-			}
-		}
-	}
-	log.Debugf("deleteNetworkPolicyByID: Deleted policy %s", deletedPolicy)
-	return err
-}
-
 // addNetworkPolicy adds the policy to the policy service.
-func (l *KubeListener) addNetworkPolicy(policy common.Policy) error {
-	policyURL, err := l.restClient.GetServiceUrl("policy")
-	if err != nil {
-		return err
-	}
-	policyURL = fmt.Sprintf("%s/policies", policyURL)
-	log.Debugf("Applying policy %s", policy)
-	err = l.restClient.Post(policyURL, policy, &policy)
-	if err != nil {
-		return err
-	}
-	return nil
+func (l *KubeListener) addNetworkPolicy(policy api.Policy) error {
+	return l.client.AddPolicy(policy)
 }
 
-// deleteNetworkPolicy deletes the policy matching provided policy on whatever
-// fields are provided.
-func (l *KubeListener) deleteNetworkPolicy(policy common.Policy) error {
-	policyURL, err := l.restClient.GetServiceUrl("policy")
+func (l *KubeListener) Initialize(clientConfig common.Config) error {
+	var err error
+	l.client, err = client.NewClient(&clientConfig)
 	if err != nil {
 		return err
 	}
-
-	rPolicy := common.Policy{}
-	policyURL = fmt.Sprintf("%s/find/policies/%s", policyURL, policy.Name)
-	err = l.restClient.Get(policyURL, &rPolicy)
+	err = l.loadConfig()
 	if err != nil {
-		switch err := err.(type) {
-		default:
-			return err
-		case common.HttpError:
-			if err.StatusCode == http.StatusNotFound {
-				log.Warnf("deleteNetworkPolicy: Policy not found %s, ignoring", policy.Name)
-				return nil
-			} else {
-				return err
-			}
-		}
+		return err
 	}
-	return l.deleteNetworkPolicyByID(rPolicy.ID)
-}
-
-func (l *KubeListener) Initialize(client *common.RestClient) error {
-	l.restClient = client
 
 	// TODO, find a better place to initialize
 	// the translator. Stas.
-	PTranslator.Init(l.restClient, l.segmentLabelName, l.tenantLabelName)
+	PTranslator.Init(l.client, l.segmentLabelName, l.tenantLabelName)
 	tc := PTranslator.GetClient()
 	if tc == nil {
 		log.Critical("Failed to initialize rest client for policy translator.")
@@ -300,12 +138,7 @@ func (l *KubeListener) Initialize(client *common.RestClient) error {
 
 	l.lastEventPerNamespace = make(map[string]uint64)
 	log.Infof("%s: Starting server", l.Name())
-	nsURL, err := common.CleanURL(fmt.Sprintf("%s/%s/?%s", l.kubeURL, l.namespaceNotificationPath, HttpGetParamWatch))
-	if err != nil {
-		return err
-	}
-	log.Infof("Starting to listen on %s", nsURL)
-	eventc, err := l.nsWatch(done, nsURL)
+	eventc, err := l.nsWatch(done)
 	if err != nil {
 		log.Critical("Namespace watcher failed to start", err)
 		os.Exit(255)

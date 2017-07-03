@@ -56,7 +56,7 @@ func (i *IPTsaveFirewall) Init(utilexec utilexec.Executable, store FirewallStore
 	var err error
 
 	fwstore := firewallStore{}
-	fwstore.RdbmsStore = store.GetDb()
+	fwstore.db = store.GetDb()
 	fwstore.mu = store.GetMutex()
 
 	i.Store = fwstore

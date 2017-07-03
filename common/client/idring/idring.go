@@ -13,7 +13,7 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-package common
+package idring
 
 import (
 	"encoding/json"
@@ -21,12 +21,13 @@ import (
 	"math"
 	"sync"
 
+	"github.com/romana/core/common"
 	"github.com/romana/core/common/log/trace"
 	log "github.com/romana/rlog"
 )
 
 var (
-	IDRingOverflowError = NewError("No more available IDs")
+	IDRingOverflowError = common.NewError("No more available IDs")
 )
 
 // Range represents a range of uint64s that can be
@@ -211,7 +212,7 @@ func (idRing *IDRing) ReclaimIDs(ids []uint64) (error, []uint64) {
 	for idx, id := range ids {
 		err := idRing.ReclaimIDNoLock(id)
 		if err != nil {
-			return NewError("Could not reclaim ID %d at %d: %s", id, idx, err), ids[idx:]
+			return common.NewError("Could not reclaim ID %d at %d: %s", id, idx, err), ids[idx:]
 		}
 	}
 	return nil, nil
@@ -226,7 +227,7 @@ func (idRing *IDRing) ReclaimIDNoLock(id uint64) error {
 		return nil
 	}
 	if id < idRing.OrigMin || id > idRing.OrigMax {
-		return NewError("Cannot reclaim %d as it is outside of range %d-%d", id, idRing.OrigMin, idRing.OrigMax)
+		return common.NewError("Cannot reclaim %d as it is outside of range %d-%d", id, idRing.OrigMin, idRing.OrigMax)
 	}
 
 	done := false
@@ -252,7 +253,7 @@ func (idRing *IDRing) ReclaimIDNoLock(id uint64) error {
 			break
 		}
 		if id >= curRange.Min && id <= curRange.Max {
-			return NewError("ReclaimID: Cannot reclaim id %d: it has not been allocated and is part of range %d: %s", id, i, *idRing)
+			return common.NewError("ReclaimID: Cannot reclaim id %d: it has not been allocated and is part of range %d: %s", id, i, *idRing)
 		}
 	}
 

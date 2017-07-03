@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/romana/core/common"
 	log "github.com/romana/rlog"
 
 	"k8s.io/client-go/kubernetes"
@@ -151,98 +150,15 @@ func (l *KubeListener) kubernetesDeleteNodeEventHandler(n interface{}) {
 	log.Infof("Node (%s) successful removed from romana cluster.", node.Name)
 }
 
+// TODO need to think how this works
 // romanaHostAdd connects to romana API and adds a node to
 // the romana cluster.
 func romanaHostAdd(l *KubeListener, node *v1.Node) error {
-	log.Debug("In romanaHostAdd()")
-
-	if node.Name == "" || len(node.Status.Addresses) < 1 {
-		log.Errorf("Error: received invalid host name or IP Address: (%s)", node)
-		return errors.New("Error: received invalid host name or IP Address.")
-	}
-	hostname := node.Name
-	hostIP := node.Status.Addresses[0].Address
-
-	topologyURL, err := l.restClient.GetServiceUrl("topology")
-	if err != nil {
-		log.Errorf("Error: couldn't find topology URL: (%s)", err)
-		return err
-	}
-
-	host := common.Host{
-		Name: hostname,
-		Ip:   hostIP,
-	}
-
-	data := common.Host{}
-	err = l.restClient.Post(topologyURL+"/hosts", host, &data)
-	if err != nil {
-		log.Errorf("Error adding node (%s) to romana cluster.\n", hostname)
-		return err
-	}
-
-	log.Infof("Node (%s) added successfully to romana cluster.\n", hostname)
-	return nil
+	return errors.New("Adding host currently unimplemented")
 }
 
 // romanaHostRemove connects to romana API and removes a node from
 // the romana cluster.
 func romanaHostRemove(l *KubeListener, node string) error {
-	log.Debug("In romanaHostRemove()")
-
-	if node == "" {
-		log.Errorf("Error: received invalid node name (%s)", node)
-		return errors.New("Error: received invalid node name.")
-	}
-
-	topologyURL, err := l.restClient.GetServiceUrl("topology")
-	if err != nil {
-		log.Errorf("Error: couldn't find topology URL: (%s)", err)
-		return err
-	}
-
-	/* TODO Find doesn't work with kv store + topology.
-	host := common.Host{
-		Name: node,
-	}
-
-	err = l.restClient.Find(&host, common.FindExactlyOne)
-	if err != nil {
-		log.Errorf("Error: couldn't find node(%s): (%s)", node, err)
-		return err
-	}
-	*/
-	hosts := []common.Host{}
-	host := common.Host{}
-	hostsUrl := fmt.Sprintf("%s/hosts", topologyURL)
-	err = l.restClient.Get(hostsUrl, &hosts)
-	if err != nil {
-		log.Errorf("Error: failed to list hosts: %s", err)
-		return err
-	}
-
-	var found bool
-	for n, h := range hosts {
-		if h.Name == node {
-			host = hosts[n]
-			found = true
-			break
-		}
-	}
-
-	if !found {
-		log.Errorf("Error: couldn't find romana host with name %s, skipping deletion", node)
-		return nil
-	}
-
-	hostResponse := common.Host{}
-	topologyURL = fmt.Sprintf("%s/hosts/%d", topologyURL, host.ID)
-	err = l.restClient.Delete(topologyURL, nil, &hostResponse)
-	if err != nil {
-		log.Errorf("Error removing node (%s) from romana cluster (%s).\n", host.Name, err)
-		return err
-	}
-
-	log.Infof("Node (%s) successfully removed from romana cluster.\n", host.Name)
-	return nil
+	return errors.New("Removing host currently unimplemented")
 }

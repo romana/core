@@ -13,15 +13,16 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-package policy
+package server
 
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/go-check/check"
-	"github.com/romana/core/common"
 	"log"
 	"net/http"
+
+	"github.com/go-check/check"
+	"github.com/romana/core/common"
 
 	"strconv"
 	"strings"

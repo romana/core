@@ -18,31 +18,52 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/romana/core/agent"
 	"github.com/romana/core/common"
+	log "github.com/romana/rlog"
 )
 
 // main function is entrypoint to everything.
 func main() {
-	cs := common.NewCliState()
-	a := &agent.Agent{TestMode: false}
+	endpointsStr := flag.String("etcd-endpoints", "localhost:2379", "Comma-separated list of etcd endpoints.")
+	host := flag.String("host", "localhost", "Host to listen on.")
+	port := flag.Int("port", 9601, "Port to listen on.")
+	prefix := flag.String("etcd-prefix", "/romana", "Prefix to use for etcd data.")
+	flag.Parse()
+
+	endpoints := strings.Split(*endpointsStr, ",")
+
+	a := &agent.Agent{Addr: fmt.Sprintf("%s:%d", *host, *port)}
 	helper, err := agent.NewAgentHelper(a)
 	if err != nil {
 		fmt.Printf("Error while starting agent helper: %s\n", err)
 		os.Exit(1)
 	}
 	a.Helper = helper
-	svcInfo, err := cs.StartService(a)
+
+	pr := *prefix
+	if !strings.HasPrefix(pr, "/") {
+		pr = "/" + pr
+	}
+	config := common.Config{EtcdEndpoints: endpoints,
+		EtcdPrefix: pr,
+	}
+
+	svcInfo, err := common.InitializeService(a, config)
 	if err != nil {
-		panic(err)
+		log.Error(err)
+		os.Exit(2)
 	}
 	if svcInfo != nil {
 		for {
 			msg := <-svcInfo.Channel
-			fmt.Println(msg)
+			log.Info(msg)
 		}
 	}
+
 }

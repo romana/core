@@ -21,7 +21,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/romana/core/common"
+	"github.com/romana/core/common/api"
 	"github.com/romana/core/common/log/trace"
 	log "github.com/romana/rlog"
 )
@@ -39,45 +39,51 @@ type NetworkConfig struct {
 	romanaGWMask    net.IPMask
 	oldRomanaGW     net.IP
 	oldRomanaGWMask net.IPMask
-	otherHosts      []common.Host
-	dc              common.Datacenter
+	otherHosts      []api.Host
 }
 
 // EndpointNetmaskSize returns integer value (aka size) of endpoint netmask.
 func (c *NetworkConfig) EndpointNetmaskSize() uint64 {
 	// TODO make this depend on the IP version
-	return 32 - uint64(c.dc.EndpointSpaceBits)
+	//	return 32 - uint64(c.dc.EndpointSpaceBits)
+	panic("Unimplemented")
 }
 
 // PNetCIDR returns pseudo net cidr in net.IPNet format.
 func (c *NetworkConfig) PNetCIDR() (cidr *net.IPNet, err error) {
-	_, cidr, err = net.ParseCIDR(c.dc.Cidr)
-	return
+	//	_, cidr, err = net.ParseCIDR(c.dc.Cidr)
+	//	return
+	panic("Unimplemented")
 }
 
 // PrefixBits returns tenant bits value from POC config.
 func (c *NetworkConfig) PrefixBits() uint {
-	return c.dc.PrefixBits
+	//	return c.dc.PrefixBits
+	panic("Unimplemented")
 }
 
 // PortBits returns tenant bits value from POC config.
 func (c *NetworkConfig) PortBits() uint {
-	return c.dc.PortBits
+	//	return c.dc.PortBits
+	panic("Unimplemented")
 }
 
 // TenantBits returns tenant bits value from POC config.
 func (c *NetworkConfig) TenantBits() uint {
-	return c.dc.TenantBits
+	//	return c.dc.TenantBits
+	panic("Unimplemented")
 }
 
 // SegmentBits returns segment bits value from POC config.
 func (c *NetworkConfig) SegmentBits() uint {
-	return c.dc.SegmentBits
+	//	return c.dc.SegmentBits
+	panic("Unimplemented")
 }
 
 // EndpointBits returns endpoint bits value from POC config.
 func (c *NetworkConfig) EndpointBits() uint {
-	return c.dc.EndpointBits
+	//	return c.dc.EndpointBits
+	panic("Unimplemented")
 }
 
 // RomanaGW returns current romana gateway.
@@ -107,36 +113,11 @@ func (c *NetworkConfig) updateRomanaGWMask(ipnet *net.IPNet) {
 	c.romanaGWMask = ipnet.Mask
 }
 
-// identifyCurrentHost contacts topology service and get
-// details about the node the agent is running on, it then
-// populates IP and Mask fields, by comparing hostname with
-// one received from topology service.
+// identifyCurrentHost gets details about the node the agent
+// is running on. It then populates IP and Mask fields
 func (a Agent) identifyCurrentHost() error {
 	log.Trace(trace.Private, "In Agent identifyCurrentHost()")
-
-	topologyURL, err := a.client.GetServiceUrl("topology")
-	if err != nil {
-		return agentError(err)
-	}
-	index := common.IndexResponse{}
-	err = a.client.Get(topologyURL, &index)
-	if err != nil {
-		return agentError(err)
-	}
-	dcURL := index.Links.FindByRel("datacenter")
-	a.networkConfig.dc = common.Datacenter{}
-	err = a.client.Get(dcURL, &a.networkConfig.dc)
-	if err != nil {
-		return agentError(err)
-	}
-
-	hostURL := index.Links.FindByRel("host-list")
-	hosts := []common.Host{}
-	err = a.client.Get(hostURL, &hosts)
-	if err != nil {
-		return agentError(err)
-	}
-	log.Trace(trace.Inside, "Retrieved hosts list, found", len(hosts), "hosts")
+	hosts := a.client.IPAM.ListHosts()
 
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
@@ -147,7 +128,7 @@ func (a Agent) identifyCurrentHost() error {
 
 	for _, host := range hosts {
 		for _, addr := range addrs {
-			if strings.Contains(addr.String(), host.Ip) {
+			if strings.Contains(addr.String(), host.IP.String()) {
 
 				_, ipnet, err := net.ParseCIDR(host.RomanaIp)
 				if err != nil {
@@ -180,30 +161,7 @@ func (a Agent) identifyCurrentHost() error {
 // If no match is found we assume we are running on host which is not
 // part of the Romana setup and spit error out.
 func (a Agent) updateRoutes() error {
-	log.Trace(trace.Private, "In Agent updateRoutes()")
-
-	topologyURL, err := a.client.GetServiceUrl("topology")
-	if err != nil {
-		return agentError(err)
-	}
-	index := common.IndexResponse{}
-	err = a.client.Get(topologyURL, &index)
-	if err != nil {
-		return agentError(err)
-	}
-	dcURL := index.Links.FindByRel("datacenter")
-	a.networkConfig.dc = common.Datacenter{}
-	err = a.client.Get(dcURL, &a.networkConfig.dc)
-	if err != nil {
-		return agentError(err)
-	}
-
-	hostURL := index.Links.FindByRel("host-list")
-	hosts := []common.Host{}
-	err = a.client.Get(hostURL, &hosts)
-	if err != nil {
-		return agentError(err)
-	}
+	hosts := a.client.IPAM.ListHosts()
 	log.Trace(trace.Inside, "Retrieved hosts list, found", len(hosts), "hosts")
 
 	addrs, err := net.InterfaceAddrs()
@@ -213,7 +171,7 @@ func (a Agent) updateRoutes() error {
 
 	log.Tracef(trace.Inside, "Searching %d interfaces for a matching host configuration: %v", len(addrs), addrs)
 
-	var otherHosts []common.Host
+	var otherHosts []api.Host
 
 	// Find an interface that matches a Romana CIDR
 	// and store that interface's IP address.

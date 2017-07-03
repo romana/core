@@ -18,7 +18,7 @@
 package firewall
 
 import (
-	"github.com/romana/core/common"
+	"database/sql"
 	"net"
 	"sync"
 )
@@ -93,17 +93,8 @@ func (c mockFirewallEndpoint) GetIP() net.IP {
 }
 
 func makeMockStore() firewallStore {
-	// Initialize database.
-	storeConfig := common.ServiceConfig{ServiceSpecific: map[string]interface{}{
-		"type":     "sqlite3",
-		"database": "/tmp/agent.db"},
-	}
 	mockStore := firewallStore{}
-	mockStore.ServiceStore = &mockStore
-	cfg, _ := common.MakeStoreConfig(storeConfig.ServiceSpecific)
-	mockStore.SetConfig(cfg)
-	mockStore.CreateSchema(true) // overwrite
+	mockStore.db, _ = sql.Open("sqlite3", "/tmp/agent.db")
 	mockStore.mu = new(sync.RWMutex)
-
 	return mockStore
 }

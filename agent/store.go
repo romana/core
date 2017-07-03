@@ -17,14 +17,13 @@
 package agent
 
 import (
+	"database/sql"
 	"fmt"
 	"sync"
 
-	"github.com/romana/core/agent/firewall"
+	_ "github.com/mattn/go-sqlite3"
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/log/trace"
-	"github.com/romana/core/common/store"
-
 	log "github.com/romana/rlog"
 )
 
@@ -32,13 +31,13 @@ import (
 // sqlite which is not very reliable in concurrent access scenario,
 // so we are going to guard access with mutex.
 type agentStore struct {
-	*store.RdbmsStore
+	db *sql.DB
 	mu *sync.RWMutex
 }
 
 // GetDb implements firewall.FirewallStore
-func (agentStore agentStore) GetDb() store.RdbmsStore {
-	return *agentStore.RdbmsStore
+func (agentStore agentStore) GetDb() *sql.DB {
+	return agentStore.db
 }
 
 // GetMutex implements firewall.FirewallStore
@@ -46,40 +45,58 @@ func (agentStore agentStore) GetMutex() *sync.RWMutex {
 	return agentStore.mu
 }
 
-// Entities implements Entities method of
-// Service interface.
-func (agentStore *agentStore) Entities() []interface{} {
-	retval := make([]interface{}, 3)
-	retval[0] = new(Route)
-	retval[1] = new(firewall.IPtablesRule)
-	retval[2] = new(NetIf)
-	return retval
-}
-
 // NewStore returns initialized agentStore.
-func NewStore(config common.ServiceConfig) (*agentStore, error) {
-	storeConfigMap := config.ServiceSpecific["store"].(map[string]interface{})
+func NewStore(agent *Agent) (agentStore, error) {
+	db, err := sql.Open("sqlite3", agent.localDBFile)
+
 	datastore := agentStore{
 		mu: &sync.RWMutex{},
+		db: db,
 	}
-	rdbmsStore, err := store.GetStore(storeConfigMap)
-	if err != nil {
-		return nil, err
-	}
-	datastore.RdbmsStore = rdbmsStore.(*store.RdbmsStore)
-	datastore.ServiceStore = &datastore
-	storeConfig, err := common.MakeStoreConfig(storeConfigMap)
-	if err != nil {
-		return nil, err
-	}
-	datastore.SetConfig(storeConfig)
 
-	return &datastore, nil
+	if err != nil {
+		return datastore, err
+	}
+	var createTable string
+
+	createTable = `CREATE TABLE IF NOT EXISTS routes (
+		id integer primary key autoincrement,
+		ip varchar,
+		mask varchar
+		kind varchar,
+		spec varchar,
+		status varchar
+	)`
+	_, err = db.Exec(createTable)
+	if err != nil {
+		return datastore, err
+	}
+
+	createTable = `CREATE TABLE IF NOT EXISTS iptables_rules (
+		body TEXT PRIMARY KEY,
+		state VARCHAR
+	)`
+	_, err = db.Exec(createTable)
+	if err != nil {
+		return datastore, err
+	}
+
+	createTable = `CREATE TABLE IF NOT EXISTS netifs (
+		name varchar,
+		mac varchar primary key,
+		ip varchar
+	)`
+	_, err = db.Exec(createTable)
+	if err != nil {
+		return datastore, err
+	}
+
+	return datastore, nil
 }
 
 // Route is a model to store managed routes
 type Route struct {
-	ID     uint64 `sql:"AUTO_INCREMENT"`
+	ID     int
 	IP     string
 	Mask   string
 	Kind   targetKind
@@ -95,12 +112,7 @@ const (
 	gateway targetKind = "gw"
 )
 
-// CreateSchemaPostProcess implements CreateSchemaPostProcess method of
-// Service interface.
-func (agentStore *agentStore) CreateSchemaPostProcess() error {
-	return nil
-}
-
+// deleteRoute deletes the route based on ID of the provided route.
 func (agentStore *agentStore) deleteRoute(route *Route) error {
 	log.Trace(trace.Inside, "Acquiring store mutex for deleteRoute")
 	agentStore.mu.Lock()
@@ -110,16 +122,17 @@ func (agentStore *agentStore) deleteRoute(route *Route) error {
 	}()
 	log.Trace(trace.Inside, "Acquired store mutex for deleteRoute")
 
-	db := agentStore.DbStore.Db
-	agentStore.DbStore.Db.Delete(route)
-	err := common.MakeMultiError(db.GetErrors())
+	st, err := agentStore.db.Prepare("DELETE FROM routes WHERE id = ?")
+	if st != nil {
+		defer st.Close()
+	}
 	if err != nil {
 		return err
 	}
-	if db.Error != nil {
-		return db.Error
+	_, err = st.Exec(route.ID)
+	if err != nil {
+		return err
 	}
-
 	return nil
 }
 
@@ -132,23 +145,39 @@ func (agentStore *agentStore) findRouteByIface(routeIface string) (*Route, error
 	}()
 	log.Trace(trace.Inside, "Acquired store mutex for findRoute")
 
-	var route Route
-	db := agentStore.DbStore.Db
-	agentStore.DbStore.Db.Where("ip = ?", routeIface).First(&route)
-	err := common.MakeMultiError(db.GetErrors())
+	st, err := agentStore.db.Prepare("SELECT id,ip,mask,kind,spec,status FROM routes WHERE ip = ?")
+	if st != nil {
+		defer st.Close()
+	}
 	if err != nil {
 		return nil, err
 	}
-	if db.Error != nil {
-		return nil, db.Error
+	res, err := st.Query(routeIface)
+	if res != nil {
+		defer res.Close()
 	}
-	return &route, nil
+	if err != nil {
+		return nil, err
+	}
+
+	if !res.Next() {
+		return nil, common.NewError("Cannot find route for %s", routeIface)
+	}
+	route := &Route{}
+	err = res.Scan(&route.ID, &route.IP, &route.Mask, &route.Spec, &route.Status)
+	return route, err
 }
 
 func (agentStore *agentStore) addNetIf(netif *NetIf) error {
-	db := agentStore.DbStore.Db
-	agentStore.DbStore.Db.Create(netif)
-	err := common.GetDbErrors(db)
+	st, err := agentStore.db.Prepare("INSERT INTO netifs (ip,mac, name) VALUES (?,?,?)")
+	if err != nil {
+		return err
+	}
+	if st != nil {
+		defer st.Close()
+	}
+	_, err = st.Exec(netif.IP, netif.Mac, netif.Name)
+
 	if err != nil {
 		return err
 	}
@@ -156,34 +185,63 @@ func (agentStore *agentStore) addNetIf(netif *NetIf) error {
 }
 
 func (agentStore *agentStore) findNetIf(netif *NetIf) error {
-	db := agentStore.DbStore.Db
-	var count int
-	agentStore.DbStore.Db.Where(netif).First(netif).Count(&count)
-	err := common.GetDbErrors(db)
+	st, err := agentStore.db.Prepare("SELECT ip, mac, name FROM netifs WHERE netif.ip = ?")
 	if err != nil {
 		return err
 	}
-	if count == 0 {
+	if st != nil {
+		defer st.Close()
+	}
+	rows, err := st.Query(netif.IP.String())
+	if rows != nil {
+		defer rows.Close()
+	}
+	if err != nil {
+		return err
+	}
+	if !rows.Next() {
 		return common.NewError404("interface", fmt.Sprintf("mac: %s", netif.Mac))
 	}
+	rows.Scan(netif.IP, &netif.Mac, &netif.Name)
 	return nil
 }
 
 func (agentStore *agentStore) listNetIfs() ([]NetIf, error) {
-	db := agentStore.DbStore.Db
-	var netifs []NetIf
-	agentStore.DbStore.Db.Find(&netifs)
-	err := common.GetDbErrors(db)
+	st, err := agentStore.db.Prepare("SELECT ip, mac, name FROM netifs")
+	if st != nil {
+		defer st.Close()
+	}
 	if err != nil {
 		return nil, err
+	}
+	rows, err := st.Query()
+	if rows != nil {
+		defer rows.Close()
+	}
+	if err != nil {
+		return nil, err
+	}
+	netifs := make([]NetIf, 0)
+	for rows.Next() {
+		netif := NetIf{}
+		err = rows.Scan(&netif.IP, &netif.Mac, &netif.Name)
+		if err != nil {
+			return netifs, err
+		}
+		netifs = append(netifs, netif)
 	}
 	return netifs, nil
 }
 
 func (agentStore *agentStore) deleteNetIf(netif *NetIf) error {
-	db := agentStore.DbStore.Db
-	agentStore.DbStore.Db.Delete(netif)
-	err := common.GetDbErrors(db)
+	st, err := agentStore.db.Prepare("DELETE FROM netifs WHERE ip = ?")
+	if st != nil {
+		defer st.Close()
+	}
+	if err != nil {
+		return err
+	}
+	_, err = st.Exec(netif.IP)
 	if err != nil {
 		return err
 	}
@@ -197,20 +255,17 @@ func (agentStore *agentStore) addRoute(route *Route) error {
 		log.Info("Releasing store mutex for addRoute")
 		agentStore.mu.Unlock()
 	}()
-	log.Info("Acquired store mutex for addRoute")
+	st, err := agentStore.db.Prepare("INSERT INTO routes (ip, mask, kind, spec, status) VALUES (?,?,?,?,?)")
 
-	db := agentStore.DbStore.Db
-	agentStore.DbStore.Db.Create(route)
-	if db.Error != nil {
-		return db.Error
+	if st != nil {
+		defer st.Close()
 	}
-	agentStore.DbStore.Db.NewRecord(*route)
-	err := common.MakeMultiError(db.GetErrors())
 	if err != nil {
 		return err
 	}
-	if db.Error != nil {
-		return db.Error
+	_, err = st.Exec(route.IP, route.Mask, route.Spec, route.Status)
+	if err != nil {
+		return err
 	}
 	return nil
 }
@@ -222,13 +277,28 @@ func (agentStore *agentStore) listRoutes() ([]Route, error) {
 		log.Trace(trace.Inside, "Releasing store mutex for listRoutes")
 		agentStore.mu.Unlock()
 	}()
-	log.Trace(trace.Inside, "Acquired store mutex for listRoutes")
-
-	var routes []Route
-	agentStore.DbStore.Db.Find(&routes)
-	err := common.MakeMultiError(agentStore.DbStore.Db.GetErrors())
+	st, err := agentStore.db.Prepare("SELECT ip, kind, mask,spec,status FROM routes")
+	if st != nil {
+		defer st.Close()
+	}
 	if err != nil {
 		return nil, err
+	}
+	rows, err := st.Query()
+	if rows != nil {
+		defer rows.Close()
+	}
+	if err != nil {
+		return nil, err
+	}
+	routes := make([]Route, 0)
+	for rows.Next() {
+		route := Route{}
+		err = rows.Scan(&route.IP, &route.Kind, &route.Mask, &route.Spec, &route.Status)
+		if err != nil {
+			return routes, err
+		}
+		routes = append(routes, route)
 	}
 	return routes, nil
 }

@@ -19,12 +19,12 @@
 package cache
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
 	"github.com/romana/core/agent/policy/hasher"
-	"github.com/romana/core/common"
+	"github.com/romana/core/common/api"
+	"github.com/romana/core/common/client"
 	"github.com/romana/core/common/log/trace"
 
 	log "github.com/romana/rlog"
@@ -38,7 +38,7 @@ type Interface interface {
 	Run(stop <-chan struct{}) <-chan string
 
 	// List returns a list of all romana policies in a cache.
-	List() []common.Policy
+	List() []api.Policy
 }
 
 // Config represents configuration for the policy cache.
@@ -48,7 +48,7 @@ type Config struct {
 }
 
 // New creates new policy cache.
-func New(client *common.RestClient, config Config) Interface {
+func New(client *client.Client, config Config) Interface {
 	t := time.Tick(time.Duration(config.CacheTickSeconds) * time.Second)
 	return &Cache{client: client, ticker: t, mu: &sync.Mutex{}}
 }
@@ -56,13 +56,13 @@ func New(client *common.RestClient, config Config) Interface {
 // Cache implements Interface.
 type Cache struct {
 	// Romana rest client to access romana policy storage.
-	client *common.RestClient
+	client *client.Client
 
 	// Delay between main loop runs.
 	ticker <-chan time.Time
 
 	// Internal store for romana policies.
-	store []common.Policy
+	store []api.Policy
 
 	mu *sync.Mutex
 
@@ -114,7 +114,7 @@ func (c *Cache) Run(stop <-chan struct{}) <-chan string {
 }
 
 // List implements Interface.
-func (c *Cache) List() []common.Policy {
+func (c *Cache) List() []api.Policy {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -123,19 +123,6 @@ func (c *Cache) List() []common.Policy {
 }
 
 // getNewState retrieves romana policies from romana Policy service.
-func (c *Cache) getNewState(client *common.RestClient) ([]common.Policy, error) {
-	policies := []common.Policy{}
-
-	policyURL, err := client.GetServiceUrl("policy")
-	if err != nil {
-		return policies, err
-	}
-	policyURL = fmt.Sprintf("%s/policies", policyURL)
-
-	err = client.Get(policyURL, &policies)
-	if err != nil {
-		return policies, err
-	}
-
-	return policies, nil
+func (c *Cache) getNewState(client *client.Client) ([]api.Policy, error) {
+	return client.ListPolicies()
 }

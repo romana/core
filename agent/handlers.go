@@ -437,10 +437,7 @@ func (a *Agent) vmUpHandlerAsync(netif NetIf) error {
 // getFirewallType converts configuration option firewall_provider into
 // firewall.Provider type.
 func (a Agent) getFirewallType() firewall.Provider {
-	provider, ok := a.config.ServiceSpecific["firewall_provider"].(string)
-	if !ok {
-		panic("Unable to read firewall_provider from config")
-	}
+	provider := a.firewallProvider
 
 	// Value of "shellex" stands for firewall provider that executes iptables
 	// commands line by line and value of "save-restore" stands for

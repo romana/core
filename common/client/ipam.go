@@ -13,7 +13,7 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-package ipam
+package client
 
 import (
 	"encoding/json"
@@ -26,8 +26,9 @@ import (
 	"sync"
 
 	"github.com/romana/core/common"
+	"github.com/romana/core/common/api"
+	"github.com/romana/core/common/client/idring"
 	"github.com/romana/core/common/log/trace"
-	"github.com/romana/core/server/api"
 
 	log "github.com/romana/rlog"
 )
@@ -45,10 +46,6 @@ const (
 var (
 	err              error
 	tenantNameRegexp = regexp.MustCompile("^[a-zA-Z0-9_]*$")
-	// ipam is assumed to be a singleton representing the IPAM object.
-	// The singleton is not enforced. It is the responsibility of the
-	// callers to take care of that.
-	ipam *IPAM
 )
 
 // makeOwner makes an "owner" string -- which is "<tenant>:<segment>".
@@ -126,12 +123,13 @@ func (cidr *CIDR) UnmarshalJSON(data []byte) error {
 
 // Host represents a host in Romana topology.
 type Host struct {
-	Name  string `json:"name"`
-	group *HostsGroups
+	IP        net.IP `json:"ip"`
+	AgentPort int    `json:"agent_port"`
+	group     *HostsGroups
 }
 
 func (h Host) String() string {
-	return h.Name
+	return h.IP.String()
 }
 
 // HostsGroups holds either a list of hosts at a given level; it cannot
@@ -172,16 +170,17 @@ func (hg *HostsGroups) String() string {
 
 // AddHost adds hosts to this group. If the group contains
 // other groups, it is an error.
-func (hg *HostsGroups) AddHost(hostName string) error {
+func (hg *HostsGroups) AddHost(host api.Host) error {
 	if hg.Hosts == nil {
 		return errors.New("Cannot add host to this group, group contains only other groups.")
 	}
-	newHost := &Host{Name: hostName, group: hg}
+
+	newHost := &Host{IP: host.IP, AgentPort: host.AgentPort, group: hg}
 	hg.Hosts = append(hg.Hosts, newHost)
 	return nil
 }
 
-func (hg *HostsGroups) allocateIP(network *Network, hostName string, owner string) net.IP {
+func (hg *HostsGroups) allocateIP(network *Network, hostIP string, owner string) net.IP {
 	ownedBlockIDs := hg.OwnerToBlocks[owner]
 	var ip net.IP
 	if len(ownedBlockIDs) > 0 {
@@ -207,7 +206,7 @@ func (hg *HostsGroups) allocateIP(network *Network, hostName string, owner strin
 			hg.ReusableBlocks = append(hg.ReusableBlocks[:blockID], hg.ReusableBlocks[blockID+1:]...)
 			hg.OwnerToBlocks[owner] = append(hg.OwnerToBlocks[owner], blockID)
 			hg.BlockToOwner[blockID] = owner
-			hg.BlockToHost[blockID] = hostName
+			hg.BlockToHost[blockID] = hostIP
 			return ip
 		}
 	}
@@ -302,22 +301,22 @@ func (hg *HostsGroups) injectParents(network *Network) {
 }
 
 // listHosts lists all hosts in this group.
-func (hg *HostsGroups) listHosts() []*Host {
+func (hg *HostsGroups) ListHosts() []*Host {
 	list := hg.Hosts
 	for _, group := range hg.Groups {
-		list2 := group.listHosts()
+		list2 := group.ListHosts()
 		list = append(list, list2...)
 	}
 	return list
 }
 
-func (hg *HostsGroups) listBlocks() []*Block {
+func (hg *HostsGroups) ListBlocks() []*Block {
 	blocks := make([]*Block, 0)
 	if hg.Blocks != nil {
 		blocks = append(blocks, hg.Blocks...)
 	}
 	for _, group := range hg.Groups {
-		blocks2 := group.listBlocks()
+		blocks2 := group.ListBlocks()
 		if blocks2 != nil {
 			blocks = append(blocks, blocks2...)
 		}
@@ -325,10 +324,10 @@ func (hg *HostsGroups) listBlocks() []*Block {
 	return blocks
 }
 
-// getBlocksResponse returns list of blocks for the provided group
+// GetBlocks returns list of blocks for the provided group
 // including extra information about a block (host, tenant/segment, etc.)
 // - corresponding to api.IPAMBlockResponse.
-func (hg *HostsGroups) getBlocksResponse() []api.IPAMBlockResponse {
+func (hg *HostsGroups) GetBlocks() []api.IPAMBlockResponse {
 	retval := make([]api.IPAMBlockResponse, 0)
 	if hg.Blocks != nil {
 		for blockID, block := range hg.Blocks {
@@ -345,20 +344,20 @@ func (hg *HostsGroups) getBlocksResponse() []api.IPAMBlockResponse {
 		}
 	}
 	for _, group := range hg.Groups {
-		br := group.getBlocksResponse()
+		br := group.GetBlocks()
 		retval = append(retval, br...)
 	}
 	return retval
 }
 
-func (hg *HostsGroups) findHostByName(name string) *Host {
+func (hg *HostsGroups) findHostByIP(ip string) *Host {
 	for _, h := range hg.Hosts {
-		if h.Name == name {
+		if h.IP.String() == ip {
 			return h
 		}
 	}
 	for _, group := range hg.Groups {
-		return group.findHostByName(name)
+		return group.findHostByIP(ip)
 	}
 	return nil
 }
@@ -451,7 +450,8 @@ func (hg *HostsGroups) parse(arr []interface{}, cidr *CIDR, network *Network) er
 		}
 		if kind == "string" {
 			// This is host, we inherit the CIDR
-			hg.Hosts[i] = &Host{Name: elt.(string),
+
+			hg.Hosts[i] = &Host{IP: net.ParseIP(elt.(string)),
 				group: hg,
 			}
 		} else {
@@ -478,7 +478,7 @@ func (hg *HostsGroups) parse(arr []interface{}, cidr *CIDR, network *Network) er
 // and thus can have addresses allocated in it it.
 type Block struct {
 	CIDR     *CIDR          `json:"cidr"`
-	Pool     *common.IDRing `json:"pool"`
+	Pool     *idring.IDRing `json:"pool"`
 	Revision int            `json:"revision"`
 }
 
@@ -489,12 +489,12 @@ func (b Block) String() string {
 // newBlock creates a new Block on the given host.
 func newBlock(cidr *CIDR) *Block {
 	eb := &Block{CIDR: cidr,
-		Pool: common.NewIDRing(cidr.StartIPInt, cidr.EndIPInt),
+		Pool: idring.NewIDRing(cidr.StartIPInt, cidr.EndIPInt),
 	}
 	return eb
 }
 
-func (b Block) listAddresses() []string {
+func (b Block) ListAddresses() []string {
 	retval := make([]string, 0)
 	for _, r := range b.Pool.Ranges {
 		for i := r.Min; i <= r.Max; i++ {
@@ -613,12 +613,12 @@ func (network *Network) deallocateIP(ip net.IP) error {
 // allocateIP attempts to allocate an IP from one of the existing blocks for the tenant; and
 // if not, reuse a block that belongs to no tenant. Finally, it will try to allocate a
 // new block.
-func (network *Network) allocateIP(hostName string, tenant string, segment string) (net.IP, error) {
-	host := network.HostsGroups.findHostByName(hostName)
+func (network *Network) allocateIP(hostIP string, owner string) (net.IP, error) {
+	host := network.HostsGroups.findHostByIP(hostIP)
 	if host == nil {
-		return nil, common.NewError("Host %s not found", hostName)
+		return nil, common.NewError("Host %s not found", hostIP)
 	}
-	ip := host.group.allocateIP(network, hostName, makeOwner(tenant, segment))
+	ip := host.group.allocateIP(network, hostIP, owner)
 	if ip == nil {
 		return nil, nil
 	}
@@ -668,6 +668,9 @@ type IPAM struct {
 	locker          sync.Locker
 
 	TenantToNetwork map[string][]string `json:"tenant_to_network"`
+
+	//	OwnerToIP map[string][]string
+	//	IPToOwner map[string]string
 }
 
 // injectParents is intended to add references to parent objects where appropriate
@@ -687,6 +690,10 @@ func NewIPAM(saver Saver, locker sync.Locker) (*IPAM, error) {
 	ipam.Networks = make(map[string]*Network)
 	ipam.AddressNameToIP = make(map[string]net.IP)
 	ipam.TenantToNetwork = make(map[string][]string)
+
+	//	ipam.OwnerToIP = make(map[string][]string)
+	//	ipam.IPToOwner = make(map[string]string)
+
 	if locker == nil {
 		ipam.locker = &sync.Mutex{}
 	} else {
@@ -699,6 +706,16 @@ func NewIPAM(saver Saver, locker sync.Locker) (*IPAM, error) {
 		return nil, err
 	}
 	return ipam, nil
+}
+
+func (ipam *IPAM) ListHosts() []api.Host {
+	retval := make([]api.Host, 0)
+	for _, network := range ipam.Networks {
+		for _, host := range network.HostsGroups.ListHosts() {
+			retval = append(retval, api.Host{IP: host.IP})
+		}
+	}
+	return retval
 }
 
 // GetGroupsForNetwork retrieves HostsGroups for the network
@@ -732,13 +749,19 @@ func (ipam *IPAM) AllocateIP(addressName string, host string, tenant string, seg
 		return nil, err
 	}
 
+	owner := makeOwner(tenant, segment)
 	for _, network := range networksForTenant {
-		ip, err := network.allocateIP(host, tenant, segment)
+		ip, err := network.allocateIP(host, owner)
+
 		if err != nil {
 			return nil, err
 		}
 		if ip != nil {
 			ipam.AddressNameToIP[addressName] = ip
+
+			//			ipam.OwnerToIP[owner] = append(ipam.OwnerToIP[owner], ip)
+			//			ipam.IPToOwner[ip] = owner
+
 			err = ipam.save(ipam)
 			if err != nil {
 				return nil, err
@@ -752,7 +775,6 @@ func (ipam *IPAM) AllocateIP(addressName string, host string, tenant string, seg
 // DeallocateIP will deallocate the provided IP (returning an
 // error if it never was allocated in the first place).
 func (ipam *IPAM) DeallocateIP(addressName string) error {
-
 	ipam.locker.Lock()
 	defer ipam.locker.Unlock()
 
@@ -800,7 +822,7 @@ func (ipam *IPAM) getNetworksForTenant(tenant string) ([]*Network, error) {
 
 // updateTopology updates the entire topology, returning an error if it is
 // in conflict with the previous topology.
-func (ipam *IPAM) updateTopology(req api.TopologyUpdateRequest) error {
+func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest) error {
 	// TODO
 	if len(ipam.Networks) > 0 {
 		return errors.New("Updating topology after it has been initally set up currently not implemented.")
@@ -865,6 +887,26 @@ func (ipam *IPAM) updateTopology(req api.TopologyUpdateRequest) error {
 	return nil
 }
 
+func (ipam *IPAM) ListAllBlocks() []api.IPAMBlockResponse {
+	blocks := make([]api.IPAMBlockResponse, 0)
+	for _, network := range ipam.Networks {
+		netBlocks := network.HostsGroups.GetBlocks()
+		blocks = append(blocks, netBlocks...)
+	}
+	return blocks
+}
+
+func (ipam *IPAM) ListNetworkBlocks(netName string) *api.IPAMBlocksResponse {
+	if network, ok := ipam.Networks[netName]; ok {
+		resp := &api.IPAMBlocksResponse{
+			Revision: network.Revison,
+			Blocks:   network.HostsGroups.GetBlocks(),
+		}
+		return resp
+	}
+	return nil
+}
+
 // BlackOut removes a CIDR from consideration. It is an error if CIDR
 // is within any of the exising allocated blocks. Fragmentation may
 // result if CIDRs smaller than ipam. Blocks are blacked out and then
@@ -905,7 +947,7 @@ func (ipam *IPAM) BlackOut(cidrStr string) error {
 		if cidr.Contains(blackedOut) {
 			// Replace existing one with this one as it is bigger. But first check
 			// if it has allocated IPs.
-			networkBlocks := network.HostsGroups.listBlocks()
+			networkBlocks := network.HostsGroups.ListBlocks()
 			log.Tracef(trace.Inside, "BlackOut: Checking blocks %v if they have IP in %s", networkBlocks, cidr)
 			for _, block := range networkBlocks {
 				if block.hasIPInCIDR(*cidr) {
@@ -925,7 +967,7 @@ func (ipam *IPAM) BlackOut(cidrStr string) error {
 	// Check if proposed black out cidr contains allocated IPs
 	// Replace existing one with this one as it is bigger. But first check
 	// if it has allocated IPs.
-	networkBlocks := network.HostsGroups.listBlocks()
+	networkBlocks := network.HostsGroups.ListBlocks()
 	log.Tracef(trace.Inside, "BlackOut: Checking blocks %v if they have IP in %s", networkBlocks, cidr)
 	for _, block := range networkBlocks {
 		if block.hasIPInCIDR(*cidr) {

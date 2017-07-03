@@ -23,6 +23,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/go-resty/resty"
 	"github.com/romana/core/common/log/trace"
 	log "github.com/romana/rlog"
 
@@ -237,7 +238,7 @@ func (l *KubeListener) deleteRomanaIP(service *v1.Service) {
 func (l *KubeListener) agentDeleteRomanaIP(e ExposedIPSpec) {
 	ip := ExternalIP{IP: e.RomanaIP.IP}
 	agentURL := fmt.Sprintf("http://%s:9604/romanaip", e.NodeIPAddress)
-	err := l.restClient.Delete(agentURL, ip, &ip)
+	_, err := resty.R().SetBody(ip).Delete(agentURL)
 	if err != nil {
 		log.Errorf("Error in sending agent, externalIP (%s) deletion information",
 			ip.IP)
@@ -246,8 +247,10 @@ func (l *KubeListener) agentDeleteRomanaIP(e ExposedIPSpec) {
 
 func (l *KubeListener) agentAddRomanaIP(e ExposedIPSpec) {
 	ip := ExternalIP{IP: e.RomanaIP.IP}
+	// TODO not use hardcoded port number for /romanaip.
+	//
 	agentURL := fmt.Sprintf("http://%s:9604/romanaip", e.NodeIPAddress)
-	err := l.restClient.Post(agentURL, ip, &ip)
+	_, err := resty.R().SetBody(ip).Post(agentURL)
 	if err != nil {
 		log.Errorf("Error in sending agent, externalIP (%s) addition information",
 			ip.IP)

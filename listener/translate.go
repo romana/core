@@ -19,12 +19,12 @@ package listener
 
 import (
 	"fmt"
-	"net/http"
-	"os"
 	"strings"
 	"sync"
 
 	"github.com/romana/core/common"
+	"github.com/romana/core/common/api"
+	"github.com/romana/core/common/client"
 	"github.com/romana/core/common/log/trace"
 	log "github.com/romana/rlog"
 
@@ -32,60 +32,49 @@ import (
 )
 
 type PolicyTranslator interface {
-	Init(*common.RestClient, string)
+	Init(*client.Client, string, string)
 
 	// Translates kubernetes policy into romana format.
-	Kube2Romana(v1beta1.NetworkPolicy) (common.Policy, error)
+	Kube2Romana(v1beta1.NetworkPolicy) (api.Policy, error)
 
 	// Translates number of kubernetes policies into romana format.
 	// Returns a list of translated policies, list of original policies
 	// that failed to translate and an error.
-	Kube2RomanaBulk([]v1beta1.NetworkPolicy) ([]common.Policy, []v1beta1.NetworkPolicy, error)
+	Kube2RomanaBulk([]v1beta1.NetworkPolicy) ([]api.Policy, []v1beta1.NetworkPolicy, error)
 }
 
 type Translator struct {
 	listener         *KubeListener
-	restClient       *common.RestClient
+	client           *client.Client
 	tenantsCache     []TenantCacheEntry
 	cacheMu          *sync.Mutex
 	segmentLabelName string
 	tenantLabelName  string
 }
 
-func (t *Translator) Init(client *common.RestClient, segmentLabelName, tenantLabelName string) {
+func (t *Translator) Init(client *client.Client, segmentLabelName, tenantLabelName string) {
 	t.cacheMu = &sync.Mutex{}
-	t.restClient = client
-	err := t.updateCache()
-	if err == nil {
-		log.Infof("Translator cache updated - have %d tenant entries", len(t.tenantsCache))
-	} else {
-		log.Errorf("Translator cache update failed, %s", err)
-	}
+	t.client = client
 	t.segmentLabelName = segmentLabelName
 	t.tenantLabelName = tenantLabelName
 }
 
-func (t Translator) GetClient() *common.RestClient {
-	return t.restClient
+func (t Translator) GetClient() *client.Client {
+	return t.client
 }
 
 // Kube2Romana reserved for future use.
-func (t Translator) Kube2Romana(kubePolicy v1beta1.NetworkPolicy) (common.Policy, error) {
-	return common.Policy{}, nil
+func (t Translator) Kube2Romana(kubePolicy v1beta1.NetworkPolicy) (api.Policy, error) {
+	return api.Policy{}, nil
 }
 
 // Kube2RomanaBulk attempts to translate a list of kubernetes policies into
 // romana representation, returns a list of translated policies and a list
 // of policies that can't be translated in original format.
-func (t Translator) Kube2RomanaBulk(kubePolicies []v1beta1.NetworkPolicy) ([]common.Policy, []v1beta1.NetworkPolicy, error) {
+func (t Translator) Kube2RomanaBulk(kubePolicies []v1beta1.NetworkPolicy) ([]api.Policy, []v1beta1.NetworkPolicy, error) {
 	log.Info("In Kube2RomanaBulk")
-	var returnRomanaPolicy []common.Policy
+	var returnRomanaPolicy []api.Policy
 	var returnKubePolicy []v1beta1.NetworkPolicy
-
-	err := t.updateCache()
-	if err != nil {
-		return returnRomanaPolicy, returnKubePolicy, TranslatorError{ErrorCacheUpdate, err}
-	}
 
 	for kubePolicyNumber, _ := range kubePolicies {
 		romanaPolicy, err := t.translateNetworkPolicy(&kubePolicies[kubePolicyNumber])
@@ -102,13 +91,13 @@ func (t Translator) Kube2RomanaBulk(kubePolicies []v1beta1.NetworkPolicy) ([]com
 }
 
 // translateNetworkPolicy translates a Kubernetes policy into
-// Romana policy (see common.Policy) with the following rules:
+// Romana policy (see api.Policy) with the following rules:
 // 1. Kubernetes Namespace corresponds to Romana Tenant
 // 2. If Romana Tenant does not exist it is an error (a tenant should
 //    automatically have been created when the namespace was added)
-func (l *Translator) translateNetworkPolicy(kubePolicy *v1beta1.NetworkPolicy) (common.Policy, error) {
-	policyName := fmt.Sprintf("kube.%s.%s", kubePolicy.ObjectMeta.Namespace, kubePolicy.ObjectMeta.Name)
-	romanaPolicy := &common.Policy{Direction: common.PolicyDirectionIngress, Name: policyName, ExternalID: string(kubePolicy.GetUID())}
+func (l *Translator) translateNetworkPolicy(kubePolicy *v1beta1.NetworkPolicy) (api.Policy, error) {
+	policyID := getPolicyID(*kubePolicy)
+	romanaPolicy := &api.Policy{Direction: api.PolicyDirectionIngress, ID: policyID}
 
 	// Prepare translate group with original kubernetes policy and empty romana policy.
 	translateGroup := &TranslateGroup{kubePolicy, romanaPolicy, TranslateGroupStartIndex}
@@ -135,177 +124,9 @@ func (l *Translator) translateNetworkPolicy(kubePolicy *v1beta1.NetworkPolicy) (
 	return *translateGroup.romanaPolicy, nil
 }
 
-// resolveTenantByName retrieves tenant information from romana.
-func (l *Translator) resolveTenantByName(tenantName string) (*common.Tenant, error) {
-	t := &common.Tenant{Name: tenantName}
-	err := l.restClient.Find(t, common.FindLast)
-	if err != nil {
-		return t, err
-	}
-	return t, nil
-}
-
-// getOrAddSegment finds a segment (based on segment selector).
-// If not found, it adds one.
-func (l *Translator) getOrAddSegment(namespace string, kubeSegmentName string) (*common.Segment, error) {
-	tenantCacheEntry := l.checkTenantInCache(namespace)
-	if tenantCacheEntry == nil {
-		return nil, TranslatorError{ErrorTenantNotInCache, fmt.Errorf("Tenant not found in cache while resolving segment")}
-	}
-
-	segment := l.checkSegmentInCache(tenantCacheEntry, kubeSegmentName)
-	if segment != nil {
-		// Stop right here, we have what we
-		// came for.
-		return segment, nil
-
-	}
-
-	// This branch corresponds to a situation when
-	// tenant found in the cache but segment isn't.
-	// We will try to create a segment and update the cache.
-	defer func() {
-		err := l.updateCache()
-		if err != nil {
-			log.Error("Failed to update cache in translator during getOrAddSegment().")
-		}
-	}()
-
-	ten := tenantCacheEntry.Tenant
-	seg := &common.Segment{}
-	seg.Name = kubeSegmentName
-	seg.TenantID = ten.ID
-	err := l.restClient.Find(seg, common.FindExactlyOne)
-	if err == nil {
-		return seg, nil
-	}
-
-	switch err := err.(type) {
-	case common.HttpError:
-		if err.StatusCode == http.StatusNotFound {
-			// Not found, so let's create a segment.
-			segreq := common.Segment{Name: kubeSegmentName, TenantID: ten.ID}
-			segURL, err2 := l.restClient.GetServiceUrl("tenant")
-			if err2 != nil {
-				return nil, err2
-			}
-			segURL = fmt.Sprintf("%s/tenants/%d/segments", segURL, ten.ID)
-			err2 = l.restClient.Post(segURL, segreq, seg)
-			if err2 == nil {
-				// Successful creation.
-				return seg, nil
-			}
-			// Creation of non-existing segment gave an error.
-			switch err2 := err2.(type) {
-			case common.HttpError:
-				// Maybe someone else just created a segment between the original
-				// lookup and now?
-				if err2.StatusCode == http.StatusConflict {
-					switch details := err2.Details.(type) {
-					case common.Segment:
-						// We expect the existing segment to be returned in the details field.
-						return &details, nil
-					default:
-						// This is unexpected...
-						return nil, err
-					}
-				}
-				// Any other HTTP error other than a Conflict here - return it.
-				return nil, err2
-			default:
-				// Any other error - return it
-				return nil, err2
-			}
-		}
-		// Any other HTTP error other than a Not found here - return it
-		return nil, err
-	default:
-		// Any other error - return it
-		return nil, err
-	}
-}
-
 type TenantCacheEntry struct {
-	Tenant   common.Tenant
-	Segments []common.Segment
-}
-
-func (t Translator) checkTenantInCache(tenantName string) *TenantCacheEntry {
-	t.cacheMu.Lock()
-	defer func() {
-		t.cacheMu.Unlock()
-	}()
-
-	for tn, currentTenant := range t.tenantsCache {
-		if currentTenant.Tenant.Name == tenantName {
-			return &t.tenantsCache[tn]
-		}
-	}
-	return nil
-}
-
-// checkTenantInCache checks if given tenant cache entry has a segment with given name.
-func (t Translator) checkSegmentInCache(cacheEntry *TenantCacheEntry, segmentId string) *common.Segment {
-	t.cacheMu.Lock()
-	defer func() {
-		t.cacheMu.Unlock()
-	}()
-
-	for segn, currentSegment := range cacheEntry.Segments {
-		if currentSegment.Name == segmentId {
-			return &cacheEntry.Segments[segn]
-		}
-	}
-	return nil
-}
-
-// updateCache contacts romana Tenant service, lists
-// all resources and loads them into memory.
-func (t *Translator) updateCache() error {
-	log.Info("In updateCache")
-
-	tenantURL, err := t.restClient.GetServiceUrl("tenant")
-	if err != nil {
-		return TranslatorError{ErrorCacheUpdate, err}
-	}
-
-	tenants := []common.Tenant{}
-	err = t.restClient.Get(tenantURL+"/tenants", &tenants)
-	if err != nil {
-		log.Errorf("updateCache(): Error getting tenant information: %s", err)
-		return TranslatorError{ErrorCacheUpdate, err}
-	}
-
-	if t.restClient == nil {
-		log.Critical("REST client is nil")
-		os.Exit(255)
-	}
-
-	// tenants := []common.Tenant{}
-	// _ = t.restClient.Find(&tenants, common.FindAll)
-
-	t.cacheMu.Lock()
-	defer func() {
-		log.Infof("Exiting updateCache with %d tenants", len(t.tenantsCache))
-		t.cacheMu.Unlock()
-	}()
-
-	t.tenantsCache = nil
-	for _, ten := range tenants {
-		segments := []common.Segment{}
-		fullUrl := fmt.Sprintf("%s/tenants/%d/segments", tenantURL, ten.ID)
-		err = t.restClient.Get(fullUrl, &segments)
-		// ignore 404 error here which means no segments
-		// considered to be a zero segments rather then
-		// an error.
-		if err != nil && !checkHttp404(err) {
-			log.Errorf("updateCache(): Error getting segment information for tenant %d: %s", ten.ID, err)
-			return TranslatorError{ErrorCacheUpdate, err}
-		}
-
-		t.tenantsCache = append(t.tenantsCache, TenantCacheEntry{ten, segments})
-	}
-	return nil
+	Tenant api.Tenant
+	//Segments []api.Segment
 }
 
 func checkHttp404(err error) (ret bool) {
@@ -341,7 +162,7 @@ const (
 // into romana policy.
 type TranslateGroup struct {
 	kubePolicy   *v1beta1.NetworkPolicy
-	romanaPolicy *common.Policy
+	romanaPolicy *api.Policy
 	ingressIndex int
 }
 
@@ -351,16 +172,12 @@ const TranslateGroupStartIndex = 0
 func (tg *TranslateGroup) translateTarget(translator *Translator) error {
 
 	// Translate kubernetes namespace into romana tenant. Must be defined.
-	tenantCacheEntry := translator.checkTenantInCache(tg.kubePolicy.ObjectMeta.Namespace)
-	if tenantCacheEntry == nil {
-		log.Errorf("Tenant not found when translating policy %v", tg.romanaPolicy)
-		return TranslatorError{ErrorTenantNotInCache, nil}
-	}
+	tenantID := GetTenantIDFromNamespaceName(tg.kubePolicy.ObjectMeta.Namespace)
 
 	// Empty PodSelector means policy applied to the entire namespace.
 	if len(tg.kubePolicy.Spec.PodSelector.MatchLabels) == 0 {
-		tg.romanaPolicy.AppliedTo = []common.Endpoint{
-			common.Endpoint{TenantID: tenantCacheEntry.Tenant.ID, TenantExternalID: tenantCacheEntry.Tenant.ExternalID},
+		tg.romanaPolicy.AppliedTo = []api.Endpoint{
+			api.Endpoint{TenantID: tenantID},
 		}
 
 		log.Tracef(trace.Inside, "Segment was not specified in policy %v, assuming target is a namespace", tg.kubePolicy)
@@ -374,15 +191,9 @@ func (tg *TranslateGroup) translateTarget(translator *Translator) error {
 		return common.NewError("Expected segment to be specified in podSelector part as '%s'", translator.segmentLabelName)
 	}
 
-	// Translate kubernetes segment label into romana segment.
-	segment, err := translator.getOrAddSegment(tg.kubePolicy.ObjectMeta.Namespace, kubeSegmentID)
-	if err != nil {
-		log.Errorf("Error in translate while calling l.getOrAddSegment with %s and %s - error %s", tg.kubePolicy.ObjectMeta.Namespace, kubeSegmentID, err)
-		return err
-	}
-
-	tg.romanaPolicy.AppliedTo = []common.Endpoint{
-		common.Endpoint{TenantID: tenantCacheEntry.Tenant.ID, TenantExternalID: tenantCacheEntry.Tenant.ExternalID, SegmentID: segment.ID},
+	tg.romanaPolicy.AppliedTo = []api.Endpoint{
+		api.Endpoint{TenantID: tenantID,
+			SegmentID: kubeSegmentID},
 	}
 
 	return nil
@@ -393,7 +204,6 @@ func (tg *TranslateGroup) makeNextIngressPeer(translator *Translator) error {
 	ingress := tg.kubePolicy.Spec.Ingress[tg.ingressIndex]
 
 	for _, fromEntry := range ingress.From {
-		tenantCacheEntry := &TenantCacheEntry{}
 
 		// Exactly one of From.PodSelector or From.NamespaceSelector must be specified.
 		if fromEntry.PodSelector == nil && fromEntry.NamespaceSelector == nil {
@@ -406,37 +216,25 @@ func (tg *TranslateGroup) makeNextIngressPeer(translator *Translator) error {
 
 		// This ingress field matching a namespace which will be our source tenant.
 		if fromEntry.NamespaceSelector != nil {
-			tenantName, ok := fromEntry.NamespaceSelector.MatchLabels[translator.tenantLabelName]
-			if !ok || tenantName == "" {
+			tenantID := GetTenantIDFromNamespaceName(fromEntry.NamespaceSelector.MatchLabels[translator.tenantLabelName])
+			if tenantID == "" {
 				log.Errorf("Expected tenant name to be specified in NamespaceSelector field with a key %s", translator.tenantLabelName)
 				return common.NewError("Expected tenant name to be specified in NamespaceSelector field with a key %s", translator.tenantLabelName)
 			}
 
-			tenantCacheEntry = translator.checkTenantInCache(tenantName)
-			if tenantCacheEntry == nil {
-				log.Errorf("Tenant not not found when translating policy %v", tg.romanaPolicy)
-				return TranslatorError{ErrorTenantNotInCache, nil}
-			}
-
 			// Found a source tenant, let's register it as romana Peeer.
 			tg.romanaPolicy.Ingress[tg.ingressIndex].Peers = append(tg.romanaPolicy.Ingress[tg.ingressIndex].Peers,
-				common.Endpoint{TenantID: tenantCacheEntry.Tenant.ID, TenantExternalID: tenantCacheEntry.Tenant.ExternalID})
+				api.Endpoint{TenantID: tenantID})
 		}
 
 		// This ingress field matches a segment and source tenant is a same as target tenant.
 		if fromEntry.PodSelector != nil {
-
-			// Check if source/target tenant in cache.
-			tenantCacheEntry = translator.checkTenantInCache(tg.kubePolicy.ObjectMeta.Namespace)
-			if tenantCacheEntry == nil {
-				log.Errorf("Tenant not not found when translating policy %v", tg.romanaPolicy)
-				return TranslatorError{ErrorTenantNotInCache, nil}
-			}
+			tenantID := GetTenantIDFromNamespaceName(tg.kubePolicy.ObjectMeta.Namespace)
 
 			// If podSelector is empty match all traffic from the tenant.
 			if len(fromEntry.PodSelector.MatchLabels) == 0 {
 				tg.romanaPolicy.Ingress[tg.ingressIndex].Peers = append(tg.romanaPolicy.Ingress[tg.ingressIndex].Peers,
-					common.Endpoint{TenantID: tenantCacheEntry.Tenant.ID, TenantExternalID: tenantCacheEntry.Tenant.ExternalID})
+					api.Endpoint{TenantID: tenantID})
 
 				log.Tracef(trace.Inside, "No segment specified when translating ingress rule %v", tg.kubePolicy.Spec.Ingress[tg.ingressIndex])
 				return nil
@@ -449,16 +247,10 @@ func (tg *TranslateGroup) makeNextIngressPeer(translator *Translator) error {
 				return common.NewError("Expected segment to be specified in podSelector part as '%s'", translator.segmentLabelName)
 			}
 
-			// Translate kubernetes segment name into romana segment.
-			segment, err := translator.getOrAddSegment(tenantCacheEntry.Tenant.Name, kubeSegmentID)
-			if err != nil {
-				log.Errorf("Error in translate while calling l.getOrAddSegment with %s and %s - error %s", tenantCacheEntry.Tenant.Name, kubeSegmentID, err)
-				return err
-			}
-
 			// Register source tenant/segment as a romana Peer.
 			tg.romanaPolicy.Ingress[tg.ingressIndex].Peers = append(tg.romanaPolicy.Ingress[tg.ingressIndex].Peers,
-				common.Endpoint{TenantID: tenantCacheEntry.Tenant.ID, TenantExternalID: tenantCacheEntry.Tenant.ExternalID, SegmentID: segment.ID})
+				api.Endpoint{TenantID: tenantID,
+					SegmentID: kubeSegmentID})
 		}
 
 	}
@@ -472,7 +264,7 @@ func (tg *TranslateGroup) makeNextRule(translator *Translator) error {
 	for _, toPort := range ingress.Ports {
 		proto := strings.ToLower(string(*toPort.Protocol))
 		ports := []uint{uint(toPort.Port.IntValue())}
-		rule := common.Rule{Protocol: proto, Ports: ports}
+		rule := api.Rule{Protocol: proto, Ports: ports}
 		tg.romanaPolicy.Ingress[tg.ingressIndex].Rules = append(tg.romanaPolicy.Ingress[tg.ingressIndex].Rules, rule)
 	}
 
@@ -487,7 +279,7 @@ func (tg *TranslateGroup) translateNextIngress(translator *Translator) error {
 		return NoMoreIngressEntities{}
 	}
 
-	tg.romanaPolicy.Ingress = append(tg.romanaPolicy.Ingress, common.RomanaIngress{})
+	tg.romanaPolicy.Ingress = append(tg.romanaPolicy.Ingress, api.RomanaIngress{})
 
 	// Translate Ingress.From into romanaPolicy.ToPorts.
 	err := tg.makeNextIngressPeer(translator)

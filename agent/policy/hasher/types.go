@@ -14,7 +14,7 @@
 // under the License.
 
 /*
-   This file contains types that wrap common.Policy, common.Endpoint
+   This file contains types that wrap common.Policy, api.Endpoint
    and a few other types related to the common.Policy.
    Types in this file required to support Canonical method of the Policy
    which is used in hashing.
@@ -26,18 +26,17 @@ package hasher
 
 import (
 	"fmt"
-	"github.com/romana/core/common"
 	"sort"
+
+	"github.com/romana/core/common/api"
 )
 
 // PolicyToCanonical sorts romana policy Ingress and AppliedTo fields.
-func PolicyToCanonical(unsorted common.Policy) common.Policy {
-	sorted := common.Policy{
+func PolicyToCanonical(unsorted api.Policy) api.Policy {
+	sorted := api.Policy{
 		Direction:   unsorted.Direction,
 		Description: unsorted.Description,
-		Name:        unsorted.Name,
 		ID:          unsorted.ID,
-		ExternalID:  unsorted.ExternalID,
 	}
 
 	sorted.AppliedTo = NewEndpointList(unsorted.AppliedTo).Sort().List()
@@ -49,7 +48,7 @@ func PolicyToCanonical(unsorted common.Policy) common.Policy {
 	return sorted
 }
 
-// EndpointList implements sort.Interface to allow sorting of []common.Endpoint.
+// EndpointList implements sort.Interface to allow sorting of []api.Endpoint.
 type EndpointList struct {
 	items []EndpointSortGroup
 }
@@ -60,8 +59,8 @@ func (p EndpointList) Swap(i, j int) { p.items[i], p.items[j] = p.items[j], p.it
 // Less compares endpoints using their string representations, implements sort.Interface.
 func (p EndpointList) Less(i, j int) bool { return p.items[i].key < p.items[j].key }
 
-// NewEndpointList converts list of common.Endpoint into EndpointList for later sorting.
-func NewEndpointList(endpoints []common.Endpoint) EndpointList {
+// NewEndpointList converts list of api.Endpoint into EndpointList for later sorting.
+func NewEndpointList(endpoints []api.Endpoint) EndpointList {
 	endpointList := EndpointList{}
 
 	for _, e := range endpoints {
@@ -79,9 +78,9 @@ func (p EndpointList) Sort() EndpointList {
 	return p
 }
 
-// List converts EndpointList into []common.Endpoint.
-func (p EndpointList) List() []common.Endpoint {
-	list := []common.Endpoint{}
+// List converts EndpointList into []api.Endpoint.
+func (p EndpointList) List() []api.Endpoint {
+	list := []api.Endpoint{}
 	for _, item := range p.items {
 		list = append(list, item.endpoint)
 	}
@@ -93,27 +92,18 @@ func (p EndpointList) List() []common.Endpoint {
 // it contains original endpoint and precalculated string representation
 // which will be used as a sorting criteria by EndpointList.Sort().
 type EndpointSortGroup struct {
-	endpoint common.Endpoint
+	endpoint api.Endpoint
 	key      string
 }
 
-// EndpointToString returns string representation of the common.Endpoint.
-func EndpointToString(e common.Endpoint) string {
-	var tid, sid uint64
-	if e.TenantNetworkID != nil {
-		tid = *e.TenantNetworkID
-	}
-
-	if e.SegmentNetworkID != nil {
-		sid = *e.SegmentNetworkID
-	}
-
-	return fmt.Sprintf("%s%s%s%d%s%s%d%d%s%s%d", e.Peer, e.Cidr, e.Dest, e.TenantID, e.TenantName, e.TenantExternalID, tid, e.SegmentID, e.SegmentName, e.SegmentExternalID, sid)
+// EndpointToString returns string representation of the api.Endpoint.
+func EndpointToString(e api.Endpoint) string {
+	return fmt.Sprintf("%s%s%s%s%s", e.Peer, e.Cidr, e.Dest, e.TenantID, e.SegmentID)
 }
 
 // IngressToCanonical returns canonical version of common.RomanaIngress.
-func IngressToCanonical(unsorted common.RomanaIngress) common.RomanaIngress {
-	sorted := common.RomanaIngress{}
+func IngressToCanonical(unsorted api.RomanaIngress) api.RomanaIngress {
+	sorted := api.RomanaIngress{}
 
 	sorted.Peers = NewEndpointList(unsorted.Peers).Sort().List()
 
@@ -131,8 +121,8 @@ func (p UintSlice) Len() int           { return len(p) }
 func (p UintSlice) Less(i, j int) bool { return p[i] < p[j] }
 func (p UintSlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
-// RuleToCanonical sorts common.Rule Ports and PortRanges fields.
-func RuleToCanonical(unsorted common.Rule) common.Rule {
+// RuleToCanonical sorts api.Rule Ports and PortRanges fields.
+func RuleToCanonical(unsorted api.Rule) api.Rule {
 	// copy args
 	sorted := unsorted
 
@@ -146,13 +136,13 @@ func RuleToCanonical(unsorted common.Rule) common.Rule {
 	// and then back to []PortRange
 	ranges := PortRangeSlice(sorted.PortRanges)
 	sort.Sort(ranges)
-	sorted.PortRanges = []common.PortRange(ranges)
+	sorted.PortRanges = []api.PortRange(ranges)
 
 	return sorted
 }
 
-// RuleToString generates string representation of the common.Rule.
-func RuleToString(rule common.Rule) string {
+// RuleToString generates string representation of the api.Rule.
+func RuleToString(rule api.Rule) string {
 	newRule := RuleToCanonical(rule)
 	var result string
 	result += rule.Protocol
@@ -170,15 +160,15 @@ func RuleToString(rule common.Rule) string {
 	return result
 }
 
-// RuleSlice implements sort.Interface to allow sorting of the []common.Rule.
-type RuleSlice []common.Rule
+// RuleSlice implements sort.Interface to allow sorting of the []api.Rule.
+type RuleSlice []api.Rule
 
 func (p RuleSlice) Len() int           { return len(p) }
 func (p RuleSlice) Less(i, j int) bool { return RuleToString(p[i]) < RuleToString(p[j]) }
 func (p RuleSlice) Swap(i, j int)      { p[i], p[j] = p[j], p[i] }
 
-// RulesToCanonical returns canonical version of a []common.Rule.
-func RulesToCanonical(unsorted []common.Rule) []common.Rule {
+// RulesToCanonical returns canonical version of a []api.Rule.
+func RulesToCanonical(unsorted []api.Rule) []api.Rule {
 	var sorted RuleSlice
 
 	for _, r := range unsorted {
@@ -186,13 +176,13 @@ func RulesToCanonical(unsorted []common.Rule) []common.Rule {
 	}
 
 	sort.Sort(sorted)
-	ret := []common.Rule(sorted)
+	ret := []api.Rule(sorted)
 
 	return ret
 }
 
 // PortRangeSlice implements sort.Interface to allow sorting of the []common.PortRange.
-type PortRangeSlice []common.PortRange
+type PortRangeSlice []api.PortRange
 
 func (p PortRangeSlice) Len() int { return len(p) }
 

@@ -18,17 +18,16 @@
 package firewall
 
 import (
-	"github.com/romana/core/common"
-	"github.com/romana/core/common/log/trace"
-	"github.com/romana/core/common/store"
-	log "github.com/romana/rlog"
+	"database/sql"
 	"sync"
+
+	log "github.com/romana/rlog"
 )
 
 // FirewallStore defines how database should be passed into firewall instance.
 type FirewallStore interface {
 	// GetDb Returns fully initialized DbStore object
-	GetDb() store.RdbmsStore
+	GetDb() *sql.DB
 
 	// GetMutex return instance of mutex used guard firewall database.
 	GetMutex() *sync.RWMutex
@@ -36,26 +35,8 @@ type FirewallStore interface {
 
 // firewallStore implement FirewallStore
 type firewallStore struct {
-	store.RdbmsStore
+	db *sql.DB
 	mu *sync.RWMutex
-}
-
-// Entities implements Entities method of
-// Service interface.
-func (firewallStore *firewallStore) Entities() []interface{} {
-	retval := make([]interface{}, 1)
-	retval[0] = new(IPtablesRule)
-	return retval
-}
-
-// CreateSchemaPostProcess implements  common.ServiceStore.CreateSchemaPostProcess()
-func (fs firewallStore) CreateSchemaPostProcess() error {
-	return nil
-}
-
-// GetDb implements firewall.FirewallStore
-func (fs firewallStore) GetDb() store.DbStore {
-	return fs.DbStore
 }
 
 // GetMutex implements firewall.FirewallStore
@@ -63,9 +44,14 @@ func (fs firewallStore) GetMutex() *sync.RWMutex {
 	return fs.mu
 }
 
+// GetMutex implements firewall.FirewallStore
+func (fs firewallStore) GetDB() *sql.DB {
+	return fs.db
+}
+
 // IPtablesRule represents a single iptables rule managed by the agent.
 type IPtablesRule struct {
-	ID    uint64 `sql:"AUTO_INCREMENT"`
+	//	ID    uint64 `sql:"AUTO_INCREMENT"`
 	Body  string
 	State string
 }
@@ -106,28 +92,20 @@ func (firewallStore *firewallStore) addIPtablesRule(rule *IPtablesRule) error {
 // Unsafe implementation is needed for functions which are already managing same mutex.
 func (firewallStore *firewallStore) addIPtablesRuleUnsafe(rule *IPtablesRule) error {
 
-	db := firewallStore.DbStore.Db
+	db := firewallStore.db
 	// db := firewallStore.GetDb()
 	log.Info("In addIPtablesRule() after GetDb")
 	if db == nil {
 		panic("In addIPtablesRule(), db is nil")
 	}
 
-	firewallStore.DbStore.Db.Create(rule)
-	log.Info("In addIPtablesRule() after Db.Create")
-	if db.Error != nil {
-		return db.Error
-	}
-	firewallStore.DbStore.Db.NewRecord(*rule)
-	err := common.MakeMultiError(db.GetErrors())
+	st, err := db.Prepare("INSERT INTO iptables_rule (body, state) VALUES (?,?)")
 	if err != nil {
 		return err
 	}
-	if db.Error != nil {
-		return db.Error
-	}
-	return nil
-
+	defer st.Close()
+	_, err = st.Exec(rule.Body, rule.State)
+	return err
 }
 
 // listIPtablesRules returns a list of all firewall rules in a database.
@@ -140,13 +118,21 @@ func (firewallStore *firewallStore) listIPtablesRules() ([]IPtablesRule, error) 
 	}()
 	log.Info("Acquired store mutex for listIPtablesRules")
 
-	var iPtablesRule []IPtablesRule
-	firewallStore.DbStore.Db.Find(&iPtablesRule)
-	err := common.MakeMultiError(firewallStore.DbStore.Db.GetErrors())
+	rows, err := firewallStore.db.Query("SELECT body, state FROM iptables_rules")
 	if err != nil {
 		return nil, err
 	}
-	return iPtablesRule, nil
+	defer rows.Close()
+	rules := make([]IPtablesRule, 0)
+	for rows.Next() {
+		rule := IPtablesRule{}
+		err := rows.Scan(&rule.Body, &rule.State)
+		if err != nil {
+			return rules, err
+		}
+		rules = append(rules, rule)
+	}
+	return rules, nil
 }
 
 // ensureIPtablesRule checks if given rule exists in a database and if not, creates it.
@@ -159,15 +145,17 @@ func (firewallStore *firewallStore) ensureIPtablesRule(rule *IPtablesRule) error
 	}()
 	log.Info("Acquired store mutex for listIPtablesRules")
 
-	if firewallStore.DbStore.Db.Where("body = ?", rule.Body).First(rule).RecordNotFound() {
-		log.Tracef(trace.Inside, "In ensureIPtablesRule(), rule %s not found in db - creating", rule.Body)
-		err0 := firewallStore.addIPtablesRuleUnsafe(rule)
-		if err0 != nil {
-			log.Errorf("In ensureIPtablesRule() failed to store rule %v", rule)
-			return err0
-		}
-	} else {
-		log.Tracef(trace.Inside, "In ensureIPtablesRule(), rule %s already in db - nothing to do", rule.Body)
+	st, err := firewallStore.db.Prepare(`INSERT INTO iptables_rules (body, state) 
+		SELECT ?, ? WHERE NOT EXISTS(SELECT 1 from iptables_rules where body=?)`)
+	if st != nil {
+		defer st.Close()
+	}
+	if err != nil {
+		return err
+	}
+	_, err = st.Exec(rule.Body, rule.State, rule.Body)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -183,17 +171,17 @@ func (firewallStore *firewallStore) deleteIPtablesRule(rule *IPtablesRule) error
 	}()
 	log.Info("Acquired store mutex for deleteIPtablesRule")
 
-	db := firewallStore.DbStore.Db
-	firewallStore.DbStore.Db.Delete(rule)
-	err := common.MakeMultiError(db.GetErrors())
+	db := firewallStore.db
+
+	st, err := db.Prepare("DELETE FROM iptables_rules WHERE body = ?")
+	if st != nil {
+		defer st.Close()
+	}
 	if err != nil {
 		return err
 	}
-	if db.Error != nil {
-		return db.Error
-	}
-
-	return nil
+	_, err = st.Exec(rule.Body)
+	return err
 }
 
 func (firewallStore *firewallStore) findIPtablesRules(subString string) (*[]IPtablesRule, error) {
@@ -205,16 +193,33 @@ func (firewallStore *firewallStore) findIPtablesRules(subString string) (*[]IPta
 	}()
 	log.Info("Acquired store mutex for findIPtablesRule")
 
-	var rules []IPtablesRule
-	db := firewallStore.DbStore.Db
-	searchString := "%" + subString + "%"
-	firewallStore.DbStore.Db.Where("body LIKE ?", searchString).Find(&rules)
-	err := common.MakeMultiError(db.GetErrors())
+	db := firewallStore.db
+
+	st, err := db.Prepare("SELECT body, state FROM iptables_rules WHERE body LIKE ?")
+	if st != nil {
+		defer st.Close()
+	}
 	if err != nil {
 		return nil, err
 	}
-	if db.Error != nil {
-		return nil, db.Error
+	rules := make([]IPtablesRule, 0)
+
+	searchString := "%" + subString + "%"
+	rows, err := st.Query(searchString)
+	if rows != nil {
+		defer rows.Close()
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	for rows.Next() {
+		rule := IPtablesRule{}
+		err = rows.Scan(&rule.Body, &rule.State)
+		if err != nil {
+			return &rules, err
+		}
+		rules = append(rules, rule)
 	}
 	return &rules, nil
 }
@@ -272,15 +277,17 @@ func (firewallStore *firewallStore) switchIPtablesRule(rule *IPtablesRule, op op
 		rule.State = op.String()
 	}
 
-	db := firewallStore.DbStore.Db
-	firewallStore.DbStore.Db.Save(rule)
-	err := common.MakeMultiError(db.GetErrors())
+	db := firewallStore.db
+	st, err := db.Prepare("UPDATE iptables_rules SET state =  ? WHERE body = ?")
+	if st != nil {
+		defer st.Close()
+	}
 	if err != nil {
 		return err
 	}
-	if db.Error != nil {
-		return db.Error
+	_, err = st.Exec(rule.State, rule.Body)
+	if err != nil {
+		return err
 	}
-
 	return nil
 }
