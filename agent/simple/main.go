@@ -55,6 +55,11 @@ func main() {
 		panic(err)
 	}
 
+	err = ensureRomanaRouteRule(*romanaRouteTableId)
+	if err != nil {
+		panic(err)
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
