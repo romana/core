@@ -20,6 +20,7 @@ import (
 	"flag"
 	"fmt"
 	"log"
+	"os"
 	"strings"
 
 	"github.com/romana/core/common"
@@ -34,6 +35,8 @@ const (
 )
 
 func main() {
+	var err error
+
 	etcdEndpoints := flag.String("endpoints", "", "csv list of etcd endpoints to romana storage")
 	etcdPrefix := flag.String("prefix", "", "string that prefixes all romana keys in etcd")
 	hostname := flag.String("hostname", "", "name of the host in romana database")
@@ -43,6 +46,13 @@ func main() {
 	romanaConfig := common.Config{
 		EtcdEndpoints: strings.Split(*etcdEndpoints, ","),
 		EtcdPrefix:    *etcdPrefix,
+	}
+
+	if *hostname == "" {
+		*hostname, err = os.Hostname()
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	client, err := client.NewClient(&romanaConfig)
@@ -84,7 +94,7 @@ func main() {
 
 				host := hosts.GetHost(block.Host)
 				if host == nil {
-					log.Printf("Block %v belongs to unkonwn host %s, ignoring", block, block.Host)
+					log.Printf("Block %v belongs to unknown host %s, ignoring", block, block.Host)
 					continue
 				}
 
@@ -93,7 +103,7 @@ func main() {
 				}
 			}
 		case newHosts := <-hostsChannel:
-			// TODO need mutext for this.
+			// TODO need mutex for this.
 			hosts = IpamHosts(newHosts)
 		}
 	}

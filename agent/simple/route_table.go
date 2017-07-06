@@ -24,7 +24,7 @@ func ensureRouteTableExist(routeTableId int) error {
 	}
 	defer file.Close()
 
-	targetEntry := fmt.Sprintf("%d romana", routeTableId)
+	targetEntry := fmt.Sprintf("%d romana\n", routeTableId)
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -33,13 +33,9 @@ func ensureRouteTableExist(routeTableId int) error {
 		}
 	}
 
-	n, err := file.WriteString(targetEntry)
+	_, err = file.WriteString(targetEntry)
 	if err != nil {
 		return err
-	}
-
-	if len(targetEntry) != n {
-		return fmt.Errorf("failed to write full string %s, only %d chars written", targetEntry, n)
 	}
 
 	return nil
