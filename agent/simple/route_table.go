@@ -15,14 +15,17 @@ const (
 
 // ensureRouteTableExist verifies that romana route table with appropriate index
 // exist in RT_TABLES_FILE file.
-func ensureRouteTableExist(routeTableId int) error {
-	var err error
+func ensureRouteTableExist(routeTableId int) (err error) {
 
 	file, err := os.OpenFile(RT_TABLES_FILE, os.O_RDWR, 0644)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
+	defer func() {
+		if err2 := file.Close(); err2 != nil {
+			err = fmt.Errorf("couldn't close the file %s, after %s", err2, err)
+		}
+	}()
 
 	targetEntry := fmt.Sprintf("%d romana\n", routeTableId)
 
