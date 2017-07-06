@@ -31,7 +31,7 @@ func WatchBlocks(ctx context.Context, client *client.Client) <-chan []api.IPAMBl
 	return out
 }
 
-// WatchBlocks is a generator that should produce a list of all hosts when change is detected in
+// WatchHosts is a generator that should produce a list of all hosts when change is detected in
 // hosts configuration.
 func WatchHosts(ctx context.Context, client *client.Client) <-chan []api.Host {
 	out := make(chan []api.Host)
