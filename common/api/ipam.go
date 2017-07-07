@@ -82,6 +82,7 @@ type TopologyDefinition struct {
 
 type Host struct {
 	IP        net.IP `json:"ip"`
+	Name      string `json:"name"`
 	AgentPort int    `json:"agent_port"`
 	// TODO this is a placeholder for now so that agent builds
 	RomanaIp string `json:"romana_ip"`

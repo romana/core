@@ -124,6 +124,7 @@ func (cidr *CIDR) UnmarshalJSON(data []byte) error {
 // Host represents a host in Romana topology.
 type Host struct {
 	IP        net.IP `json:"ip"`
+	Name      string `json:"name"`
 	AgentPort int    `json:"agent_port"`
 	group     *HostsGroups
 }
@@ -175,7 +176,17 @@ func (hg *HostsGroups) AddHost(host api.Host) error {
 		return errors.New("Cannot add host to this group, group contains only other groups.")
 	}
 
-	newHost := &Host{IP: host.IP, AgentPort: host.AgentPort, group: hg}
+	if host.IP == nil {
+		return errors.New("Host IP is requred.")
+	}
+	if host.Name == "" {
+		return errors.New("Host Name is requred.")
+	}
+	newHost := &Host{IP: host.IP,
+		name:      host.Name,
+		AgentPort: host.AgentPort,
+		group:     hg,
+	}
 	hg.Hosts = append(hg.Hosts, newHost)
 	return nil
 }
@@ -712,7 +723,7 @@ func (ipam *IPAM) ListHosts() []api.Host {
 	retval := make([]api.Host, 0)
 	for _, network := range ipam.Networks {
 		for _, host := range network.HostsGroups.ListHosts() {
-			retval = append(retval, api.Host{IP: host.IP})
+			retval = append(retval, api.Host{IP: host.IP, Name: host.Name})
 		}
 	}
 	return retval
