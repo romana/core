@@ -3,9 +3,11 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 
+	"github.com/romana/rlog"
 	"github.com/vishvananda/netlink"
 )
 
@@ -57,11 +59,15 @@ func ensureRomanaRouteRule(romanaRouteTableId int) error {
 	// it's possible will need to add 2 rules
 	// with different src and dst
 	inRule := netlink.Rule{
-		Table: romanaRouteTableId,
+		Priority: 100,
+		Src:      &net.IPNet{IP: net.ParseIP("0.0.0.0"), Mask: net.IPMask([]byte{0, 0, 0, 0})},
+		Table:    romanaRouteTableId,
 	}
 
+	rlog.Infof("Adding routing rule %v", inRule)
 	err = netlink.RuleAdd(&inRule)
 	if err != nil {
+		rlog.Errorf("%s", err)
 		return err
 	}
 

@@ -41,6 +41,7 @@ func main() {
 	etcdPrefix := flag.String("prefix", "", "string that prefixes all romana keys in etcd")
 	hostname := flag.String("hostname", "", "name of the host in romana database")
 	romanaRouteTableId := flag.Int("route-table-id", DefaultRouteTableId, "id that romana route table should have in /etc/iproute2/rt_tables")
+	mock := flag.Bool("mock", false, "")
 	flag.Parse()
 
 	romanaConfig := common.Config{
@@ -55,9 +56,18 @@ func main() {
 		}
 	}
 
-	client, err := client.NewClient(&romanaConfig)
-	if err != nil {
-		panic(err)
+	var romanaClient RomanaClient
+	if *mock {
+		romanaClient = MockClient{}
+	} else {
+
+		rClient, err := client.NewClient(&romanaConfig)
+		if err != nil {
+			panic(err)
+		}
+
+		romanaClient = RomanaClientAdaptor{rClient}
+
 	}
 
 	err = ensureRouteTableExist(*romanaRouteTableId)
@@ -73,10 +83,10 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	blocksChannel := WatchBlocks(ctx, client)
-	hostsChannel := WatchHosts(ctx, client)
+	blocksChannel := WatchBlocks(ctx, romanaClient)
+	hostsChannel := WatchHosts(ctx, romanaClient)
 
-	hosts := IpamHosts(client.ListHosts())
+	hosts := IpamHosts(romanaClient.ListHosts())
 	for {
 		select {
 		case blocks := <-blocksChannel:
@@ -113,13 +123,11 @@ func main() {
 type IpamHosts []api.Host
 
 func (hosts IpamHosts) GetHost(hostname string) *api.Host {
-	/* this is disabled since current api.Host does not have `name` field.
 	for hid, h := range hosts {
 		if h.Name == hostname {
 			return &hosts[hid]
 		}
 	}
-	*/
 	return nil
 }
 
