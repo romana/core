@@ -126,7 +126,7 @@ func (a Agent) identifyCurrentHost() error {
 
 	log.Tracef(trace.Inside, "Searching %d interfaces for a matching host configuration: %v", len(addrs), addrs)
 
-	for _, host := range hosts {
+	for _, host := range hosts.Hosts {
 		for _, addr := range addrs {
 			if strings.Contains(addr.String(), host.IP.String()) {
 
@@ -162,7 +162,7 @@ func (a Agent) identifyCurrentHost() error {
 // part of the Romana setup and spit error out.
 func (a Agent) updateRoutes() error {
 	hosts := a.client.IPAM.ListHosts()
-	log.Trace(trace.Inside, "Retrieved hosts list, found", len(hosts), "hosts")
+	log.Trace(trace.Inside, "Retrieved hosts list, found", len(hosts.Hosts), "hosts")
 
 	addrs, err := net.InterfaceAddrs()
 	if err != nil {
@@ -176,7 +176,7 @@ func (a Agent) updateRoutes() error {
 	// Find an interface that matches a Romana CIDR
 	// and store that interface's IP address.
 	// It will be used when configuring iptables and routes to tap interfaces.
-	for i, host := range hosts {
+	for i, host := range hosts.Hosts {
 		_, romanaCIDR, err := net.ParseCIDR(host.RomanaIp)
 		if err != nil {
 			log.Tracef(trace.Inside, "Unable to parse '%s' (%s). Skipping.", host.RomanaIp, err)
@@ -230,8 +230,8 @@ func (a Agent) updateRoutes() error {
 
 				// Retain the other hosts that were listed.
 				// This will be used for creating inter-host routes.
-				otherHosts = append(otherHosts, hosts[0:i]...)
-				otherHosts = append(otherHosts, hosts[i+1:]...)
+				otherHosts = append(otherHosts, hosts.Hosts[0:i]...)
+				otherHosts = append(otherHosts, hosts.Hosts[i+1:]...)
 				a.networkConfig.otherHosts = otherHosts
 				log.Trace(trace.Inside, "Found match for CIDR", romanaCIDR, "using address", ipnet.IP)
 
