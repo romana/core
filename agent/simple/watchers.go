@@ -15,18 +15,18 @@ type RomanaClientAdaptor struct {
 	*client.Client
 }
 
-func (c RomanaClientAdaptor) ListHosts() []api.Host {
+func (c RomanaClientAdaptor) ListHosts() api.HostList {
 	return c.ListHosts()
 }
 
-func (c RomanaClientAdaptor) ListAllBlocks() []api.IPAMBlockResponse {
+func (c RomanaClientAdaptor) ListAllBlocks() *api.IPAMBlocksResponse {
 	return c.IPAM.ListAllBlocks()
 }
 
 // RomanaClient exists for a purpose of mocking.
 type RomanaClient interface {
-	ListHosts() []api.Host
-	ListAllBlocks() []api.IPAMBlockResponse
+	ListHosts() api.HostList
+	ListAllBlocks() *api.IPAMBlocksResponse
 }
 
 const watchersRefreshTimer = time.Duration(10 * time.Second)
@@ -37,13 +37,22 @@ func WatchBlocks(ctx context.Context, client RomanaClient) <-chan []api.IPAMBloc
 	out := make(chan []api.IPAMBlockResponse)
 	ticker := time.Tick(watchersRefreshTimer)
 
+	var blocks []api.IPAMBlockResponse
+
 	go func() {
 		for {
 			select {
 			case <-ctx.Done():
 				return
 			case <-ticker:
-				out <- client.ListAllBlocks()
+				blockResp := client.ListAllBlocks()
+				if blockResp != nil {
+					blocks = blockResp.Blocks
+				} else {
+					blocks = []api.IPAMBlockResponse{}
+				}
+
+				out <- blocks
 			}
 
 		}
@@ -64,7 +73,7 @@ func WatchHosts(ctx context.Context, client RomanaClient) <-chan []api.Host {
 			case <-ctx.Done():
 				return
 			case <-ticker:
-				out <- client.ListHosts()
+				out <- client.ListHosts().Hosts
 			}
 
 		}

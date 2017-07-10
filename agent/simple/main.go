@@ -86,7 +86,7 @@ func main() {
 	blocksChannel := WatchBlocks(ctx, romanaClient)
 	hostsChannel := WatchHosts(ctx, romanaClient)
 
-	hosts := IpamHosts(romanaClient.ListHosts())
+	hosts := IpamHosts(romanaClient.ListHosts().Hosts)
 	for {
 		select {
 		case blocks := <-blocksChannel:
@@ -141,6 +141,6 @@ func createRouteToBlock(block api.IPAMBlockResponse, host *api.Host, romanaRoute
 
 	var err error
 	log.Printf("About to create route %v", route)
-	// err := netlink.RouteAdd(&route)
+	err = netlink.RouteAdd(&route)
 	return err
 }
