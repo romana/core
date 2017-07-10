@@ -41,7 +41,7 @@ func NewClient(config *common.Config) (*Client, error) {
 	return c, nil
 }
 
-func (c *Client) ListHosts() []api.Host {
+func (c *Client) ListHosts() api.HostList {
 	return c.IPAM.ListHosts()
 }
 
@@ -61,7 +61,7 @@ func (c *Client) ListPolicies() ([]api.Policy, error) {
 func (c *Client) ListTenants() []api.Tenant {
 	t := make(map[string]api.Tenant)
 	blocks := c.IPAM.ListAllBlocks()
-	for _, block := range blocks {
+	for _, block := range blocks.Blocks {
 		if tenant, ok := t[block.Tenant]; ok {
 			segmentFound := false
 			for _, segment := range tenant.Segments {

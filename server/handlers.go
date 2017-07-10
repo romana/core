@@ -109,7 +109,7 @@ func (r *Romanad) normalizePolicy(policyDoc *api.Policy) error {
 func (r *Romanad) distributePolicy(policy *api.Policy) error {
 	hosts := r.client.IPAM.ListHosts()
 	var errStr string
-	for _, host := range hosts {
+	for _, host := range hosts.Hosts {
 		url := fmt.Sprintf("http://%s:%d/policies", host.IP, host.AgentPort)
 		log.Printf("Sending policy %s to agent at %s", policy.ID, url)
 		result := make(map[string]interface{})
