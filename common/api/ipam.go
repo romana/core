@@ -88,6 +88,11 @@ type Host struct {
 	RomanaIp string `json:"romana_ip"`
 }
 
+type HostList struct {
+	Hosts    []Host `json:"hosts"`
+	Revision int    `json:"revision"`
+}
+
 type IPNet struct {
 	net.IPNet
 }
