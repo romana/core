@@ -36,7 +36,7 @@ import (
 // This provides an implementation of an IPAM that can allocate
 // blocks of IPs for tenant/segment pair. It assumes IPv4.
 //
-// Address blocks may be taken out of more than one pre-configured
+// Address blocks may be taken outÂ of more than one pre-configured
 // address range (Networks).
 
 const (
@@ -123,7 +123,6 @@ func (cidr *CIDR) UnmarshalJSON(data []byte) error {
 
 // Host represents a host in Romana topology.
 type Host struct {
-	Name      string `json:"name"`
 	IP        net.IP `json:"ip"`
 	Name      string `json:"name"`
 	AgentPort int    `json:"agent_port"`
