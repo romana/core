@@ -205,14 +205,18 @@ func (hg *HostsGroups) allocateIP(network *Network, hostName string, owner strin
 	if len(ownedBlockIDs) > 0 {
 		for _, blockID := range ownedBlockIDs {
 			block := hg.Blocks[blockID]
-			ip = block.allocateIP(network)
-			if ip != nil {
-				return ip
+			hostForCurBlock := hg.BlockToHost[blockID]
+			log.Tracef(trace.Inside, "Host for block %d: %s", blockID, hostForCurBlock)
+			if hostName == hostForCurBlock {
+				ip = block.allocateIP(network)
+				if ip != nil {
+					return ip
+				}
 			}
 		}
-		log.Tracef(trace.Private, "All blocks on network %s for owner %s are exhausted, will try to reuse a block", network.Name, owner)
+		log.Tracef(trace.Inside, "All blocks on network %s for owner %s and host %s are exhausted, will try to reuse a block", network.Name, owner, hostName)
 	} else {
-		log.Tracef(trace.Private, "Network %s has no blocks for owner %s, will try to reuse a block", network.Name, owner)
+		log.Tracef(trace.Inside, "Network %s has no blocks for owner %s, will try to reuse a block", network.Name, owner)
 	}
 	// If we are here then all blocks are exhausted. Need to allocate a new block.
 	// First let's see if there are blocks on this host to be reused.
@@ -221,7 +225,7 @@ func (hg *HostsGroups) allocateIP(network *Network, hostName string, owner strin
 		ip = block.allocateIP(network)
 		if ip != nil {
 			// We can now remove this block from reusables.
-			log.Tracef(trace.Private, "Reusing block %d for owner %s", blockID, owner)
+			log.Tracef(trace.Inside, "Reusing block %d for owner %s", blockID, owner)
 			hg.ReusableBlocks = append(hg.ReusableBlocks[:blockID], hg.ReusableBlocks[blockID+1:]...)
 			hg.OwnerToBlocks[owner] = append(hg.OwnerToBlocks[owner], blockID)
 			hg.BlockToOwner[blockID] = owner
@@ -241,7 +245,7 @@ func (hg *HostsGroups) allocateIP(network *Network, hostName string, owner strin
 		}
 		if newBlockStartIPInt > hg.CIDR.EndIPInt {
 			// Cannot allocate any more blocks for this network, move on to another.
-			log.Tracef(trace.Private, "Cannot allocate any more blocks from network %s", hg.CIDR)
+			log.Tracef(trace.Inside, "Cannot allocate any more blocks from network %s", hg.CIDR)
 			return nil
 		}
 
@@ -249,7 +253,7 @@ func (hg *HostsGroups) allocateIP(network *Network, hostName string, owner strin
 		if newBlockEndIPInt > network.CIDR.EndIPInt {
 			// Cannot allocate any more blocks for this network, move on to another.
 			// TODO: Or should we allocate as much as possible?
-			log.Tracef(trace.Private, "Cannot allocate any more blocks from network %s", hg.CIDR)
+			log.Tracef(trace.Inside, "Cannot allocate any more blocks from network %s", hg.CIDR)
 			return nil
 		}
 
@@ -262,14 +266,16 @@ func (hg *HostsGroups) allocateIP(network *Network, hostName string, owner strin
 		}
 		newBlock := newBlock(newBlockCIDR)
 		hg.Blocks = append(hg.Blocks, newBlock)
-		hg.OwnerToBlocks[owner] = append(hg.OwnerToBlocks[owner], len(hg.Blocks)-1)
-		hg.BlockToOwner[len(hg.Blocks)-1] = owner
-		log.Tracef(trace.Private, "New block created in %s: %s", hg.CIDR, newBlockCIDR)
+		newBlockID := len(hg.Blocks) - 1
+		hg.OwnerToBlocks[owner] = append(hg.OwnerToBlocks[owner], newBlockID)
+		hg.BlockToOwner[newBlockID] = owner
+		hg.BlockToHost[newBlockID] = hostName
+		log.Tracef(trace.Inside, "New block created in %s for owner %s and host %s: %s", hg.CIDR, owner, hostName, newBlockCIDR)
 		ip := newBlock.allocateIP(network)
 		if ip == nil {
 			// This could happen if this is a new block but happens to be completely
 			// blacked out. Try allocating another.
-			log.Tracef(trace.Private, "Cannot allocate any IPs from block %s", newBlock.CIDR)
+			log.Tracef(trace.Inside, "Cannot allocate any IPs from block %s", newBlock.CIDR)
 			continue
 		}
 		return ip
@@ -933,7 +939,7 @@ func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest) error {
 		for _, netName := range topoDef.Networks {
 			if network, ok := ipam.Networks[netName]; ok {
 				hg := &HostsGroups{}
-				err := hg.parse(topoDef.Hosts, network.CIDR, network)
+				err := hg.parse(topoDef.Map, network.CIDR, network)
 				if err != nil {
 					return err
 				}

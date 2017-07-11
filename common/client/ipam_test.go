@@ -77,7 +77,7 @@ func TestBlackout(t *testing.T) {
     "topologies" : [
         {
             "networks" : [ "net1" ],
-            "map" : [ "host1" ]
+            "map" : [ { "name": "host1" , "ip" : "192.168.0.1" } ]
         }
      ]
      }
@@ -87,15 +87,15 @@ func TestBlackout(t *testing.T) {
 	// 1. Black out something random
 	err = ipam.BlackOut("10.100.100.100/24")
 	if err == nil {
-		t.Fatal("Expected error that no network found")
+		t.Fatal("TestChunkBlackout: Expected error that no network found")
 	}
 
 	// 2. Black out 10.0.0.0/30 - should be an error
 	err = ipam.BlackOut("10.0.0.0/30")
 	if err == nil {
-		t.Fatal("Expected error because cannot contain entire network")
+		t.Fatal("TestChunkBlackout: Expected error because cannot contain entire network")
 	}
-	t.Logf("Received expected error: %s", err)
+	t.Logf("TestChunkBlackout: Received expected error: %s", err)
 
 	// 3. Black out 10.0.0.0/32
 	err = ipam.BlackOut("10.0.0.0/32")
@@ -203,7 +203,7 @@ func TestIPReuse(t *testing.T) {
     "topologies" : [
         {
             "networks" : [ "net1" ],
-            "map" : [ "host1" ]
+            "map" : [ { "name": "host1" , "ip" : "192.168.0.1" } ]
         }
      ]
      }
@@ -270,7 +270,7 @@ func TestBlockReuse(t *testing.T) {
     "topologies" : [
         {
             "networks" : [ "net1" ],
-            "map" : [ "host1" ]
+            "map" : [ { "name": "host1" , "ip" : "192.168.0.1" } ]
         }
      ]
      }
@@ -339,7 +339,7 @@ func Test32(t *testing.T) {
     "topologies" : [
         {
             "networks" : [ "net1" ],
-            "map" : [ "host1" ]
+            "map" : [ { "name": "host1" , "ip" : "192.168.0.1" }  ]
         }
      ]
      }
@@ -378,7 +378,7 @@ func Test32(t *testing.T) {
     "topologies" : [
         {
             "networks" : [ "net1" ],
-            "map" : [ "host1" ]
+            "map" : [ { "name": "host1" , "ip" : "192.168.0.1" }  ]
         }
      ]
      }
@@ -422,7 +422,7 @@ func TestSegments(t *testing.T) {
     "topologies" : [
         {
             "networks" : [ "net1" ],
-            "map" : [ "host1" ]
+            "map" : [ { "name": "host1" , "ip" : "192.168.0.1" } ]
         }
      ]
      }
@@ -504,7 +504,7 @@ func TestTenants(t *testing.T) {
     "topologies" : [
         {
             "networks" : [ "net1", "net2", "net3" ],
-            "map" : [ "host1" ]
+            "map" : [ { "name": "host1" , "ip" : "192.168.0.1" }  ]
         }
      ]
      }
@@ -550,4 +550,48 @@ func TestTenants(t *testing.T) {
 		t.Fatalf("Expected an error")
 	}
 	t.Logf("Got %s", err)
+}
+
+func TestHostAllocation(t *testing.T) {
+	conf := `
+	{
+    "networks" : [
+        {
+            "name" : "net1",
+            "cidr" : "10.0.0.0/8",
+            "block_mask" : 30
+        }
+    ],
+
+    "topologies" : [
+        {
+            "networks" : [ "net1" ],
+            "map" : [ { "name" : "ip-192-168-99-10", 
+                          "ip" : "192.168.99.10"
+                         },
+                         { 
+                          "name" : "ip-192-168-99-11", 
+                          "ip" : "192.168.99.11"
+                         }]
+        }
+     ]
+}
+	`
+	ipam = initIpam(t, conf)
+
+	ip, err := ipam.AllocateIP("x1", "ip-192-168-99-10", "tenant1", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ip.String() != "10.0.0.0" {
+		t.Fatalf("Expected 10.0.0.0, got %s", ip.String())
+	}
+
+	ip, err = ipam.AllocateIP("x2", "ip-192-168-99-11", "tenant1", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ip.String() != "10.0.0.4" {
+		t.Fatalf("Expected 10.0.0.4, got %s", ip.String())
+	}
 }

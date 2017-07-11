@@ -77,7 +77,7 @@ type NetworkDefinition struct {
 
 type TopologyDefinition struct {
 	Networks []string      `json:"networks"`
-	Hosts    []interface{} `json:"hosts"`
+	Map      []interface{} `json:"map"`
 }
 
 type Host struct {
