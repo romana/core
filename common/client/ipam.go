@@ -73,25 +73,31 @@ type CIDR struct {
 	EndIPInt   uint64 `json:"end_ip_int"`
 }
 
-// NewCIDR creates a CIDR object from a string.
-func NewCIDR(s string) (*CIDR, error) {
+func initCIDR(s string, cidr *CIDR) error {
 	ip, ipNet, err := net.ParseCIDR(s)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	cidr := &CIDR{IPNet: ipNet}
+	cidr.IPNet = ipNet
 	cidr.StartIP = ip
 	cidr.StartIPInt = common.IPv4ToInt(ip)
 	ones, bits := ipNet.Mask.Size()
 	ipCount := 1 << uint(bits-ones)
 	cidr.EndIPInt = cidr.StartIPInt + uint64(ipCount) - 1
 	cidr.EndIP = common.IntToIPv4(cidr.EndIPInt)
-	return cidr, nil
+	return nil
+}
+
+// NewCIDR creates a CIDR object from a string.
+func NewCIDR(s string) (CIDR, error) {
+	cidr := &CIDR{}
+	err := initCIDR(s, cidr)
+	return *cidr, err
 }
 
 // Contains returns true if this CIDR fully contains (is equivalent to or a superset
 // of) the provided CIDR.
-func (c *CIDR) Contains(c2 *CIDR) bool {
+func (c CIDR) Contains(c2 CIDR) bool {
 	log.Tracef(trace.Private, "%d<=%d && %d>=%d: %t", c.StartIPInt,
 		c2.StartIPInt, c.EndIPInt,
 		c2.EndIPInt,
@@ -108,17 +114,12 @@ func (c CIDR) String() string {
 }
 
 func (c CIDR) MarshalJSON() ([]byte, error) {
-	return []byte(fmt.Sprintf("\"%s\"", c.toString())), nil
+	return []byte("\"" + c.IPNet.String() + "\""), nil
 }
 
-func (cidr *CIDR) UnmarshalJSON(data []byte) error {
-	_, ipNet, err := net.ParseCIDR(string(data))
-	if err != nil {
-		return err
-	}
-	cidr.IP = ipNet.IP
-	cidr.Mask = ipNet.Mask
-	return nil
+func (cidr *CIDR) UnmarshalText(data []byte) error {
+	s := string(data)
+	return initCIDR(s, cidr)
 }
 
 // Host represents a host in Romana topology.
@@ -140,7 +141,7 @@ type HostsGroups struct {
 	Hosts  []*Host        `json:"hosts"`
 	Groups []*HostsGroups `json:"groups"`
 	// CIDR which is to be subdivided among hosts or sub-groups of this group.
-	CIDR *CIDR `json:"cidr"`
+	CIDR CIDR `json:"cidr"`
 
 	BlockToOwner  map[int]string   `json:"block_to_owner"`
 	OwnerToBlocks map[string][]int `json:"owner_to_block"`
@@ -409,7 +410,7 @@ func (hg *HostsGroups) findHostByName(name string) *Host {
 //                        ]
 //                    ]
 // into the HostsOrHostGroups structure.
-func (hg *HostsGroups) parse(arr []interface{}, cidr *CIDR, network *Network) error {
+func (hg *HostsGroups) parse(arr []interface{}, cidr CIDR, network *Network) error {
 
 	if hg.BlockToOwner == nil {
 		hg.BlockToOwner = make(map[int]string)
@@ -505,7 +506,7 @@ func (hg *HostsGroups) parse(arr []interface{}, cidr *CIDR, network *Network) er
 // Block represents a CIDR that is owned by an Owner,
 // and thus can have addresses allocated in it it.
 type Block struct {
-	CIDR     *CIDR          `json:"cidr"`
+	CIDR     CIDR           `json:"cidr"`
 	Pool     *idring.IDRing `json:"pool"`
 	Revision int            `json:"revision"`
 }
@@ -515,7 +516,7 @@ func (b Block) String() string {
 }
 
 // newBlock creates a new Block on the given host.
-func newBlock(cidr *CIDR) *Block {
+func newBlock(cidr CIDR) *Block {
 	eb := &Block{CIDR: cidr,
 		Pool: idring.NewIDRing(cidr.StartIPInt, cidr.EndIPInt),
 	}
@@ -608,13 +609,13 @@ type Network struct {
 	Name string `json:"name"`
 
 	// CIDR of the network (likely 10/8).
-	CIDR *CIDR `json:"cidr"`
+	CIDR CIDR `json:"cidr"`
 
 	// Size of tenant/segment block to allocate, in bits as mask
 	// (specify 32 for size 1, e.g.)
 	BlockMask uint `json:"block_mask"`
 
-	BlackedOut []*CIDR `json:"blacked_out"`
+	BlackedOut []CIDR `json:"blacked_out"`
 
 	HostsGroups *HostsGroups `json:"host_groups"`
 
@@ -623,13 +624,13 @@ type Network struct {
 	ipam *IPAM
 }
 
-func newNetwork(name string, cidr *CIDR, blockMask uint) *Network {
+func newNetwork(name string, cidr CIDR, blockMask uint) *Network {
 	network := &Network{
 		CIDR:      cidr,
 		Name:      name,
 		BlockMask: blockMask,
 	}
-	network.BlackedOut = make([]*CIDR, 0)
+	network.BlackedOut = make([]CIDR, 0)
 	return network
 }
 
@@ -664,7 +665,7 @@ func (network *Network) allocateIP(hostName string, owner string) (net.IP, error
 func (network *Network) blackedOutBy(ip net.IP) *CIDR {
 	for _, cidr := range network.BlackedOut {
 		if cidr.IPNet.Contains(ip) {
-			return cidr
+			return &cidr
 		}
 	}
 	return nil
@@ -871,6 +872,9 @@ func (ipam *IPAM) getNetworksForTenant(tenant string) ([]*Network, error) {
 // in conflict with the previous topology.
 func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest) error {
 	// TODO
+	ipam.locker.Lock()
+	defer ipam.locker.Unlock()
+
 	if len(ipam.Networks) > 0 {
 		return errors.New("Updating topology after it has been initally set up currently not implemented.")
 	}
@@ -931,6 +935,10 @@ func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest) error {
 		}
 	}
 	ipam.TopologyRevision++
+	err = ipam.save(ipam)
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -1000,7 +1008,7 @@ func (ipam *IPAM) BlackOut(cidrStr string) error {
 			networkBlocks := network.HostsGroups.ListBlocks()
 			log.Tracef(trace.Inside, "BlackOut: Checking blocks %v if they have IP in %s", networkBlocks, cidr)
 			for _, block := range networkBlocks {
-				if block.hasIPInCIDR(*cidr) {
+				if block.hasIPInCIDR(cidr) {
 					return errors.New("Blackout block contains already allocated IPs.")
 				}
 			}
@@ -1021,7 +1029,7 @@ func (ipam *IPAM) BlackOut(cidrStr string) error {
 	networkBlocks := network.HostsGroups.ListBlocks()
 	log.Tracef(trace.Inside, "BlackOut: Checking blocks %v if they have IP in %s", networkBlocks, cidr)
 	for _, block := range networkBlocks {
-		if block.hasIPInCIDR(*cidr) {
+		if block.hasIPInCIDR(cidr) {
 			return errors.New("Blackout block contains already allocated IPs.")
 		}
 	}
@@ -1062,7 +1070,7 @@ func (ipam *IPAM) UnBlackOut(cidrStr string) error {
 	}
 
 	var i int
-	var blackedOut *CIDR
+	var blackedOut CIDR
 	found = false
 	for i, blackedOut = range network.BlackedOut {
 		if blackedOut.String() == cidr.String() {

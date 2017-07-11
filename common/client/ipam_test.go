@@ -24,6 +24,7 @@ import (
 
 var (
 	testSaver *TestSaver
+	ipam      *IPAM
 )
 
 func init() {
@@ -467,7 +468,7 @@ func initIpam(t *testing.T, conf string) *IPAM {
 	if err != nil {
 		t.Fatalf("Cannot parse %s: %v", conf, err)
 	}
-	err = ipam.updateTopology(topoReq)
+	err = ipam.UpdateTopology(topoReq)
 	if err != nil {
 		t.Fatal(err)
 	}

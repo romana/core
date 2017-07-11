@@ -25,6 +25,7 @@ import (
 	libkvStore "github.com/docker/libkv/store"
 	libkvEtcd "github.com/docker/libkv/store/etcd"
 	"github.com/romana/core/common"
+	"github.com/romana/core/common/log/trace"
 	log "github.com/romana/rlog"
 )
 
@@ -63,11 +64,13 @@ func (s *Store) Exists(key string) (bool, error) {
 }
 
 func (s *Store) PutObject(key string, v interface{}) error {
+	key = s.prefix + key
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
 	}
-	return s.Store.Put(s.prefix+key, b, nil)
+	log.Tracef(trace.Inside, "Saving object under key %s: %s", key, string(b))
+	return s.Store.Put(key, b, nil)
 }
 
 func (s *Store) Get(key string) (*libkvStore.KVPair, error) {

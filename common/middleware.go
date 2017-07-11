@@ -242,8 +242,8 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 				}
 
 				if unmarshaller, ok := ContentTypeMarshallers[ct]; ok {
-					log.Infof("httpHandler %s %s: Attempting to unmarshal [%s] into %T", route.Method, route.Pattern, string(buf), inData)
 					err = unmarshaller.Unmarshal(buf, inData)
+					log.Tracef(trace.Inside, "httpHandler %s %s: Attempting to unmarshal [%s] into %T: %v", route.Method, route.Pattern, string(buf), inData, err)
 					if err != nil {
 						// Error unmarshalling...
 						write400(writer, marshaller, err)
@@ -265,6 +265,7 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 			write400(writer, marshaller, err)
 			return
 		}
+
 		var token string
 		if route.UseRequestToken {
 			if inData != nil {
@@ -303,21 +304,22 @@ func wrapHandler(restHandler RestHandler, route Route) http.Handler {
 			User:           user,
 		}
 
-		userOk := false
-		if route.AuthZChecker == nil {
-			for _, role := range user.Roles {
-				if role.Name == RoleAdmin || role.Name == RoleService {
-					userOk = true
-					break
-				}
-			}
-		} else {
-			userOk = route.AuthZChecker(restContext)
-		}
-		if !userOk {
-			write403(writer, marshaller)
-			return
-		}
+		// Currently disabled authenticator
+		//		userOk := false
+		//		if route.AuthZChecker == nil {
+		//			for _, role := range user.Roles {
+		//				if role.Name == RoleAdmin || role.Name == RoleService {
+		//					userOk = true
+		//					break
+		//				}
+		//			}
+		//		} else {
+		//			userOk = route.AuthZChecker(restContext)
+		//		}
+		//		if !userOk {
+		//			write403(writer, marshaller)
+		//			return
+		//		}
 
 		outData, err := restHandler(inData, restContext)
 		if err == nil {

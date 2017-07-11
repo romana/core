@@ -89,8 +89,8 @@ func (r *Romanad) listNetworks(input interface{}, ctx common.RestContext) (inter
 
 // updateTopology serves to update topology information in the Romana service
 func (r *Romanad) updateTopology(input interface{}, ctx common.RestContext) (interface{}, error) {
-	topoReq := input.(api.TopologyUpdateRequest)
-	return nil, r.client.IPAM.UpdateTopology(topoReq)
+	topoReq := input.(*api.TopologyUpdateRequest)
+	return nil, r.client.IPAM.UpdateTopology(*topoReq)
 }
 
 // normalizePolicy
