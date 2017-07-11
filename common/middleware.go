@@ -663,7 +663,6 @@ func newPanicRecoveryHandler() *panicRecoveryHandler {
 }
 
 func (p panicRecoveryHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request, next http.HandlerFunc) {
-	log.Tracef(trace.Inside, "panicRecoveryHandler: Entered on %s", request.URL)
 	defer func() {
 		if err := recover(); err != nil {
 			log.Errorf("Panic occurred: %s", err)

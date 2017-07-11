@@ -551,10 +551,16 @@ func TestTenants(t *testing.T) {
 	}
 	t.Logf("Got %s", err)
 }
+<<<<<<< Updated upstream
+=======
+<<<<<<< Updated upstream
+=======
+>>>>>>> Stashed changes
 
 func TestHostAllocation(t *testing.T) {
 	conf := `
 	{
+<<<<<<< Updated upstream
     "networks" : [
         {
             "name" : "net1",
@@ -576,6 +582,30 @@ func TestHostAllocation(t *testing.T) {
         }
      ]
 }
+=======
+		"networks": [{
+			"name": "net1",
+			"cidr": "10.0.0.0/8",
+			"block_mask": 30
+		}],
+
+		"topologies": [{
+			"networks": ["net1"],
+			"map": [{
+				"routing": "test",
+				"groups": [{
+						"name": "ip-192-168-99-10",
+						"ip": "192.168.99.10"
+					},
+					{
+						"name": "ip-192-168-99-11",
+						"ip": "192.168.99.11"
+					}
+				]
+			}]
+		}]
+	}
+>>>>>>> Stashed changes
 	`
 	ipam = initIpam(t, conf)
 
@@ -595,3 +625,153 @@ func TestHostAllocation(t *testing.T) {
 		t.Fatalf("Expected 10.0.0.4, got %s", ip.String())
 	}
 }
+<<<<<<< Updated upstream
+=======
+
+func TestJsonParsing(t *testing.T) {
+	var conf string
+
+	conf = `{
+   "networks" : [
+{ "name" : "vlanA", "cidr" : "10.1.0.0/16" } ],
+ "topologies" : [
+    {
+    	"networks" : [ "vlanA" ],
+    	"map" : [
+{"routing": "block-on-host",
+	"groups" : [ "A", "B", "C", "D" ]
+}
+    ]}]}`
+	initIpam(t, conf)
+
+	conf = `
+	{
+   "networks" : [
+  { "name" : "vlanA", "cidr" : "10.1.0.0/16" }
+],
+"topologies" : [
+    {
+        "networks" : [ "vlanA" ],
+        "map" : [ 
+                 {
+                    "routing": "block-announce-bgp:peerxxxxx",
+                    "groups" : [ "A", "B", "C", "D" ]
+} ]
+} ]
+}`
+	initIpam(t, conf)
+
+	conf = `
+	{
+   "networks" : [
+        { "name" : "vlanA", "cidr" : "10.1.0.0/16" }
+    ],
+ "topologies" : [
+    {
+        "networks" : [ "vlanA" ],
+        "map" : [
+                   {
+                    "routing": "block-on-host,
+                                block-announce-bgp:peerxxxxx",
+                    "groups" : [ "A", "B", "C", "D" ]
+} ]
+} ]
+}
+	`
+	initIpam(t, conf)
+
+	conf = `{
+   "networks" : [
+{ "name" : "vlanA", "cidr" : "10.1.0.0/16" }
+],
+"topologies" : [
+{
+"networks" : [ "vlanA" ], "map" : [
+{
+"groups" : [
+"prefix-on-host", [ "A" ] }, "prefix-on-host", [ "B" ] }, 
+"prefix-on-host", [ "C" ] }, "prefix-on-host", [ "D" ] },
+] }
+] }
+] }
+`
+	initIpam(t, conf)
+
+	conf = `{
+   "networks" : [
+        { "name" : "vlanA", "cidr" : "10.1.0.0/16" }
+    ],
+    "topologies" : [
+        {
+            "networks" : [ "vlanA" ],
+            "map" : [
+{
+"groups" : [
+                        { "routing" : "prefix-announce-bgp:peerxxxx",
+                          "groups"  : [ "A" ] },
+                        { "routing" : "prefix-announce-bgp:peerxxxx",
+                          "groups"  : [ "B" ] },
+                        { "routing" : "prefix-announce-bgp:peerxxxx",
+                          "groups"  : [ "C" ] },
+                        { "routing" : "prefix-announce-bgp:peerxxxx",
+                          "groups"  : [ "D" ] },
+  ] }
+] }
+] }`
+	initIpam(t, conf)
+
+	conf = `
+	{
+    "networks" : [
+{ "name" : "vlanA", "cidr" : "10.1.0.0/16" } ],
+   "topologies" : [
+    {
+        "networks" : [ "vlanA" ],
+        "map" : [
+{
+"groups" : [
+{ "routing" : "block-host-routes, prefix-announce-bgp:peerxxxx",
+  ] }
+] }
+] }
+prefix-announce-bgp:peerxxxx", "groups" : [ "G", "H" ] },
+  "groups"  : [ "A", "B" ] },
+{ "routing" : "block-host-routes, prefix-announce-bgp:peerxxxx", "groups" : [ "C", "D" ] },
+{ "routing" : "block-host-routes, prefix-announce-bgp:peerxxxx",
+  "groups"  : [ "E", "F" ] },
+{ "routing" : "block-host-routes, prefix-announce-bgp:peerxxxx", 
+"groups" : [ "G", "H" ] },
+]}]}]}
+`
+	initIpam(t, conf)
+
+	conf = `
+	{
+   "networks" : [
+{ "name" : "subnetA", "cidr" : "10.1.0.0/16" }, { "name" : "subnetB", "cidr" : "10.2.0.0/16" }
+    ],
+    "topologies" : [
+{
+"networks" : [ "subnetA" ], "map" : [
+{
+"groups" : [
+   ] }
+] },
+{
+{ "routing" : "block-host-routes,prefix-announce-vpc", "groups" : [] },
+{ "routing" : "block-host-routes,prefix-announce-vpc", "groups" : [] }
+  ] }
+}
+"networks" : [ "subnetB" ], "map" : [
+{
+"groups" : [
+ ] }
+{ "routing" : "block-host-routes,prefix-announce-vpc", "groups" : [] },
+{ "routing" : "block-host-routes,prefix-announce-vpc", "groups" : [] }
+ 
+	`
+	initIpam(t, conf)
+
+}
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes

@@ -15,9 +15,7 @@
 
 package api
 
-import (
-	"net"
-)
+import "net"
 
 // TODO should this really be kept alongside BlocksResponse?
 type Tenant struct {
@@ -76,8 +74,13 @@ type NetworkDefinition struct {
 }
 
 type TopologyDefinition struct {
-	Networks []string      `json:"networks"`
-	Map      []interface{} `json:"map"`
+	Networks []string    `json:"networks"`
+	Map      []GroupSpec `json:"map"`
+}
+
+type GroupSpec struct {
+	Routing string        `json:"routing"`
+	Groups  []interface{} `json:"groups"`
 }
 
 type Host struct {

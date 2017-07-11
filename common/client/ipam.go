@@ -75,16 +75,36 @@ type CIDR struct {
 
 func initCIDR(s string, cidr *CIDR) error {
 	ip, ipNet, err := net.ParseCIDR(s)
+	log.Tracef(trace.Inside, "In initCIDR(\"%s\") got %s, %s, %v", s, ip, ipNet, err)
 	if err != nil {
 		return err
 	}
+<<<<<<< Updated upstream
 	cidr.IPNet = ipNet
+=======
+<<<<<<< Updated upstream
+	cidr := &CIDR{IPNet: ipNet}
+>>>>>>> Stashed changes
 	cidr.StartIP = ip
 	cidr.StartIPInt = common.IPv4ToInt(ip)
 	ones, bits := ipNet.Mask.Size()
 	ipCount := 1 << uint(bits-ones)
 	cidr.EndIPInt = cidr.StartIPInt + uint64(ipCount) - 1
 	cidr.EndIP = common.IntToIPv4(cidr.EndIPInt)
+<<<<<<< Updated upstream
+=======
+	return cidr, nil
+=======
+	cidr.IPNet = ipNet
+	if ip != nil {
+		cidr.StartIP = ip
+		cidr.StartIPInt = common.IPv4ToInt(ip)
+		ones, bits := ipNet.Mask.Size()
+		ipCount := 1 << uint(bits-ones)
+		cidr.EndIPInt = cidr.StartIPInt + uint64(ipCount) - 1
+		cidr.EndIP = common.IntToIPv4(cidr.EndIPInt)
+	}
+>>>>>>> Stashed changes
 	return nil
 }
 
@@ -93,6 +113,10 @@ func NewCIDR(s string) (CIDR, error) {
 	cidr := &CIDR{}
 	err := initCIDR(s, cidr)
 	return *cidr, err
+<<<<<<< Updated upstream
+=======
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes
 }
 
 // Contains returns true if this CIDR fully contains (is equivalent to or a superset
@@ -105,14 +129,21 @@ func (c CIDR) Contains(c2 CIDR) bool {
 	return c.StartIPInt <= c2.StartIPInt && c.EndIPInt >= c2.EndIPInt
 }
 
-func (c CIDR) toString() string {
+func (c CIDR) DebugString() string {
+	if c.IPNet == nil {
+		return ""
+	}
 	return c.IPNet.String() + " (" + (c.StartIP.String()) + "-" + string(c.EndIP.String()) + ")"
 }
 
 func (c CIDR) String() string {
-	return c.toString()
+	if c.IPNet == nil {
+		return ""
+	}
+	return c.IPNet.String()
 }
 
+<<<<<<< Updated upstream
 func (c CIDR) MarshalJSON() ([]byte, error) {
 	if c.IPNet == nil {
 		return nil, nil
@@ -120,9 +151,43 @@ func (c CIDR) MarshalJSON() ([]byte, error) {
 	return []byte("\"" + c.IPNet.String() + "\""), nil
 }
 
+<<<<<<< Updated upstream
 func (cidr *CIDR) UnmarshalText(data []byte) error {
 	s := string(data)
 	return initCIDR(s, cidr)
+=======
+func (cidr *CIDR) UnmarshalJSON(data []byte) error {
+	_, ipNet, err := net.ParseCIDR(string(data))
+	if err != nil {
+		return err
+	}
+	cidr.IP = ipNet.IP
+	cidr.Mask = ipNet.Mask
+=======
+//func (c CIDR) MarshalJSON() ([]byte, error) {
+//	if c.IPNet == nil {
+//		return nil, nil
+//	}
+//	return []byte("\"" + c.IPNet.String() + "\""), nil
+//}
+
+func (c CIDR) MarshalText() ([]byte, error) {
+	if c.IPNet == nil {
+		return nil, nil
+	}
+	return []byte(c.IPNet.String()), nil
+}
+
+func (cidr *CIDR) UnmarshalText(data []byte) error {
+	s := string(data)
+	err := initCIDR(s, cidr)
+	if err != nil && s != "" {
+		log.Tracef(trace.Inside, "Unmarshaling CIDR from \"%s\": %v", s, err)
+		return err
+	}
+>>>>>>> Stashed changes
+	return nil
+>>>>>>> Stashed changes
 }
 
 // Host represents a host in Romana topology.
@@ -160,7 +225,7 @@ type HostsGroups struct {
 func (hg *HostsGroups) String() string {
 	s := ""
 	if hg.Hosts != nil {
-		return fmt.Sprintf("Hosts: %s; CIDR: %s", hg.Hosts, hg.CIDR)
+		return fmt.Sprintf("Hosts: %s; CIDR: %v", hg.Hosts, hg.CIDR)
 	} else {
 		for _, group := range hg.Groups {
 			if len(s) > 0 {
@@ -168,7 +233,8 @@ func (hg *HostsGroups) String() string {
 			}
 			s += group.String()
 		}
-		s = fmt.Sprintf("[%s]; CIDR: %s, Blocks: %s", s, hg.CIDR, hg.Blocks)
+		cidrStr := ""
+		s = fmt.Sprintf("[%s]; CIDR: %s, Blocks: %s", s, cidrStr, hg.Blocks)
 		return s
 	}
 }
@@ -400,6 +466,45 @@ func (hg *HostsGroups) findHostByName(name string) *Host {
 	return nil
 }
 
+func (hg *HostsGroups) parseMap(groupSpecs []api.GroupSpec, cidr CIDR, network *Network) error {
+	// Figure out  what would be the size per
+	// element.
+	ones, bits := cidr.Mask.Size()
+	free := bits - ones
+	if len(groupSpecs) == 0 {
+		// Just do nothing for now...
+		return nil
+	}
+	hg.Groups = make([]*HostsGroups, len(groupSpecs))
+
+	// Pad the array to the next power of 2
+	rem := free % len(groupSpecs)
+	if rem != 0 {
+		// Let's allocate a few more empty slots to complete the power of 2
+		remArr := make([]api.GroupSpec, rem)
+		groupSpecs = append(groupSpecs, remArr...)
+	}
+	bitsPerElement := free / len(groupSpecs)
+
+	for i, elt := range groupSpecs {
+		// Calculate CIDR for the current group
+		elementCIDRIP := common.IntToIPv4(cidr.StartIPInt + uint64(bitsPerElement*i))
+		elementCIDRString := fmt.Sprintf("%s/%d", elementCIDRIP, bitsPerElement)
+		log.Tracef(trace.Inside, "CIDR String for %s %d: %s", elementCIDRIP, bitsPerElement, elementCIDRString)
+		elementCIDR, err := NewCIDR(elementCIDRString)
+		if err != nil {
+			return err
+		}
+
+		hg.Groups[i] = &HostsGroups{}
+		err = hg.Groups[i].parse(elt.Groups, elementCIDR, network)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // parse parses simple JSON representing host groups, such as
 // this one:
 //                     [
@@ -470,7 +575,7 @@ func (hg *HostsGroups) parse(arr []interface{}, cidr CIDR, network *Network) err
 		if rem != 0 {
 			// Let's allocate a few more empty slots to complete the power of 2
 			remArr := make([]interface{}, rem)
-			arr = append(arr, remArr)
+			arr = append(arr, remArr...)
 		}
 	}
 
@@ -939,7 +1044,7 @@ func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest) error {
 		for _, netName := range topoDef.Networks {
 			if network, ok := ipam.Networks[netName]; ok {
 				hg := &HostsGroups{}
-				err := hg.parse(topoDef.Map, network.CIDR, network)
+				err := hg.parseMap(topoDef.Map, network.CIDR, network)
 				if err != nil {
 					return err
 				}
