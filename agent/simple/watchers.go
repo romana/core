@@ -16,11 +16,11 @@ type RomanaClientAdaptor struct {
 }
 
 func (c RomanaClientAdaptor) ListHosts() api.HostList {
-	return c.ListHosts()
+	return c.Client.ListHosts()
 }
 
 func (c RomanaClientAdaptor) ListAllBlocks() *api.IPAMBlocksResponse {
-	return c.IPAM.ListAllBlocks()
+	return c.Client.IPAM.ListAllBlocks()
 }
 
 // RomanaClient exists for a purpose of mocking.
