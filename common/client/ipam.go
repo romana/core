@@ -79,22 +79,6 @@ func initCIDR(s string, cidr *CIDR) error {
 	if err != nil {
 		return err
 	}
-<<<<<<< Updated upstream
-	cidr.IPNet = ipNet
-=======
-<<<<<<< Updated upstream
-	cidr := &CIDR{IPNet: ipNet}
->>>>>>> Stashed changes
-	cidr.StartIP = ip
-	cidr.StartIPInt = common.IPv4ToInt(ip)
-	ones, bits := ipNet.Mask.Size()
-	ipCount := 1 << uint(bits-ones)
-	cidr.EndIPInt = cidr.StartIPInt + uint64(ipCount) - 1
-	cidr.EndIP = common.IntToIPv4(cidr.EndIPInt)
-<<<<<<< Updated upstream
-=======
-	return cidr, nil
-=======
 	cidr.IPNet = ipNet
 	if ip != nil {
 		cidr.StartIP = ip
@@ -104,7 +88,6 @@ func initCIDR(s string, cidr *CIDR) error {
 		cidr.EndIPInt = cidr.StartIPInt + uint64(ipCount) - 1
 		cidr.EndIP = common.IntToIPv4(cidr.EndIPInt)
 	}
->>>>>>> Stashed changes
 	return nil
 }
 
@@ -113,10 +96,6 @@ func NewCIDR(s string) (CIDR, error) {
 	cidr := &CIDR{}
 	err := initCIDR(s, cidr)
 	return *cidr, err
-<<<<<<< Updated upstream
-=======
->>>>>>> Stashed changes
->>>>>>> Stashed changes
 }
 
 // Contains returns true if this CIDR fully contains (is equivalent to or a superset
@@ -143,34 +122,6 @@ func (c CIDR) String() string {
 	return c.IPNet.String()
 }
 
-<<<<<<< Updated upstream
-func (c CIDR) MarshalJSON() ([]byte, error) {
-	if c.IPNet == nil {
-		return nil, nil
-	}
-	return []byte("\"" + c.IPNet.String() + "\""), nil
-}
-
-<<<<<<< Updated upstream
-func (cidr *CIDR) UnmarshalText(data []byte) error {
-	s := string(data)
-	return initCIDR(s, cidr)
-=======
-func (cidr *CIDR) UnmarshalJSON(data []byte) error {
-	_, ipNet, err := net.ParseCIDR(string(data))
-	if err != nil {
-		return err
-	}
-	cidr.IP = ipNet.IP
-	cidr.Mask = ipNet.Mask
-=======
-//func (c CIDR) MarshalJSON() ([]byte, error) {
-//	if c.IPNet == nil {
-//		return nil, nil
-//	}
-//	return []byte("\"" + c.IPNet.String() + "\""), nil
-//}
-
 func (c CIDR) MarshalText() ([]byte, error) {
 	if c.IPNet == nil {
 		return nil, nil
@@ -185,9 +136,7 @@ func (cidr *CIDR) UnmarshalText(data []byte) error {
 		log.Tracef(trace.Inside, "Unmarshaling CIDR from \"%s\": %v", s, err)
 		return err
 	}
->>>>>>> Stashed changes
 	return nil
->>>>>>> Stashed changes
 }
 
 // Host represents a host in Romana topology.

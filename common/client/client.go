@@ -9,8 +9,10 @@ import (
 )
 
 const (
-	ipamDataKey    = "/ipam/data"
-	PoliciesPrefix = "/policies"
+	DefaultEtcdPrefix    = "/romana"
+	DefaultEtcdEndpoints = "localhost:2379"
+	ipamDataKey          = "/ipam/data"
+	PoliciesPrefix       = "/policies"
 )
 
 type Client struct {
@@ -22,6 +24,9 @@ type Client struct {
 
 // NewClient creates a new Client object based on provided config
 func NewClient(config *common.Config) (*Client, error) {
+	if config.EtcdPrefix == "" {
+		config.EtcdPrefix = DefaultEtcdPrefix
+	}
 	store, err := NewStore(config.EtcdEndpoints, config.EtcdPrefix)
 	if err != nil {
 		return nil, err
@@ -116,7 +121,7 @@ func (c *Client) DeletePolicy(id string) (bool, error) {
 }
 
 func (c *Client) initIPAM() error {
-	c.ipamLocker, err = c.Store.NewLocker(c.Store.prefix + "/ipam/lock")
+	c.ipamLocker, err = c.Store.NewLocker("ipam")
 	if err != nil {
 		return err
 	}

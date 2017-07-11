@@ -50,6 +50,12 @@ func NewStore(etcdEndpoints []string, prefix string) (*Store, error) {
 		return nil, err
 	}
 
+	// Test connection
+	_, err = myStore.Exists("test")
+	if err != nil {
+		return nil, err
+	}
+
 	return myStore, nil
 }
 
@@ -164,7 +170,7 @@ type storeLocker struct {
 }
 
 func (store *Store) NewLocker(name string) (sync.Locker, error) {
-	key := "/romana/lock/" + name
+	key := store.prefix + "/lock/" + name
 	l, err := store.Store.NewLock(key, nil)
 	if err != nil {
 		return nil, err
