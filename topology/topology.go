@@ -156,17 +156,7 @@ func (topology *TopologySvc) handleHostListGet(input interface{}, ctx common.Res
 // the default Agent port.
 func (topology *TopologySvc) handleHostListPost(input interface{}, ctx common.RestContext) (interface{}, error) {
 	host := input.(*common.Host)
-
-	// Check name collision.
-	hosts, err := topology.store.ListHosts()
-	if err != nil {
-		return nil, err
-	}
-	for _, h := range hosts {
-		if h.Name == host.Name {
-			return nil, common.NewErrorConflict(fmt.Sprintf("Host with name %s already registered in romana", host.Name))
-		}
-	}
+	var err error
 
 	// If no agent port is specfied in the creation of new host,
 	// get the agent port from root service.
