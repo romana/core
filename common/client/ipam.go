@@ -114,6 +114,9 @@ func (c CIDR) String() string {
 }
 
 func (c CIDR) MarshalJSON() ([]byte, error) {
+	if c.IPNet == nil {
+		return nil, nil
+	}
 	return []byte("\"" + c.IPNet.String() + "\""), nil
 }
 
@@ -177,6 +180,9 @@ func (hg *HostsGroups) AddHost(host api.Host) error {
 		return errors.New("Cannot add host to this group, group contains only other groups.")
 	}
 
+	if host.IP == nil {
+		return common.NewError("Host IP is required.")
+	}
 	if host.Name == "" {
 		return common.NewError("Host name is required.")
 	}
@@ -186,10 +192,7 @@ func (hg *HostsGroups) AddHost(host api.Host) error {
 	if host.IP != nil && hg.findHostByIP(host.IP.String()) != nil {
 		return common.NewError("Host with IP %s already exists.", host.IP)
 	}
-	// For now not required; we use names...
-	//	if host.IP == nil {
-	//		return common.NewError("Host IP is required.")
-	//	}
+
 	newHost := &Host{IP: host.IP, Name: host.Name, AgentPort: host.AgentPort, group: hg}
 	hg.Hosts = append(hg.Hosts, newHost)
 	hg.network.ipam.TopologyRevision++
@@ -442,12 +445,11 @@ func (hg *HostsGroups) parse(arr []interface{}, cidr CIDR, network *Network) err
 	eltVal := reflect.ValueOf(arr[0])
 	eltValKind := eltVal.Kind()
 
-	if eltValKind != reflect.Slice && eltValKind != reflect.String {
+	if eltValKind != reflect.Slice && eltValKind != reflect.Map {
 		return errors.New(fmt.Sprintf("Unknown type %s", eltVal.Kind()))
 	}
 	// Just started parsing this entity.
-	kind := eltValKind.String()
-	if kind == "string" {
+	if eltValKind == reflect.Map {
 		hg.Hosts = make([]*Host, len(arr))
 		hg.CIDR = cidr
 		hg.BlockToOwner = make(map[int]string)
@@ -472,17 +474,26 @@ func (hg *HostsGroups) parse(arr []interface{}, cidr CIDR, network *Network) err
 			// Sanity check - whether element types are mixed here. It would be an error
 			// if they are.
 			eltVal = reflect.ValueOf(elt)
-			eltValKind = eltVal.Kind()
-			if eltValKind.String() != kind {
+			curKind := eltVal.Kind()
+			if eltValKind != curKind {
 				return common.NewError("Mixed types")
 			}
 		}
-		if kind == "string" {
+		if eltValKind == reflect.Map {
 			// This is host, we inherit the CIDR
-
-			hg.Hosts[i] = &Host{IP: net.ParseIP(elt.(string)),
-				group: hg,
+			hostData := elt.(map[string]interface{})
+			if hostData["ip"] == nil || hostData["name"] == nil {
+				return common.NewError("Both name and IP are required for hosts.")
 			}
+			host := &Host{Name: hostData["name"].(string)}
+			ipStr := hostData["ip"].(string)
+			ip := net.ParseIP(ipStr)
+			if ip == nil {
+				return common.NewError("Cannot parse IP: %s", ipStr)
+			}
+			host.IP = ip
+			host.group = hg
+			hg.Hosts[i] = host
 		} else {
 			// Calculate CIDR for the current group
 			elementCIDRIP := common.IntToIPv4(cidr.StartIPInt + uint64(bitsPerElement*i))
@@ -922,7 +933,7 @@ func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest) error {
 		for _, netName := range topoDef.Networks {
 			if network, ok := ipam.Networks[netName]; ok {
 				hg := &HostsGroups{}
-				err := hg.parse(topoDef.Map, network.CIDR, network)
+				err := hg.parse(topoDef.Hosts, network.CIDR, network)
 				if err != nil {
 					return err
 				}
