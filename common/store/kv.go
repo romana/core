@@ -299,9 +299,8 @@ func (kvStore *KvStore) AddHost(dc common.Datacenter, host *common.Host) error {
 		return err
 	}
 	log.Debugf("AddHost: Created lock for %s", lockKey)
-	stopChan := make(chan struct{})
 	log.Debugf("AddHost: Attempting to lock")
-	ch, err := lock.Lock(stopChan)
+	ch, err := lock.Lock(nil)
 	if err != nil {
 		log.Errorf("AddHost: Error locking lock %s: %s", lock, err)
 		return err
