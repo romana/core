@@ -290,7 +290,63 @@ func (kvStore *KvStore) makeKey(suffix string, args ...interface{}) string {
 // AddHost adds the host. If RomanaIp is not specified for it,
 // a new RomanaIp is generated and assigned to it.
 func (kvStore *KvStore) AddHost(dc common.Datacenter, host *common.Host) error {
-	var err error
+	key := kvStore.makeKey("hosts")
+	log.Debugf("AddHost: key: %s", key)
+	lockKey := fmt.Sprintf("%s_lock", key)
+	lock, err := kvStore.Db.NewLock(lockKey, nil)
+	if err != nil {
+		log.Errorf("AddHost: Error creating lock for %s: %s", lockKey, err)
+		return err
+	}
+	log.Debugf("AddHost: Created lock for %s", lockKey)
+	log.Debugf("AddHost: Attempting to lock")
+	ch, err := lock.Lock(nil)
+	if err != nil {
+		log.Errorf("AddHost: Error locking lock %s: %s", lock, err)
+		return err
+	}
+	log.Debugf("AddHost: Locked.")
+
+	// This really is just a defer of Unlock()
+	// but wrapped in a function to add logging.
+	defer func() {
+		err := lock.Unlock()
+		if err != nil {
+			log.Errorf("AddHost: Error unlocking %s", lockKey)
+		} else {
+			log.Debugf("AddHost: Unlocked lock %s", lockKey)
+		}
+	}()
+
+	// check if lock is still valid or if any error
+	// was received on the channel. repeat it after
+	// every kvstore operation below to catch lock
+	// failures, errors, ttl expiry, etc.
+	select {
+	case msg := <-ch:
+		log.Errorf("AddHost: Received from channel: %s", msg)
+		return common.NewError("Lost lock: %s", msg)
+	default:
+	}
+
+	// Check name collision.
+	hosts, err := kvStore.ListHosts()
+	if err != nil {
+		return err
+	}
+	for _, h := range hosts {
+		if h.Name == host.Name {
+			return common.NewErrorConflict(fmt.Sprintf("Host with name %s already registered in romana", host.Name))
+		}
+	}
+
+	select {
+	case msg := <-ch:
+		log.Errorf("AddHost: Received from channel: %s", msg)
+		return common.NewError("Lost lock: %s", msg)
+	default:
+	}
+
 	hostsKey := kvStore.makeKey("hosts_ids")
 	if host.ID == 0 {
 		host.ID, err = kvStore.getID(hostsKey)
@@ -301,6 +357,13 @@ func (kvStore *KvStore) AddHost(dc common.Datacenter, host *common.Host) error {
 		log.Debugf("AddHost: Made ID %d", host.ID)
 	}
 
+	select {
+	case msg := <-ch:
+		log.Errorf("AddHost: Received from channel: %s", msg)
+		return common.NewError("Lost lock: %s", msg)
+	default:
+	}
+
 	romanaIP := strings.TrimSpace(host.RomanaIp)
 	if romanaIP == "" {
 		host.RomanaIp, err = getNetworkFromID(host.ID, dc.PortBits, dc.Cidr)
@@ -309,14 +372,13 @@ func (kvStore *KvStore) AddHost(dc common.Datacenter, host *common.Host) error {
 			return err
 		}
 	}
-	key := kvStore.makeKey("hosts/%d", host.ID)
+	hostIDKey := kvStore.makeKey("hosts/%d", host.ID)
 	value, err := json.Marshal(host)
 	if err != nil {
 		log.Debugf("AddHost: Error marshalling host: %s", err)
 		return err
 	}
-	_, _, err = kvStore.Db.AtomicPut(key, value, nil, nil)
-	if err != nil {
+	if err := kvStore.Db.Put(hostIDKey, value, nil); err != nil {
 		if err == libkvStore.ErrKeyExists {
 			return common.NewErrorConflict(fmt.Sprintf("Host %d already exists: %v", host.ID, *host))
 		} else {
