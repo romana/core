@@ -27,6 +27,23 @@ var (
 	ipam      *IPAM
 )
 
+func initIpam(t *testing.T, conf string) *IPAM {
+	ipam, err := NewIPAM(testSaver.save, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	topoReq := api.TopologyUpdateRequest{}
+	err = json.Unmarshal([]byte(conf), &topoReq)
+	if err != nil {
+		t.Fatalf("Cannot parse %s: %v", conf, err)
+	}
+	err = ipam.UpdateTopology(topoReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return ipam
+}
+
 func init() {
 	testSaver = &TestSaver{}
 }
@@ -64,24 +81,31 @@ func TestNewCIDR(t *testing.T) {
 }
 
 func TestBlackout(t *testing.T) {
-	conf := `
-	{
-    "networks" : [
+	conf := `{
+  "networks":[
+    {
+      "name":"net1",
+      "cidr":"10.0.0.0/30",
+      "block_mask":30
+    }
+  ],
+  "topologies":[
+    {
+      "networks":[
+        "net1"
+      ],
+      "map":[
         {
-            "name" : "net1",
-            "cidr" : "10.0.0.0/30",
-            "block_mask" : 30
+          "routing":"foo",
+          "groups":[{
+            "name":"host1",
+            "ip":"192.168.0.1"
+          }]
         }
-    ],
-
-    "topologies" : [
-        {
-            "networks" : [ "net1" ],
-            "map" : [ { "name": "host1" , "ip" : "192.168.0.1" } ]
-        }
-     ]
-     }
-	`
+      ]
+    }
+  ]
+}`
 	ipam = initIpam(t, conf)
 
 	// 1. Black out something random
@@ -190,24 +214,31 @@ func TestBlackout(t *testing.T) {
 
 // TestIPReuse tests that an IP can be reused.
 func TestIPReuse(t *testing.T) {
-	conf := `
-	{
-    "networks" : [
+	conf := `{
+  "networks":[
+    {
+      "name":"net1",
+      "cidr":"10.0.0.0/31",
+      "block_mask":31
+    }
+  ],
+  "topologies":[
+    {
+      "networks":[
+        "net1"
+      ],
+      "map":[
         {
-            "name" : "net1",
-            "cidr" : "10.0.0.0/31",
-            "block_mask" : 31
+          "routing":"foo",
+          "groups":[{
+            "name":"host1",
+            "ip":"192.168.0.1"
+          }]
         }
-    ],
-
-    "topologies" : [
-        {
-            "networks" : [ "net1" ],
-            "map" : [ { "name": "host1" , "ip" : "192.168.0.1" } ]
-        }
-     ]
-     }
-	`
+      ]
+    }
+  ]
+}`
 	ipam = initIpam(t, conf)
 
 	ip, err := ipam.AllocateIP("1", "host1", "ten1", "seg1")
@@ -257,24 +288,31 @@ func TestIPReuse(t *testing.T) {
 
 // TestBlockReuse tests that a block can be reused.
 func TestBlockReuse(t *testing.T) {
-	conf := `
-	{
-    "networks" : [
+	conf := `{
+  "networks":[
+    {
+      "name":"net1",
+      "cidr":"10.0.0.0/31",
+      "block_mask":32
+    }
+  ],
+  "topologies":[
+    {
+      "networks":[
+        "net1"
+      ],
+      "map":[
         {
-            "name" : "net1",
-            "cidr" : "10.0.0.0/31",
-            "block_mask" : 32
+          "routing":"foo",
+          "groups":[{
+            "name":"host1",
+            "ip":"192.168.0.1"
+          }]
         }
-    ],
-
-    "topologies" : [
-        {
-            "networks" : [ "net1" ],
-            "map" : [ { "name": "host1" , "ip" : "192.168.0.1" } ]
-        }
-     ]
-     }
-	`
+      ]
+    }
+  ]
+}`
 	ipam = initIpam(t, conf)
 
 	ip, err := ipam.AllocateIP("1", "host1", "ten1", "seg1")
@@ -326,24 +364,31 @@ func TestBlockReuse(t *testing.T) {
 // Test32 tests bitmask size 32 - as a corner case.
 func Test32(t *testing.T) {
 	// Part 1. Simple /32 block size test
-	conf := `
-	{
-    "networks" : [
+	conf := `{
+  "networks":[
+    {
+      "name":"net1",
+      "cidr":"10.0.0.0/24",
+      "block_mask":32
+    }
+  ],
+  "topologies":[
+    {
+      "networks":[
+        "net1"
+      ],
+      "map":[
         {
-            "name" : "net1",
-            "cidr" : "10.0.0.0/24",
-            "block_mask" : 32
+          "routing":"foo",
+          "groups":[{
+            "name":"host1",
+            "ip":"192.168.0.1"
+          }]
         }
-    ],
-
-    "topologies" : [
-        {
-            "networks" : [ "net1" ],
-            "map" : [ { "name": "host1" , "ip" : "192.168.0.1" }  ]
-        }
-     ]
-     }
-	`
+      ]
+    }
+  ]
+}`
 	ipam = initIpam(t, conf)
 
 	ip, err := ipam.AllocateIP("1", "host1", "ten1", "seg1")
@@ -365,24 +410,31 @@ func Test32(t *testing.T) {
 	}
 
 	// Part 2. Here we add a /32 block size to a /32 CIDR.
-	conf = `
-	{
-    "networks" : [
+	conf = `{
+  "networks":[
+    {
+      "name":"net1",
+      "cidr":"10.0.0.0/32",
+      "block_mask":32
+    }
+  ],
+  "topologies":[
+    {
+      "networks":[
+        "net1"
+      ],
+      "map":[
         {
-            "name" : "net1",
-            "cidr" : "10.0.0.0/32",
-            "block_mask" : 32
+          "routing":"foo",
+          "groups": [{
+            "name":"host1",
+            "ip":"192.168.0.1"
+          }]
         }
-    ],
-
-    "topologies" : [
-        {
-            "networks" : [ "net1" ],
-            "map" : [ { "name": "host1" , "ip" : "192.168.0.1" }  ]
-        }
-     ]
-     }
-	`
+      ]
+    }
+  ]
+}`
 	ipam = initIpam(t, conf)
 
 	ip, err = ipam.AllocateIP("2", "host1", "ten1", "seg1")
@@ -409,24 +461,31 @@ func Test32(t *testing.T) {
 // TestSegments tests that segments get different blocks.
 func TestSegments(t *testing.T) {
 
-	conf := `
-	{
-    "networks" : [
+	conf := `{
+  "networks":[
+    {
+      "name":"net1",
+      "cidr":"10.0.0.0/24",
+      "block_mask":30
+    }
+  ],
+  "topologies":[
+    {
+      "networks":[
+        "net1"
+      ],
+      "map":[
         {
-            "name" : "net1",
-            "cidr" : "10.0.0.0/24",
-            "block_mask" : 30
+          "routing":"foo",
+          "groups": [{
+            "name":"host1",
+            "ip":"192.168.0.1"
+          }]
         }
-    ],
-
-    "topologies" : [
-        {
-            "networks" : [ "net1" ],
-            "map" : [ { "name": "host1" , "ip" : "192.168.0.1" } ]
-        }
-     ]
-     }
-	`
+      ]
+    }
+  ]
+}`
 	ipam = initIpam(t, conf)
 
 	ip, err := ipam.AllocateIP("x1", "host1", "ten1", "seg1")
@@ -458,57 +517,53 @@ func TestSegments(t *testing.T) {
 	}
 }
 
-func initIpam(t *testing.T, conf string) *IPAM {
-	ipam, err := NewIPAM(testSaver.save, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	topoReq := api.TopologyUpdateRequest{}
-	err = json.Unmarshal([]byte(conf), &topoReq)
-	if err != nil {
-		t.Fatalf("Cannot parse %s: %v", conf, err)
-	}
-	err = ipam.UpdateTopology(topoReq)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return ipam
-}
-
 // TestTenants tests that addresses are allocated from networks
 // on which provided tenants are allowed.
 func TestTenants(t *testing.T) {
-	conf := `
-	{
-    "networks" : [
+	conf := `{
+  "networks":[
+    {
+      "name":"net1",
+      "cidr":"10.200.0.0/16",
+      "block_mask":29,
+      "tenants":[
+        "tenant1",
+        "tenant2"
+      ]
+    },
+    {
+      "name":"net2",
+      "cidr":"10.220.0.0/16",
+      "block_mask":28,
+      "tenants":[
+        "tenant3"
+      ]
+    },
+    {
+      "name":"net3",
+      "cidr":"10.240.0.0/16",
+      "block_mask":28
+    }
+  ],
+  "topologies":[
+    {
+      "networks":[
+        "net1",
+        "net2",
+        "net3"
+      ],
+      "map":[
         {
-            "name" : "net1",
-            "cidr" : "10.200.0.0/16",
-            "block_mask" : 29,
-            "tenants" : [ "tenant1", "tenant2" ]
-        },
-        {
-            "name" : "net2",
-            "cidr" : "10.220.0.0/16",
-            "block_mask" : 28,
-            "tenants" : [ "tenant3" ]
-        },
-        {
-            "name" : "net3",
-            "cidr" : "10.240.0.0/16",
-            "block_mask" : 28
+          "routing":"foo",
+          "groups": [{
+            "name":"host1",
+            "ip":"192.168.0.1"
+          }]
         }
-        
-    ],
-
-    "topologies" : [
-        {
-            "networks" : [ "net1", "net2", "net3" ],
-            "map" : [ { "name": "host1" , "ip" : "192.168.0.1" }  ]
-        }
-     ]
-     }
-	`
+      ]
+    }
+  ]
+}`
 	ipam = initIpam(t, conf)
 
 	ip, err := ipam.AllocateIP("x1", "host1", "tenant1", "")
@@ -551,62 +606,39 @@ func TestTenants(t *testing.T) {
 	}
 	t.Logf("Got %s", err)
 }
-<<<<<<< Updated upstream
-=======
-<<<<<<< Updated upstream
-=======
->>>>>>> Stashed changes
 
 func TestHostAllocation(t *testing.T) {
-	conf := `
-	{
-<<<<<<< Updated upstream
-    "networks" : [
+	conf := `{
+  "networks":[
+    {
+      "name":"net1",
+      "cidr":"10.0.0.0/8",
+      "block_mask":30
+    }
+  ],
+  "topologies":[
+    {
+      "networks":[
+        "net1"
+      ],
+      "map":[
         {
-            "name" : "net1",
-            "cidr" : "10.0.0.0/8",
-            "block_mask" : 30
+          "routing":"test",
+          "groups":[
+            {
+              "name":"ip-192-168-99-10",
+              "ip":"192.168.99.10"
+            },
+            {
+              "name":"ip-192-168-99-11",
+              "ip":"192.168.99.11"
+            }
+          ]
         }
-    ],
-
-    "topologies" : [
-        {
-            "networks" : [ "net1" ],
-            "map" : [ { "name" : "ip-192-168-99-10", 
-                          "ip" : "192.168.99.10"
-                         },
-                         { 
-                          "name" : "ip-192-168-99-11", 
-                          "ip" : "192.168.99.11"
-                         }]
-        }
-     ]
-}
-=======
-		"networks": [{
-			"name": "net1",
-			"cidr": "10.0.0.0/8",
-			"block_mask": 30
-		}],
-
-		"topologies": [{
-			"networks": ["net1"],
-			"map": [{
-				"routing": "test",
-				"groups": [{
-						"name": "ip-192-168-99-10",
-						"ip": "192.168.99.10"
-					},
-					{
-						"name": "ip-192-168-99-11",
-						"ip": "192.168.99.11"
-					}
-				]
-			}]
-		}]
-	}
->>>>>>> Stashed changes
-	`
+      ]
+    }
+  ]
+}`
 	ipam = initIpam(t, conf)
 
 	ip, err := ipam.AllocateIP("x1", "ip-192-168-99-10", "tenant1", "")
@@ -625,153 +657,261 @@ func TestHostAllocation(t *testing.T) {
 		t.Fatalf("Expected 10.0.0.4, got %s", ip.String())
 	}
 }
-<<<<<<< Updated upstream
-=======
 
 func TestJsonParsing(t *testing.T) {
 	var conf string
 
+	// Slide 12: Example 1: Simple, flat network
+	t.Logf("Example 1: Simple, flat network, (a)")
 	conf = `{
-   "networks" : [
-{ "name" : "vlanA", "cidr" : "10.1.0.0/16" } ],
- "topologies" : [
+  "networks":[
     {
-    	"networks" : [ "vlanA" ],
-    	"map" : [
-{"routing": "block-on-host",
-	"groups" : [ "A", "B", "C", "D" ]
-}
-    ]}]}`
-	initIpam(t, conf)
-
-	conf = `
-	{
-   "networks" : [
-  { "name" : "vlanA", "cidr" : "10.1.0.0/16" }
-],
-"topologies" : [
+      "name":"vlanA",
+      "cidr":"10.1.0.0/16"
+    }
+  ],
+  "topologies":[
     {
-        "networks" : [ "vlanA" ],
-        "map" : [ 
-                 {
-                    "routing": "block-announce-bgp:peerxxxxx",
-                    "groups" : [ "A", "B", "C", "D" ]
-} ]
-} ]
+      "networks":[
+        "vlanA"
+      ],
+      "map":[
+        {
+          "routing":"block-on-host",
+          "groups":[
+            { "name" : "h1", "ip" : "1.1.1.1" },
+            { "name" : "h1", "ip" : "1.1.1.1" },
+            { "name" : "h1", "ip" : "1.1.1.1" },
+            { "name" : "h1", "ip" : "1.1.1.1" }
+          ]
+        }
+      ]
+    }
+  ]
 }`
 	initIpam(t, conf)
 
-	conf = `
-	{
-   "networks" : [
-        { "name" : "vlanA", "cidr" : "10.1.0.0/16" }
-    ],
- "topologies" : [
+	// Slide 13: Example 1: Simple, flat network
+	t.Logf("Example 1: Simple, flat network, (b)")
+	conf = `{
+  "networks":[
     {
-        "networks" : [ "vlanA" ],
-        "map" : [
-                   {
-                    "routing": "block-on-host,
-                                block-announce-bgp:peerxxxxx",
-                    "groups" : [ "A", "B", "C", "D" ]
-} ]
-} ]
-}
-	`
-	initIpam(t, conf)
-
-	conf = `{
-   "networks" : [
-{ "name" : "vlanA", "cidr" : "10.1.0.0/16" }
-],
-"topologies" : [
-{
-"networks" : [ "vlanA" ], "map" : [
-{
-"groups" : [
-"prefix-on-host", [ "A" ] }, "prefix-on-host", [ "B" ] }, 
-"prefix-on-host", [ "C" ] }, "prefix-on-host", [ "D" ] },
-] }
-] }
-] }
-`
-	initIpam(t, conf)
-
-	conf = `{
-   "networks" : [
-        { "name" : "vlanA", "cidr" : "10.1.0.0/16" }
-    ],
-    "topologies" : [
+      "name":"vlanA",
+      "cidr":"10.1.0.0/16"
+    }
+  ],
+  "topologies":[
+    {
+      "networks":[
+        "vlanA"
+      ],
+      "map":[
         {
-            "networks" : [ "vlanA" ],
-            "map" : [
-{
-"groups" : [
-                        { "routing" : "prefix-announce-bgp:peerxxxx",
-                          "groups"  : [ "A" ] },
-                        { "routing" : "prefix-announce-bgp:peerxxxx",
-                          "groups"  : [ "B" ] },
-                        { "routing" : "prefix-announce-bgp:peerxxxx",
-                          "groups"  : [ "C" ] },
-                        { "routing" : "prefix-announce-bgp:peerxxxx",
-                          "groups"  : [ "D" ] },
-  ] }
-] }
-] }`
+          "routing":"block-announce-bgp:peerxxxxx",
+          "groups":[
+            { "name" : "h1", "ip" : "1.1.1.1" },
+            { "name" : "h2", "ip" : "1.1.1.1" },
+            { "name" : "h3", "ip" : "1.1.1.1" },
+            { "name" : "h4", "ip" : "1.1.1.1" }
+          ]
+        }
+      ]
+    }
+  ]
+}`
 	initIpam(t, conf)
 
-	conf = `
-	{
-    "networks" : [
-{ "name" : "vlanA", "cidr" : "10.1.0.0/16" } ],
-   "topologies" : [
+	// Slide 14: Example 1: Simple, flat network
+	t.Logf("Example 1: Simple, flat network, (c)")
+	conf = `{
+  "networks":[
     {
-        "networks" : [ "vlanA" ],
-        "map" : [
-{
-"groups" : [
-{ "routing" : "block-host-routes, prefix-announce-bgp:peerxxxx",
-  ] }
-] }
-] }
-prefix-announce-bgp:peerxxxx", "groups" : [ "G", "H" ] },
-  "groups"  : [ "A", "B" ] },
-{ "routing" : "block-host-routes, prefix-announce-bgp:peerxxxx", "groups" : [ "C", "D" ] },
-{ "routing" : "block-host-routes, prefix-announce-bgp:peerxxxx",
-  "groups"  : [ "E", "F" ] },
-{ "routing" : "block-host-routes, prefix-announce-bgp:peerxxxx", 
-"groups" : [ "G", "H" ] },
-]}]}]}
-`
+      "name":"vlanA",
+      "cidr":"10.1.0.0/16"
+    }
+  ],
+  "topologies":[
+    {
+      "networks":[
+        "vlanA"
+      ],
+      "map":[
+        {
+          "routing":"block-on-host,block - announce - bgp: peerxxxxx",
+          "groups":[
+            { "name" : "h1", "ip" : "1.1.1.1" },
+            { "name" : "h1", "ip" : "1.1.1.1" },
+            { "name" : "h1", "ip" : "1.1.1.1" },
+            { "name" : "h1", "ip" : "1.1.1.1" }
+          ]
+        }
+      ]
+    }
+  ]
+}`
 	initIpam(t, conf)
 
-	conf = `
-	{
-   "networks" : [
-{ "name" : "subnetA", "cidr" : "10.1.0.0/16" }, { "name" : "subnetB", "cidr" : "10.2.0.0/16" }
-    ],
-    "topologies" : [
-{
-"networks" : [ "subnetA" ], "map" : [
-{
-"groups" : [
-   ] }
-] },
-{
-{ "routing" : "block-host-routes,prefix-announce-vpc", "groups" : [] },
-{ "routing" : "block-host-routes,prefix-announce-vpc", "groups" : [] }
-  ] }
-}
-"networks" : [ "subnetB" ], "map" : [
-{
-"groups" : [
- ] }
-{ "routing" : "block-host-routes,prefix-announce-vpc", "groups" : [] },
-{ "routing" : "block-host-routes,prefix-announce-vpc", "groups" : [] }
- 
-	`
+	// Slide 15: Example 2: Prefix per host
+	t.Logf("Example 2: Prefix per host (a)")
+	conf = `{
+  "networks":[
+    {
+      "name":"vlanA",
+      "cidr":"10.1.0.0/16"
+    }
+  ],
+  "topologies":[
+    {
+      "networks":[
+        "vlanA"
+      ],
+      "map":[
+        {
+          "routing":"prefix-on-host",
+          "groups":[
+            { "name" : "h1", "ip" : "1.1.1.1" }
+          ]
+        },
+        {
+          "routing":"prefix-on-host",
+          "groups":[
+            { "name" : "h1", "ip" : "1.1.1.1" }
+          ]
+        },
+        {
+          "routing":"prefix-on-host",
+          "groups":[ { "name" : "h1", "ip" : "1.1.1.1" } ]
+        },
+        {
+          "routing":"prefix-on-host",
+          "groups":[ { "name" : "h1", "ip" : "1.1.1.1" } ]
+        }
+      ]
+    }
+  ]
+}`
+	initIpam(t, conf)
+
+	// Slide 16: Example 2: Prefix per host
+	t.Logf("Example 2: Prefix per host (b)")
+	conf = `{
+  "networks":[
+    {
+      "name":"vlanA",
+      "cidr":"10.1.0.0/16"
+    }
+  ],
+  "topologies":[
+    {
+      "networks":[
+        "vlanA"
+      ],
+      "map":[
+            {
+              "routing":"prefix-announce-bgp:peerxxxx",
+              "groups":[ { "name" : "h1", "ip" : "1.1.1.1" } ]
+            },
+            {
+              "routing":"prefix-announce-bgp:peerxxxx",
+              "groups":[ { "name" : "h1", "ip" : "1.1.1.1" } ]
+            },
+            {
+              "routing":"prefix-announce-bgp:peerxxxx",
+              "groups":[ { "name" : "h1", "ip" : "1.1.1.1" } ]
+            },
+            {
+              "routing":"prefix-announce-bgp:peerxxxx",
+              "groups":[ { "name" : "h1", "ip" : "1.1.1.1" }  ]
+            }
+      ]
+    }
+  ]
+}`
+	initIpam(t, conf)
+
+	// Slide 17: Example 3: Multi-host groups + prefix
+	t.Logf("Example 3: Multi-host groups + prefix")
+	conf = `{
+  "networks":[
+    {
+      "name":"vlanA",
+      "cidr":"10.1.0.0/16"
+    }
+  ],
+  "topologies":[
+    {
+      "networks":[
+        "vlanA"
+      ],
+      "map":[
+        {
+          "routing":"block-host-routes, prefix-announce-bgp:peerxxxx",
+          "groups":[ { "name" : "h1", "ip" : "1.1.1.1" }, { "name" : "h1", "ip" : "1.1.1.1" } ]
+        },
+        {
+          "routing":"block-host-routes, prefix-announce-bgp:peerxxxx",
+          "groups":[ { "name" : "h1", "ip" : "1.1.1.1" }, { "name" : "h1", "ip" : "1.1.1.1" } ]
+        },
+        {
+          "routing":"block-host-routes, prefix-announce-bgp:peerxxxx",
+          "groups":[ { "name" : "h1", "ip" : "1.1.1.1" }, { "name" : "h1", "ip" : "1.1.1.1" } ]
+        },
+        {
+          "routing":"block-host-routes, prefix-announce-bgp:peerxxxx",
+          "groups":[ { "name" : "h1", "ip" : "1.1.1.1" }, { "name" : "h1", "ip" : "1.1.1.1" } ]
+        }
+      ]
+    }
+  ]
+}`
+	initIpam(t, conf)
+
+	// Slide 18: Example 4: VPC routing for two AZs
+	t.Logf("Example 4: VPC routing for two AZs")
+	conf = `{
+  "networks":[
+    {
+      "name":"subnetA",
+      "cidr":"10.1.0.0/16"
+    },
+    {
+      "name":"subnetB",
+      "cidr":"10.2.0.0/16"
+    }
+  ],
+  "topologies":[
+    {
+      "networks":[
+        "subnetA"
+      ],
+      "map":[
+        {
+          "routing":"block-host-routes,prefix-announce-vpc",
+          "groups":[]
+        },
+        {
+          "routing":"block-host-routes,prefix-announce-vpc",
+          "groups":[]
+        }
+      ]
+    },
+    {
+      "networks":[
+        "subnetB"
+      ],
+      "map":[
+        {
+          "routing":"block-host-routes,prefix-announce-vpc",
+          "groups":[]
+        },
+        {
+          "routing":"block-host-routes,prefix-announce-vpc",
+          "groups":[]
+        }
+      ]
+    }
+  ]
+}`
 	initIpam(t, conf)
 
 }
->>>>>>> Stashed changes
->>>>>>> Stashed changes

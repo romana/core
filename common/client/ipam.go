@@ -506,7 +506,7 @@ func (hg *HostsGroups) parse(arr []interface{}, cidr CIDR, network *Network) err
 	eltValKind := eltVal.Kind()
 
 	if eltValKind != reflect.Slice && eltValKind != reflect.Map {
-		return errors.New(fmt.Sprintf("Unknown type %s", eltVal.Kind()))
+		return errors.New(fmt.Sprintf("Unknown type %s: %v", eltVal.Kind(), eltVal.Interface()))
 	}
 	// Just started parsing this entity.
 	if eltValKind == reflect.Map {
@@ -543,7 +543,7 @@ func (hg *HostsGroups) parse(arr []interface{}, cidr CIDR, network *Network) err
 			// This is host, we inherit the CIDR
 			hostData := elt.(map[string]interface{})
 			if hostData["ip"] == nil || hostData["name"] == nil {
-				return common.NewError("Both name and IP are required for hosts.")
+				return common.NewError("Both name and IP are required for hosts: %v", hostData)
 			}
 			host := &Host{Name: hostData["name"].(string)}
 			ipStr := hostData["ip"].(string)
