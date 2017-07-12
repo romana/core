@@ -589,7 +589,7 @@ func (b Block) String() string {
 // newBlock creates a new Block on the given host.
 func newBlock(cidr CIDR) *Block {
 	eb := &Block{CIDR: cidr,
-		Pool: idring.NewIDRing(cidr.StartIPInt, cidr.EndIPInt),
+		Pool: idring.NewIDRing(cidr.StartIPInt, cidr.EndIPInt, nil),
 	}
 	return eb
 }

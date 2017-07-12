@@ -17,58 +17,19 @@ package idring
 
 import (
 	"math"
+	"sync"
 	"testing"
 )
-
-// TestIDRingEncodeDecode ensures that encoding and decoding an IDRing results
-// in the struct equivalent to the original.
-func TestIDRingEncodeDecode(t *testing.T) {
-	var err error
-	idRing := NewIDRing(1, math.MaxUint64)
-
-	// 1. Test constructor
-	if idRing.Ranges == nil {
-		t.Fatalf("Unexpected value of idRing.Ranges: nil")
-	}
-	if len(idRing.Ranges) != 1 {
-		t.Fatalf("Unexpected length of idRing.Ranges: %d, expected 1", len(idRing.Ranges))
-	}
-	if idRing.Ranges[0].Min != 1 {
-		t.Fatalf("Unexpected value of of idRing.Ranges[0].Min: %d, expected 1", idRing.Ranges[0].Min)
-	}
-	if idRing.Ranges[0].Max != math.MaxUint64 {
-		t.Fatalf("Unexpected value of of idRing.Ranges[0].Max: %v, expected 18446744073709551615", idRing.Ranges[0].Max)
-	}
-
-	// 2. Test encode/decode
-	data, err := idRing.Encode()
-	if err != nil {
-		t.Fatalf("Unexpected error %s", err)
-	}
-	idRing2, err := DecodeIDRing(data)
-	if idRing2.Ranges == nil {
-		t.Fatalf("Unexpected value of idRing2.Ranges: nil")
-	}
-	if len(idRing2.Ranges) != 1 {
-		t.Fatalf("Unexpected length of idRing2.Ranges: %d, expected 1", len(idRing2.Ranges))
-	}
-	if idRing2.Ranges[0].Min != 1 {
-		t.Fatalf("Unexpected value of of idRing2.Ranges[0].Min: %d, expected 1", idRing2.Ranges[0].Min)
-	}
-	if idRing2.Ranges[0].Max != math.MaxUint64 {
-		t.Fatalf("Unexpected value of of idRing2.Ranges[0].Max: %v, expected 18446744073709551615", idRing2.Ranges[0].Max)
-	}
-}
 
 // TestIDRing tests IDRing functionality.
 func TestIDRingAllocation(t *testing.T) {
 	var err error
 	var id uint64
-	idRing := NewIDRing(1, math.MaxUint64)
+	idRing := NewIDRing(1, math.MaxUint64, &sync.Mutex{})
 
 	// 1. Test invert
 	invert := idRing.Invert()
-	if len(invert) != 0 {
+	if len(invert.Ranges) != 0 {
 		t.Errorf("Expected empty array for an inversion of an original ring, got %s", invert)
 	}
 
@@ -95,11 +56,11 @@ func TestIDRingAllocation(t *testing.T) {
 
 	// 3. Test invert again.
 	invert = idRing.Invert()
-	if len(invert) != 1 {
-		t.Errorf("Expected a single range for an inversion, got %s", invert)
+	if len(invert.Ranges) != 1 {
+		t.Fatalf("Expected a single range for an inversion, got %s", invert)
 	}
-	if invert[0].Min != 1 || invert[0].Max != 100 {
-		t.Errorf("Expected 1:100, got %d:%d", invert[0].Min, invert[0].Max)
+	if invert.Ranges[0].Min != 1 || invert.Ranges[0].Max != 99 {
+		t.Fatalf("Expected 1:100, got %d:%d", invert.Ranges[0].Min, invert.Ranges[0].Max)
 	}
 
 	// 4. Test reclaiming.
