@@ -331,6 +331,13 @@ func (kvStore *KvStore) AddHost(dc common.Datacenter, host *common.Host) error {
 			}
 		}
 
+		select {
+		case msg := <-ch:
+			log.Errorf("AddHost: Received from channel: %s", msg)
+			return common.NewError("Lost lock: %s", msg)
+		default:
+		}
+
 		hostsKey := kvStore.makeKey("hosts_ids")
 		if host.ID == 0 {
 			host.ID, err = kvStore.getID(hostsKey)
@@ -339,6 +346,13 @@ func (kvStore *KvStore) AddHost(dc common.Datacenter, host *common.Host) error {
 				return err
 			}
 			log.Debugf("AddHost: Made ID %d", host.ID)
+		}
+
+		select {
+		case msg := <-ch:
+			log.Errorf("AddHost: Received from channel: %s", msg)
+			return common.NewError("Lost lock: %s", msg)
+		default:
 		}
 
 		romanaIP := strings.TrimSpace(host.RomanaIp)
