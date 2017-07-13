@@ -191,6 +191,11 @@ func (hg *HostsGroups) String() string {
 // AddHost adds hosts to this group. If the group contains
 // other groups, it is an error.
 func (hg *HostsGroups) AddHost(host api.Host) error {
+	// TODO this should be happening in IPAM, not here (locking and saving, below)
+	// but we only expose this method for now
+	hg.network.ipam.locker.Lock()
+	defer hg.network.ipam.locker.Unlock()
+
 	if hg.Hosts == nil {
 		return errors.New("Cannot add host to this group, group contains only other groups.")
 	}
@@ -205,13 +210,14 @@ func (hg *HostsGroups) AddHost(host api.Host) error {
 		return common.NewError("Host with name %s already exists.", host.Name)
 	}
 	if host.IP != nil && hg.findHostByIP(host.IP.String()) != nil {
-		return common.NewError("Host with IP %s already exists.", host.IP)
+		return common.NewError("Host with IP %s already exists in this host group", host.IP)
 	}
 
 	newHost := &Host{IP: host.IP, Name: host.Name, AgentPort: host.AgentPort, group: hg}
 	hg.Hosts = append(hg.Hosts, newHost)
 	hg.network.ipam.TopologyRevision++
-	return nil
+	//TODO move this to IPAM
+	return hg.network.ipam.save(hg.network.ipam)
 }
 
 func (hg *HostsGroups) allocateIP(network *Network, hostName string, owner string) net.IP {
@@ -424,6 +430,9 @@ func (hg *HostsGroups) parseMap(groupSpecs []api.GroupSpec, cidr CIDR, network *
 		// Just do nothing for now...
 		return nil
 	}
+	// TODO we may directly already have hosts under here, in this case,
+	// we'll end up with an extra group with this approach. Check and
+	// if this is the case start making hosts (go to parse())
 	hg.Groups = make([]*HostsGroups, len(groupSpecs))
 
 	// Pad the array to the next power of 2
@@ -446,7 +455,7 @@ func (hg *HostsGroups) parseMap(groupSpecs []api.GroupSpec, cidr CIDR, network *
 			return err
 		}
 
-		hg.Groups[i] = &HostsGroups{}
+		hg.Groups[i] = &HostsGroups{network: network}
 		err = hg.Groups[i].parse(elt.Groups, elementCIDR, network)
 		if err != nil {
 			return err
@@ -565,7 +574,7 @@ func (hg *HostsGroups) parse(arr []interface{}, cidr CIDR, network *Network) err
 				return err
 			}
 
-			hg.Groups[i] = &HostsGroups{}
+			hg.Groups[i] = &HostsGroups{network: network}
 			newArr := elt.([]interface{})
 			err = hg.Groups[i].parse(newArr, elementCIDR, network)
 			if err != nil {
@@ -987,7 +996,7 @@ func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest) error {
 			}
 		}
 		network := newNetwork(netDef.Name, netDefCIDR, netDef.BlockMask)
-
+		network.ipam = ipam
 		ipam.Networks[netDef.Name] = network
 	}
 	log.Tracef(trace.Inside, "Tenants to network mapping: %v", ipam.TenantToNetwork)
@@ -1000,8 +1009,8 @@ func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest) error {
 					return err
 				}
 				network.HostsGroups = hg
+				hg.network = network
 				log.Tracef(trace.Inside, "Parsed topology for network %s: %s", netName, network.HostsGroups)
-
 			} else {
 				return common.NewError("Network with name %s not defined", netName)
 			}

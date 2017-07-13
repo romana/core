@@ -5,6 +5,7 @@ import (
 
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
+	"github.com/romana/core/common/log/trace"
 	log "github.com/romana/rlog"
 )
 
@@ -47,6 +48,49 @@ func NewClient(config *common.Config) (*Client, error) {
 
 func (c *Client) ListHosts() api.HostList {
 	return c.IPAM.ListHosts()
+}
+
+// WatchHosts is similar to Watch of libkv store, but specific
+// to watching for host list.
+func (c *Client) WatchHosts(stopCh <-chan struct{}) (<-chan api.HostList, error) {
+	stopCh2 := make(chan struct{})
+	outCh := make(chan api.HostList)
+	ch, err := c.Store.Watch(c.Store.prefix+ipamDataKey, stopCh2)
+	if err != nil {
+		return nil, err
+	}
+	// Since for now everything is stored in a single blob, we are going to get
+	// notification on all changes. We can filter them out by checking for
+	// IPAM's TopologyRevision.
+	lastHostListRevision := -1
+
+	go func() {
+		log.Debugf("WatchHosts: Entering WatchHosts goroutine.")
+		for {
+			select {
+			case stopMsg := <-stopCh:
+				log.Tracef(trace.Inside, "Stop message received for WatchHosts: %v", stopMsg)
+				stopCh2 <- stopMsg
+				return
+			case kv := <-ch:
+				ipamJson := string(kv.Value)
+				ipam, err := ParseIPAM(ipamJson, nil, nil)
+				log.Tracef(trace.Inside, "WatchHosts: got %s", ipamJson)
+				if err != nil {
+					log.Errorf("WatchHosts: Error parsing IPAM: %s", err)
+					continue
+				}
+				hostList := ipam.ListHosts()
+				if hostList.Revision <= lastHostListRevision {
+					log.Debugf("WatchHosts: Received revision %d smaller than last reported %d, ignoring.", hostList.Revision, lastHostListRevision)
+				}
+				lastHostListRevision = hostList.Revision
+				log.Tracef(trace.Inside, "WatchHosts: sending host list revision %d to out channel", hostList.Revision)
+				outCh <- hostList
+			}
+		}
+	}()
+	return outCh, nil
 }
 
 func (c *Client) ListPolicies() ([]api.Policy, error) {
