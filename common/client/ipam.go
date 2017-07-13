@@ -155,8 +155,9 @@ func (h Host) String() string {
 // be a mix. In other words, the invariant is:
 //   - Either Hosts or Groups field is nil
 type HostsGroups struct {
-	Hosts  []*Host        `json:"hosts"`
-	Groups []*HostsGroups `json:"groups"`
+	Routing string         `json:"routing"`
+	Hosts   []*Host        `json:"hosts"`
+	Groups  []*HostsGroups `json:"groups"`
 	// CIDR which is to be subdivided among hosts or sub-groups of this group.
 	CIDR CIDR `json:"cidr"`
 
@@ -421,7 +422,10 @@ func (hg *HostsGroups) findHostByName(name string) *Host {
 	return nil
 }
 
+// parseMap parses the Map part of the GroupSpec, that may contain
+// groups or hosts.
 func (hg *HostsGroups) parseMap(groupSpecs []api.GroupSpec, cidr CIDR, network *Network) error {
+
 	// Figure out  what would be the size per
 	// element.
 	ones, bits := cidr.Mask.Size()
@@ -430,9 +434,12 @@ func (hg *HostsGroups) parseMap(groupSpecs []api.GroupSpec, cidr CIDR, network *
 		// Just do nothing for now...
 		return nil
 	}
-	// TODO we may directly already have hosts under here, in this case,
-	// we'll end up with an extra group with this approach. Check and
-	// if this is the case start making hosts (go to parse())
+
+	if len(groupSpecs) == 1 {
+		hg.Routing = groupSpecs[0].Routing
+		return hg.parse(groupSpecs[0].Groups, cidr, network)
+
+	}
 	hg.Groups = make([]*HostsGroups, len(groupSpecs))
 
 	// Pad the array to the next power of 2
@@ -448,14 +455,14 @@ func (hg *HostsGroups) parseMap(groupSpecs []api.GroupSpec, cidr CIDR, network *
 		// Calculate CIDR for the current group
 		incr := uint64(i << uint(bitsPerElement))
 		elementCIDRIP := common.IntToIPv4(cidr.StartIPInt + incr)
-		elementCIDRString := fmt.Sprintf("%s/%d", elementCIDRIP, 32-bitsPerElement)
+		elementCIDRString := fmt.Sprintf("%s/%d", elementCIDRIP, (32 - bitsPerElement))
 		log.Tracef(trace.Inside, "CIDR String for %s %d: %s", elementCIDRIP, bitsPerElement, elementCIDRString)
 		elementCIDR, err := NewCIDR(elementCIDRString)
 		if err != nil {
 			return err
 		}
 
-		hg.Groups[i] = &HostsGroups{network: network}
+		hg.Groups[i] = &HostsGroups{network: network, Routing: elt.Routing}
 		err = hg.Groups[i].parse(elt.Groups, elementCIDR, network)
 		if err != nil {
 			return err
@@ -464,25 +471,7 @@ func (hg *HostsGroups) parseMap(groupSpecs []api.GroupSpec, cidr CIDR, network *
 	return nil
 }
 
-// parse parses simple JSON representing host groups, such as
-// this one:
-//                     [
-//                        [ "A", "B", "C" ],
-//                        [ "D" ],
-//                        [
-//                          [ "E", "F" ],
-//                          [ "G", "H" ]
-//                        ],
-//                        [
-//                          [ "I", "J", "K" ],
-//                          [
-//                            [ "N", "O", "P", "Q" ],
-//                            [ "R", "S" ]
-//                          ],
-//                          [ "T" ]
-//                        ]
-//                    ]
-// into the HostsOrHostGroups structure.
+// parse parses
 func (hg *HostsGroups) parse(arr []interface{}, cidr CIDR, network *Network) error {
 
 	if hg.BlockToOwner == nil {
@@ -568,7 +557,7 @@ func (hg *HostsGroups) parse(arr []interface{}, cidr CIDR, network *Network) err
 			// Calculate CIDR for the current group
 			incr := uint64(i << uint(bitsPerElement))
 			elementCIDRIP := common.IntToIPv4(cidr.StartIPInt + incr)
-			elementCIDRString := fmt.Sprintf("%s/%d", elementCIDRIP, 32-bitsPerElement)
+			elementCIDRString := fmt.Sprintf("%s/%d", elementCIDRIP, (32 - bitsPerElement))
 			elementCIDR, err := NewCIDR(elementCIDRString)
 			if err != nil {
 				return err
@@ -699,7 +688,7 @@ type Network struct {
 
 	BlackedOut []CIDR `json:"blacked_out"`
 
-	HostsGroups *HostsGroups `json:"host_groups"`
+	HostsGroups *HostsGroups `json:"groups"`
 
 	Revison int `json:"revision"`
 
@@ -963,6 +952,9 @@ func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest) error {
 	for _, netDef := range req.Networks {
 		if _, ok := ipam.Networks[netDef.Name]; ok {
 			return common.NewError("Network with name %s already defined", netDef.Name)
+		}
+		if netDef.BlockMask <= 8 {
+			return common.NewError("Block mask %d for %s is invalid, must be > 8", netDef.Name, netDef.BlockMask)
 		}
 		netDefCIDR, err := NewCIDR(netDef.CIDR)
 		if err != nil {

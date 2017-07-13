@@ -656,6 +656,54 @@ func TestHostAllocation(t *testing.T) {
 	if ip.String() != "10.0.0.4" {
 		t.Fatalf("Expected 10.0.0.4, got %s", ip.String())
 	}
+	t.Logf("Saved state: %s", testSaver.lastJson)
+}
+
+func TestTmp(t *testing.T) {
+	var conf string
+	// Slide 15: Example 2: Prefix per host
+	t.Logf("Example 2: Prefix per host (a)")
+	conf = `{
+  "networks":[
+    {
+      "name":"vlanA",
+      "cidr":"10.1.0.0/16",
+      "block_mask": 30
+    }
+  ],
+  "topologies":[
+    {
+      "networks":[
+        "vlanA"
+      ],
+      "map":[
+        {
+          "routing":"prefix-on-host",
+          "groups":[
+            { "name" : "h1", "ip" : "1.1.1.1" }
+          ]
+        },
+        {
+          "routing":"prefix-on-host",
+          "groups":[
+            { "name" : "h1", "ip" : "1.1.1.1" }
+          ]
+        },
+        {
+          "routing":"prefix-on-host",
+          "groups":[ { "name" : "h1", "ip" : "1.1.1.1" } ]
+        },
+        {
+          "routing":"prefix-on-host",
+          "groups":[ { "name" : "h1", "ip" : "1.1.1.1" } ]
+        }
+      ]
+    }
+  ]
+}`
+	initIpam(t, conf)
+	t.Logf("Slide 15: Example 2: Prefix per host JSON:\n%s\n", testSaver.lastJson)
+
 }
 
 func TestJsonParsing(t *testing.T) {
@@ -757,7 +805,8 @@ func TestJsonParsing(t *testing.T) {
   "networks":[
     {
       "name":"vlanA",
-      "cidr":"10.1.0.0/16"
+      "cidr":"10.1.0.0/16",
+      "block_mask": 4
     }
   ],
   "topologies":[
@@ -791,6 +840,7 @@ func TestJsonParsing(t *testing.T) {
   ]
 }`
 	initIpam(t, conf)
+	t.Logf("Slide 15: Example 2: Prefix per host JSON:\n%s\n", testSaver.lastJson)
 
 	// Slide 16: Example 2: Prefix per host
 	t.Logf("Example 2: Prefix per host (b)")
