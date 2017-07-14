@@ -31,6 +31,17 @@ var (
 	client *Client
 )
 
+type testLocker struct {
+}
+
+func (tl testLocker) Lock() {
+
+}
+
+func (tl testLocker) Unlock() {
+
+}
+
 func init() {
 	rand.Seed(time.Now().UnixNano())
 }
@@ -105,7 +116,7 @@ func TestWatchHosts(t *testing.T) {
 				hgs := client.IPAM.GetGroupsForNetwork("net1")
 				newHostIP := fmt.Sprintf("10.0.0.%d", tryCount+1)
 				newHostName := fmt.Sprintf("host%d", tryCount+1)
-				err := hgs.Groups[0].AddHost(api.Host{IP: net.ParseIP(newHostIP),
+				err := hgs.AddHost(api.Host{IP: net.ParseIP(newHostIP),
 					Name: newHostName,
 				})
 				if err != nil {
@@ -114,6 +125,64 @@ func TestWatchHosts(t *testing.T) {
 				tryCount++
 			} else {
 				t.Logf("TestWatchHosts: Stopping the watcher after %d tries", maxTries)
+				stopCh <- *stopMsg
+				return
+			}
+		}
+		time.Sleep(1 * time.Millisecond)
+	}
+}
+
+func TestWatchBlocks(t *testing.T) {
+	topoConf := `{
+  "networks":[
+    {
+      "name":"net1",
+      "cidr":"10.0.0.0/30",
+      "block_mask":31
+    }
+  ],
+  "topologies":[
+    {
+      "networks":[
+        "net1"
+      ],
+      "map":[
+        {
+          "routing":"foo",
+          "groups":[{
+            "name":"host1",
+            "ip":"10.0.0.1"
+          }]
+        }
+      ]
+    }
+  ]
+}`
+	stopMsg := new(struct{})
+	client = initClient(t, topoConf)
+	stopCh := make(chan struct{})
+	ch, err := client.WatchBlocks(stopCh)
+	if err != nil {
+		t.Fatal(err)
+	}
+	tryCount := 1
+	maxTries := 5
+	for {
+		t.Logf("TestWatchBlocks: Try %d\n", tryCount)
+		select {
+		case blocks := <-ch:
+			t.Logf("TestWatchBlocks: On try %d received %d blocks (rev %d)", tryCount, len(blocks.Blocks), blocks.Revision)
+		default:
+			if tryCount < maxTries-1 {
+				ip, err := client.IPAM.AllocateIP(fmt.Sprintf("Address%d", tryCount), "host1", "ten1", "seg1")
+				if err != nil {
+					t.Fatalf("TestWatchBlocks: Error allocating IP: %s", err)
+				}
+				t.Logf("TestWatchBlocks: Allocated IP %s", ip)
+				tryCount++
+			} else {
+				t.Logf("TestWatchBlocks: Stopping the watcher after %d tries", maxTries)
 				stopCh <- *stopMsg
 				return
 			}

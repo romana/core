@@ -50,6 +50,49 @@ func (c *Client) ListHosts() api.HostList {
 	return c.IPAM.ListHosts()
 }
 
+// WatchBlocks is similar to Watch of libkv store, but specific
+// to watching for blocks.
+func (c *Client) WatchBlocks(stopCh <-chan struct{}) (<-chan api.IPAMBlocksResponse, error) {
+	stopCh2 := make(chan struct{})
+	outCh := make(chan api.IPAMBlocksResponse)
+	ch, err := c.Store.Watch(c.Store.prefix+ipamDataKey, stopCh2)
+	if err != nil {
+		return nil, err
+	}
+	// Since for now everything is stored in a single blob, we are going to get
+	// notification on all changes. We can filter them out by checking for
+	// the revision in the block list.
+	lastBlockListRevision := -1
+
+	go func() {
+		log.Debugf("WatchBlocks: Entering WatchBlocks goroutine.")
+		for {
+			select {
+			case stopMsg := <-stopCh:
+				log.Tracef(trace.Inside, "Stop message received for WatchBlocks: %v", stopMsg)
+				stopCh2 <- stopMsg
+				return
+			case kv := <-ch:
+				ipamJson := string(kv.Value)
+				ipam, err := ParseIPAM(ipamJson, nil, nil)
+				log.Tracef(trace.Inside, "WatchBlocks: got %s", ipamJson)
+				if err != nil {
+					log.Errorf("WatchBlocks: Error parsing IPAM: %s", err)
+					continue
+				}
+				blocks := ipam.ListAllBlocks()
+				if blocks.Revision <= lastBlockListRevision {
+					log.Debugf("WatchBlocks: Received revision %d smaller than last reported %d, ignoring.", blocks.Revision, lastBlockListRevision)
+				}
+				lastBlockListRevision = blocks.Revision
+				log.Tracef(trace.Inside, "WatchBlocks: sending block list revision %d to out channel", blocks.Revision)
+				outCh <- *blocks
+			}
+		}
+	}()
+	return outCh, nil
+}
+
 // WatchHosts is similar to Watch of libkv store, but specific
 // to watching for host list.
 func (c *Client) WatchHosts(stopCh <-chan struct{}) (<-chan api.HostList, error) {
@@ -169,6 +212,7 @@ func (c *Client) initIPAM() error {
 	if err != nil {
 		return err
 	}
+	log.Tracef(trace.Inside, "initIPAM(): Created locker %v", c.ipamLocker)
 
 	c.ipamLocker.Lock()
 	defer c.ipamLocker.Unlock()

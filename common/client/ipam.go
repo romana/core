@@ -760,6 +760,7 @@ func ParseIPAM(j string, saver Saver, locker sync.Locker) (*IPAM, error) {
 	} else {
 		ipam.locker = locker
 	}
+	log.Tracef(trace.Inside, "ParseIPAM(): Set locker to %v", ipam.locker)
 	ipam.injectParents()
 	return ipam, nil
 }
@@ -810,6 +811,7 @@ func NewIPAM(saver Saver, locker sync.Locker) (*IPAM, error) {
 	} else {
 		ipam.locker = locker
 	}
+	log.Tracef(trace.Inside, "NewIPAM(): Set locker to %v", ipam.locker)
 
 	ipam.save = saver
 	err := ipam.save(ipam)
