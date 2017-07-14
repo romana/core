@@ -825,7 +825,7 @@ func (ipam *IPAM) ListHosts() api.HostList {
 	list := make([]api.Host, 0)
 	for _, network := range ipam.Networks {
 		for _, host := range network.HostsGroups.ListHosts() {
-			list = append(list, api.Host{IP: host.IP})
+			list = append(list, api.Host{IP: host.IP, Name: host.Name})
 		}
 	}
 	retval := api.HostList{Hosts: list,
