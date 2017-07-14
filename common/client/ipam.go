@@ -437,8 +437,9 @@ func (hg *HostsGroups) parseMap(groupSpecs []api.GroupSpec, cidr CIDR, network *
 
 	for i, elt := range groupSpecs {
 		// Calculate CIDR for the current group
-		elementCIDRIP := common.IntToIPv4(cidr.StartIPInt + uint64(bitsPerElement*i))
-		elementCIDRString := fmt.Sprintf("%s/%d", elementCIDRIP, bitsPerElement)
+		incr := uint64(i << uint(bitsPerElement))
+		elementCIDRIP := common.IntToIPv4(cidr.StartIPInt + incr)
+		elementCIDRString := fmt.Sprintf("%s/%d", elementCIDRIP, 32-bitsPerElement)
 		log.Tracef(trace.Inside, "CIDR String for %s %d: %s", elementCIDRIP, bitsPerElement, elementCIDRString)
 		elementCIDR, err := NewCIDR(elementCIDRString)
 		if err != nil {
@@ -556,8 +557,9 @@ func (hg *HostsGroups) parse(arr []interface{}, cidr CIDR, network *Network) err
 			hg.Hosts[i] = host
 		} else {
 			// Calculate CIDR for the current group
-			elementCIDRIP := common.IntToIPv4(cidr.StartIPInt + uint64(bitsPerElement*i))
-			elementCIDRString := fmt.Sprintf("%s/%d", elementCIDRIP, bitsPerElement)
+			incr := uint64(i << uint(bitsPerElement))
+			elementCIDRIP := common.IntToIPv4(cidr.StartIPInt + incr)
+			elementCIDRString := fmt.Sprintf("%s/%d", elementCIDRIP, 32-bitsPerElement)
 			elementCIDR, err := NewCIDR(elementCIDRString)
 			if err != nil {
 				return err
