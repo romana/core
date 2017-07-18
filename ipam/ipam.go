@@ -19,10 +19,12 @@ import (
 	"database/sql"
 	"fmt"
 	"net"
+	"sync"
 
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/log/trace"
 	"github.com/romana/core/common/store"
+
 	log "github.com/romana/rlog"
 )
 
@@ -32,6 +34,7 @@ type IPAM struct {
 	config common.ServiceConfig
 	store  ipamStore
 	dc     common.Datacenter
+	sync.RWMutex
 }
 
 const (
@@ -86,6 +89,9 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 	// 2. Kubernetes (CNI Plugin)
 	// https://github.com/romana/kube/blob/master/CNI/romana#L134
 	// IP=$(curl -s "http://$ROMANA_MASTER_IP:9601/allocateIP?tenantName=${tenant}&segmentName=${segment}&hostName=${node}" | get_json_kv | get_ip)
+
+	ipam.RLock()
+
 	ten := &common.Tenant{}
 	var findFlag common.FindFlag
 	if tenantID := ctx.QueryVariables.Get("tenantID"); tenantID != "" {
@@ -97,6 +103,7 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 		ten.Name = tenantName
 		findFlag = common.FindLast
 	} else {
+		ipam.RUnlock()
 		return nil, common.NewError400("Either tenantID or tenantName must be specified.")
 	}
 
@@ -104,12 +111,14 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 	if segmentName == "" {
 		err := common.NewError400("Missing or empty segmentName parameter")
 		log.Printf("IPAM encountered an error: %v", err)
+		ipam.RUnlock()
 		return nil, err
 	}
 	hostName := ctx.QueryVariables.Get("hostName")
 	if hostName == "" {
 		err := common.NewError400("Missing or empty hostName parameter")
 		log.Printf("IPAM encountered an error: %v", err)
+		ipam.RUnlock()
 		return nil, err
 	}
 
@@ -125,6 +134,7 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 	err = ipam.client.Find(host, common.FindLast)
 	if err != nil {
 		log.Printf("IPAM encountered an error finding host for name %s %v", hostName, err)
+		ipam.RUnlock()
 		return nil, err
 	}
 	endpoint.HostId = fmt.Sprintf("%d", host.ID)
@@ -133,6 +143,7 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 	err = ipam.client.Find(ten, findFlag)
 	if err != nil {
 		log.Printf("IPAM encountered an error finding tenants %+v: %v", ten, err)
+		ipam.RUnlock()
 		return nil, err
 	}
 	endpoint.TenantID = fmt.Sprintf("%d", ten.ID)
@@ -140,6 +151,7 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 	err = ipam.client.Find(seg, findFlag)
 	if err != nil {
 		log.Printf("IPAM encountered an error finding segments: %+v: %v", seg, err)
+		ipam.RUnlock()
 		return nil, err
 	}
 
@@ -149,12 +161,18 @@ func (ipam *IPAM) allocateIP(input interface{}, ctx common.RestContext) (interfa
 	if token != "" {
 		endpoint.RequestToken = sql.NullString{Valid: true, String: token}
 	}
+
+	ipam.RUnlock()
+
 	return ipam.addEndpoint(&endpoint, ctx)
 }
 
 // addIPAMEndpoint handles request to add an IPAMEndpoint and
 // allocate an IP address.
 func (ipam *IPAM) addEndpoint(input interface{}, ctx common.RestContext) (interface{}, error) {
+	ipam.Lock()
+	defer ipam.Unlock()
+
 	endpoint := input.(*common.IPAMEndpoint)
 	log.Debugf("IPAM: Attempting to allocate IP for %s", endpoint.Name)
 	// Get host info from topology service
@@ -232,6 +250,9 @@ func (ipam *IPAM) addEndpoint(input interface{}, ctx common.RestContext) (interf
 // deleteEndpoint releases the IP(s) owned by the IPAMEndpoint into assignable
 // pool.
 func (ipam *IPAM) deleteEndpoint(input interface{}, ctx common.RestContext) (interface{}, error) {
+	ipam.Lock()
+	defer ipam.Unlock()
+
 	ip := ctx.PathVariables["ip"]
 	log.Printf("IPAM: Attempting to deallocate %s", ip)
 	ep, err := ipam.store.deleteEndpoint(ip)
@@ -245,6 +266,9 @@ func (ipam *IPAM) deleteEndpoint(input interface{}, ctx common.RestContext) (int
 
 // listEndpoints returns all registered endpoints
 func (ipam *IPAM) listEndpoints(input interface{}, ctx common.RestContext) (interface{}, error) {
+	ipam.RLock()
+	defer ipam.RUnlock()
+
 	return ipam.store.listEndpoint()
 }
 
@@ -256,7 +280,9 @@ func (ipam *IPAM) Name() string {
 // SetConfig implements SetConfig function of the Service interface.
 // Returns an error if cannot connect to the data store
 func (ipam *IPAM) SetConfig(config common.ServiceConfig) error {
-	// TODO this is a copy-paste of topology service, to refactor
+	ipam.Lock()
+	defer ipam.Unlock()
+
 	ipam.config = config
 	storeConfigMap := config.ServiceSpecific["store"].(map[string]interface{})
 	rdbmsStore, err := store.GetStore(storeConfigMap)
@@ -269,11 +295,17 @@ func (ipam *IPAM) SetConfig(config common.ServiceConfig) error {
 }
 
 func (ipam *IPAM) CreateSchema(overwrite bool) error {
+	ipam.Lock()
+	defer ipam.Unlock()
+
 	return ipam.store.CreateSchema(overwrite)
 }
 
 // Initialize implements Initialize method of Service interface
 func (ipam *IPAM) Initialize(client *common.RestClient) error {
+	ipam.Lock()
+	defer ipam.Unlock()
+
 	log.Println("Entering ipam.Initialize()")
 	err := ipam.store.Connect()
 	if err != nil {
