@@ -243,7 +243,10 @@ func (ipam *IPAM) addEndpoint(input interface{}, ctx common.RestContext) (interf
 		log.Errorf("IPAM: Encountered an error allocating IP: %s", err)
 		return nil, err
 	}
-	log.Infof("IPAM: Allocated %s for %s", endpoint.Ip, endpoint.Name)
+
+	log.Infof("IPAM: Allocated IP (%s) for Endpoint (%s) on HostID (%s)",
+		endpoint.Ip, endpoint.Name, endpoint.HostId)
+
 	return endpoint, nil
 }
 
