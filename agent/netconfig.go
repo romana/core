@@ -19,8 +19,9 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
-	"github.com/romana/core/common"
 	"net"
+
+	"github.com/romana/core/common"
 )
 
 // NetworkRequest specifies messages sent to the

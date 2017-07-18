@@ -43,6 +43,7 @@ const (
 type KubeListener struct {
 	Addr   string
 	client *client.Client
+
 	kubeURL                       string
 	namespaceNotificationPath     string
 	policyNotificationPathPrefix  string

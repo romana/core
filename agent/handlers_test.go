@@ -18,10 +18,11 @@ package agent
 
 import (
 	"database/sql"
-	_ "github.com/mattn/go-sqlite3"
-	"github.com/romana/core/common"
 	"os"
 	"testing"
+
+	_ "github.com/mattn/go-sqlite3"
+	"github.com/romana/core/common"
 )
 
 const (

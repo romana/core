@@ -18,20 +18,22 @@ package tools
 import (
 	"errors"
 	"fmt"
-	"github.com/go-yaml/yaml"
 	"go/types"
+	"regexp"
+	"runtime"
+
+	"github.com/go-yaml/yaml"
 	"golang.org/x/tools/go/loader"
 	"golang.org/x/tools/go/ssa"
 	"golang.org/x/tools/go/ssa/ssautil"
-	"regexp"
-	"runtime"
 	// TODO make even this dynamic
-	"github.com/romana/core/common"
 	"go/ast"
 	"go/build"
 	"go/doc"
 	"go/parser"
 	"go/token"
+
+	"github.com/romana/core/common"
 	//	"io/ioutil"
 	"log"
 	"os"

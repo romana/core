@@ -22,9 +22,10 @@ package iptsave
 import (
 	"bufio"
 	"fmt"
+	"io"
+
 	"github.com/romana/core/common/log/trace"
 	log "github.com/romana/rlog"
-	"io"
 )
 
 var BuiltinChains = []string{"INPUT", "OUTPUT", "FORWARD", "PREROUTING", "POSTROUTING"}
