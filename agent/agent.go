@@ -246,8 +246,6 @@ const (
 
 	defaultLeaseFile = "/etc/ethers"
 
-	defaultPolicyEnabled = false
-
 	// defaultCacheTickTime controls how oftend storage cache is updated.
 	defaultCacheTickTime = 5
 

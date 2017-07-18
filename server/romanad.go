@@ -24,7 +24,6 @@ import (
 type Romanad struct {
 	Addr   string
 	client *client.Client
-	routes common.Route
 }
 
 func (r *Romanad) GetAddress() string {

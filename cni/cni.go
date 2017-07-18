@@ -122,17 +122,6 @@ func (DefaultAddressManager) Deallocate(config NetConf, client *client.Client, t
 	return client.IPAM.DeallocateIP(targetName)
 }
 
-func checkHttp404(err error) (ret bool) {
-	switch e := err.(type) {
-	case common.HttpError:
-		if e.StatusCode == 404 {
-			ret = true
-		}
-	}
-
-	return
-}
-
 // MakeRomanaClient creates romana rest client from CNI config.
 func MakeRomanaClient(config *NetConf) (*client.Client, error) {
 	var err error

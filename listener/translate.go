@@ -44,9 +44,7 @@ type PolicyTranslator interface {
 }
 
 type Translator struct {
-	listener         *KubeListener
 	client           *client.Client
-	tenantsCache     []TenantCacheEntry
 	cacheMu          *sync.Mutex
 	segmentLabelName string
 	tenantLabelName  string
@@ -127,17 +125,6 @@ func (l *Translator) translateNetworkPolicy(kubePolicy *v1beta1.NetworkPolicy) (
 type TenantCacheEntry struct {
 	Tenant api.Tenant
 	//Segments []api.Segment
-}
-
-func checkHttp404(err error) (ret bool) {
-	switch e := err.(type) {
-	case common.HttpError:
-		if e.StatusCode == 404 {
-			ret = true
-		}
-	}
-
-	return
 }
 
 type TranslatorError struct {
