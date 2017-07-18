@@ -19,6 +19,7 @@ package cni
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"runtime"
@@ -373,4 +374,23 @@ func loadConf(bytes []byte) (*NetConf, error) {
 	}
 
 	return n, nil
+}
+
+// SetLogOutput sets the log output to a file named
+// /var/log/romana/cni.log or if it is not accessible then
+// /var/tmp/romana-cni.log
+func SetLogOutput() {
+	var err error
+	var logFile *os.File
+
+	logFile, err = os.OpenFile("/var/log/romana/cni.log",
+		os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		logFile, err = os.OpenFile("/var/tmp/romana-cni.log",
+			os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	}
+
+	if err == nil {
+		log.SetOutput(io.MultiWriter(logFile, os.Stderr))
+	}
 }
