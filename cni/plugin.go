@@ -187,10 +187,12 @@ func CmdAdd(args *skel.CmdArgs) error {
 		return fmt.Errorf("Failed to setup return route to %s via interface %s, err=(%s)", podAddress, hostIface.Name, err)
 	}
 
+	/* disabled for pre-2.0
 	err = NotifyAgent(podAddress, hostIface.Name, NotifyPodUp)
 	if err != nil {
 		return err
 	}
+	*/
 
 	result := &current.Result{
 		IPs: []*current.IPConfig{
@@ -242,10 +244,12 @@ func CmdDel(args *skel.CmdArgs) error {
 		return fmt.Errorf("Failed to tear down pod network for %s, err=(%s)", k8sargs.MakePodName(), err)
 	}
 
+	/* disabled for pre-2.0
 	err = NotifyAgent(nil, k8sargs.MakeVethName(), NotifyPodDown)
 	if err != nil {
 		return err
 	}
+	*/
 
 	return nil
 }
