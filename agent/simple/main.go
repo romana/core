@@ -19,19 +19,20 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
 	"github.com/romana/core/common/client"
+	log "github.com/romana/rlog"
 
 	"github.com/vishvananda/netlink"
 )
 
 const (
 	DefaultRouteTableId = 10
+	DefaultGwIP         = "127.42.0.1"
 )
 
 func main() {
@@ -40,6 +41,8 @@ func main() {
 	etcdEndpoints := flag.String("endpoints", "", "csv list of etcd endpoints to romana storage")
 	etcdPrefix := flag.String("prefix", "", "string that prefixes all romana keys in etcd")
 	hostname := flag.String("hostname", "", "name of the host in romana database")
+	provisionIface := flag.Bool("provision-iface", false, "create romana-gw interface and ip")
+	provisionSysctls := flag.Bool("provision-sysctls", false, "configure routing sysctls")
 	romanaRouteTableId := flag.Int("route-table-id", DefaultRouteTableId, "id that romana route table should have in /etc/iproute2/rt_tables")
 	mock := flag.Bool("mock", false, "")
 	flag.Parse()
@@ -70,6 +73,30 @@ func main() {
 
 	}
 
+	hosts := IpamHosts(romanaClient.ListHosts().Hosts)
+	if *provisionIface {
+		err := CreateRomanaGW()
+		if err != nil {
+			log.Infof("Failed to create romana-gw interface. %s", err)
+			os.Exit(2)
+		}
+
+		err = SetRomanaGwIP(DefaultGwIP)
+		if err != nil {
+			log.Infof("Failed to install ip address on romana-gw interface. %s", err)
+			os.Exit(2)
+		}
+
+	}
+
+	if *provisionSysctls {
+		err := ProvisionSysctls()
+		if err != nil {
+			log.Infof("Failed to provision systls %s", err)
+			os.Exit(2)
+		}
+	}
+
 	err = ensureRouteTableExist(*romanaRouteTableId)
 	if err != nil {
 		panic(err)
@@ -86,7 +113,6 @@ func main() {
 	blocksChannel := WatchBlocks(ctx, romanaClient)
 	hostsChannel := WatchHosts(ctx, romanaClient)
 
-	hosts := IpamHosts(romanaClient.ListHosts().Hosts)
 	for {
 		select {
 		case blocks := <-blocksChannel:
