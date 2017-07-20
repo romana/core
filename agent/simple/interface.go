@@ -46,7 +46,7 @@ func SetRomanaGwIP(romanaIp string) error {
 
 	ipnet := &net.IPNet{IP: nip, Mask: net.IPMask([]byte{0xff, 0xff, 0xff, 0xff})}
 
-	link, err := netlink.LinkByName("romana-gw")
+	link, err := netlink.LinkByName("romana-lo")
 	if err != nil {
 		return err
 	}
