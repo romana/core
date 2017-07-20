@@ -17,12 +17,14 @@ package topology
 
 import (
 	"fmt"
-	"github.com/romana/core/common"
-	"github.com/romana/core/common/store"
 	"log"
 	"net"
 	"strconv"
 	"strings"
+	"sync"
+
+	"github.com/romana/core/common"
+	"github.com/romana/core/common/store"
 )
 
 // TopologySvc service
@@ -32,6 +34,7 @@ type TopologySvc struct {
 	datacenter *common.Datacenter
 	store      common.Store
 	routes     common.Route
+	sync.RWMutex
 }
 
 const (
@@ -106,6 +109,9 @@ func (topology *TopologySvc) Routes() common.Routes {
 }
 
 func (topology *TopologySvc) handleFindHost(input interface{}, ctx common.RestContext) (interface{}, error) {
+	topology.RLock()
+	defer topology.RUnlock()
+
 	query := ctx.QueryVariables
 	var hosts []common.Host
 	return topology.store.Find(query, &hosts, common.FindLast)
@@ -113,6 +119,9 @@ func (topology *TopologySvc) handleFindHost(input interface{}, ctx common.RestCo
 
 // handleHost handles request for a specific host's info
 func (topology *TopologySvc) handleDc(input interface{}, ctx common.RestContext) (interface{}, error) {
+	topology.RLock()
+	defer topology.RUnlock()
+
 	// For now it's from config, later on we can use this to manage multiple dcs.
 	return topology.datacenter, nil
 }
@@ -124,6 +133,9 @@ func (topology *TopologySvc) Name() string {
 
 // handleGetHost handles request for a specific host's info
 func (topology *TopologySvc) handleGetHost(input interface{}, ctx common.RestContext) (interface{}, error) {
+	topology.RLock()
+	defer topology.RUnlock()
+
 	log.Println("In handleHost()")
 	idStr := ctx.PathVariables["hostId"]
 	id, err := strconv.ParseUint(idStr, 10, 64)
@@ -143,6 +155,9 @@ func (topology *TopologySvc) handleGetHost(input interface{}, ctx common.RestCon
 }
 
 func (topology *TopologySvc) handleHostListGet(input interface{}, ctx common.RestContext) (interface{}, error) {
+	topology.RLock()
+	defer topology.RUnlock()
+
 	log.Println("In handleHostListGet()")
 	hosts, err := topology.store.ListHosts()
 	if err != nil {
@@ -155,6 +170,9 @@ func (topology *TopologySvc) handleHostListGet(input interface{}, ctx common.Res
 // If the Host.AgentPort is not specified, root service is queried for
 // the default Agent port.
 func (topology *TopologySvc) handleHostListPost(input interface{}, ctx common.RestContext) (interface{}, error) {
+	topology.Lock()
+	defer topology.Unlock()
+
 	host := input.(*common.Host)
 	var err error
 
@@ -186,6 +204,9 @@ func (topology *TopologySvc) handleHostListPost(input interface{}, ctx common.Re
 }
 
 func (topology *TopologySvc) handleIndex(input interface{}, ctx common.RestContext) (interface{}, error) {
+	topology.RLock()
+	defer topology.RUnlock()
+
 	retval := common.IndexResponse{}
 	retval.ServiceName = "topology"
 	myURL := strings.Join([]string{"http://", topology.config.Common.Api.Host, ":", strconv.FormatUint(topology.config.Common.Api.Port, 10)}, "")
@@ -205,6 +226,9 @@ func (topology *TopologySvc) handleIndex(input interface{}, ctx common.RestConte
 // SetConfig implements SetConfig function of the Service interface.
 // Returns an error if cannot connect to the data store
 func (topology *TopologySvc) SetConfig(config common.ServiceConfig) error {
+	topology.Lock()
+	defer topology.Unlock()
+
 	topology.config = config
 	dcMap := config.ServiceSpecific["datacenter"].(map[string]interface{})
 	dc := common.Datacenter{}
@@ -249,6 +273,9 @@ func (topology *TopologySvc) SetConfig(config common.ServiceConfig) error {
 
 // Initialize the topology service
 func (topology *TopologySvc) Initialize(client *common.RestClient) error {
+	topology.Lock()
+	defer topology.Unlock()
+
 	log.Println("Parsing", topology.datacenter)
 
 	ip, _, err := net.ParseCIDR(topology.datacenter.Cidr)
@@ -261,11 +288,17 @@ func (topology *TopologySvc) Initialize(client *common.RestClient) error {
 }
 
 func (topology *TopologySvc) CreateSchema(overwrite bool) error {
+	topology.Lock()
+	defer topology.Unlock()
+
 	return topology.store.CreateSchema(overwrite)
 }
 
 // handleDeleteHost handles deletion of a host.
 func (topology *TopologySvc) handleDeleteHost(input interface{}, ctx common.RestContext) (interface{}, error) {
+	topology.Lock()
+	defer topology.Unlock()
+
 	log.Println("In handleDeleteHost()")
 	idStr := strings.TrimSpace(ctx.PathVariables["hostID"])
 	if idStr == "" {

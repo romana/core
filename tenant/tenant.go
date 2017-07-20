@@ -16,10 +16,13 @@
 package tenant
 
 import (
+	"strconv"
+	"sync"
+
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/store"
+
 	log "github.com/romana/rlog"
-	"strconv"
 )
 
 // TenantSvc provides tenant service.
@@ -28,6 +31,7 @@ type TenantSvc struct {
 	config common.ServiceConfig
 	dc     common.Datacenter
 	client *common.RestClient
+	sync.RWMutex
 }
 
 const (
@@ -114,6 +118,9 @@ func (tsvc *TenantSvc) Routes() common.Routes {
 // specific details provided as input. It returns full details
 // about the created tenant or HTTP Error.
 func (tsvc *TenantSvc) addTenant(input interface{}, ctx common.RestContext) (interface{}, error) {
+	tsvc.Lock()
+	defer tsvc.Unlock()
+
 	newTenant := input.(*common.Tenant)
 	err := tsvc.store.addTenant(newTenant)
 	if err != nil {
@@ -123,6 +130,9 @@ func (tsvc *TenantSvc) addTenant(input interface{}, ctx common.RestContext) (int
 	return newTenant, err
 }
 func (tsvc *TenantSvc) listTenants(input interface{}, ctx common.RestContext) (interface{}, error) {
+	tsvc.RLock()
+	defer tsvc.RUnlock()
+
 	log.Println("In listTenants()")
 	tenants, err := tsvc.store.listTenants()
 	if err != nil {
@@ -132,6 +142,9 @@ func (tsvc *TenantSvc) listTenants(input interface{}, ctx common.RestContext) (i
 }
 
 func (tsvc *TenantSvc) listSegments(input interface{}, ctx common.RestContext) (interface{}, error) {
+	tsvc.RLock()
+	defer tsvc.RUnlock()
+
 	log.Println("In listSegments()")
 	idStr := ctx.PathVariables["tenantId"]
 	segments, err := tsvc.store.listSegments(idStr)
@@ -145,12 +158,18 @@ func (tsvc *TenantSvc) listSegments(input interface{}, ctx common.RestContext) (
 }
 
 func (tsvc *TenantSvc) getTenant(input interface{}, ctx common.RestContext) (interface{}, error) {
+	tsvc.RLock()
+	defer tsvc.RUnlock()
+
 	idStr := ctx.PathVariables["tenantId"]
 	log.Printf("In findTenant(%s)\n", idStr)
 	return tsvc.store.getTenant(idStr)
 }
 
 func (tsvc *TenantSvc) addSegment(input interface{}, ctx common.RestContext) (interface{}, error) {
+	tsvc.Lock()
+	defer tsvc.Unlock()
+
 	log.Println("In addSegment()")
 	tenantIdStr := ctx.PathVariables["tenantId"]
 	tenantId, err := strconv.ParseUint(tenantIdStr, 10, 64)
@@ -167,6 +186,9 @@ func (tenant *TenantSvc) Name() string {
 }
 
 func (tsvc *TenantSvc) getSegment(input interface{}, ctx common.RestContext) (interface{}, error) {
+	tsvc.RLock()
+	defer tsvc.RUnlock()
+
 	log.Println("In findSegment()")
 	tenantIdStr := ctx.PathVariables["tenantId"]
 	segmentIdStr := ctx.PathVariables["segmentId"]
@@ -177,6 +199,9 @@ func (tsvc *TenantSvc) getSegment(input interface{}, ctx common.RestContext) (in
 // SetConfig implements SetConfig function of the Service interface.
 // Returns an error if cannot connect to the data store
 func (tsvc *TenantSvc) SetConfig(config common.ServiceConfig) error {
+	tsvc.Lock()
+	defer tsvc.Unlock()
+
 	var err error
 	tsvc.config = config
 	storeConfigMap := config.ServiceSpecific["store"].(map[string]interface{})
@@ -190,10 +215,16 @@ func (tsvc *TenantSvc) SetConfig(config common.ServiceConfig) error {
 }
 
 func (tsvc *TenantSvc) CreateSchema(overwrite bool) error {
+	tsvc.Lock()
+	defer tsvc.Unlock()
+
 	return tsvc.store.CreateSchema(overwrite)
 }
 
 func (tsvc *TenantSvc) Initialize(client *common.RestClient) error {
+	tsvc.Lock()
+	defer tsvc.Unlock()
+
 	err := tsvc.store.Connect()
 	if err != nil {
 		return err

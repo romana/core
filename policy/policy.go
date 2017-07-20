@@ -22,6 +22,7 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/store"
@@ -32,6 +33,7 @@ type PolicySvc struct {
 	client *common.RestClient
 	config common.ServiceConfig
 	store  policyStore
+	sync.RWMutex
 }
 
 const (
@@ -255,6 +257,9 @@ func (policy *PolicySvc) distributePolicy(policyDoc *common.Policy) error {
 }
 
 func (policy *PolicySvc) getPolicy(input interface{}, ctx common.RestContext) (interface{}, error) {
+	policy.RLock()
+	defer policy.RUnlock()
+
 	idStr := ctx.PathVariables["policyID"]
 	id, err := strconv.ParseUint(idStr, 10, 64)
 	if err != nil {
@@ -266,6 +271,9 @@ func (policy *PolicySvc) getPolicy(input interface{}, ctx common.RestContext) (i
 }
 
 func (policy *PolicySvc) deletePolicyHandler(input interface{}, ctx common.RestContext) (interface{}, error) {
+	policy.Lock()
+	defer policy.Unlock()
+
 	idStr := strings.TrimSpace(ctx.PathVariables["policyID"])
 	if idStr == "" {
 		if input == nil {
@@ -331,6 +339,9 @@ func (policy *PolicySvc) deletePolicy(id uint64) (interface{}, error) {
 
 // listPolicies lists all policices.
 func (policy *PolicySvc) listPolicies(input interface{}, ctx common.RestContext) (interface{}, error) {
+	policy.RLock()
+	defer policy.RUnlock()
+
 	policies, err := policy.store.listPolicies()
 	if err != nil {
 		return nil, err
@@ -345,6 +356,9 @@ func (policy *PolicySvc) listPolicies(input interface{}, ctx common.RestContext)
 // to the given policy name. Policy names are not unique unlike
 // policy ID's.
 func (policy *PolicySvc) findPolicyByName(input interface{}, ctx common.RestContext) (interface{}, error) {
+	policy.RLock()
+	defer policy.RUnlock()
+
 	nameStr := ctx.PathVariables["policyName"]
 	log.Printf("In findPolicy(%s)\n", nameStr)
 	if nameStr == "" {
@@ -360,6 +374,9 @@ func (policy *PolicySvc) findPolicyByName(input interface{}, ctx common.RestCont
 
 // addPolicy stores the new policy and sends it to all agents.
 func (policy *PolicySvc) addPolicy(input interface{}, ctx common.RestContext) (interface{}, error) {
+	policy.Lock()
+	defer policy.Unlock()
+
 	policyDoc := input.(*common.Policy)
 	log.Printf("addPolicy(): Request for a new policy to be added: %s", policyDoc.Name)
 	err := policyDoc.Validate()
@@ -394,6 +411,9 @@ func (policy *PolicySvc) Name() string {
 // SetConfig implements SetConfig function of the Service interface.
 // Returns an error if cannot connect to the data store
 func (policy *PolicySvc) SetConfig(config common.ServiceConfig) error {
+	policy.Lock()
+	defer policy.Unlock()
+
 	// TODO this is a copy-paste of topology service, to refactor
 	log.Println(config)
 	policy.config = config
@@ -408,10 +428,16 @@ func (policy *PolicySvc) SetConfig(config common.ServiceConfig) error {
 }
 
 func (policy *PolicySvc) CreateSchema(overwrite bool) error {
+	policy.Lock()
+	defer policy.Unlock()
+
 	return policy.store.CreateSchema(overwrite)
 }
 
 func (policy *PolicySvc) Initialize(client *common.RestClient) error {
+	policy.Lock()
+	defer policy.Unlock()
+
 	log.Println("Entering policy.Initialize()")
 	err := policy.store.Connect()
 	if err != nil {
