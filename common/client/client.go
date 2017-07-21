@@ -1,7 +1,6 @@
 package client
 
 import (
-	"encoding/json"
 	"sync"
 
 	"github.com/romana/core/common"
@@ -10,8 +9,10 @@ import (
 )
 
 const (
-	ipamDataKey    = "/ipam/data"
-	PoliciesPrefix = "/policies"
+	DefaultEtcdPrefix    = "/romana"
+	DefaultEtcdEndpoints = "localhost:2379"
+	ipamDataKey          = "/ipam/data"
+	PoliciesPrefix       = "/policies"
 )
 
 type Client struct {
@@ -23,6 +24,9 @@ type Client struct {
 
 // NewClient creates a new Client object based on provided config
 func NewClient(config *common.Config) (*Client, error) {
+	if config.EtcdPrefix == "" {
+		config.EtcdPrefix = DefaultEtcdPrefix
+	}
 	store, err := NewStore(config.EtcdEndpoints, config.EtcdPrefix)
 	if err != nil {
 		return nil, err
@@ -117,7 +121,7 @@ func (c *Client) DeletePolicy(id string) (bool, error) {
 }
 
 func (c *Client) initIPAM() error {
-	c.ipamLocker, err = c.Store.NewLocker(c.Store.prefix + "/ipam/lock")
+	c.ipamLocker, err = c.Store.NewLocker("ipam")
 	if err != nil {
 		return err
 	}
@@ -132,7 +136,7 @@ func (c *Client) initIPAM() error {
 	}
 	if ipamExists {
 		// Load if exists
-		log.Infof("Loading IPAM data from %s", ipamDataKey)
+		log.Infof("Loading IPAM data from %s", c.config.EtcdPrefix+ipamDataKey)
 		kv, err := c.Store.Get(ipamDataKey)
 		if err != nil {
 			return err
@@ -144,7 +148,7 @@ func (c *Client) initIPAM() error {
 		}
 	} else {
 		// If does not exist, initialize and save
-		log.Infof("No IPAM data found at %s, initializing", ipamDataKey)
+		log.Infof("No IPAM data found at %s, initializing", c.config.EtcdPrefix+ipamDataKey)
 		c.IPAM, err = NewIPAM(c.save, c.ipamLocker)
 		if err != nil {
 			return err
@@ -160,11 +164,7 @@ func (c *Client) initIPAM() error {
 
 // save implements the Saver interface of IPAM.
 func (c *Client) save(ipam *IPAM) error {
-	b, err := json.Marshal(c.IPAM)
-	if err != nil {
-		return err
-	}
-	err = c.Store.Put(ipamDataKey, b, nil)
+	err = c.Store.PutObject(ipamDataKey, c.IPAM)
 	if err != nil {
 		return err
 	}

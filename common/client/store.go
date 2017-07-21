@@ -25,6 +25,7 @@ import (
 	libkvStore "github.com/docker/libkv/store"
 	libkvEtcd "github.com/docker/libkv/store/etcd"
 	"github.com/romana/core/common"
+	"github.com/romana/core/common/log/trace"
 	log "github.com/romana/rlog"
 )
 
@@ -49,6 +50,12 @@ func NewStore(etcdEndpoints []string, prefix string) (*Store, error) {
 		return nil, err
 	}
 
+	// Test connection
+	_, err = myStore.Exists("test")
+	if err != nil {
+		return nil, err
+	}
+
 	return myStore, nil
 }
 
@@ -63,11 +70,13 @@ func (s *Store) Exists(key string) (bool, error) {
 }
 
 func (s *Store) PutObject(key string, v interface{}) error {
+	key = s.prefix + key
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
 	}
-	return s.Store.Put(s.prefix+key, b, nil)
+	log.Tracef(trace.Inside, "Saving object under key %s: %s", key, string(b))
+	return s.Store.Put(key, b, nil)
 }
 
 func (s *Store) Get(key string) (*libkvStore.KVPair, error) {
@@ -161,7 +170,7 @@ type storeLocker struct {
 }
 
 func (store *Store) NewLocker(name string) (sync.Locker, error) {
-	key := "/romana/lock/" + name
+	key := store.prefix + "/lock/" + name
 	l, err := store.Store.NewLock(key, nil)
 	if err != nil {
 		return nil, err
