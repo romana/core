@@ -60,14 +60,6 @@ func shelloutError(err error, cmd string, args []string) error {
 	return NewError(EcodeShelloutFailed, fmt.Sprintf("%v %v: %v", cmd, args, err))
 }
 
-func garbageRequestError(key string) error {
-	return NewError(EcodeRequestParsingFailed, key)
-}
-
-func requestParseError(fields int) error {
-	return NewError(EcodeRequestParsingFailed, fmt.Sprintf("number of parsed fields: %v", fields))
-}
-
 func netIfRouteCreateError(err error, netif NetIf) error {
 	return NewError(EcodeCreateRouteFailed, fmt.Sprintf("target %v: cause %v", netif, err))
 }
@@ -92,18 +84,8 @@ func noSuchRouteError() error {
 	return NewError(EcodeShelloutFailed, fmt.Sprintf("ERROR: No such route"))
 }
 
-func wrongHostError() error {
-	return NewError(EcodeDefault, fmt.Sprintf("ERROR: Can't resolve internal IPs. It looks like we're running on the host outside of Romana config"))
-}
-
 func failedToParseOtherHosts(s string) error {
 	return NewError(EcodeDefault, fmt.Sprintf("ERROR: Failed to parse netmask out of %s in CreateInterhostRoutes", s))
-}
-
-func combinedError(s string, err error) error {
-	// TODO scheduled for deprecation, all calls must be refactored
-	// to analize incoming errorCode and produce new Error instead
-	return fmt.Errorf("%s %s", s, err)
 }
 
 func failedToParseNetif(details string) error {

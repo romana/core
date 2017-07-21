@@ -283,6 +283,9 @@ func AddEndpointRoute(ifaceName string, ip *net.IPNet) error {
 	}
 
 	err = netlink.RouteAdd(&returnRoute)
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

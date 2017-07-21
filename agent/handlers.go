@@ -261,7 +261,6 @@ func (a *Agent) podUpHandlerAsync(netReq NetworkRequest) error {
 func prepareFirewallRules(fw firewall.Firewall, nc *NetworkConfig, rules RuleSet, firewallProvider firewall.Provider) error {
 	metadata := fw.Metadata()
 
-	var defaultRules []firewall.FirewallRule
 	var u32filter string = metadata["u32filter"].(string)
 	var hostAddr = nc.RomanaGW()
 	var formatBody string
@@ -297,12 +296,6 @@ func prepareFirewallRules(fw firewall.Firewall, nc *NetworkConfig, rules RuleSet
 			r := firewall.NewFirewallRule()
 			r.SetBody(formatBody)
 
-			switch rule.Position {
-			case DefaultPosition:
-				defaultRules = append(defaultRules, r)
-			default:
-				return fmt.Errorf("Error, unsupported rule position with firewall provider %d", firewallProvider)
-			}
 		}
 	case firewall.IPTsaveProvider:
 		for _, rule := range rules {

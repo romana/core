@@ -13,15 +13,18 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
+// +build ignore
+
 // handlers_test.go contains tests cases for handlers
 package agent
 
 import (
 	"database/sql"
-	_ "github.com/mattn/go-sqlite3"
-	"github.com/romana/core/common"
 	"os"
 	"testing"
+
+	_ "github.com/mattn/go-sqlite3"
+	"github.com/romana/core/common"
 )
 
 const (

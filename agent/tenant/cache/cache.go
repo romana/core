@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/romana/core/agent/tenant/hasher"
-	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
 	"github.com/romana/core/common/client"
 	"github.com/romana/core/common/log/trace"
@@ -52,7 +51,7 @@ type Cache struct {
 	client *client.Client
 
 	// Delay between main loop runs.
-	ticker <-chan time.Time
+	ticker *time.Ticker
 
 	store []api.Tenant
 
@@ -65,7 +64,7 @@ type Cache struct {
 
 // New creates new empty tenant cache.
 func New(client *client.Client, config Config) Interface {
-	t := time.Tick(time.Duration(config.CacheTickSeconds) * time.Second)
+	t := time.NewTicker(time.Duration(config.CacheTickSeconds) * time.Second)
 	return &Cache{client: client, ticker: t, mu: &sync.Mutex{}}
 }
 
@@ -78,9 +77,10 @@ func (c *Cache) Run(stop <-chan struct{}) <-chan string {
 		for {
 			select {
 			case <-stop:
+				c.ticker.Stop()
 				close(update)
 				return
-			case <-c.ticker:
+			case <-c.ticker.C:
 
 				// Fetch all tenants from romana Tenant service,
 				currentState, err := c.getNewState(c.client)
@@ -124,15 +124,4 @@ func (c *Cache) List() []api.Tenant {
 func (c *Cache) getNewState(client *client.Client) ([]api.Tenant, error) {
 	return c.client.ListTenants(), nil
 
-}
-
-func checkHttp404(err error) (ret bool) {
-	switch e := err.(type) {
-	case common.HttpError:
-		if e.StatusCode == 404 {
-			ret = true
-		}
-	}
-
-	return
 }

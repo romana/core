@@ -129,17 +129,6 @@ type TenantCacheEntry struct {
 	//Segments []api.Segment
 }
 
-func checkHttp404(err error) (ret bool) {
-	switch e := err.(type) {
-	case common.HttpError:
-		if e.StatusCode == 404 {
-			ret = true
-		}
-	}
-
-	return
-}
-
 type TranslatorError struct {
 	Code    TranslatorErrorType
 	Details error
@@ -204,7 +193,6 @@ func (tg *TranslateGroup) makeNextIngressPeer(translator *Translator) error {
 	ingress := tg.kubePolicy.Spec.Ingress[tg.ingressIndex]
 
 	for _, fromEntry := range ingress.From {
-
 		// Exactly one of From.PodSelector or From.NamespaceSelector must be specified.
 		if fromEntry.PodSelector == nil && fromEntry.NamespaceSelector == nil {
 			log.Errorf("Either PodSElector or NamespacesSelector must be specified")

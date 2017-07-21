@@ -22,9 +22,10 @@ package iptsave
 import (
 	"bufio"
 	"fmt"
+	"io"
+
 	"github.com/romana/core/common/log/trace"
 	log "github.com/romana/rlog"
-	"io"
 )
 
 var BuiltinChains = []string{"INPUT", "OUTPUT", "FORWARD", "PREROUTING", "POSTROUTING"}
@@ -161,16 +162,6 @@ func (ic IPchain) RenderFooter() string {
 
 func (ic IPchain) String() string {
 	return fmt.Sprintf("%s\n%s", ic.RenderHeader(), ic.RenderFooter())
-}
-
-// lastRule returns pointer to the last IPrule in IPchain.
-func (i *IPchain) lastRule() *IPrule {
-	if len(i.Rules) == 0 {
-		return nil
-	}
-
-	r := i.Rules[len(i.Rules)-1]
-	return r
 }
 
 // InsertRule inserts new rule into the chain at given index.
@@ -527,16 +518,6 @@ func MergeChains(dstChain, srcChain *IPchain) []*IPrule {
 	}
 
 	return uniqSrc
-}
-
-// removeRuleFromList removes IPrule from the list of IPrules
-// by its id, returns new list.
-func removeRuleFromList(index int, dst []*IPrule) []*IPrule {
-	copy(dst[index:], dst[index+1:])
-	dst[len(dst)-1] = nil
-	dst = dst[:len(dst)-1]
-
-	return dst
 }
 
 // DiffRules compares 2 lists of iptables rules and returns 3 new lists,

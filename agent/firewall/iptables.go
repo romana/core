@@ -154,11 +154,6 @@ func NewIPtablesChain(baseChain string, direction []string, rules []*IPtablesRul
 	return &IPtablesChain{baseChain, direction, rules, chainName}
 }
 
-// prepareChainName returns a chain name with tenant-segment specific prefix.
-func (fw *IPtables) prepareChainName(chainName string) string {
-	return fmt.Sprintf("%s%s", fw.chainPrefix, chainName)
-}
-
 // makeRules extracts data from netif and initializes tenant/segment
 // specific fields of IPtables struct.
 func (fw *IPtables) makeRules(netif FirewallEndpoint) error {
@@ -198,20 +193,6 @@ func (fw *IPtables) makeRules(netif FirewallEndpoint) error {
 
 	log.Infof("In makeRules() created chains %v", fw.chains)
 	return nil
-}
-
-// isChainExist verifies if given iptables chain exists.
-// Returns true if chain exists.
-// *Scheduled for deprecation, use isChainExistByName*
-func (fw *IPtables) isChainExist(chain int) bool {
-	args := []string{"-w", "-L", fw.chains[chain].ChainName}
-	output, err := fw.os.Exec(iptablesCmd, args)
-	if err != nil {
-		log.Infof("isChainExist(): iptables -L %s returned %s", fw.chains[chain].ChainName, err)
-		return false
-	}
-	log.Infof("isChainExist(): iptables -L %s returned %s", fw.chains[chain].ChainName, string(output))
-	return true
 }
 
 // isChainExistByName verifies if given iptables chain exists.

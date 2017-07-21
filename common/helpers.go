@@ -119,8 +119,7 @@ func (rts *RomanaTestSuite) GetMockSqliteFile(svc string) string {
 }
 
 var (
-	mockSeqNum  = int64(0)
-	mockSeqLock sync.Mutex
+	mockSeqNum = int64(0)
 )
 
 // IsZeroValue checks whether the provided value is equal to the

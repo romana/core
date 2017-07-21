@@ -131,6 +131,9 @@ func TestDhcpPid(t *testing.T) {
 	agent.Helper.Executor = E
 	out, err = agent.Helper.DhcpPid()
 	// expect
+	if out != 1234567 {
+		t.Error("DhcpPid() failed to convert executor output to pid 1234567")
+	}
 	if err == nil {
 		t.Error("DhcpPid() failed to detect error condition pid > 65535")
 	}

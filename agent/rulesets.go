@@ -20,8 +20,6 @@
 
 package agent
 
-import ()
-
 // Rule type in romana agent represents a firewall rule
 // along with information about how this rule should be
 // provisioned in firewall.

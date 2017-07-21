@@ -18,20 +18,22 @@ package tools
 import (
 	"errors"
 	"fmt"
-	"github.com/go-yaml/yaml"
 	"go/types"
+	"regexp"
+	"runtime"
+
+	"github.com/go-yaml/yaml"
 	"golang.org/x/tools/go/loader"
 	"golang.org/x/tools/go/ssa"
 	"golang.org/x/tools/go/ssa/ssautil"
-	"regexp"
-	"runtime"
 	// TODO make even this dynamic
-	"github.com/romana/core/common"
 	"go/ast"
 	"go/build"
 	"go/doc"
 	"go/parser"
 	"go/token"
+
+	"github.com/romana/core/common"
 	//	"io/ioutil"
 	"log"
 	"os"
@@ -59,10 +61,8 @@ type Analyzer struct {
 	// All the import paths that we have gone through.
 	importPaths []string
 
-	buildPackages []build.Package
-	astPackages   []ast.Package
-	docPackages   []doc.Package
-	astFiles      []*ast.File
+	docPackages []doc.Package
+	astFiles    []*ast.File
 
 	conf          *loader.Config
 	objects       []types.Object
@@ -87,8 +87,6 @@ func NewAnalyzer(path string) *Analyzer {
 	return a
 }
 
-var pathVariableRegexp regexp.Regexp
-
 func (a *Analyzer) Analyze() error {
 	f, err := os.Open(a.srcDir)
 	if err != nil {
@@ -98,7 +96,7 @@ func (a *Analyzer) Analyze() error {
 	if err != nil {
 		return err
 	}
-	err = f.Close()
+	f.Close()
 	if !info.IsDir() {
 		return errors.New(fmt.Sprintf("Expected %s to be a directory", a.srcDir))
 	}
@@ -127,7 +125,7 @@ func (a *Analyzer) Analyze() error {
 		}
 	}
 
-	ssaProg := ssautil.CreateProgram(lprog, ssa.BuilderMode(ssa.GlobalDebug))
+	ssaProg := ssautil.CreateProgram(lprog, ssa.GlobalDebug)
 	ssaProg.Build()
 
 	for _, p := range a.docPackages {
@@ -250,8 +248,6 @@ func (a *Analyzer) analyzePath(path string) error {
 		}
 	}
 
-	//	a.buildPackages = append(a.buildPackages, *bpkg)
-	//	a.astPackages = append(a.astPackages, *apkg)
 	a.docPackages = append(a.docPackages, *dpkg)
 	//	log.Printf("Parsed %s:\nbuildPackage:\n\t%s\nastPackage\n\t%s\ndocPackage:\n\n%s", path, bpkg.Name, apkg.Name, dpkg.Name)
 

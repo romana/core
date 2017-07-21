@@ -205,7 +205,7 @@ func (h *Helper) removeLineFromFile(path string, token string) error {
 		return err
 	}
 
-	_, err = file.Seek(0, os.SEEK_SET)
+	_, err = file.Seek(0, io.SeekStart)
 	if err != nil {
 		return err
 	}
@@ -217,6 +217,9 @@ func (h *Helper) removeLineFromFile(path string, token string) error {
 		line := scanner.Text()
 		if line != token {
 			_, err = buf.Write([]byte(line))
+			if err != nil {
+				return err
+			}
 			_, err = buf.Write([]byte("\n"))
 			if err != nil {
 				return err
@@ -224,7 +227,7 @@ func (h *Helper) removeLineFromFile(path string, token string) error {
 		}
 	}
 
-	_, err = file.Seek(0, os.SEEK_SET)
+	_, err = file.Seek(0, io.SeekStart)
 	if err != nil {
 		return err
 	}
@@ -270,16 +273,12 @@ func (h Helper) ensureLine(path string, token string, op leaseOp) error {
 			if err := h.appendLineToFile(path, token); err != nil {
 				return ensureLineError(err)
 			}
-		} else {
-			// nothing to do
 		}
 	case leaseRemove:
 		if lineInFile {
 			if err := h.removeLineFromFile(path, token); err != nil {
 				return ensureLineError(err)
 			}
-		} else {
-			// nothing to do
 		}
 	}
 	return nil

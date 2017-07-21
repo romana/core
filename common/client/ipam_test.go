@@ -13,6 +13,8 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
+// +build ignore
+
 package client
 
 import (
@@ -603,6 +605,9 @@ func TestTenants(t *testing.T) {
 	ip, err = ipam.AllocateIP("x5", "no.such.host", "someothertenant", "")
 	if err == nil {
 		t.Fatalf("Expected an error")
+	}
+	if ip != nil {
+		t.Fatalf("Expected a nil ip, got %v", ip)
 	}
 	t.Logf("Got %s", err)
 }

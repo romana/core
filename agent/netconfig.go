@@ -19,15 +19,9 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
-	"github.com/romana/core/common"
 	"net"
-)
 
-const (
-	// Name of the option (see Options field in
-	// NetIf below) that specifies Kubernetes
-	// namespace isolation value (on/off).
-	namespaceIsolationOption = "namespace_isolation"
+	"github.com/romana/core/common"
 )
 
 // NetworkRequest specifies messages sent to the

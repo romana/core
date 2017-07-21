@@ -142,11 +142,11 @@ func (a Agent) routeUpdater(stopRouteUpdater <-chan struct{}, routeRefreshSecond
 func (a Agent) routePopulate(stop <-chan struct{}, routeRefreshSeconds int) {
 	log.Trace(trace.Private, "In Agent routePopulate()")
 
-	routeRefresh := time.Tick(time.Duration(routeRefreshSeconds) * time.Second)
+	refreshTicker := time.NewTicker(time.Duration(routeRefreshSeconds) * time.Second)
 
 	for {
 		select {
-		case <-routeRefresh:
+		case <-refreshTicker.C:
 			log.Trace(trace.Inside, "Populating routes from topology service now: ", time.Now())
 			if err := a.updateRoutes(); err != nil {
 				log.Error("Agent routePopulate: ", err)
@@ -155,6 +155,7 @@ func (a Agent) routePopulate(stop <-chan struct{}, routeRefreshSeconds int) {
 
 		case <-stop:
 			log.Info("Stopping Agent routePopulate() mechanism")
+			refreshTicker.Stop()
 			return
 		}
 	}
@@ -167,14 +168,13 @@ func (a Agent) routeSet(stop <-chan struct{}, routeRefreshSeconds int) {
 
 	// Delay routeSet() by few seconds till routePopulate() updates
 	// routes from topology service.
-	delay := time.Tick(time.Duration(routeRefreshSeconds/2) * time.Second)
-	<-delay
+	time.Sleep(time.Duration(routeRefreshSeconds/2) * time.Second)
 
-	routeRefresh := time.Tick(time.Duration(routeRefreshSeconds) * time.Second)
+	refreshTicker := time.NewTicker(time.Duration(routeRefreshSeconds) * time.Second)
 
 	for {
 		select {
-		case <-routeRefresh:
+		case <-refreshTicker.C:
 			log.Trace(trace.Inside, "Refreshing routes on the node now: ", time.Now())
 			if err := a.Helper.ensureInterHostRoutes(); err != nil {
 				log.Error("Agent routeSet: ", err)
@@ -183,6 +183,7 @@ func (a Agent) routeSet(stop <-chan struct{}, routeRefreshSeconds int) {
 
 		case <-stop:
 			log.Info("Stopping Agent routeSet() mechanism")
+			refreshTicker.Stop()
 			return
 		}
 	}

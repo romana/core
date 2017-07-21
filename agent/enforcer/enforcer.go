@@ -57,7 +57,7 @@ type Enforcer struct {
 	netConfig firewall.NetConfig
 
 	// Delay between main loop runs.
-	ticker <-chan time.Time
+	ticker *time.Ticker
 
 	// Used to pause main loop.
 	paused bool
@@ -104,13 +104,13 @@ func (a *Enforcer) Run(stop <-chan struct{}) {
 	tenants := a.tenantCache.Run(stop)
 	policies := a.policyCache.Run(stop)
 	iptables := &iptsave.IPtables{}
-	a.ticker = time.Tick(time.Duration(a.refreshSeconds) * time.Second)
+	a.ticker = time.NewTicker(time.Duration(a.refreshSeconds) * time.Second)
 	a.paused = false
 
 	go func() {
 		for {
 			select {
-			case <-a.ticker:
+			case <-a.ticker.C:
 				log.Trace(4, "Policy enforcer tick started")
 				if a.paused {
 					log.Tracef(5, "Policy enforcer tick skipped due to pause")
@@ -146,6 +146,7 @@ func (a *Enforcer) Run(stop <-chan struct{}) {
 
 			case <-stop:
 				log.Infof("Policy enforcer stopping")
+				a.ticker.Stop()
 				return
 			}
 		}

@@ -13,11 +13,14 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
+// +build ignore
+
 package hasher
 
 import (
-	"github.com/romana/core/common"
 	"testing"
+
+	"github.com/romana/core/common"
 )
 
 func TestNewEndpointList(t *testing.T) {

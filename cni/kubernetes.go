@@ -79,6 +79,9 @@ func GetPodDescription(args K8sArgs, configFile string) (*PodDescription, error)
 		return nil, err
 	}
 	kubeClient, err := kubernetes.NewForConfig(kubeClientConfig)
+	if err != nil {
+		return nil, err
+	}
 
 	pod, err := kubeClient.Core().Pods(string(args.K8S_POD_NAMESPACE)).Get(fmt.Sprintf("%s", args.K8S_POD_NAME))
 	if err != nil {

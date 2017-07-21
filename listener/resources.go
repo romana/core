@@ -18,7 +18,6 @@ package listener
 import (
 	"encoding/json"
 	"fmt"
-	"io"
 	"net/http"
 	"strings"
 	"time"
@@ -34,10 +33,6 @@ import (
 	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
 	"k8s.io/client-go/pkg/fields"
 	"k8s.io/client-go/tools/cache"
-)
-
-const (
-	selector = "podSelector"
 )
 
 // Event is a representation of a structure that we receive from kubernetes API.
@@ -364,15 +359,6 @@ func ProduceNewPolicyEvents(out chan Event, done <-chan struct{}, KubeListener *
 		}
 	}
 }
-
-// httpGet is a wraps http.Get for the purpose of unit testing.
-func httpGet(url string) (io.Reader, error) {
-	resp, err := http.Get(url)
-	return resp.Body, err
-}
-
-// watchKubernetesResource dependencies
-var httpGetFunc = httpGet
 
 // getAllPoliciesFunc wraps request to Policy for the purpose of unit testing.
 func getAllPolicies(client *client.Client) ([]romanaApi.Policy, error) {

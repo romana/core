@@ -138,7 +138,7 @@ func NewCredential(flagSet *flag.FlagSet) *Credential {
 // GetPasswd gets password from stdin.
 func GetPasswd() (string, error) {
 	fmt.Print("Password: ")
-	bytePassword, err := terminal.ReadPassword(int(syscall.Stdin))
+	bytePassword, err := terminal.ReadPassword(syscall.Stdin)
 	fmt.Println()
 	if err != nil {
 		return "", err

@@ -149,7 +149,7 @@ func validateRules(rules Rules) []string {
 		if r.Protocol == "tcp" || r.Protocol == "udp" {
 			badRanges := make([]string, 0)
 			for _, portRange := range r.PortRanges {
-				if portRange[0] > portRange[1] || portRange[0] < 0 || portRange[1] < 0 || portRange[0] > MaxPortNumber || portRange[1] > MaxPortNumber {
+				if portRange[0] > portRange[1] || portRange[0] > MaxPortNumber || portRange[1] > MaxPortNumber {
 					badRanges = append(badRanges, portRange.String())
 				}
 			}
@@ -158,7 +158,7 @@ func validateRules(rules Rules) []string {
 			}
 			badPorts := make([]string, 0)
 			for _, port := range r.Ports {
-				if port < 0 || port > MaxPortNumber {
+				if port > MaxPortNumber {
 					badPorts = append(badPorts, fmt.Sprintf("%d", port))
 				}
 			}
@@ -174,12 +174,12 @@ func validateRules(rules Rules) []string {
 			if len(r.Ports) > 0 || len(r.PortRanges) > 0 {
 				errMsg = append(errMsg, fmt.Sprintf("Rule #%d: ICMP protocol is specified but ports are also specified.", ruleNo))
 			}
-			if r.IcmpType < 0 || r.IcmpType > MaxIcmpType {
+			if r.IcmpType > MaxIcmpType {
 				errMsg = append(errMsg, fmt.Sprintf("Rule #%d: Invalid ICMP type: %d.", ruleNo, r.IcmpType))
 			}
 			switch r.IcmpType {
 			case 3: // Destination unreachable
-				if r.IcmpCode < 0 || r.IcmpCode > 15 {
+				if r.IcmpCode > 15 {
 					errMsg = append(errMsg, fmt.Sprintf("Rule #%d: Invalid ICMP code for type %d: %d.", ruleNo, r.IcmpType, r.IcmpCode))
 				}
 			case 4: // Source quench
@@ -187,11 +187,11 @@ func validateRules(rules Rules) []string {
 					errMsg = append(errMsg, fmt.Sprintf("Rule #%d: Invalid ICMP code for type %d: %d.", ruleNo, r.IcmpType, r.IcmpCode))
 				}
 			case 5: // Redirect
-				if r.IcmpCode < 0 || r.IcmpCode > 3 {
+				if r.IcmpCode > 3 {
 					errMsg = append(errMsg, fmt.Sprintf("Rule #%d: Invalid ICMP code for type %d: %d.", ruleNo, r.IcmpType, r.IcmpCode))
 				}
 			case 11: // Time exceeded
-				if r.IcmpCode < 0 || r.IcmpCode > 1 {
+				if r.IcmpCode > 1 {
 					errMsg = append(errMsg, fmt.Sprintf("Rule #%d: Invalid ICMP code for type %d: %d.", ruleNo, r.IcmpType, r.IcmpCode))
 				}
 			default:

@@ -40,13 +40,13 @@ const (
 func (l *KubeListener) process(in <-chan Event, done chan struct{}) {
 	log.Infof("KubeListener: process(): Entered with in %v, done %v", in, done)
 
-	timer := time.Tick(processorTickTime * time.Second)
+	timer := time.NewTicker(processorTickTime * time.Second)
 	var networkPolicyEvents []Event
 
 	go func() {
 		for {
 			select {
-			case <-timer:
+			case <-timer.C:
 				if len(networkPolicyEvents) > 0 {
 					log.Infof("Calling network policy handler for scheduled %d events", len(networkPolicyEvents))
 					handleNetworkPolicyEvents(networkPolicyEvents, l)
@@ -66,9 +66,9 @@ func (l *KubeListener) process(in <-chan Event, done chan struct{}) {
 				}
 			case <-done:
 				log.Infof("KubeListener: process(): Got done")
+				timer.Stop()
 				return
 			}
 		}
 	}()
-	return
 }
