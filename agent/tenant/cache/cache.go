@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/romana/core/agent/tenant/hasher"
+	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
 	"github.com/romana/core/common/client"
 	"github.com/romana/core/common/log/trace"
@@ -124,4 +125,15 @@ func (c *Cache) List() []api.Tenant {
 func (c *Cache) getNewState(client *client.Client) ([]api.Tenant, error) {
 	return c.client.ListTenants(), nil
 
+}
+
+func checkHttp404(err error) (ret bool) {
+	switch e := err.(type) {
+	case common.HttpError:
+		if e.StatusCode == 404 {
+			ret = true
+		}
+	}
+
+	return
 }

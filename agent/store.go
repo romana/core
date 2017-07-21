@@ -23,6 +23,8 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/romana/core/common"
+	"github.com/romana/core/common/log/trace"
+	log "github.com/romana/rlog"
 )
 
 // agentStore is a backing storage. Agent will likely use
@@ -105,6 +107,67 @@ type Route struct {
 // targetKind is a an IP route destination type.
 type targetKind string
 
+const (
+	device  targetKind = "dev"
+	gateway targetKind = "gw"
+)
+
+// deleteRoute deletes the route based on ID of the provided route.
+func (agentStore *agentStore) deleteRoute(route *Route) error {
+	log.Trace(trace.Inside, "Acquiring store mutex for deleteRoute")
+	agentStore.mu.Lock()
+	defer func() {
+		log.Trace(trace.Inside, "Releasing store mutex for deleteRoute")
+		agentStore.mu.Unlock()
+	}()
+	log.Trace(trace.Inside, "Acquired store mutex for deleteRoute")
+
+	st, err := agentStore.db.Prepare("DELETE FROM routes WHERE id = ?")
+	if st != nil {
+		defer st.Close()
+	}
+	if err != nil {
+		return err
+	}
+	_, err = st.Exec(route.ID)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (agentStore *agentStore) findRouteByIface(routeIface string) (*Route, error) {
+	log.Trace(trace.Inside, "Acquiring store mutex for findRoute")
+	agentStore.mu.Lock()
+	defer func() {
+		log.Trace(trace.Inside, "Releasing store mutex for findRoute")
+		agentStore.mu.Unlock()
+	}()
+	log.Trace(trace.Inside, "Acquired store mutex for findRoute")
+
+	st, err := agentStore.db.Prepare("SELECT id,ip,mask,kind,spec,status FROM routes WHERE ip = ?")
+	if st != nil {
+		defer st.Close()
+	}
+	if err != nil {
+		return nil, err
+	}
+	res, err := st.Query(routeIface)
+	if res != nil {
+		defer res.Close()
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	if !res.Next() {
+		return nil, common.NewError("Cannot find route for %s", routeIface)
+	}
+	route := &Route{}
+	err = res.Scan(&route.ID, &route.IP, &route.Mask, &route.Spec, &route.Status)
+	return route, err
+}
+
 func (agentStore *agentStore) addNetIf(netif *NetIf) error {
 	st, err := agentStore.db.Prepare("INSERT INTO netifs (ip,mac, name) VALUES (?,?,?)")
 	if err != nil {
@@ -183,4 +246,59 @@ func (agentStore *agentStore) deleteNetIf(netif *NetIf) error {
 		return err
 	}
 	return nil
+}
+
+func (agentStore *agentStore) addRoute(route *Route) error {
+	log.Info("Acquiring store mutex for addRoute")
+	agentStore.mu.Lock()
+	defer func() {
+		log.Info("Releasing store mutex for addRoute")
+		agentStore.mu.Unlock()
+	}()
+	st, err := agentStore.db.Prepare("INSERT INTO routes (ip, mask, kind, spec, status) VALUES (?,?,?,?,?)")
+
+	if st != nil {
+		defer st.Close()
+	}
+	if err != nil {
+		return err
+	}
+	_, err = st.Exec(route.IP, route.Mask, route.Spec, route.Status)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (agentStore *agentStore) listRoutes() ([]Route, error) {
+	log.Trace(trace.Inside, "Acquiring store mutex for listRoutes")
+	agentStore.mu.Lock()
+	defer func() {
+		log.Trace(trace.Inside, "Releasing store mutex for listRoutes")
+		agentStore.mu.Unlock()
+	}()
+	st, err := agentStore.db.Prepare("SELECT ip, kind, mask,spec,status FROM routes")
+	if st != nil {
+		defer st.Close()
+	}
+	if err != nil {
+		return nil, err
+	}
+	rows, err := st.Query()
+	if rows != nil {
+		defer rows.Close()
+	}
+	if err != nil {
+		return nil, err
+	}
+	routes := make([]Route, 0)
+	for rows.Next() {
+		route := Route{}
+		err = rows.Scan(&route.IP, &route.Kind, &route.Mask, &route.Spec, &route.Status)
+		if err != nil {
+			return routes, err
+		}
+		routes = append(routes, route)
+	}
+	return routes, nil
 }
