@@ -17,13 +17,14 @@
 package listener
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
 	"github.com/romana/core/common/client"
-	log "github.com/romana/rlog"
 
+	log "github.com/romana/rlog"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
 )
@@ -85,6 +86,10 @@ func (l *KubeListener) loadConfig() error {
 	l.tenantLabelName, err = l.client.Store.GetString(configPrefix+"tenantLabelName", defaultTenantLabelName)
 	if err != nil {
 		return err
+	}
+
+	if err := l.kubeClientInit(); err != nil {
+		return fmt.Errorf("Error while loading kubernetes client %s", err)
 	}
 
 	return nil
