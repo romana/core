@@ -955,8 +955,11 @@ func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest) error {
 		if _, ok := ipam.Networks[netDef.Name]; ok {
 			return common.NewError("Network with name %s already defined", netDef.Name)
 		}
+		if netDef.BlockMask == 0 {
+			return common.NewError("Block mask %d (or unspecified) for %s is invalid, must be > 8", netDef.BlockMask, netDef.Name)
+		}
 		if netDef.BlockMask <= 8 {
-			return common.NewError("Block mask %d for %s is invalid, must be > 8", netDef.Name, netDef.BlockMask)
+			return common.NewError("Block mask %d for %s is invalid, must be > 8", netDef.BlockMask, netDef.Name)
 		}
 		netDefCIDR, err := NewCIDR(netDef.CIDR)
 		if err != nil {
