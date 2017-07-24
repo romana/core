@@ -18,7 +18,6 @@ package main
 import (
 	"context"
 	"flag"
-	"fmt"
 	"os"
 	"strings"
 
@@ -43,7 +42,8 @@ func main() {
 	hostname := flag.String("hostname", "", "name of the host in romana database")
 	provisionIface := flag.Bool("provision-iface", false, "create romana-gw interface and ip")
 	provisionSysctls := flag.Bool("provision-sysctls", false, "configure routing sysctls")
-	romanaRouteTableId := flag.Int("route-table-id", DefaultRouteTableId, "id that romana route table should have in /etc/iproute2/rt_tables")
+	romanaRouteTableId := flag.Int("route-table-id", DefaultRouteTableId,
+		"id that romana route table should have in /etc/iproute2/rt_tables")
 	mock := flag.Bool("mock", false, "")
 	flag.Parse()
 
@@ -66,24 +66,24 @@ func main() {
 
 		rClient, err := client.NewClient(&romanaConfig)
 		if err != nil {
-			panic(err)
+			log.Errorf("Failed to create Romana client, %s. Unable to continue", err.Error())
+			os.Exit(2)
 		}
 
 		romanaClient = RomanaClientAdaptor{rClient}
 
 	}
 
-	hosts := IpamHosts(romanaClient.ListHosts().Hosts)
 	if *provisionIface {
 		err := CreateRomanaGW()
 		if err != nil {
-			log.Infof("Failed to create romana-gw interface. %s", err)
+			log.Errorf("Failed to create romana-gw interface. %s", err)
 			os.Exit(2)
 		}
 
 		err = SetRomanaGwIP(DefaultGwIP)
 		if err != nil {
-			log.Infof("Failed to install ip address on romana-gw interface. %s", err)
+			log.Errorf("Failed to install ip address on romana-gw interface. %s", err)
 			os.Exit(2)
 		}
 
@@ -92,19 +92,21 @@ func main() {
 	if *provisionSysctls {
 		err := ProvisionSysctls()
 		if err != nil {
-			log.Infof("Failed to provision systls %s", err)
+			log.Errorf("Failed to provision systls %s", err)
 			os.Exit(2)
 		}
 	}
 
 	err = ensureRouteTableExist(*romanaRouteTableId)
 	if err != nil {
-		panic(err)
+		log.Errorf("Failed to make `romana` alias for route table=%d, %s. Unable to continue", *romanaRouteTableId, err.Error())
+		os.Exit(2)
 	}
 
 	err = ensureRomanaRouteRule(*romanaRouteTableId)
 	if err != nil {
-		panic(err)
+		log.Errorf("Failed to install route rule for romana routing table, %s", err.Error())
+		os.Exit(2)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -113,31 +115,18 @@ func main() {
 	blocksChannel := WatchBlocks(ctx, romanaClient)
 	hostsChannel := WatchHosts(ctx, romanaClient)
 
+	hosts := IpamHosts(romanaClient.ListHosts().Hosts)
 	for {
 		select {
 		case blocks := <-blocksChannel:
 			err := flushRomanaTable()
 			if err != nil {
-				fmt.Printf("failed to flush romana route table err=(%s)", err)
+				log.Errorf("failed to flush romana route table err=(%s)", err)
 				continue
 			}
 
-			for _, block := range blocks {
-				if block.Host == *hostname {
-					log.Printf("Block %v is local and does not require a route on that host", block)
-					continue
-				}
+			createRouteToBlocks(blocks, hosts, *romanaRouteTableId, *hostname)
 
-				host := hosts.GetHost(block.Host)
-				if host == nil {
-					log.Printf("Block %v belongs to unknown host %s, ignoring", block, block.Host)
-					continue
-				}
-
-				if err := createRouteToBlock(block, host, *romanaRouteTableId); err != nil {
-					log.Printf("%s", err)
-				}
-			}
 		case newHosts := <-hostsChannel:
 			// TODO need mutex for this.
 			hosts = IpamHosts(newHosts)
@@ -157,7 +146,27 @@ func (hosts IpamHosts) GetHost(hostname string) *api.Host {
 	return nil
 }
 
-// createRouteToBlock creates ip route an the romana specific route table.
+// createRouteToBlocks loops over list of blocks and creates routes when needed.
+func createRouteToBlocks(blocks []api.IPAMBlockResponse, hosts IpamHosts, romanaRouteTableId int, hostname string) {
+	for _, block := range blocks {
+		if block.Host == hostname {
+			log.Errorf("Block %v is local and does not require a route on that host", block)
+			continue
+		}
+
+		host := hosts.GetHost(block.Host)
+		if host == nil {
+			log.Errorf("Block %v belongs to unknown host %s, ignoring", block, block.Host)
+			continue
+		}
+
+		if err := createRouteToBlock(block, host, romanaRouteTableId); err != nil {
+			log.Errorf("%s", err)
+		}
+	}
+}
+
+// createRouteToBlock creates ip route for given block->host pair in Romana routing table.
 func createRouteToBlock(block api.IPAMBlockResponse, host *api.Host, romanaRouteTableId int) error {
 	route := netlink.Route{
 		Dst:   &block.CIDR.IPNet,
@@ -166,7 +175,7 @@ func createRouteToBlock(block api.IPAMBlockResponse, host *api.Host, romanaRoute
 	}
 
 	var err error
-	log.Printf("About to create route %v", route)
+	log.Debugf("About to create route %v", route)
 	err = netlink.RouteAdd(&route)
 	return err
 }
