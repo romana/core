@@ -1,17 +1,19 @@
 package client
 
 import (
-	"encoding/json"
 	"sync"
 
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
+	"github.com/romana/core/common/log/trace"
 	log "github.com/romana/rlog"
 )
 
 const (
-	ipamDataKey    = "/ipam/data"
-	PoliciesPrefix = "/policies"
+	DefaultEtcdPrefix    = "/romana"
+	DefaultEtcdEndpoints = "localhost:2379"
+	ipamDataKey          = "/ipam/data"
+	PoliciesPrefix       = "/policies"
 )
 
 type Client struct {
@@ -23,6 +25,9 @@ type Client struct {
 
 // NewClient creates a new Client object based on provided config
 func NewClient(config *common.Config) (*Client, error) {
+	if config.EtcdPrefix == "" {
+		config.EtcdPrefix = DefaultEtcdPrefix
+	}
 	store, err := NewStore(config.EtcdEndpoints, config.EtcdPrefix)
 	if err != nil {
 		return nil, err
@@ -43,6 +48,92 @@ func NewClient(config *common.Config) (*Client, error) {
 
 func (c *Client) ListHosts() api.HostList {
 	return c.IPAM.ListHosts()
+}
+
+// WatchBlocks is similar to Watch of libkv store, but specific
+// to watching for blocks.
+func (c *Client) WatchBlocks(stopCh <-chan struct{}) (<-chan api.IPAMBlocksResponse, error) {
+	stopCh2 := make(chan struct{})
+	outCh := make(chan api.IPAMBlocksResponse)
+	ch, err := c.Store.Watch(c.Store.prefix+ipamDataKey, stopCh2)
+	if err != nil {
+		return nil, err
+	}
+	// Since for now everything is stored in a single blob, we are going to get
+	// notification on all changes. We can filter them out by checking for
+	// the revision in the block list.
+	lastBlockListRevision := -1
+
+	go func() {
+		log.Debugf("WatchBlocks: Entering WatchBlocks goroutine.")
+		for {
+			select {
+			case stopMsg := <-stopCh:
+				log.Tracef(trace.Inside, "Stop message received for WatchBlocks: %v", stopMsg)
+				stopCh2 <- stopMsg
+				return
+			case kv := <-ch:
+				ipamJson := string(kv.Value)
+				ipam, err := ParseIPAM(ipamJson, nil, nil)
+				log.Tracef(trace.Inside, "WatchBlocks: got %s", ipamJson)
+				if err != nil {
+					log.Errorf("WatchBlocks: Error parsing IPAM: %s", err)
+					continue
+				}
+				blocks := ipam.ListAllBlocks()
+				if blocks.Revision <= lastBlockListRevision {
+					log.Debugf("WatchBlocks: Received revision %d smaller than last reported %d, ignoring.", blocks.Revision, lastBlockListRevision)
+				}
+				lastBlockListRevision = blocks.Revision
+				log.Tracef(trace.Inside, "WatchBlocks: sending block list revision %d to out channel", blocks.Revision)
+				outCh <- *blocks
+			}
+		}
+	}()
+	return outCh, nil
+}
+
+// WatchHosts is similar to Watch of libkv store, but specific
+// to watching for host list.
+func (c *Client) WatchHosts(stopCh <-chan struct{}) (<-chan api.HostList, error) {
+	stopCh2 := make(chan struct{})
+	outCh := make(chan api.HostList)
+	ch, err := c.Store.Watch(c.Store.prefix+ipamDataKey, stopCh2)
+	if err != nil {
+		return nil, err
+	}
+	// Since for now everything is stored in a single blob, we are going to get
+	// notification on all changes. We can filter them out by checking for
+	// IPAM's TopologyRevision.
+	lastHostListRevision := -1
+
+	go func() {
+		log.Debugf("WatchHosts: Entering WatchHosts goroutine.")
+		for {
+			select {
+			case stopMsg := <-stopCh:
+				log.Tracef(trace.Inside, "Stop message received for WatchHosts: %v", stopMsg)
+				stopCh2 <- stopMsg
+				return
+			case kv := <-ch:
+				ipamJson := string(kv.Value)
+				ipam, err := ParseIPAM(ipamJson, nil, nil)
+				log.Tracef(trace.Inside, "WatchHosts: got %s", ipamJson)
+				if err != nil {
+					log.Errorf("WatchHosts: Error parsing IPAM: %s", err)
+					continue
+				}
+				hostList := ipam.ListHosts()
+				if hostList.Revision <= lastHostListRevision {
+					log.Debugf("WatchHosts: Received revision %d smaller than last reported %d, ignoring.", hostList.Revision, lastHostListRevision)
+				}
+				lastHostListRevision = hostList.Revision
+				log.Tracef(trace.Inside, "WatchHosts: sending host list revision %d to out channel", hostList.Revision)
+				outCh <- hostList
+			}
+		}
+	}()
+	return outCh, nil
 }
 
 func (c *Client) ListPolicies() ([]api.Policy, error) {
@@ -117,10 +208,11 @@ func (c *Client) DeletePolicy(id string) (bool, error) {
 }
 
 func (c *Client) initIPAM() error {
-	c.ipamLocker, err = c.Store.NewLocker(c.Store.prefix + "/ipam/lock")
+	c.ipamLocker, err = c.Store.NewLocker("ipam")
 	if err != nil {
 		return err
 	}
+	log.Tracef(trace.Inside, "initIPAM(): Created locker %v", c.ipamLocker)
 
 	c.ipamLocker.Lock()
 	defer c.ipamLocker.Unlock()
@@ -132,7 +224,7 @@ func (c *Client) initIPAM() error {
 	}
 	if ipamExists {
 		// Load if exists
-		log.Infof("Loading IPAM data from %s", ipamDataKey)
+		log.Infof("Loading IPAM data from %s", c.config.EtcdPrefix+ipamDataKey)
 		kv, err := c.Store.Get(ipamDataKey)
 		if err != nil {
 			return err
@@ -144,7 +236,7 @@ func (c *Client) initIPAM() error {
 		}
 	} else {
 		// If does not exist, initialize and save
-		log.Infof("No IPAM data found at %s, initializing", ipamDataKey)
+		log.Infof("No IPAM data found at %s, initializing", c.config.EtcdPrefix+ipamDataKey)
 		c.IPAM, err = NewIPAM(c.save, c.ipamLocker)
 		if err != nil {
 			return err
@@ -160,11 +252,7 @@ func (c *Client) initIPAM() error {
 
 // save implements the Saver interface of IPAM.
 func (c *Client) save(ipam *IPAM) error {
-	b, err := json.Marshal(c.IPAM)
-	if err != nil {
-		return err
-	}
-	err = c.Store.Put(ipamDataKey, b, nil)
+	err = c.Store.PutObject(ipamDataKey, c.IPAM)
 	if err != nil {
 		return err
 	}

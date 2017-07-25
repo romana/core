@@ -16,7 +16,6 @@
 package idring
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 	"sync"
@@ -67,41 +66,26 @@ type IDRing struct {
 	// an interface and split implementation into 2: intended for mostly allocations and few
 	// reclamations, and intended for few allocations with a lot of reclamations.
 	Ranges []Range
-	// To ensure that GetID and ReclaimID are atomic.
-	mutex   *sync.Mutex
+	// To ensure that GetID and ReclaimID are atomic; but must be provided by the
+	// caller. If not provided, it is assumed the locking guarantees are provided
+	// elsewhere.
+	locker  sync.Locker
 	OrigMin uint64
 	OrigMax uint64
 }
 
 // NewIDRing constructs a new IDRing instance with a single range for
 // provided min and max
-func NewIDRing(min uint64, max uint64) *IDRing {
+func NewIDRing(min uint64, max uint64, locker sync.Locker) *IDRing {
 	r := Range{Min: min,
 		Max: max,
 	}
 	idRing := IDRing{Ranges: []Range{r},
-		mutex:   &sync.Mutex{},
+		locker:  locker,
 		OrigMin: min,
 		OrigMax: max,
 	}
 	return &idRing
-}
-
-// Encode encodes the IDRing into an array of bytes.
-func (ir IDRing) Encode() ([]byte, error) {
-	return json.Marshal(ir)
-}
-
-// DecodeIDRing decodes IDRing object from the byte array.
-func DecodeIDRing(data []byte) (IDRing, error) {
-	idRing := IDRing{}
-	err := json.Unmarshal(data, &idRing)
-	if err != nil {
-		return idRing, err
-	}
-	// Create new mutex - we don't serialize it.
-	idRing.mutex = &sync.Mutex{}
-	return idRing, nil
 }
 
 // String returns a human-readable representation of the ring.
@@ -130,8 +114,10 @@ func (ir IDRing) String() string {
 // (that is, containing Ranges that are ranges not of available, but
 // of taken IDs).
 func (ir IDRing) Invert() *IDRing {
-	ir.mutex.Lock()
-	defer ir.mutex.Unlock()
+	if ir.locker != nil {
+		ir.locker.Lock()
+		defer ir.locker.Unlock()
+	}
 
 	ranges := make([]Range, 0)
 	prevMin := ir.OrigMin
@@ -154,7 +140,7 @@ func (ir IDRing) Invert() *IDRing {
 	retval := IDRing{OrigMax: ir.OrigMax,
 		OrigMin: ir.OrigMin,
 		Ranges:  ranges,
-		mutex:   &sync.Mutex{},
+		locker:  ir.locker,
 	}
 	log.Tracef(trace.Private, "Inversion of %s is %s", ir, retval)
 	return &retval
@@ -162,8 +148,10 @@ func (ir IDRing) Invert() *IDRing {
 
 // IsEmpty returns true if there is are allocated IDs.
 func (ir IDRing) IsEmpty() bool {
-	ir.mutex.Lock()
-	defer ir.mutex.Unlock()
+	if ir.locker != nil {
+		ir.locker.Lock()
+		defer ir.locker.Unlock()
+	}
 	if len(ir.Ranges) > 1 {
 		return false
 	}
@@ -173,44 +161,50 @@ func (ir IDRing) IsEmpty() bool {
 
 // GetID returns the first available ID, starting with OrigMin.
 // It will return an IDRingOverflowError if no more IDs can be returned.
-func (idRing *IDRing) GetID() (uint64, error) {
-	log.Tracef(trace.Inside, "GetID: Trying to get ID from %s", idRing.String())
-	idRing.mutex.Lock()
-	defer idRing.mutex.Unlock()
-	if idRing.Ranges == nil || len(idRing.Ranges) == 0 {
-		log.Tracef(trace.Inside, "GetID: Returning error, remaining %s", idRing.String())
+func (ir *IDRing) GetID() (uint64, error) {
+	log.Tracef(trace.Inside, "GetID: Trying to get ID from %s", ir.String())
+	if ir.locker != nil {
+		ir.locker.Lock()
+		defer ir.locker.Unlock()
+	}
+	if ir.Ranges == nil || len(ir.Ranges) == 0 {
+		log.Tracef(trace.Inside, "GetID: Returning error, remaining %s", ir.String())
 		return 0, IDRingOverflowError
 	}
-	retval := idRing.Ranges[0].Min
-	if retval == math.MaxUint64 || retval+1 > idRing.Ranges[0].Max {
+	retval := ir.Ranges[0].Min
+	if retval == math.MaxUint64 || retval+1 > ir.Ranges[0].Max {
 		// This range is exhausted, remove it...
-		if len(idRing.Ranges) == 1 {
-			idRing.Ranges = nil
+		if len(ir.Ranges) == 1 {
+			ir.Ranges = nil
 		} else {
-			idRing.Ranges = idRing.Ranges[1:]
+			ir.Ranges = ir.Ranges[1:]
 		}
 	} else {
-		idRing.Ranges[0].Min += 1
+		ir.Ranges[0].Min += 1
 	}
-	log.Tracef(trace.Inside, "GetID: Returning %d, remaining %s", retval, idRing.String())
+	log.Tracef(trace.Inside, "GetID: Returning %d, remaining %s", retval, ir.String())
 	return retval, nil
 }
 
 // ReclaimID returns and ID to the pool.
-func (idRing *IDRing) ReclaimID(id uint64) error {
-	idRing.mutex.Lock()
-	defer idRing.mutex.Unlock()
-	return idRing.ReclaimIDNoLock(id)
+func (ir *IDRing) ReclaimID(id uint64) error {
+	if ir.locker != nil {
+		ir.locker.Lock()
+		defer ir.locker.Unlock()
+	}
+	return ir.ReclaimIDNoLock(id)
 }
 
 // ReclaimIDs reclaims a list of IDs. If an error occurs, what
 // additionally a list of IDs that could not be reclaimed is returned.
-func (idRing *IDRing) ReclaimIDs(ids []uint64) (error, []uint64) {
+func (ir *IDRing) ReclaimIDs(ids []uint64) (error, []uint64) {
 	// TODO this can be optimized for cases where ids are sequential.
-	idRing.mutex.Lock()
-	defer idRing.mutex.Unlock()
+	if ir.locker != nil {
+		ir.locker.Lock()
+		defer ir.locker.Unlock()
+	}
 	for idx, id := range ids {
-		err := idRing.ReclaimIDNoLock(id)
+		err := ir.ReclaimIDNoLock(id)
 		if err != nil {
 			return common.NewError("Could not reclaim ID %d at %d: %s", id, idx, err), ids[idx:]
 		}

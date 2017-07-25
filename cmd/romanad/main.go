@@ -24,15 +24,16 @@ import (
 	"strings"
 
 	"github.com/romana/core/common"
+	"github.com/romana/core/common/client"
 	"github.com/romana/core/server"
 	log "github.com/romana/rlog"
 )
 
 func main() {
-	endpointsStr := flag.String("etcd-endpoints", "localhost:2379", "Comma-separated list of etcd endpoints.")
+	endpointsStr := flag.String("etcd-endpoints", client.DefaultEtcdEndpoints, "Comma-separated list of etcd endpoints.")
 	host := flag.String("host", "localhost", "Host to listen on.")
 	port := flag.Int("port", 9600, "Port to listen on.")
-	prefix := flag.String("etcd-prefix", "/romana", "Prefix to use for etcd data.")
+	prefix := flag.String("etcd-prefix", client.DefaultEtcdPrefix, "Prefix to use for etcd data.")
 	flag.Parse()
 	if endpointsStr == nil {
 		log.Errorf("No etcd endpoints specified")
