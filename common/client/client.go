@@ -53,9 +53,8 @@ func (c *Client) ListHosts() api.HostList {
 // WatchBlocks is similar to Watch of libkv store, but specific
 // to watching for blocks.
 func (c *Client) WatchBlocks(stopCh <-chan struct{}) (<-chan api.IPAMBlocksResponse, error) {
-	stopCh2 := make(chan struct{})
 	outCh := make(chan api.IPAMBlocksResponse)
-	ch, err := c.Store.Watch(c.Store.prefix+ipamDataKey, stopCh2)
+	ch, err := c.Store.Watch(c.Store.prefix+ipamDataKey, stopCh)
 	if err != nil {
 		return nil, err
 	}
@@ -68,9 +67,8 @@ func (c *Client) WatchBlocks(stopCh <-chan struct{}) (<-chan api.IPAMBlocksRespo
 		log.Debugf("WatchBlocks: Entering WatchBlocks goroutine.")
 		for {
 			select {
-			case stopMsg := <-stopCh:
-				log.Tracef(trace.Inside, "Stop message received for WatchBlocks: %v", stopMsg)
-				stopCh2 <- stopMsg
+			case <-stopCh:
+				log.Tracef(trace.Inside, "Stop message received for WatchBlocks")
 				return
 			case kv := <-ch:
 				ipamJson := string(kv.Value)
@@ -96,9 +94,8 @@ func (c *Client) WatchBlocks(stopCh <-chan struct{}) (<-chan api.IPAMBlocksRespo
 // WatchHosts is similar to Watch of libkv store, but specific
 // to watching for host list.
 func (c *Client) WatchHosts(stopCh <-chan struct{}) (<-chan api.HostList, error) {
-	stopCh2 := make(chan struct{})
 	outCh := make(chan api.HostList)
-	ch, err := c.Store.Watch(c.Store.prefix+ipamDataKey, stopCh2)
+	ch, err := c.Store.Watch(c.Store.prefix+ipamDataKey, stopCh)
 	if err != nil {
 		return nil, err
 	}
@@ -111,9 +108,8 @@ func (c *Client) WatchHosts(stopCh <-chan struct{}) (<-chan api.HostList, error)
 		log.Debugf("WatchHosts: Entering WatchHosts goroutine.")
 		for {
 			select {
-			case stopMsg := <-stopCh:
-				log.Tracef(trace.Inside, "Stop message received for WatchHosts: %v", stopMsg)
-				stopCh2 <- stopMsg
+			case <-stopCh:
+				log.Tracef(trace.Inside, "Stop message received for WatchHosts")
 				return
 			case kv := <-ch:
 				ipamJson := string(kv.Value)
