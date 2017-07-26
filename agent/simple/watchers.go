@@ -23,10 +23,21 @@ func (c RomanaClientAdaptor) ListAllBlocks() *api.IPAMBlocksResponse {
 	return c.Client.IPAM.ListAllBlocks()
 }
 
+func (c RomanaClientAdaptor) WatchBlocks(stopCh <-chan struct{}) (<-chan api.IPAMBlocksResponse, error) {
+	return c.Client.WatchBlocks(stopCh)
+}
+
+func (c RomanaClientAdaptor) WatchHosts(stopCh <-chan struct{}) (<-chan api.HostList, error) {
+	return c.Client.WatchHosts(stopCh)
+}
+
 // RomanaClient exists for a purpose of mocking.
 type RomanaClient interface {
 	ListHosts() api.HostList
 	ListAllBlocks() *api.IPAMBlocksResponse
+
+	WatchBlocks(<-chan struct{}) (<-chan api.IPAMBlocksResponse, error)
+	WatchHosts(<-chan struct{}) (<-chan api.HostList, error)
 }
 
 const watchersRefreshTimer = time.Duration(10 * time.Second)

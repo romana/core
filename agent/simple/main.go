@@ -16,7 +16,6 @@
 package main
 
 import (
-	"context"
 	"flag"
 	"os"
 	"strings"
@@ -109,11 +108,24 @@ func main() {
 		os.Exit(2)
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	// ctx, cancel := context.WithCancel(context.Background())
+	// defer cancel()
 
-	blocksChannel := WatchBlocks(ctx, romanaClient)
-	hostsChannel := WatchHosts(ctx, romanaClient)
+	stopCh := make(chan struct{})
+	defer close(stopCh)
+
+	// blocksChannel := WatchBlocks(ctx, romanaClient)
+	blocksChannel, err := romanaClient.WatchBlocks(stopCh)
+	if err != nil {
+		log.Errorf("Failed to start watching for blocks, %s", err)
+		os.Exit(2)
+	}
+	// hostsChannel := WatchHosts(ctx, romanaClient)
+	hostsChannel, err := romanaClient.WatchHosts(stopCh)
+	if err != nil {
+		log.Errorf("Failed to start watching for blocks, %s", err)
+		os.Exit(2)
+	}
 
 	hosts := IpamHosts(romanaClient.ListHosts().Hosts)
 	for {
@@ -125,11 +137,11 @@ func main() {
 				continue
 			}
 
-			createRouteToBlocks(blocks, hosts, *romanaRouteTableId, *hostname)
+			createRouteToBlocks(blocks.Blocks, hosts, *romanaRouteTableId, *hostname)
 
 		case newHosts := <-hostsChannel:
 			// TODO need mutex for this.
-			hosts = IpamHosts(newHosts)
+			hosts = IpamHosts(newHosts.Hosts)
 		}
 	}
 }

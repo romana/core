@@ -44,3 +44,11 @@ func (MockClient) ListAllBlocks() *api.IPAMBlocksResponse {
 	}
 	return &blocks
 }
+
+func (c MockClient) WatchBlocks(stopCh <-chan struct{}) (res <-chan api.IPAMBlocksResponse, err error) {
+	return res, nil
+}
+
+func (c MockClient) WatchHosts(stopCh <-chan struct{}) (res <-chan api.HostList, err error) {
+	return res, nil
+}
