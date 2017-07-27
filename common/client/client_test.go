@@ -179,7 +179,7 @@ func TestWatchBlocks(t *testing.T) {
 				if err != nil {
 					t.Fatalf("TestWatchBlocks: Error allocating IP: %s", err)
 				}
-				t.Logf("TestWatchBlocks: Allocated IP %s", ip)
+				t.Logf("TestWatchBlocks: Allocated IP %s, allocation revision is %d", ip, client.IPAM.AllocationRevision)
 				tryCount++
 			} else {
 				t.Logf("TestWatchBlocks: Stopping the watcher after %d tries", maxTries)

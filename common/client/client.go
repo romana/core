@@ -61,7 +61,7 @@ func (c *Client) WatchBlocks(stopCh <-chan struct{}) (<-chan api.IPAMBlocksRespo
 	// Since for now everything is stored in a single blob, we are going to get
 	// notification on all changes. We can filter them out by checking for
 	// the revision in the block list.
-	var lastBlockListRevision uint64
+	lastBlockListRevision := -1
 
 	go func() {
 		log.Debugf("WatchBlocks: Entering WatchBlocks goroutine.")
@@ -79,13 +79,13 @@ func (c *Client) WatchBlocks(stopCh <-chan struct{}) (<-chan api.IPAMBlocksRespo
 					continue
 				}
 				blocks := ipam.ListAllBlocks()
-				if kv.LastIndex <= lastBlockListRevision {
+				if blocks.Revision <= lastBlockListRevision {
 					log.Debugf("WatchBlocks: Received revision %d smaller than last reported %d, ignoring.", blocks.Revision, lastBlockListRevision)
-					continue
+				} else {
+					lastBlockListRevision = blocks.Revision
+					log.Tracef(trace.Inside, "WatchBlocks: sending block list revision %d to out channel", blocks.Revision)
+					outCh <- *blocks
 				}
-				lastBlockListRevision = kv.LastIndex
-				log.Tracef(trace.Inside, "WatchBlocks: sending block list revision %d to out channel", blocks.Revision)
-				outCh <- *blocks
 			}
 		}
 	}()
@@ -103,7 +103,7 @@ func (c *Client) WatchHosts(stopCh <-chan struct{}) (<-chan api.HostList, error)
 	// Since for now everything is stored in a single blob, we are going to get
 	// notification on all changes. We can filter them out by checking for
 	// IPAM's TopologyRevision.
-	var lastHostListRevision uint64
+	lastHostListRevision := -1
 
 	go func() {
 		log.Debugf("WatchHosts: Entering WatchHosts goroutine.")
@@ -121,13 +121,13 @@ func (c *Client) WatchHosts(stopCh <-chan struct{}) (<-chan api.HostList, error)
 					continue
 				}
 				hostList := ipam.ListHosts()
-				if kv.LastIndex <= lastHostListRevision {
+				if hostList.Revision <= lastHostListRevision {
 					log.Debugf("WatchHosts: Received revision %d smaller than last reported %d, ignoring.", hostList.Revision, lastHostListRevision)
-					continue
+				} else {
+					lastHostListRevision = hostList.Revision
+					log.Tracef(trace.Inside, "WatchHosts: sending host list revision %d to out channel", hostList.Revision)
+					outCh <- hostList
 				}
-				lastHostListRevision = kv.LastIndex
-				log.Tracef(trace.Inside, "WatchHosts: sending host list revision %d to out channel", hostList.Revision)
-				outCh <- hostList
 			}
 		}
 	}()
