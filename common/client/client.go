@@ -61,7 +61,7 @@ func (c *Client) WatchBlocks(stopCh <-chan struct{}) (<-chan api.IPAMBlocksRespo
 	// Since for now everything is stored in a single blob, we are going to get
 	// notification on all changes. We can filter them out by checking for
 	// the revision in the block list.
-	lastBlockListRevision := -1
+	var lastBlockListRevision uint64
 
 	go func() {
 		log.Debugf("WatchBlocks: Entering WatchBlocks goroutine.")
@@ -79,10 +79,11 @@ func (c *Client) WatchBlocks(stopCh <-chan struct{}) (<-chan api.IPAMBlocksRespo
 					continue
 				}
 				blocks := ipam.ListAllBlocks()
-				if blocks.Revision <= lastBlockListRevision {
+				if kv.LastIndex <= lastBlockListRevision {
 					log.Debugf("WatchBlocks: Received revision %d smaller than last reported %d, ignoring.", blocks.Revision, lastBlockListRevision)
+					continue
 				}
-				lastBlockListRevision = blocks.Revision
+				lastBlockListRevision = kv.LastIndex
 				log.Tracef(trace.Inside, "WatchBlocks: sending block list revision %d to out channel", blocks.Revision)
 				outCh <- *blocks
 			}
@@ -102,7 +103,7 @@ func (c *Client) WatchHosts(stopCh <-chan struct{}) (<-chan api.HostList, error)
 	// Since for now everything is stored in a single blob, we are going to get
 	// notification on all changes. We can filter them out by checking for
 	// IPAM's TopologyRevision.
-	lastHostListRevision := -1
+	var lastHostListRevision uint64
 
 	go func() {
 		log.Debugf("WatchHosts: Entering WatchHosts goroutine.")
@@ -120,10 +121,11 @@ func (c *Client) WatchHosts(stopCh <-chan struct{}) (<-chan api.HostList, error)
 					continue
 				}
 				hostList := ipam.ListHosts()
-				if hostList.Revision <= lastHostListRevision {
+				if kv.LastIndex <= lastHostListRevision {
 					log.Debugf("WatchHosts: Received revision %d smaller than last reported %d, ignoring.", hostList.Revision, lastHostListRevision)
+					continue
 				}
-				lastHostListRevision = hostList.Revision
+				lastHostListRevision = kv.LastIndex
 				log.Tracef(trace.Inside, "WatchHosts: sending host list revision %d to out channel", hostList.Revision)
 				outCh <- hostList
 			}
