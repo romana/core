@@ -13,12 +13,11 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// +build ignore
-
 package client
 
 import (
 	"encoding/json"
+	"net"
 	"testing"
 
 	"github.com/romana/core/common/api"
@@ -708,6 +707,41 @@ func TestTmp(t *testing.T) {
 }`
 	initIpam(t, conf)
 	t.Logf("Slide 15: Example 2: Prefix per host JSON:\n%s\n", testSaver.lastJson)
+
+}
+
+func TestVPCExample(t *testing.T) {
+	var conf string
+	t.Logf("TestVPCExample")
+	conf = `{
+    "networks" : [ "romana-us-west-2a" ],
+    "map" :  {
+        "groups"  : [
+            { "routing" : "xyz", "groups" : [] },
+            { "routing" : "xyz", "groups" : [] },
+        ]
+    }
+},
+{
+    "networks" : [ "romana-us-west-2b" ],
+    "map" :  {
+        "assignment" : { "key1 : "value1" },
+        "groups"  : [
+            {  "assignment" : { "key2 : "value2" },  
+               "routing" : "xyz", 
+               "groups" : [] },
+            { "routing" : "xyz", "groups" : [] },
+        ]
+    }
+},`
+	ipam := initIpam(t, conf)
+	host1 := api.Host{Name: "host1",
+		IP: net.ParseIP("10.10.10.10"),
+	}
+	err := ipam.AddHost(host1)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 }
 

@@ -22,9 +22,12 @@ package listener
 import (
 	"errors"
 	"fmt"
+	"net"
 	"time"
 
 	log "github.com/romana/rlog"
+
+	romanaApi "github.com/romana/core/common/api"
 
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/pkg/api"
@@ -150,15 +153,28 @@ func (l *KubeListener) kubernetesDeleteNodeEventHandler(n interface{}) {
 	log.Infof("Node (%s) successful removed from romana cluster.", node.Name)
 }
 
-// TODO need to think how this works
 // romanaHostAdd connects to romana API and adds a node to
 // the romana cluster.
 func romanaHostAdd(l *KubeListener, node *v1.Node) error {
-	return errors.New("Adding host currently unimplemented")
+	if node.Name == "" || len(node.Status.Addresses) < 1 {
+		log.Errorf("Error: received invalid host name or IP Address: (%s)", node)
+		return errors.New("Error: received invalid host name or IP Address.")
+	}
+	hostname := node.Name
+	hostIP := net.ParseIP(node.Status.Addresses[0].Address)
+	host := romanaApi.Host{IP: hostIP,
+		Name: hostname,
+		Tags: node.GetAnnotations(),
+	}
+	return l.client.IPAM.AddHost(host)
 }
 
 // romanaHostRemove connects to romana API and removes a node from
 // the romana cluster.
 func romanaHostRemove(l *KubeListener, node string) error {
-	return errors.New("Removing host currently unimplemented")
+	if node == "" {
+		log.Errorf("Error: received invalid node name (%s)", node)
+		return errors.New("Error: received invalid node name.")
+	}
+	return l.client.IPAM.RemoveHost(romanaApi.Host{Name: node})
 }

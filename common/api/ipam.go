@@ -74,13 +74,21 @@ type NetworkDefinition struct {
 }
 
 type TopologyDefinition struct {
-	Networks []string    `json:"networks"`
-	Map      []GroupSpec `json:"map"`
+	Networks []string      `json:"networks"`
+	Map      []GroupOrHost `json:"map"`
 }
 
-type GroupSpec struct {
-	Routing string        `json:"routing"`
-	Groups  []interface{} `json:"groups"`
+type GroupOrHost struct {
+	// Assignment is a map of key-value pairs that specify what attributes (key=value)
+	// of a new host to use to assign it into a group.
+	Assignment map[string]string `json:"assignment"`
+	Routing    string            `json:"routing"`
+	Groups     []GroupOrHost     `json:"groups"`
+
+	// If the below are specified, this GroupSpec really represents a host,
+	// therefore the above elements MUST NOT be specified.
+	Name string `json:"name"`
+	IP   net.IP `json:"ip"`
 }
 
 type Host struct {
@@ -88,7 +96,8 @@ type Host struct {
 	Name      string `json:"name"`
 	AgentPort int    `json:"agent_port"`
 	// TODO this is a placeholder for now so that agent builds
-	RomanaIp string `json:"romana_ip"`
+	RomanaIp string            `json:"romana_ip"`
+	Tags     map[string]string `json:"tags"`
 }
 
 type HostList struct {

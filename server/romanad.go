@@ -120,6 +120,12 @@ func (r *Romanad) Routes() common.Routes {
 			Pattern: "/hosts",
 			Handler: r.listHosts,
 		},
+		common.Route{
+			Method:      "POST",
+			Pattern:     "/hosts",
+			Handler:     r.addHost,
+			MakeMessage: func() interface{} { return &api.Host{} },
+		},
 	}
 	return routes
 }
