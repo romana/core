@@ -2,6 +2,7 @@ package client
 
 import (
 	"sync"
+	"time"
 
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
@@ -65,12 +66,41 @@ func (c *Client) WatchBlocks(stopCh <-chan struct{}) (<-chan api.IPAMBlocksRespo
 
 	go func() {
 		log.Debugf("WatchBlocks: Entering WatchBlocks goroutine.")
+
 		for {
 			select {
 			case <-stopCh:
 				log.Tracef(trace.Inside, "Stop message received for WatchBlocks")
 				return
-			case kv := <-ch:
+			case kv, ok := <-ch:
+				if !ok {
+					retryDelay := 1 * time.Millisecond
+				RETRY_LOOP:
+					for {
+						log.Infof("WatchBlocks: Lost watch, trying to re-establish...")
+						ch, err = c.Store.Watch(c.Store.prefix+ipamDataKey, stopCh)
+						if err == nil {
+							select {
+							case kv, ok = <-ch:
+								if ok {
+									// We have re-established the watch...
+									// This check is needed because we could get no error
+									// but channel will be closed (can be the case if
+									// etcd went down and is not up).
+									log.Infof("WatchBlocks: Watch re-established")
+									break RETRY_LOOP
+								} else {
+									break
+								}
+							}
+						} else {
+							log.Errorf("WatchBlocks: Got error on re-establishing watch: %v %T", err, err)
+						}
+						time.Sleep(retryDelay)
+						retryDelay *= 2
+					}
+				}
+
 				ipamJson := string(kv.Value)
 				ipam, err := ParseIPAM(ipamJson, nil, nil)
 				log.Tracef(trace.Inside, "WatchBlocks: got %s", ipamJson)
@@ -112,7 +142,34 @@ func (c *Client) WatchHosts(stopCh <-chan struct{}) (<-chan api.HostList, error)
 			case <-stopCh:
 				log.Tracef(trace.Inside, "Stop message received for WatchHosts")
 				return
-			case kv := <-ch:
+			case kv, ok := <-ch:
+				if !ok {
+					retryDelay := 1 * time.Millisecond
+				RETRY_LOOP:
+					for {
+						log.Infof("WatchBlocks: Lost watch, trying to re-establish...")
+						ch, err = c.Store.Watch(c.Store.prefix+ipamDataKey, stopCh)
+						if err == nil {
+							select {
+							case kv, ok = <-ch:
+								if ok {
+									// We have re-established the watch...
+									// This check is needed because we could get no error
+									// but channel will be closed (can be the case if
+									// etcd went down and is not up).
+									log.Infof("WatchBlocks: Watch re-established")
+									break RETRY_LOOP
+								} else {
+									break
+								}
+							}
+						} else {
+							log.Errorf("WatchBlocks: Got error on re-establishing watch: %v %T", err, err)
+						}
+						time.Sleep(retryDelay)
+						retryDelay *= 2
+					}
+				}
 				ipamJson := string(kv.Value)
 				ipam, err := ParseIPAM(ipamJson, nil, nil)
 				log.Tracef(trace.Inside, "WatchHosts: got %s", ipamJson)
