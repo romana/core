@@ -20,6 +20,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/romana/core/agent/simple/internal/rtable"
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
 	"github.com/romana/core/common/client"
@@ -43,7 +44,6 @@ func main() {
 	provisionSysctls := flag.Bool("provision-sysctls", false, "configure routing sysctls")
 	romanaRouteTableId := flag.Int("route-table-id", DefaultRouteTableId,
 		"id that romana route table should have in /etc/iproute2/rt_tables")
-	mock := flag.Bool("mock", false, "")
 	flag.Parse()
 
 	romanaConfig := common.Config{
@@ -58,20 +58,7 @@ func main() {
 		}
 	}
 
-	var romanaClient RomanaClient
-	if *mock {
-		romanaClient = MockClient{}
-	} else {
-
-		rClient, err := client.NewClient(&romanaConfig)
-		if err != nil {
-			log.Errorf("Failed to create Romana client, %s. Unable to continue", err.Error())
-			os.Exit(2)
-		}
-
-		romanaClient = RomanaClientAdaptor{rClient}
-
-	}
+	romanaClient, err := client.NewClient(&romanaConfig)
 
 	if *provisionIface {
 		err := CreateRomanaGW()
@@ -96,20 +83,24 @@ func main() {
 		}
 	}
 
-	err = ensureRouteTableExist(*romanaRouteTableId)
+	err = rtable.EnsureRouteTableExist(*romanaRouteTableId)
 	if err != nil {
-		log.Errorf("Failed to make `romana` alias for route table=%d, %s. Unable to continue", *romanaRouteTableId, err.Error())
+		log.Errorf("Failed to make `romana` alias for route table=%d, %s. Unable to continue", *romanaRouteTableId, err)
 		os.Exit(2)
 	}
 
-	err = ensureRomanaRouteRule(*romanaRouteTableId)
+	nlHandle, err := netlink.NewHandle()
 	if err != nil {
-		log.Errorf("Failed to install route rule for romana routing table, %s", err.Error())
+		log.Errorf("Failed to create netlink handle %s", err)
 		os.Exit(2)
 	}
+	defer nlHandle.Delete()
 
-	// ctx, cancel := context.WithCancel(context.Background())
-	// defer cancel()
+	err = rtable.EnsureRomanaRouteRule(*romanaRouteTableId, nlHandle)
+	if err != nil {
+		log.Errorf("Failed to install route rule for romana routing table, %s", err)
+		os.Exit(2)
+	}
 
 	stopCh := make(chan struct{})
 	defer close(stopCh)
@@ -127,11 +118,12 @@ func main() {
 		os.Exit(2)
 	}
 
-	hosts := IpamHosts(romanaClient.ListHosts().Hosts)
+	// hosts := IpamHosts(romanaClient.ListHosts().Hosts)
+	hosts := IpamHosts{}
 	for {
 		select {
 		case blocks := <-blocksChannel:
-			err := flushRomanaTable()
+			err := rtable.FlushRomanaTable()
 			if err != nil {
 				log.Errorf("failed to flush romana route table err=(%s)", err)
 				continue
