@@ -2,7 +2,6 @@ package client
 
 import (
 	"sync"
-	"time"
 
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
@@ -51,57 +50,69 @@ func (c *Client) ListHosts() api.HostList {
 	return c.IPAM.ListHosts()
 }
 
+type HostListCallback func(api.HostList)
+
+func (c *Client) WatchHostsWithCallback(cb HostListCallback) error {
+	log.Tracef(trace.Public, "Entering WatchHostsWithCallback.")
+	stopCh := make(chan struct{})
+	ch, err := c.WatchHosts(stopCh)
+	if err != nil {
+		return err
+	}
+	go func() {
+		for {
+			select {
+			case result := <-ch:
+				cb(result)
+			}
+		}
+	}()
+	return nil
+}
+
+type BlocksCallback func(api.IPAMBlocksResponse)
+
+func (c *Client) WatchBlocksWithCallback(cb BlocksCallback) error {
+	log.Tracef(trace.Public, "Entering WatchBlocksWithCallback.")
+	stopCh := make(chan struct{})
+	ch, err := c.WatchBlocks(stopCh)
+	if err != nil {
+		return err
+	}
+	go func() {
+		for {
+			select {
+			case result := <-ch:
+				cb(result)
+			}
+		}
+	}()
+	return nil
+}
+
 // WatchBlocks is similar to Watch of libkv store, but specific
 // to watching for blocks.
 func (c *Client) WatchBlocks(stopCh <-chan struct{}) (<-chan api.IPAMBlocksResponse, error) {
-	outCh := make(chan api.IPAMBlocksResponse)
-	ch, err := c.Store.Watch(c.Store.prefix+ipamDataKey, stopCh)
+	log.Tracef(trace.Public, "Entering WatchBlocks.")
+	ch, err := c.Store.ReconnectingWatch(ipamDataKey, stopCh)
 	if err != nil {
 		return nil, err
 	}
+	outCh := make(chan api.IPAMBlocksResponse)
 	// Since for now everything is stored in a single blob, we are going to get
 	// notification on all changes. We can filter them out by checking for
 	// the revision in the block list.
 	lastBlockListRevision := -1
 
 	go func() {
-		log.Debugf("WatchBlocks: Entering WatchBlocks goroutine.")
-
+		log.Tracef(trace.Inside, "WatchBlocks: Entering WatchBlocks goroutine.")
 		for {
 			select {
 			case <-stopCh:
-				log.Tracef(trace.Inside, "Stop message received for WatchBlocks")
+				log.Tracef(trace.Inside, "WatchBlocks: Stop message received")
 				return
-			case kv, ok := <-ch:
-				if !ok {
-					retryDelay := 1 * time.Millisecond
-				RETRY_LOOP:
-					for {
-						log.Infof("WatchBlocks: Lost watch, trying to re-establish...")
-						ch, err = c.Store.Watch(c.Store.prefix+ipamDataKey, stopCh)
-						if err == nil {
-							select {
-							case kv, ok = <-ch:
-								if ok {
-									// We have re-established the watch...
-									// This check is needed because we could get no error
-									// but channel will be closed (can be the case if
-									// etcd went down and is not up).
-									log.Infof("WatchBlocks: Watch re-established")
-									break RETRY_LOOP
-								} else {
-									break
-								}
-							}
-						} else {
-							log.Errorf("WatchBlocks: Got error on re-establishing watch: %v %T", err, err)
-						}
-						time.Sleep(retryDelay)
-						retryDelay *= 2
-					}
-				}
-
-				ipamJson := string(kv.Value)
+			case val := <-ch:
+				ipamJson := string(val)
 				ipam, err := ParseIPAM(ipamJson, nil, nil)
 				log.Tracef(trace.Inside, "WatchBlocks: got %s", ipamJson)
 				if err != nil {
@@ -125,52 +136,26 @@ func (c *Client) WatchBlocks(stopCh <-chan struct{}) (<-chan api.IPAMBlocksRespo
 // WatchHosts is similar to Watch of libkv store, but specific
 // to watching for host list.
 func (c *Client) WatchHosts(stopCh <-chan struct{}) (<-chan api.HostList, error) {
-	outCh := make(chan api.HostList)
-	ch, err := c.Store.Watch(c.Store.prefix+ipamDataKey, stopCh)
+	log.Tracef(trace.Public, "Entering WatchHosts.")
+	ch, err := c.Store.ReconnectingWatch(ipamDataKey, stopCh)
 	if err != nil {
 		return nil, err
 	}
+	outCh := make(chan api.HostList)
 	// Since for now everything is stored in a single blob, we are going to get
 	// notification on all changes. We can filter them out by checking for
 	// IPAM's TopologyRevision.
 	lastHostListRevision := -1
 
 	go func() {
-		log.Debugf("WatchHosts: Entering WatchHosts goroutine.")
+		log.Tracef(trace.Inside, "WatchHosts: Entering WatchHosts goroutine.")
 		for {
 			select {
 			case <-stopCh:
-				log.Tracef(trace.Inside, "Stop message received for WatchHosts")
+				log.Tracef(trace.Inside, "WatchHosts: Stop message received")
 				return
-			case kv, ok := <-ch:
-				if !ok {
-					retryDelay := 1 * time.Millisecond
-				RETRY_LOOP:
-					for {
-						log.Infof("WatchBlocks: Lost watch, trying to re-establish...")
-						ch, err = c.Store.Watch(c.Store.prefix+ipamDataKey, stopCh)
-						if err == nil {
-							select {
-							case kv, ok = <-ch:
-								if ok {
-									// We have re-established the watch...
-									// This check is needed because we could get no error
-									// but channel will be closed (can be the case if
-									// etcd went down and is not up).
-									log.Infof("WatchBlocks: Watch re-established")
-									break RETRY_LOOP
-								} else {
-									break
-								}
-							}
-						} else {
-							log.Errorf("WatchBlocks: Got error on re-establishing watch: %v %T", err, err)
-						}
-						time.Sleep(retryDelay)
-						retryDelay *= 2
-					}
-				}
-				ipamJson := string(kv.Value)
+			case val := <-ch:
+				ipamJson := string(val)
 				ipam, err := ParseIPAM(ipamJson, nil, nil)
 				log.Tracef(trace.Inside, "WatchHosts: got %s", ipamJson)
 				if err != nil {

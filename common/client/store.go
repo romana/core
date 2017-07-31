@@ -162,6 +162,58 @@ func (s *Store) Delete(key string) (bool, error) {
 
 // END WRAPPER METHODS
 
+// ReconnectingWatch wraps libkv Watch method, but attempts to re-establish
+// the watch if it drop.
+func (s *Store) ReconnectingWatch(key string, stopCh <-chan struct{}) (<-chan []byte, error) {
+	outCh := make(chan []byte)
+	inCh, err := s.Watch(s.prefix+key, stopCh)
+	if err != nil {
+		return nil, err
+	}
+	go s.reconnectingWatcher(key, stopCh, inCh, outCh)
+	return outCh, nil
+}
+
+func (s *Store) reconnectingWatcher(key string, stopCh <-chan struct{}, inCh <-chan *libkvStore.KVPair, outCh chan []byte) {
+	log.Trace(trace.Private, "Entering ReconnectingWatch goroutine.")
+	channelClosed := false
+	retryDelay := 1 * time.Millisecond
+	for {
+		select {
+		case <-stopCh:
+			log.Tracef(trace.Inside, "Stop message received for WatchHosts")
+			return
+		case kv, ok := <-inCh:
+			if ok {
+				channelClosed = false
+				outCh <- kv.Value
+				break
+			}
+			// Not ok - channel continues to be closed
+
+			if channelClosed {
+				// We got here because we attempted to re-create
+				// a watch but it came back with a closed channel again.
+				// So we should increase the retry
+				retryDelay *= 2
+			} else {
+				channelClosed = true
+				retryDelay = 1 * time.Millisecond
+			}
+			log.Infof("ReconnectingWatch: Lost watch on %s, trying to re-establish...", key)
+			for {
+				inCh, err = s.Watch(s.prefix+key, stopCh)
+				if err == nil {
+					break
+				} else {
+					log.Errorf("ReconnectingWatch: Error reconnecting: %v (%T)", err, err)
+					retryDelay *= 2
+				}
+			}
+		}
+	}
+}
+
 // StoreLocker implements sync.Locker interface using the
 // lock form the backend store.
 type storeLocker struct {
