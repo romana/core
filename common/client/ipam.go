@@ -750,7 +750,6 @@ func ParseIPAM(j string, saver Saver, locker sync.Locker) (*IPAM, error) {
 	} else {
 		ipam.locker = locker
 	}
-	log.Tracef(trace.Inside, "ParseIPAM(): Set locker to %v", ipam.locker)
 	ipam.injectParents()
 	return ipam, nil
 }
@@ -778,7 +777,9 @@ type IPAM struct {
 // after parsing the IPAM object from JSON.
 func (ipam *IPAM) injectParents() {
 	for _, network := range ipam.Networks {
-		network.Group.injectParents(network)
+		if network.Group != nil {
+			network.Group.injectParents(network)
+		}
 		network.ipam = ipam
 	}
 }
