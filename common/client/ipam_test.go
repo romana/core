@@ -661,18 +661,67 @@ func TestHostAllocation(t *testing.T) {
 	if ip.String() != "10.0.0.4" {
 		t.Fatalf("Expected 10.0.0.4, got %s", ip.String())
 	}
+	t.Logf("Saved state: %s", testSaver.lastJson)
+}
+
+func TestTmp(t *testing.T) {
+	var conf string
+	// Slide 15: Example 2: Prefix per host
+	t.Logf("Example 2: Prefix per host (a)")
+	conf = `{
+  "networks":[
+    {
+      "name":"vlanA",
+      "cidr":"10.1.0.0/16",
+      "block_mask": 30
+    }
+  ],
+  "topologies":[
+    {
+      "networks":[
+        "vlanA"
+      ],
+      "map":[
+        {
+          "routing":"prefix-on-host",
+          "groups":[
+            { "name" : "h1", "ip" : "1.1.1.1" }
+          ]
+        },
+        {
+          "routing":"prefix-on-host",
+          "groups":[
+            { "name" : "h1", "ip" : "1.1.1.1" }
+          ]
+        },
+        {
+          "routing":"prefix-on-host",
+          "groups":[ { "name" : "h1", "ip" : "1.1.1.1" } ]
+        },
+        {
+          "routing":"prefix-on-host",
+          "groups":[ { "name" : "h1", "ip" : "1.1.1.1" } ]
+        }
+      ]
+    }
+  ]
+}`
+	initIpam(t, conf)
+	t.Logf("Slide 15: Example 2: Prefix per host JSON:\n%s\n", testSaver.lastJson)
+
 }
 
 func TestJsonParsing(t *testing.T) {
 	var conf string
 
 	// Slide 12: Example 1: Simple, flat network
-	t.Logf("Example 1: Simple, flat network, (a)")
+	t.Log("Example 1: Simple, flat network, (a)")
 	conf = `{
   "networks":[
     {
       "name":"vlanA",
-      "cidr":"10.1.0.0/16"
+      "cidr":"10.1.0.0/16",
+      "block_mask": 28
     }
   ],
   "topologies":[
@@ -695,6 +744,7 @@ func TestJsonParsing(t *testing.T) {
   ]
 }`
 	initIpam(t, conf)
+	t.Logf("Slide 12: Example 1: Simple, flat network JSON:\n%s\n", testSaver.lastJson)
 
 	// Slide 13: Example 1: Simple, flat network
 	t.Logf("Example 1: Simple, flat network, (b)")
@@ -702,7 +752,9 @@ func TestJsonParsing(t *testing.T) {
   "networks":[
     {
       "name":"vlanA",
-      "cidr":"10.1.0.0/16"
+      "cidr":"10.1.0.0/16",
+      "block_mask": 28
+   
     }
   ],
   "topologies":[
@@ -725,6 +777,7 @@ func TestJsonParsing(t *testing.T) {
   ]
 }`
 	initIpam(t, conf)
+	t.Logf("Slide 13: Example 1: Simple, flat network:\n%s\n", testSaver.lastJson)
 
 	// Slide 14: Example 1: Simple, flat network
 	t.Logf("Example 1: Simple, flat network, (c)")
@@ -732,7 +785,8 @@ func TestJsonParsing(t *testing.T) {
   "networks":[
     {
       "name":"vlanA",
-      "cidr":"10.1.0.0/16"
+      "cidr":"10.1.0.0/16",
+      "block_mask" : 28
     }
   ],
   "topologies":[
@@ -755,6 +809,7 @@ func TestJsonParsing(t *testing.T) {
   ]
 }`
 	initIpam(t, conf)
+	t.Logf("Slide 14: Example 1: Simple, flat network JSON:\n%s\n", testSaver.lastJson)
 
 	// Slide 15: Example 2: Prefix per host
 	t.Logf("Example 2: Prefix per host (a)")
@@ -762,7 +817,8 @@ func TestJsonParsing(t *testing.T) {
   "networks":[
     {
       "name":"vlanA",
-      "cidr":"10.1.0.0/16"
+      "cidr":"10.1.0.0/16",
+      "block_mask" : 28
     }
   ],
   "topologies":[
@@ -796,6 +852,7 @@ func TestJsonParsing(t *testing.T) {
   ]
 }`
 	initIpam(t, conf)
+	t.Logf("Slide 15: Example 2: Prefix per host JSON:\n%s\n", testSaver.lastJson)
 
 	// Slide 16: Example 2: Prefix per host
 	t.Logf("Example 2: Prefix per host (b)")
@@ -803,7 +860,8 @@ func TestJsonParsing(t *testing.T) {
   "networks":[
     {
       "name":"vlanA",
-      "cidr":"10.1.0.0/16"
+      "cidr":"10.1.0.0/16",
+      "block_mask" : 28
     }
   ],
   "topologies":[
@@ -833,6 +891,7 @@ func TestJsonParsing(t *testing.T) {
   ]
 }`
 	initIpam(t, conf)
+	t.Logf("Slide 16: Example 2: Prefix per host JSON:\n%s\n", testSaver.lastJson)
 
 	// Slide 17: Example 3: Multi-host groups + prefix
 	t.Logf("Example 3: Multi-host groups + prefix")
@@ -840,7 +899,8 @@ func TestJsonParsing(t *testing.T) {
   "networks":[
     {
       "name":"vlanA",
-      "cidr":"10.1.0.0/16"
+      "cidr":"10.1.0.0/16",
+      "block_mask" : 28
     }
   ],
   "topologies":[
@@ -870,6 +930,7 @@ func TestJsonParsing(t *testing.T) {
   ]
 }`
 	initIpam(t, conf)
+	t.Logf("Slide 17: Example 3: Multi-host groups + prefix JSON:\n%s\n", testSaver.lastJson)
 
 	// Slide 18: Example 4: VPC routing for two AZs
 	t.Logf("Example 4: VPC routing for two AZs")
@@ -877,11 +938,13 @@ func TestJsonParsing(t *testing.T) {
   "networks":[
     {
       "name":"subnetA",
-      "cidr":"10.1.0.0/16"
+      "cidr":"10.1.0.0/16",
+      "block_mask" : 28
     },
     {
       "name":"subnetB",
-      "cidr":"10.2.0.0/16"
+      "cidr":"10.2.0.0/16",
+      "block_mask" : 28
     }
   ],
   "topologies":[
@@ -918,5 +981,6 @@ func TestJsonParsing(t *testing.T) {
   ]
 }`
 	initIpam(t, conf)
+	t.Logf("Slide 18: Example 4: VPC routing for two AZs JSON:\n%s\n", testSaver.lastJson)
 
 }

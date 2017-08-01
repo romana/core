@@ -36,7 +36,7 @@ import (
 // This provides an implementation of an IPAM that can allocate
 // blocks of IPs for tenant/segment pair. It assumes IPv4.
 //
-// Address blocks may be taken out of more than one pre-configured
+// Address blocks may be taken outÂ of more than one pre-configured
 // address range (Networks).
 
 const (
@@ -141,8 +141,8 @@ func (cidr *CIDR) UnmarshalText(data []byte) error {
 
 // Host represents a host in Romana topology.
 type Host struct {
-	Name      string `json:"name"`
 	IP        net.IP `json:"ip"`
+	Name      string `json:"name"`
 	AgentPort int    `json:"agent_port"`
 	group     *HostsGroups
 }
@@ -155,8 +155,9 @@ func (h Host) String() string {
 // be a mix. In other words, the invariant is:
 //   - Either Hosts or Groups field is nil
 type HostsGroups struct {
-	Hosts  []*Host        `json:"hosts"`
-	Groups []*HostsGroups `json:"groups"`
+	Routing string         `json:"routing"`
+	Hosts   []*Host        `json:"hosts"`
+	Groups  []*HostsGroups `json:"groups"`
 	// CIDR which is to be subdivided among hosts or sub-groups of this group.
 	CIDR CIDR `json:"cidr"`
 
@@ -191,6 +192,11 @@ func (hg *HostsGroups) String() string {
 // AddHost adds hosts to this group. If the group contains
 // other groups, it is an error.
 func (hg *HostsGroups) AddHost(host api.Host) error {
+	// TODO this should be happening in IPAM, not here (locking and saving, below)
+	// but we only expose this method for now
+	hg.network.ipam.locker.Lock()
+	defer hg.network.ipam.locker.Unlock()
+
 	if hg.Hosts == nil {
 		return errors.New("Cannot add host to this group, group contains only other groups.")
 	}
@@ -205,13 +211,14 @@ func (hg *HostsGroups) AddHost(host api.Host) error {
 		return common.NewError("Host with name %s already exists.", host.Name)
 	}
 	if host.IP != nil && hg.findHostByIP(host.IP.String()) != nil {
-		return common.NewError("Host with IP %s already exists.", host.IP)
+		return common.NewError("Host with IP %s already exists in this host group", host.IP)
 	}
 
 	newHost := &Host{IP: host.IP, Name: host.Name, AgentPort: host.AgentPort, group: hg}
 	hg.Hosts = append(hg.Hosts, newHost)
 	hg.network.ipam.TopologyRevision++
-	return nil
+	//TODO move this to IPAM
+	return hg.network.ipam.save(hg.network.ipam)
 }
 
 func (hg *HostsGroups) allocateIP(network *Network, hostName string, owner string) net.IP {
@@ -415,7 +422,10 @@ func (hg *HostsGroups) findHostByName(name string) *Host {
 	return nil
 }
 
+// parseMap parses the Map part of the GroupSpec, that may contain
+// groups or hosts.
 func (hg *HostsGroups) parseMap(groupSpecs []api.GroupSpec, cidr CIDR, network *Network) error {
+
 	// Figure out  what would be the size per
 	// element.
 	ones, bits := cidr.Mask.Size()
@@ -423,6 +433,12 @@ func (hg *HostsGroups) parseMap(groupSpecs []api.GroupSpec, cidr CIDR, network *
 	if len(groupSpecs) == 0 {
 		// Just do nothing for now...
 		return nil
+	}
+
+	if len(groupSpecs) == 1 {
+		hg.Routing = groupSpecs[0].Routing
+		return hg.parse(groupSpecs[0].Groups, cidr, network)
+
 	}
 	hg.Groups = make([]*HostsGroups, len(groupSpecs))
 
@@ -439,14 +455,14 @@ func (hg *HostsGroups) parseMap(groupSpecs []api.GroupSpec, cidr CIDR, network *
 		// Calculate CIDR for the current group
 		incr := uint64(i << uint(bitsPerElement))
 		elementCIDRIP := common.IntToIPv4(cidr.StartIPInt + incr)
-		elementCIDRString := fmt.Sprintf("%s/%d", elementCIDRIP, 32-bitsPerElement)
+		elementCIDRString := fmt.Sprintf("%s/%d", elementCIDRIP, (32 - bitsPerElement))
 		log.Tracef(trace.Inside, "CIDR String for %s %d: %s", elementCIDRIP, bitsPerElement, elementCIDRString)
 		elementCIDR, err := NewCIDR(elementCIDRString)
 		if err != nil {
 			return err
 		}
 
-		hg.Groups[i] = &HostsGroups{}
+		hg.Groups[i] = &HostsGroups{network: network, Routing: elt.Routing}
 		err = hg.Groups[i].parse(elt.Groups, elementCIDR, network)
 		if err != nil {
 			return err
@@ -455,25 +471,7 @@ func (hg *HostsGroups) parseMap(groupSpecs []api.GroupSpec, cidr CIDR, network *
 	return nil
 }
 
-// parse parses simple JSON representing host groups, such as
-// this one:
-//                     [
-//                        [ "A", "B", "C" ],
-//                        [ "D" ],
-//                        [
-//                          [ "E", "F" ],
-//                          [ "G", "H" ]
-//                        ],
-//                        [
-//                          [ "I", "J", "K" ],
-//                          [
-//                            [ "N", "O", "P", "Q" ],
-//                            [ "R", "S" ]
-//                          ],
-//                          [ "T" ]
-//                        ]
-//                    ]
-// into the HostsOrHostGroups structure.
+// parse parses
 func (hg *HostsGroups) parse(arr []interface{}, cidr CIDR, network *Network) error {
 
 	if hg.BlockToOwner == nil {
@@ -559,13 +557,13 @@ func (hg *HostsGroups) parse(arr []interface{}, cidr CIDR, network *Network) err
 			// Calculate CIDR for the current group
 			incr := uint64(i << uint(bitsPerElement))
 			elementCIDRIP := common.IntToIPv4(cidr.StartIPInt + incr)
-			elementCIDRString := fmt.Sprintf("%s/%d", elementCIDRIP, 32-bitsPerElement)
+			elementCIDRString := fmt.Sprintf("%s/%d", elementCIDRIP, (32 - bitsPerElement))
 			elementCIDR, err := NewCIDR(elementCIDRString)
 			if err != nil {
 				return err
 			}
 
-			hg.Groups[i] = &HostsGroups{}
+			hg.Groups[i] = &HostsGroups{network: network}
 			newArr := elt.([]interface{})
 			err = hg.Groups[i].parse(newArr, elementCIDR, network)
 			if err != nil {
@@ -690,7 +688,7 @@ type Network struct {
 
 	BlackedOut []CIDR `json:"blacked_out"`
 
-	HostsGroups *HostsGroups `json:"host_groups"`
+	HostsGroups *HostsGroups `json:"groups"`
 
 	Revison int `json:"revision"`
 
@@ -762,6 +760,7 @@ func ParseIPAM(j string, saver Saver, locker sync.Locker) (*IPAM, error) {
 	} else {
 		ipam.locker = locker
 	}
+	log.Tracef(trace.Inside, "ParseIPAM(): Set locker to %v", ipam.locker)
 	ipam.injectParents()
 	return ipam, nil
 }
@@ -812,6 +811,7 @@ func NewIPAM(saver Saver, locker sync.Locker) (*IPAM, error) {
 	} else {
 		ipam.locker = locker
 	}
+	log.Tracef(trace.Inside, "NewIPAM(): Set locker to %v", ipam.locker)
 
 	ipam.save = saver
 	err := ipam.save(ipam)
@@ -955,6 +955,12 @@ func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest) error {
 		if _, ok := ipam.Networks[netDef.Name]; ok {
 			return common.NewError("Network with name %s already defined", netDef.Name)
 		}
+		if netDef.BlockMask == 0 {
+			return common.NewError("Block mask %d (or unspecified) for %s is invalid, must be > 8", netDef.BlockMask, netDef.Name)
+		}
+		if netDef.BlockMask <= 8 {
+			return common.NewError("Block mask %d for %s is invalid, must be > 8", netDef.BlockMask, netDef.Name)
+		}
 		netDefCIDR, err := NewCIDR(netDef.CIDR)
 		if err != nil {
 			return err
@@ -987,7 +993,7 @@ func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest) error {
 			}
 		}
 		network := newNetwork(netDef.Name, netDefCIDR, netDef.BlockMask)
-
+		network.ipam = ipam
 		ipam.Networks[netDef.Name] = network
 	}
 	log.Tracef(trace.Inside, "Tenants to network mapping: %v", ipam.TenantToNetwork)
@@ -1000,8 +1006,8 @@ func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest) error {
 					return err
 				}
 				network.HostsGroups = hg
+				hg.network = network
 				log.Tracef(trace.Inside, "Parsed topology for network %s: %s", netName, network.HostsGroups)
-
 			} else {
 				return common.NewError("Network with name %s not defined", netName)
 			}
