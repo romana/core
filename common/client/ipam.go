@@ -777,8 +777,8 @@ type IPAM struct {
 // after parsing the IPAM object from JSON.
 func (ipam *IPAM) injectParents() {
 	for _, network := range ipam.Networks {
-		if network.HostsGroups != nil {
-			network.HostsGroups.injectParents(network)
+		if network.Group != nil {
+			network.Group.injectParents(network)
 		}
 		network.ipam = ipam
 	}
