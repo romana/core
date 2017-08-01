@@ -61,7 +61,7 @@ func (r *Romanad) listAddresses(input interface{}, ctx common.RestContext) (inte
 		return nil, err
 	}
 	if network, ok := r.client.IPAM.Networks[netName]; ok {
-		blocks := network.HostsGroups.ListBlocks()
+		blocks := network.Group.ListBlocks()
 
 		for i, block := range blocks {
 			if i == blockID {
@@ -174,4 +174,10 @@ func (r *Romanad) listPolicies(input interface{}, ctx common.RestContext) (inter
 func (r *Romanad) addPolicy(input interface{}, ctx common.RestContext) (interface{}, error) {
 	policy := input.(*api.Policy)
 	return nil, r.client.AddPolicy(*policy)
+}
+
+// addPolicy stores the new policy and sends it to all agents.
+func (r *Romanad) addHost(input interface{}, ctx common.RestContext) (interface{}, error) {
+	host := input.(*api.Host)
+	return nil, r.client.IPAM.AddHost(*host)
 }
