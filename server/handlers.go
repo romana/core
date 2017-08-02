@@ -35,7 +35,7 @@ func (r *Romanad) deallocateIP(input interface{}, ctx common.RestContext) (inter
 }
 
 func (r *Romanad) allocateIP(input interface{}, ctx common.RestContext) (interface{}, error) {
-	req := input.(api.IPAMAddressRequest)
+	req := input.(*api.IPAMAddressRequest)
 	return r.client.IPAM.AllocateIP(req.Name, req.Host, req.Tenant, req.Segment)
 }
 

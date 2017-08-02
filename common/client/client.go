@@ -12,8 +12,10 @@ import (
 const (
 	DefaultEtcdPrefix    = "/romana"
 	DefaultEtcdEndpoints = "localhost:2379"
-	ipamDataKey          = "/ipam/data"
-	PoliciesPrefix       = "/policies"
+
+	ipamKey        = "/ipam"
+	ipamDataKey    = ipamKey + "/data"
+	PoliciesPrefix = "/policies"
 )
 
 type Client struct {
@@ -53,6 +55,8 @@ func (c *Client) ListHosts() api.HostList {
 type HostListCallback func(api.HostList)
 
 func (c *Client) WatchHostsWithCallback(cb HostListCallback) error {
+	// TODO this needs a way to remove the callback function
+	// (to stop listening)
 	log.Tracef(trace.Public, "Entering WatchHostsWithCallback.")
 	stopCh := make(chan struct{})
 	ch, err := c.WatchHosts(stopCh)
@@ -73,6 +77,8 @@ func (c *Client) WatchHostsWithCallback(cb HostListCallback) error {
 type BlocksCallback func(api.IPAMBlocksResponse)
 
 func (c *Client) WatchBlocksWithCallback(cb BlocksCallback) error {
+	// TODO this needs a way to remove the callback function
+	// (to stop listening)
 	log.Tracef(trace.Public, "Entering WatchBlocksWithCallback.")
 	stopCh := make(chan struct{})
 	ch, err := c.WatchBlocks(stopCh)
@@ -113,11 +119,15 @@ func (c *Client) WatchBlocks(stopCh <-chan struct{}) (<-chan api.IPAMBlocksRespo
 				return
 			case val := <-ch:
 				ipamJson := string(val)
+				log.Tracef(trace.Inside, "WatchBlocks: got JSON [%s]", ipamJson)
 				ipam, err := ParseIPAM(ipamJson, nil, nil)
-				log.Tracef(trace.Inside, "WatchBlocks: got %s", ipamJson)
 				if err != nil {
-					log.Errorf("WatchBlocks: Error parsing IPAM: %s", err)
-					continue
+					if ipamJson == "" {
+						log.Warnf("WatchBlocks: Received empty IPAM JSON from KV store")
+					} else {
+						log.Errorf("WatchBlocks: Error parsing IPAM JSON ```%s ```: %s", ipamJson, err)
+					}
+					break
 				}
 				blocks := ipam.ListAllBlocks()
 				if blocks.Revision <= lastBlockListRevision {
@@ -248,7 +258,7 @@ func (c *Client) DeletePolicy(id string) (bool, error) {
 }
 
 func (c *Client) initIPAM() error {
-	c.ipamLocker, err = c.Store.NewLocker("ipam")
+	c.ipamLocker, err = c.Store.NewLocker(ipamKey)
 	if err != nil {
 		return err
 	}
