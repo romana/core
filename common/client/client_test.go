@@ -19,7 +19,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"math/rand"
-	"net"
 	"testing"
 	"time"
 
@@ -29,6 +28,8 @@ import (
 
 var (
 	client *Client
+	// Keep track of state of some tests
+	state int
 )
 
 type testLocker struct {
@@ -44,6 +45,16 @@ func (tl testLocker) Unlock() {
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
+	testSaver = &TestSaver{}
+}
+
+func tearDown(t *testing.T) {
+	var err error
+	err = client.Store.DeleteTree(client.config.EtcdPrefix)
+	if err != nil {
+		t.Errorf("Error tearing down: %s", err)
+	}
+	t.Logf("Tore down %s", client.config.EtcdPrefix)
 }
 
 func initClient(t *testing.T, topoConf string) *Client {
@@ -54,7 +65,95 @@ func initClient(t *testing.T, topoConf string) *Client {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if topoConf != "" {
+		topoReq := api.TopologyUpdateRequest{}
+		err = json.Unmarshal([]byte(topoConf), &topoReq)
+		if err != nil {
+			t.Fatalf("Cannot parse %s: %v", topoConf, err)
+		}
+		err = client.IPAM.UpdateTopology(topoReq)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	return client
+}
 
+// TestWatchHostsWithCallback tests WatchHostsWithCallback -- and since it
+// uses WatchHosts internally, implicitly also WatchHosts
+func TestWatchHostsWithCallback(t *testing.T) {
+	client := initClient(t, "")
+	defer tearDown(t)
+	errCh := make(chan string)
+	okCh := make(chan string)
+	err := client.WatchHostsWithCallback(func(hl api.HostList) {
+		state++
+
+		var msg string
+		fmt.Printf("HostListCallback: Got host list of length %d and revision %d in state %d\n", len(hl.Hosts), hl.Revision, state)
+		if state == 1 {
+			if len(hl.Hosts) != 0 {
+				msg = fmt.Sprintf("HostListCallback: Expected host length at this point to be 0, got %d", len(hl.Hosts))
+				fmt.Println(msg)
+				errCh <- msg
+				return
+			}
+			if hl.Revision != 0 {
+				msg = fmt.Sprintf("HostListCallback: Expected host list revision at this point to be 0, got %d", hl.Revision)
+				fmt.Println(msg)
+				errCh <- msg
+				return
+			}
+		} else if state == 2 {
+			if len(hl.Hosts) != 2 {
+				msg = fmt.Sprintf("HostListCallback: Expected host length at this point to be 2, got %d", len(hl.Hosts))
+				fmt.Println(msg)
+				errCh <- msg
+				return
+			}
+			if hl.Revision != 1 {
+				msg = fmt.Sprintf("HostListCallback: Expected host list revision at this point to be 1, got %d", hl.Revision)
+				fmt.Println(msg)
+				errCh <- msg
+				return
+			}
+			// Here everything is ok!
+			okCh <- "OK"
+		} else {
+			msg = fmt.Sprintf("HostListCallback: Did not expect HostListCallback to be called in state %d", state)
+			fmt.Println(state)
+			errCh <- msg
+
+		}
+
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	topoConf := `{
+	"networks": [{
+		"name": "net1",
+		"cidr": "10.0.0.0/8",
+		"block_mask": 30
+	}],
+
+	"topologies": [{
+		"networks": ["net1"],
+		"map": [{
+			"routing": "bla",
+			"groups": [{
+					"name": "host1",
+					"ip": "192.168.99.10"
+				},
+				{
+					"name": "host2",
+					"ip": "192.168.99.11"
+				}
+			]
+		}]
+	}]
+}`
 	topoReq := api.TopologyUpdateRequest{}
 	err = json.Unmarshal([]byte(topoConf), &topoReq)
 	if err != nil {
@@ -64,129 +163,133 @@ func initClient(t *testing.T, topoConf string) *Client {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return client
+	for {
+		select {
+		case msg := <-errCh:
+			t.Fatal(msg)
+			break
+		case <-okCh:
+			return
+		}
+	}
+
 }
 
-func init() {
-	testSaver = &TestSaver{}
-}
-
-func TestWatchHosts(t *testing.T) {
+// TestWatchBlocksWithCallback tests WatchBlocksWithCallback -- and since it
+// uses WatchBlocks internally, implicitly also WatchBlocks
+func TestWatchBlocksWithCallback(t *testing.T) {
+	defer tearDown(t)
+	errCh := make(chan string)
+	okCh := make(chan string)
 	topoConf := `{
-  "networks":[
-    {
-      "name":"net1",
-      "cidr":"10.0.0.0/30",
-      "block_mask":30
-    }
-  ],
-  "topologies":[
-    {
-      "networks":[
-        "net1"
-      ],
-      "map":[
-        {
-          "routing":"foo",
-          "groups":[{
-            "name":"host1",
-            "ip":"10.0.0.1"
-          }]
-        }
-      ]
-    }
-  ]
+	"networks": [{
+		"name": "net1",
+		"cidr": "10.0.0.0/8",
+		"block_mask": 31
+	}],
+
+	"topologies": [{
+		"networks": ["net1"],
+		"map": [{
+			"routing": "bla",
+			"groups": [{
+					"name": "host1",
+					"ip": "192.168.99.10"
+				},
+				{
+					"name": "host2",
+					"ip": "192.168.99.11"
+				}
+			]
+		}]
+	}]
 }`
-	stopMsg := new(struct{})
 	client = initClient(t, topoConf)
-	stopCh := make(chan struct{})
-	ch, err := client.WatchHosts(stopCh)
+	err := client.WatchBlocksWithCallback(func(hl api.IPAMBlocksResponse) {
+		state++
+
+		var msg string
+		fmt.Printf("BlocksListCallback: Got block list of length %d and revision %d in state %d\n", len(hl.Blocks), hl.Revision, state)
+		switch state {
+		case 1:
+			if len(hl.Blocks) != 0 {
+				msg = fmt.Sprintf("BlocksListCallback: Expected block length at this point to be 0, got %d", len(hl.Blocks))
+				fmt.Println(msg)
+				errCh <- msg
+				return
+			}
+			if hl.Revision != 0 {
+				msg = fmt.Sprintf("BlocksListCallback: Expected block list revision at this point to be 0, got %d", hl.Revision)
+				fmt.Println(msg)
+				errCh <- msg
+				return
+			}
+		case 2, 3:
+			if len(hl.Blocks) != 1 {
+				msg = fmt.Sprintf("BlocksListCallback: Expected block length at this point to be 1, got %d", len(hl.Blocks))
+				fmt.Println(msg)
+				errCh <- msg
+				return
+			}
+			if hl.Revision != state-1 {
+				msg = fmt.Sprintf("HostListCallback: Expected block list revision at this point to be %d, got %d", state-1, hl.Revision)
+				fmt.Println(msg)
+				errCh <- msg
+				return
+			}
+
+		case 4, 5:
+			if len(hl.Blocks) != 2 {
+				msg = fmt.Sprintf("BlocksListCallback: Expected block length at this point to be 2, got %d", len(hl.Blocks))
+				fmt.Println(msg)
+				errCh <- msg
+				return
+			}
+			if hl.Revision != state-1 {
+				msg = fmt.Sprintf("HostListCallback: Expected block list revision at this point to be %d, got %d", state-1, hl.Revision)
+				fmt.Println(msg)
+				errCh <- msg
+				return
+			}
+			if state == 5 {
+				// Here everything is ok!
+				okCh <- "OK"
+			}
+		default:
+			msg = fmt.Sprintf("HostListCallback: Did not expect HostListCallback to be called in state %d", state)
+			errCh <- msg
+
+		}
+
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	tryCount := 1
-	maxTries := 5
-	for {
-		t.Logf("TestWatchHosts: Try %d\n", tryCount)
-		select {
-		case hosts := <-ch:
-			t.Logf("TestWatchHosts: On try %d received %d hosts (rev %d)", tryCount, len(hosts.Hosts), hosts.Revision)
-		default:
-			if tryCount < maxTries-1 {
-				hgs := client.IPAM.GetGroupsForNetwork("net1")
-				newHostIP := fmt.Sprintf("10.0.0.%d", tryCount+1)
-				newHostName := fmt.Sprintf("host%d", tryCount+1)
-				err := hgs.AddHost(api.Host{IP: net.ParseIP(newHostIP),
-					Name: newHostName,
-				})
-				if err != nil {
-					t.Fatalf("TestWatchHosts: Error adding host %s: %s", newHostIP, err)
-				}
-				tryCount++
-			} else {
-				t.Logf("TestWatchHosts: Stopping the watcher after %d tries", maxTries)
-				stopCh <- *stopMsg
-				return
-			}
-		}
-		time.Sleep(1 * time.Millisecond)
-	}
-}
 
-func TestWatchBlocks(t *testing.T) {
-	topoConf := `{
-  "networks":[
-    {
-      "name":"net1",
-      "cidr":"10.0.0.0/30",
-      "block_mask":31
-    }
-  ],
-  "topologies":[
-    {
-      "networks":[
-        "net1"
-      ],
-      "map":[
-        {
-          "routing":"foo",
-          "groups":[{
-            "name":"host1",
-            "ip":"10.0.0.1"
-          }]
-        }
-      ]
-    }
-  ]
-}`
-	stopMsg := new(struct{})
-	client = initClient(t, topoConf)
-	stopCh := make(chan struct{})
-	ch, err := client.WatchBlocks(stopCh)
+	_, err = client.IPAM.AllocateIP("addr1", "host1", "t1", "s1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	tryCount := 1
-	maxTries := 5
-	for {
-		t.Logf("TestWatchBlocks: Try %d\n", tryCount)
-		select {
-		case blocks := <-ch:
-			t.Logf("TestWatchBlocks: On try %d received %d blocks (rev %d)", tryCount, len(blocks.Blocks), blocks.Revision)
-		default:
-			if tryCount < maxTries-1 {
-				ip, err := client.IPAM.AllocateIP(fmt.Sprintf("Address%d", tryCount), "host1", "ten1", "seg1")
-				if err != nil {
-					t.Fatalf("TestWatchBlocks: Error allocating IP: %s", err)
-				}
-				t.Logf("TestWatchBlocks: Allocated IP %s, allocation revision is %d", ip, client.IPAM.AllocationRevision)
-				tryCount++
-			} else {
-				t.Logf("TestWatchBlocks: Stopping the watcher after %d tries", maxTries)
-				stopCh <- *stopMsg
-				return
-			}
-		}
-		time.Sleep(1 * time.Millisecond)
+	_, err = client.IPAM.AllocateIP("addr2", "host1", "t1", "s1")
+	if err != nil {
+		t.Fatal(err)
 	}
+	_, err = client.IPAM.AllocateIP("addr3", "host1", "t1", "s1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = client.IPAM.AllocateIP("addr4", "host1", "t1", "s1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for {
+		select {
+		case msg := <-errCh:
+			t.Fatal(msg)
+			break
+		case <-okCh:
+			return
+		}
+	}
+
 }
