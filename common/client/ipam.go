@@ -869,11 +869,11 @@ func (ipam *IPAM) AllocateIP(addressName string, host string, tenant string, seg
 			//			ipam.OwnerToIP[owner] = append(ipam.OwnerToIP[owner], ip)
 			//			ipam.IPToOwner[ip] = owner
 
+			ipam.AllocationRevision++
 			err = ipam.save(ipam)
 			if err != nil {
 				return nil, err
 			}
-			ipam.AllocationRevision++
 			return ip, nil
 		}
 	}
