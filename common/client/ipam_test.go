@@ -1099,3 +1099,64 @@ func TestJsonParsing(t *testing.T) {
 	t.Logf("Slide 18: Example 4: VPC routing for two AZs JSON:\n%s\n", testSaver.lastJson)
 
 }
+
+// TestOutOfBoundsError tests an error happening in tests for romana 2.0
+func TestOutOfBoundsError(t *testing.T) {
+	conf := `{
+  "networks":[
+    {
+      "name":"net1",
+      "cidr":"10.0.0.0/8",
+      "block_mask":30
+    }
+  ],
+  "topologies":[
+    {
+      "networks":[
+        "net1"
+      ],
+      "map":[
+        {
+          "routing":"foo",
+          "groups":[{
+            "name":"host1",
+            "ip":"192.168.0.1"
+          }]
+        }
+      ]
+    }
+  ]
+}`
+	ipam = initIpam(t, conf)
+	maxAddrCnt := 6
+	for i := 0; i < maxAddrCnt; i++ {
+		addr := fmt.Sprintf("addr%d", i)
+		ip, err := ipam.AllocateIP(addr, "host1", "ten1", "seg1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("TestBlockReuse: Allocated %s for ten1:seg1", ip)
+		expectIP := fmt.Sprintf("10.0.0.%d", i)
+		if ip.String() != expectIP {
+			t.Fatalf("Expected %s, got %s", expectIP, ip)
+		}
+
+	}
+	t.Logf("Allocated %d addresses", maxAddrCnt)
+	for i, block := range ipam.ListAllBlocks().Blocks {
+		t.Logf("Block %d has %d allocated addresses", i, block.AllocatedIPCount)
+	}
+
+	for i := 0; i < maxAddrCnt; i++ {
+		addr := fmt.Sprintf("addr%d", i)
+		err := ipam.DeallocateIP(addr)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	t.Logf("Dellocated %d addresses", maxAddrCnt)
+	for i, block := range ipam.ListAllBlocks().Blocks {
+		t.Logf("Block %d has %d allocated addresses", i, block.AllocatedIPCount)
+	}
+
+}

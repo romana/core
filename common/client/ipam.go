@@ -341,7 +341,18 @@ func (hg *Group) deallocateIP(ip net.IP) error {
 			hg.ReusableBlocks = append(hg.ReusableBlocks, blockID)
 			ownerBlocks := hg.OwnerToBlocks[owner]
 			delete(hg.BlockToOwner, blockID)
-			hg.OwnerToBlocks[owner] = append(ownerBlocks[:blockID], ownerBlocks[blockID+1:]...)
+
+			ownerBlockToDelete := -1
+			for i, _ := range hg.OwnerToBlocks[owner] {
+				if blockID == hg.OwnerToBlocks[owner][i] {
+					ownerBlockToDelete = i
+					break
+				}
+			}
+			if ownerBlockToDelete == -1 {
+				return common.NewError("Could not find block to reclaim (%d) in blocks owned by %s: %v", blockID, owner, hg.OwnerToBlocks[owner])
+			}
+			hg.OwnerToBlocks[owner] = append(ownerBlocks[:ownerBlockToDelete], ownerBlocks[ownerBlockToDelete+1:]...)
 			delete(hg.BlockToHost, blockID)
 		}
 		return nil
