@@ -18,6 +18,7 @@ package client
 import (
 	"encoding/json"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -59,11 +60,28 @@ func NewStore(etcdEndpoints []string, prefix string) (*Store, error) {
 	return myStore, nil
 }
 
+func normalize(key string) string {
+	key2 := strings.TrimSpace(key)
+	elts := strings.Split(key2, "/")
+	normalizedElts := make([]string, 0)
+	for _, elt := range elts {
+		elt = strings.TrimSpace(elt)
+		if elt == "" {
+			continue
+		}
+		normalizedElts = append(normalizedElts, elt)
+	}
+	normalizedKey := strings.Join(normalizedElts, "/")
+	normalizedKey = "/" + normalizedKey
+	log.Tracef(trace.Inside, "Normalized key %s to %s", key, normalizedKey)
+	return normalizedKey
+}
+
 // s.getKey normalizes key and prepends prefix to it
 func (s *Store) getKey(key string) string {
 	// See https://github.com/docker/libkv/blob/master/store/helpers.go#L15
-	normalizedKey := libkvStore.Normalize(key)
-	return s.prefix + normalizedKey
+	normalizedKey := normalize(s.prefix + "/" + key)
+	return normalizedKey
 }
 
 // BEGIN WRAPPER METHODS
@@ -229,7 +247,7 @@ type storeLocker struct {
 }
 
 func (store *Store) NewLocker(name string) (sync.Locker, error) {
-	key := store.getKey("lock/" + name)
+	key := store.getKey("/lock/" + name)
 	l, err := store.Store.NewLock(key, nil)
 	if err != nil {
 		return nil, err
