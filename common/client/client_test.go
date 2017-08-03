@@ -16,9 +16,12 @@
 package client
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"math/rand"
+	"runtime"
+	"strconv"
 	"testing"
 	"time"
 
@@ -291,5 +294,57 @@ func TestWatchBlocksWithCallback(t *testing.T) {
 			return
 		}
 	}
+}
 
+func getGID() uint64 {
+	b := make([]byte, 64)
+	b = b[:runtime.Stack(b, false)]
+	b = bytes.TrimPrefix(b, []byte("goroutine "))
+	b = b[:bytes.IndexByte(b, ' ')]
+	n, _ := strconv.ParseUint(string(b), 10, 64)
+	return n
+}
+
+func TestConcurrency(t *testing.T) {
+	//	defer tearDown(t)
+	client = initClient(t, "")
+
+	barrier := make(chan int)
+	cnt := 32
+	locker, err := client.Store.NewLocker("/lock")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < cnt; i++ {
+		go func(i int) {
+			fmt.Printf("%d %d Entered\n", i, getGID())
+			defer func(i int) {
+				fmt.Printf("%d %d Unlocking\n", i, getGID())
+				locker.Unlock()
+				fmt.Printf("%d %d Unlocked\n", i, getGID())
+			}(i)
+			fmt.Printf("%d %d Waiting for lock\n", i, getGID())
+			locker.Lock()
+			fmt.Printf("%d %d Got lock\n", i, getGID())
+			val := fmt.Sprintf("Hello from %d %d", i, getGID())
+			err := client.Store.Put(fmt.Sprintf("/test%d", i), []byte(val), nil)
+			if err != nil {
+				fmt.Println(err)
+			}
+			barrier <- 1
+		}(i)
+	}
+	finishedCnt := 0
+
+WAIT_FOR_FINISH:
+	for {
+		select {
+		case <-barrier:
+			finishedCnt++
+			fmt.Printf("%d routines finished\n", finishedCnt)
+			if finishedCnt == cnt {
+				break WAIT_FOR_FINISH
+			}
+		}
+	}
 }

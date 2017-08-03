@@ -106,7 +106,7 @@
 	url = https://go.googlesource.com/text/
 [submodule "vendor/github.com/docker/libkv"]
 	path = vendor/github.com/docker/libkv
-	url = https://github.com/docker/libkv
+	url = https://github.com/debedb/libkv
 [submodule "vendor/github.com/coreos/etcd"]
 	path = vendor/github.com/coreos/etcd
 	url = https://github.com/coreos/etcd.git
