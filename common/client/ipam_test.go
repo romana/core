@@ -17,6 +17,7 @@ package client
 
 import (
 	"encoding/json"
+	"fmt"
 	"net"
 	"testing"
 
@@ -287,8 +288,7 @@ func TestIPReuse(t *testing.T) {
 	}
 }
 
-// TestBlockReuse tests that a block can be reused.
-func TestBlockReuse(t *testing.T) {
+func TestBlockReuseMask32(t *testing.T) {
 	conf := `{
   "networks":[
     {
@@ -360,6 +360,134 @@ func TestBlockReuse(t *testing.T) {
 	if ip.String() != "10.0.0.0" {
 		t.Fatalf("Expected 10.0.0.0, got %s", ip)
 	}
+}
+
+func TestBlockReuseMask30(t *testing.T) {
+	conf := `{
+  "networks":[
+    {
+      "name":"net1",
+      "cidr":"10.0.0.0/8",
+      "block_mask":30
+    }
+  ],
+  "topologies":[
+    {
+      "networks":[
+        "net1"
+      ],
+      "map":[
+        {
+          "routing":"foo",
+          "groups":[{
+            "name":"host1",
+            "ip":"192.168.0.1"
+          }]
+        }
+      ]
+    }
+  ]
+}`
+	ipam = initIpam(t, conf)
+
+	// 1. Allocate first 4 (/30) addresses
+	for i := 0; i < 4; i++ {
+		addr := fmt.Sprintf("addr%d", i)
+		ip, err := ipam.AllocateIP(addr, "host1", "ten1", "seg1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("TestBlockReuse: Allocated %s for ten1:seg1", ip)
+		expectIP := fmt.Sprintf("10.0.0.%d", i)
+		if ip.String() != expectIP {
+			t.Fatalf("Expected %s, got %s", expectIP, ip)
+		}
+		blockCount := len(ipam.ListAllBlocks().Blocks)
+		if blockCount != 1 {
+			t.Fatalf("Expected block count to be 1, have %d", blockCount)
+		}
+	}
+
+	// 2. Deallocate one of the addresses
+	err := ipam.DeallocateIP("addr2")
+	if err != nil {
+		t.Log(testSaver.lastJson)
+		t.Fatal(err)
+	}
+
+	// 3. Allocate an address again. We should get the one within first block.
+	ip, err := ipam.AllocateIP("addr2.1", "host1", "ten1", "seg1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectIP := "10.0.0.2"
+	if ip.String() != expectIP {
+		t.Fatalf("Expected %s, got %s", expectIP, ip)
+	}
+	t.Logf("TestBlockReuse: Allocated %s for ten1:seg1", ip)
+	blockCount := len(ipam.ListAllBlocks().Blocks)
+	if blockCount != 1 {
+		t.Fatalf("Expected block count to be 1, have %d", blockCount)
+	}
+
+	// 4. Allocate another 4 addresses. We should now have 2 blocks.
+	for i := 4; i < 8; i++ {
+		addr := fmt.Sprintf("addr%d", i)
+		ip, err := ipam.AllocateIP(addr, "host1", "ten1", "seg1")
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("TestBlockReuse: Allocated %s for ten1:seg1", ip)
+		expectIP := fmt.Sprintf("10.0.0.%d", i)
+		if ip.String() != expectIP {
+			t.Fatalf("Expected %s, got %s", expectIP, ip)
+		}
+		blockCount := len(ipam.ListAllBlocks().Blocks)
+		if blockCount != 2 {
+			t.Fatalf("Expected block count to be 2, have %d", blockCount)
+		}
+	}
+
+	// 5. Delete first 4 addresses.
+	for _, addr := range []string{"addr0", "addr1", "addr2.1", "addr3"} {
+		err := ipam.DeallocateIP(addr)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	// We should now have 2 blocks still - but one is reusable
+	blockCount = len(ipam.ListAllBlocks().Blocks)
+	if blockCount != 2 {
+		t.Fatalf("Expected block count to be 2, have %d", blockCount)
+	}
+	ipsInBlock := ipam.ListAllBlocks().Blocks[0].AllocatedIPCount
+	if ipsInBlock != 0 {
+		t.Fatalf("Expected block 0 to have 0 IPs allocated, got %d", ipsInBlock)
+	}
+
+	// 6. Allocate an address, we should now have 2 blocks - starting with 10.0.0.0
+	// And 0 block should have 1 IP
+	ip, err = ipam.AllocateIP("addr0.1", "host1", "ten1", "seg1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectIP = "10.0.0.0"
+	if ip.String() != expectIP {
+		t.Fatalf("Expected %s, got %s", expectIP, ip)
+	}
+	t.Logf("TestBlockReuse: Allocated %s for ten1:seg1", ip)
+	blockCount = len(ipam.ListAllBlocks().Blocks)
+	if blockCount != 2 {
+		t.Fatalf("Expected block count to be 2, have %d", blockCount)
+	}
+
+	ipsInBlock = ipam.ListAllBlocks().Blocks[0].AllocatedIPCount
+	if ipsInBlock != 1 {
+		t.Logf(testSaver.lastJson)
+		t.Fatalf("Expected block 0 to have 1 IPs allocated, got %d", ipsInBlock)
+	}
+
+	t.Log("All good for TestBlockReuseMask30")
 }
 
 // Test32 tests bitmask size 32 - as a corner case.
@@ -661,53 +789,6 @@ func TestHostAllocation(t *testing.T) {
 		t.Fatalf("Expected 10.0.0.4, got %s", ip.String())
 	}
 	t.Logf("Saved state: %s", testSaver.lastJson)
-}
-
-func TestTmp(t *testing.T) {
-	var conf string
-	// Slide 15: Example 2: Prefix per host
-	t.Logf("Example 2: Prefix per host (a)")
-	conf = `{
-  "networks":[
-    {
-      "name":"vlanA",
-      "cidr":"10.1.0.0/16",
-      "block_mask": 30
-    }
-  ],
-  "topologies":[
-    {
-      "networks":[
-        "vlanA"
-      ],
-      "map":[
-        {
-          "routing":"prefix-on-host",
-          "groups":[
-            { "name" : "h1", "ip" : "1.1.1.1" }
-          ]
-        },
-        {
-          "routing":"prefix-on-host",
-          "groups":[
-            { "name" : "h1", "ip" : "1.1.1.1" }
-          ]
-        },
-        {
-          "routing":"prefix-on-host",
-          "groups":[ { "name" : "h1", "ip" : "1.1.1.1" } ]
-        },
-        {
-          "routing":"prefix-on-host",
-          "groups":[ { "name" : "h1", "ip" : "1.1.1.1" } ]
-        }
-      ]
-    }
-  ]
-}`
-	initIpam(t, conf)
-	t.Logf("Slide 15: Example 2: Prefix per host JSON:\n%s\n", testSaver.lastJson)
-
 }
 
 func TestVPCExample(t *testing.T) {

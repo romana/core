@@ -18,6 +18,7 @@ package client
 import (
 	"encoding/json"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -59,6 +60,30 @@ func NewStore(etcdEndpoints []string, prefix string) (*Store, error) {
 	return myStore, nil
 }
 
+func normalize(key string) string {
+	key2 := strings.TrimSpace(key)
+	elts := strings.Split(key2, "/")
+	normalizedElts := make([]string, 0)
+	for _, elt := range elts {
+		elt = strings.TrimSpace(elt)
+		if elt == "" {
+			continue
+		}
+		normalizedElts = append(normalizedElts, elt)
+	}
+	normalizedKey := strings.Join(normalizedElts, "/")
+	normalizedKey = "/" + normalizedKey
+	log.Tracef(trace.Inside, "Normalized key %s to %s", key, normalizedKey)
+	return normalizedKey
+}
+
+// s.getKey normalizes key and prepends prefix to it
+func (s *Store) getKey(key string) string {
+	// See https://github.com/docker/libkv/blob/master/store/helpers.go#L15
+	normalizedKey := normalize(s.prefix + "/" + key)
+	return normalizedKey
+}
+
 // BEGIN WRAPPER METHODS
 
 // For now, the wrapper methods (below) just ensure the specified
@@ -66,11 +91,11 @@ func NewStore(etcdEndpoints []string, prefix string) (*Store, error) {
 // run concurrently). Perhaps other things can be added later.
 
 func (s *Store) Exists(key string) (bool, error) {
-	return s.Store.Exists(s.prefix + key)
+	return s.Store.Exists(s.getKey(key))
 }
 
 func (s *Store) PutObject(key string, v interface{}) error {
-	key = s.prefix + key
+	key = s.getKey(key)
 	b, err := json.Marshal(v)
 	if err != nil {
 		return err
@@ -80,11 +105,11 @@ func (s *Store) PutObject(key string, v interface{}) error {
 }
 
 func (s *Store) Get(key string) (*libkvStore.KVPair, error) {
-	return s.Store.Get(s.prefix + key)
+	return s.Store.Get(s.getKey(key))
 }
 
 func (s *Store) GetBool(key string, defaultValue bool) (bool, error) {
-	kvp, err := s.Store.Get(s.prefix + key)
+	kvp, err := s.Store.Get(s.getKey(key))
 	if err != nil {
 		if err == libkvStore.ErrKeyNotFound {
 			return defaultValue, nil
@@ -95,7 +120,7 @@ func (s *Store) GetBool(key string, defaultValue bool) (bool, error) {
 }
 
 func (s *Store) ListObjects(key string, obj interface{}) ([]interface{}, error) {
-	kvps, err := s.Store.List(s.prefix + key)
+	kvps, err := s.Store.List(s.getKey(key))
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +136,7 @@ func (s *Store) ListObjects(key string, obj interface{}) ([]interface{}, error) 
 }
 
 func (s *Store) GetObject(key string, obj interface{}) error {
-	kvp, err := s.Store.Get(s.prefix + key)
+	kvp, err := s.Store.Get(s.getKey(key))
 	if err != nil {
 		if err == libkvStore.ErrKeyNotFound {
 			return nil
@@ -122,7 +147,7 @@ func (s *Store) GetObject(key string, obj interface{}) error {
 }
 
 func (s *Store) GetString(key string, defaultValue string) (string, error) {
-	kvp, err := s.Store.Get(s.prefix + key)
+	kvp, err := s.Store.Get(s.getKey(key))
 	if err != nil {
 		if err == libkvStore.ErrKeyNotFound {
 			return defaultValue, nil
@@ -133,7 +158,7 @@ func (s *Store) GetString(key string, defaultValue string) (string, error) {
 }
 
 func (s *Store) GetInt(key string, defaultValue int) (int, error) {
-	kvp, err := s.Store.Get(s.prefix + key)
+	kvp, err := s.Store.Get(s.getKey(key))
 	if err != nil {
 		if err == libkvStore.ErrKeyNotFound {
 			return defaultValue, nil
@@ -150,7 +175,7 @@ func (s *Store) GetInt(key string, defaultValue int) (int, error) {
 // - false and no error if deletion failed because key was not found
 // - false and error if another error occurred
 func (s *Store) Delete(key string) (bool, error) {
-	err := s.Store.Delete(s.prefix + key)
+	err := s.Store.Delete(s.getKey(key))
 	if err == nil {
 		return true, nil
 	}
@@ -166,7 +191,7 @@ func (s *Store) Delete(key string) (bool, error) {
 // the watch if it drop.
 func (s *Store) ReconnectingWatch(key string, stopCh <-chan struct{}) (<-chan []byte, error) {
 	outCh := make(chan []byte)
-	inCh, err := s.Watch(s.prefix+key, stopCh)
+	inCh, err := s.Watch(s.getKey(key), stopCh)
 	if err != nil {
 		return nil, err
 	}
@@ -202,7 +227,7 @@ func (s *Store) reconnectingWatcher(key string, stopCh <-chan struct{}, inCh <-c
 			}
 			log.Infof("ReconnectingWatch: Lost watch on %s, trying to re-establish...", key)
 			for {
-				inCh, err = s.Watch(s.prefix+key, stopCh)
+				inCh, err = s.Watch(s.getKey(key), stopCh)
 				if err == nil {
 					break
 				} else {
@@ -222,7 +247,7 @@ type storeLocker struct {
 }
 
 func (store *Store) NewLocker(name string) (sync.Locker, error) {
-	key := store.prefix + "/lock/" + name
+	key := store.getKey("/lock/" + name)
 	l, err := store.Store.NewLock(key, nil)
 	if err != nil {
 		return nil, err

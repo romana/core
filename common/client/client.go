@@ -274,7 +274,7 @@ func (c *Client) initIPAM() error {
 	}
 	if ipamExists {
 		// Load if exists
-		log.Infof("Loading IPAM data from %s", c.config.EtcdPrefix+ipamDataKey)
+		log.Infof("Loading IPAM data from %s", c.Store.getKey(ipamDataKey))
 		kv, err := c.Store.Get(ipamDataKey)
 		if err != nil {
 			return err
@@ -286,7 +286,7 @@ func (c *Client) initIPAM() error {
 		}
 	} else {
 		// If does not exist, initialize and save
-		log.Infof("No IPAM data found at %s, initializing", c.config.EtcdPrefix+ipamDataKey)
+		log.Infof("No IPAM data found at %s, initializing", c.Store.getKey(ipamDataKey))
 		c.IPAM, err = NewIPAM(c.save, c.ipamLocker)
 		if err != nil {
 			return err

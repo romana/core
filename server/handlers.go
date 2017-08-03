@@ -65,7 +65,7 @@ func (r *Romanad) listAddresses(input interface{}, ctx common.RestContext) (inte
 
 		for i, block := range blocks {
 			if i == blockID {
-				blockAddresses := block.ListAddresses()
+				blockAddresses := block.ListAllocatedAddresses()
 				addresses = append(addresses, blockAddresses...)
 			}
 		}

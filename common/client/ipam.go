@@ -252,7 +252,7 @@ func (hg *Group) allocateIP(network *Network, hostName string, owner string) net
 		log.Tracef(trace.Inside, "Network %s has no blocks for owner %s, will try to reuse a block", network.Name, owner)
 	}
 	// If we are here then all blocks are exhausted. Need to allocate a new block.
-	// First let's see if there are blocks on this host to be reused.
+	// First let's see if there are blocks on this group to be reused.
 	for _, blockID := range hg.ReusableBlocks {
 		block := hg.Blocks[blockID]
 		ip = block.allocateIP(network)
@@ -318,7 +318,11 @@ func (hg *Group) allocateIP(network *Network, hostName string, owner string) net
 func (hg *Group) deallocateIP(ip net.IP) error {
 	if hg.Hosts != nil {
 		// This is the right group
-		for blockID, block := range hg.Blocks {
+		reclaimBlock := false
+		var block *Block
+		var blockID int
+		for blockID, block = range hg.Blocks {
+			log.Tracef(trace.Inside, "Checking if block %d (%s) contains %s: %v", blockID, block.CIDR, ip, block.CIDR.IPNet.Contains(ip))
 			if block.CIDR.IPNet.Contains(ip) {
 				log.Tracef(trace.Private, "Group.deallocateIP: IP to deallocate %s belongs to block %s", ip, block.CIDR)
 				err := block.deallocateIP(ip)
@@ -326,16 +330,21 @@ func (hg *Group) deallocateIP(ip net.IP) error {
 					return err
 				}
 				if block.isEmpty() {
-					owner := hg.BlockToOwner[blockID]
-					log.Tracef(trace.Private, "Block %d for tenant %s is empty, reclaiming it for reuse", blockID, owner)
-					hg.ReusableBlocks = append(hg.ReusableBlocks, blockID)
-					ownerBlocks := hg.OwnerToBlocks[owner]
-					hg.OwnerToBlocks[owner] = append(ownerBlocks[:blockID], ownerBlocks[blockID+1:]...)
-					delete(hg.BlockToHost, blockID)
+					reclaimBlock = true
 				}
-				return nil
+				break
 			}
 		}
+		if reclaimBlock {
+			owner := hg.BlockToOwner[blockID]
+			log.Tracef(trace.Private, "Block %d for tenant %s is empty, reclaiming it for reuse", blockID, owner)
+			hg.ReusableBlocks = append(hg.ReusableBlocks, blockID)
+			ownerBlocks := hg.OwnerToBlocks[owner]
+			delete(hg.BlockToOwner, blockID)
+			hg.OwnerToBlocks[owner] = append(ownerBlocks[:blockID], ownerBlocks[blockID+1:]...)
+			delete(hg.BlockToHost, blockID)
+		}
+		return nil
 	} else {
 		for _, group := range hg.Groups {
 			if group.CIDR.IPNet.Contains(ip) {
@@ -392,12 +401,17 @@ func (hg *Group) GetBlocks() []api.IPAMBlockResponse {
 		for blockID, block := range hg.Blocks {
 			owner := hg.BlockToOwner[blockID]
 			tenant, segment := parseOwner(owner)
+			count := 0
+			if block.ListAllocatedAddresses() != nil {
+				count = len(block.ListAllocatedAddresses())
+			}
 			br := api.IPAMBlockResponse{
-				CIDR:     api.IPNet{IPNet: *block.CIDR.IPNet},
-				Host:     hg.BlockToHost[blockID],
-				Revision: block.Revision,
-				Tenant:   tenant,
-				Segment:  segment,
+				CIDR:             api.IPNet{IPNet: *block.CIDR.IPNet},
+				Host:             hg.BlockToHost[blockID],
+				Revision:         block.Revision,
+				Tenant:           tenant,
+				Segment:          segment,
+				AllocatedIPCount: count,
 			}
 			retval = append(retval, br)
 		}
@@ -584,9 +598,23 @@ func newBlock(cidr CIDR) *Block {
 	return eb
 }
 
-func (b Block) ListAddresses() []string {
+// ListAvailableAddresses lists all available adresses in the block
+func (b Block) ListAvailableAddresses() []string {
 	retval := make([]string, 0)
 	for _, r := range b.Pool.Ranges {
+		for i := r.Min; i <= r.Max; i++ {
+			ip := common.IntToIPv4(i)
+			retval = append(retval, ip.String())
+		}
+	}
+	return retval
+}
+
+// ListAllocatedAddresses lists all allocated adresses in the block
+func (b Block) ListAllocatedAddresses() []string {
+	allocated := b.Pool.Invert()
+	retval := make([]string, 0)
+	for _, r := range allocated.Ranges {
 		for i := r.Min; i <= r.Max; i++ {
 			ip := common.IntToIPv4(i)
 			retval = append(retval, ip.String())
@@ -894,7 +922,12 @@ func (ipam *IPAM) DeallocateIP(addressName string) error {
 				log.Tracef(trace.Inside, "IPAM.DeallocateIP: IP %s belongs to network %s", ip, network.Name)
 				err := network.deallocateIP(ip)
 				if err == nil {
+					delete(ipam.AddressNameToIP, addressName)
 					ipam.AllocationRevision++
+					err = ipam.save(ipam)
+					if err != nil {
+						return err
+					}
 				}
 				return err
 			}
