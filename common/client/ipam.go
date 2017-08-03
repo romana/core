@@ -274,13 +274,13 @@ func (hg *Group) allocateIP(network *Network, hostName string, owner string) net
 	}
 	// If we are here then all blocks are exhausted. Need to allocate a new block.
 	// First let's see if there are blocks on this group to be reused.
-	for _, blockID := range hg.ReusableBlocks {
+	for blockIdx, blockID := range hg.ReusableBlocks {
 		block := hg.Blocks[blockID]
 		ip = block.allocateIP(network)
 		if ip != nil {
 			// We can now remove this block from reusables.
 			log.Tracef(trace.Inside, "Reusing block %d for owner %s", blockID, owner)
-			hg.ReusableBlocks = deleteElementInt(hg.ReusableBlocks, blockID)
+			hg.ReusableBlocks = deleteElementInt(hg.ReusableBlocks, blockIdx)
 			hg.OwnerToBlocks[owner] = append(hg.OwnerToBlocks[owner], blockID)
 			hg.BlockToOwner[blockID] = owner
 			hg.BlockToHost[blockID] = hostName
