@@ -47,6 +47,27 @@ var (
 	tenantNameRegexp = regexp.MustCompile("^[a-zA-Z0-9_]*$")
 )
 
+func deleteElementInt(arr []int, i int) []int {
+	retval := make([]int, i)
+	copy(retval, arr[:i])
+	retval = append(retval, arr[i+1:]...)
+	return retval
+}
+
+func deleteElementHost(arr []*Host, i int) []*Host {
+	retval := make([]*Host, i)
+	copy(retval, arr[:i])
+	retval = append(retval, arr[i+1:]...)
+	return retval
+}
+
+func deleteElementCIDR(arr []CIDR, i int) []CIDR {
+	retval := make([]CIDR, i)
+	copy(retval, arr[:i])
+	retval = append(retval, arr[i+1:]...)
+	return retval
+}
+
 // makeOwner makes an "owner" string -- which is "<tenant>:<segment>".
 func makeOwner(tenant string, segment string) string {
 	return fmt.Sprintf("%s:%s", tenant, segment)
@@ -259,7 +280,7 @@ func (hg *Group) allocateIP(network *Network, hostName string, owner string) net
 		if ip != nil {
 			// We can now remove this block from reusables.
 			log.Tracef(trace.Inside, "Reusing block %d for owner %s", blockID, owner)
-			hg.ReusableBlocks = append(hg.ReusableBlocks[:blockID], hg.ReusableBlocks[blockID+1:]...)
+			hg.ReusableBlocks = deleteElementInt(hg.ReusableBlocks, blockID)
 			hg.OwnerToBlocks[owner] = append(hg.OwnerToBlocks[owner], blockID)
 			hg.BlockToOwner[blockID] = owner
 			hg.BlockToHost[blockID] = hostName
@@ -352,7 +373,7 @@ func (hg *Group) deallocateIP(ip net.IP) error {
 			if ownerBlockToDelete == -1 {
 				return common.NewError("Could not find block to reclaim (%d) in blocks owned by %s: %v", blockID, owner, hg.OwnerToBlocks[owner])
 			}
-			hg.OwnerToBlocks[owner] = append(ownerBlocks[:ownerBlockToDelete], ownerBlocks[ownerBlockToDelete+1:]...)
+			hg.OwnerToBlocks[owner] = deleteElementInt(ownerBlocks, ownerBlockToDelete)
 			delete(hg.BlockToHost, blockID)
 		}
 		return nil
@@ -1115,7 +1136,7 @@ func (ipam *IPAM) RemoveHost(host api.Host) error {
 				break
 			}
 		}
-		myHost.group.Hosts = append(myHost.group.Hosts[:i], myHost.group.Hosts[i+1:]...)
+		myHost.group.Hosts = deleteElementHost(myHost.group.Hosts, i)
 		return nil
 	}
 	return common.NewError("No host found with IP %s and/or name %s", host.IP, host.Name)
@@ -1258,7 +1279,7 @@ func (ipam *IPAM) UnBlackOut(cidrStr string) error {
 	if !found {
 		return common.NewError("No such CIDR %s found in the blackout list: %s ", cidrStr, network.BlackedOut)
 	}
-	network.BlackedOut = append(network.BlackedOut[:i], network.BlackedOut[i+1:]...)
+	network.BlackedOut = deleteElementCIDR(network.BlackedOut, i)
 	network.Revison++
 	return ipam.save(ipam)
 }
