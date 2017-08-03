@@ -397,7 +397,7 @@ func TestBlockReuseMask30(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		t.Logf("TestBlockReuse: Allocated %s for ten1:seg1", ip)
+		t.Logf("TestBlockReuse: Allocated %s: %s for ten1:seg1", addr, ip)
 		expectIP := fmt.Sprintf("10.0.0.%d", i)
 		if ip.String() != expectIP {
 			t.Fatalf("Expected %s, got %s", expectIP, ip)
@@ -408,14 +408,22 @@ func TestBlockReuseMask30(t *testing.T) {
 		}
 	}
 
-	// 2. Deallocate one of the addresses
+	// 2. Deallocate two addresses
 	err := ipam.DeallocateIP("addr2")
 	if err != nil {
 		t.Log(testSaver.lastJson)
 		t.Fatal(err)
 	}
+	t.Log("Deallocated addr2")
 
-	// 3. Allocate an address again. We should get the one within first block.
+	err = ipam.DeallocateIP("addr3")
+	if err != nil {
+		t.Log(testSaver.lastJson)
+		t.Fatal(err)
+	}
+	t.Log("Deallocated addr3")
+
+	// 3. Allocate two addresses again. We should get them within first block.
 	ip, err := ipam.AllocateIP("addr2.1", "host1", "ten1", "seg1")
 	if err != nil {
 		t.Fatal(err)
@@ -424,7 +432,18 @@ func TestBlockReuseMask30(t *testing.T) {
 	if ip.String() != expectIP {
 		t.Fatalf("Expected %s, got %s", expectIP, ip)
 	}
-	t.Logf("TestBlockReuse: Allocated %s for ten1:seg1", ip)
+	t.Logf("TestBlockReuse: Allocated addr2.1: %s for ten1:seg1", ip)
+
+	ip, err = ipam.AllocateIP("addr3.1", "host1", "ten1", "seg1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectIP = "10.0.0.3"
+	if ip.String() != expectIP {
+		t.Fatalf("Expected %s, got %s", expectIP, ip)
+	}
+	t.Logf("TestBlockReuse: Allocated addr 3.1: %s for ten1:seg1", ip)
+
 	blockCount := len(ipam.ListAllBlocks().Blocks)
 	if blockCount != 1 {
 		t.Fatalf("Expected block count to be 1, have %d", blockCount)
@@ -449,7 +468,7 @@ func TestBlockReuseMask30(t *testing.T) {
 	}
 
 	// 5. Delete first 4 addresses.
-	for _, addr := range []string{"addr0", "addr1", "addr2.1", "addr3"} {
+	for _, addr := range []string{"addr0", "addr1", "addr2.1", "addr3.1"} {
 		err := ipam.DeallocateIP(addr)
 		if err != nil {
 			t.Fatal(err)
