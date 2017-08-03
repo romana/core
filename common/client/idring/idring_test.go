@@ -21,6 +21,31 @@ import (
 	"testing"
 )
 
+func TestInvert(t *testing.T) {
+	var err error
+	var id uint64
+	idRing := NewIDRing(1, 5, &sync.Mutex{})
+
+	invert := idRing.Invert()
+	if len(invert.Ranges) != 0 {
+		t.Errorf("Expected empty array for an inversion of an original ring, got %s", invert)
+	}
+
+	for i := 0; i < 5; i++ {
+		id, err = idRing.GetID()
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("TestInvert: Got %d", id)
+	}
+
+	invert = idRing.Invert()
+	if len(invert.Ranges) != 1 {
+		t.Errorf("Expected a single range for inversion of a filled up ring, got %s", invert)
+	}
+
+}
+
 // TestIDRing tests IDRing functionality.
 func TestIDRingAllocation(t *testing.T) {
 	var err error

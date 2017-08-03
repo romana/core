@@ -118,8 +118,21 @@ func (ir IDRing) Invert() *IDRing {
 		ir.locker.Lock()
 		defer ir.locker.Unlock()
 	}
-
+	log.Tracef(trace.Inside, "Attempting to invert %s", ir)
+	if len(ir.Ranges) == 0 {
+		// All filled up.
+		r := Range{Min: ir.OrigMin, Max: ir.OrigMax}
+		ranges := []Range{r}
+		retval := IDRing{OrigMax: ir.OrigMax,
+			OrigMin: ir.OrigMin,
+			Ranges:  ranges,
+			locker:  ir.locker,
+		}
+		log.Tracef(trace.Private, "Inversion of %s is %s", ir, retval)
+		return &retval
+	}
 	ranges := make([]Range, 0)
+
 	prevMin := ir.OrigMin
 
 	for _, r := range ir.Ranges {
