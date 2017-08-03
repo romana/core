@@ -473,19 +473,22 @@ func TestBlockReuseMask30(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		t.Logf("Deallocated %s", addr)
 	}
 	// We should now have 2 blocks still - but one is reusable
 	blockCount = len(ipam.ListAllBlocks().Blocks)
 	if blockCount != 2 {
 		t.Fatalf("Expected block count to be 2, have %d", blockCount)
 	}
-	ipsInBlock := ipam.ListAllBlocks().Blocks[0].AllocatedIPCount
-	if ipsInBlock != 0 {
-		t.Fatalf("Expected block 0 to have 0 IPs allocated, got %d", ipsInBlock)
+	for i, block := range ipam.ListAllBlocks().Blocks {
+		t.Logf("Block %d has %d allocated addresses", i, block.AllocatedIPCount)
+		if i == 0 && block.AllocatedIPCount != 0 {
+			t.Fatalf("Expected block 0 to have 0 IPs allocated, got %d", block.AllocatedIPCount)
+		}
 	}
 
-	// 6. Allocate an address, we should now have 2 blocks - starting with 10.0.0.0
-	// And 0 block should have 1 IP
+	// 6. Allocate two addresses, we should now have 2 blocks - starting with 10.0.0.0
+	// And 0 block should have 2 IP
 	ip, err = ipam.AllocateIP("addr0.1", "host1", "ten1", "seg1")
 	if err != nil {
 		t.Fatal(err)
@@ -495,15 +498,27 @@ func TestBlockReuseMask30(t *testing.T) {
 		t.Fatalf("Expected %s, got %s", expectIP, ip)
 	}
 	t.Logf("TestBlockReuse: Allocated %s for ten1:seg1", ip)
+
+	ip, err = ipam.AllocateIP("addr0.2", "host1", "ten1", "seg1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectIP = "10.0.0.1"
+	if ip.String() != expectIP {
+		t.Fatalf("Expected %s, got %s", expectIP, ip)
+	}
+	t.Logf("TestBlockReuse: Allocated %s for ten1:seg1", ip)
+
 	blockCount = len(ipam.ListAllBlocks().Blocks)
 	if blockCount != 2 {
 		t.Fatalf("Expected block count to be 2, have %d", blockCount)
 	}
 
-	ipsInBlock = ipam.ListAllBlocks().Blocks[0].AllocatedIPCount
-	if ipsInBlock != 1 {
-		t.Logf(testSaver.lastJson)
-		t.Fatalf("Expected block 0 to have 1 IPs allocated, got %d", ipsInBlock)
+	for i, block := range ipam.ListAllBlocks().Blocks {
+		t.Logf("Block %d has %d allocated addresses", i, block.AllocatedIPCount)
+		if i == 0 && block.AllocatedIPCount != 2 {
+			t.Fatalf("Expected block 0 to have 0 IPs allocated, got %d", block.AllocatedIPCount)
+		}
 	}
 
 	t.Log("All good for TestBlockReuseMask30")
