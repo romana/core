@@ -1,0 +1,40 @@
+{
+  "networks":[
+    {
+      "name":"net1",
+      "cidr":"10.0.0.0/16",
+      "block_mask":30
+    }
+  ],
+  "topologies":[
+    {
+      "networks":[
+        "net1"
+      ],
+      "map":[
+        {
+          "routing":"foo",
+          "groups":[ 
+                     { 
+                        "assignment" : { "tier" : "frontend" },
+                        "groups" : []
+                      },
+                     { 
+                        "assignment" : { "tier" : "backend" },
+                        "groups" : []
+                      },
+                      { 
+                        "assignment" : { "tier" : "frontend" },
+                        "groups" : []
+                      },
+                      { 
+                        "assignment" : { "tier" : "backend" },
+                        "groups" : []
+                      }
+                   ]
+        }
+      ]
+    }
+
+  ]
+}

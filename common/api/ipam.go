@@ -81,14 +81,14 @@ type TopologyDefinition struct {
 type GroupOrHost struct {
 	// Assignment is a map of key-value pairs that specify what attributes (key=value)
 	// of a new host to use to assign it into a group.
-	Assignment map[string]string `json:"assignment"`
-	Routing    string            `json:"routing"`
+	Assignment map[string]string `json:"assignment,omitempty"`
+	Routing    string            `json:"routing,omitempty"`
 	Groups     []GroupOrHost     `json:"groups"`
 
 	// If the below are specified, this GroupSpec really represents a host,
 	// therefore the above elements MUST NOT be specified.
 	Name string `json:"name"`
-	IP   net.IP `json:"ip"`
+	IP   net.IP `json:"ip,omitempty"`
 }
 
 type Host struct {

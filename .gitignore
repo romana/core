@@ -30,6 +30,7 @@ tags
 # Emacs artifacts
 *~
 \#*\#
+.\#*\#
 
 # Eclipse artifacts
 .project

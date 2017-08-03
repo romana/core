@@ -18,6 +18,7 @@ package client
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net"
 	"testing"
 
@@ -28,6 +29,17 @@ var (
 	testSaver *TestSaver
 	ipam      *IPAM
 )
+
+func initIpam2(t *testing.T) *IPAM {
+	testName := t.Name()
+	fileName := fmt.Sprintf("testdata/%s.json", testName)
+	t.Logf("Loading data for %s from %s", testName, fileName)
+	b, err := ioutil.ReadFile(fileName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return initIpam(t, string(b))
+}
 
 func initIpam(t *testing.T, conf string) *IPAM {
 	ipam, err := NewIPAM(testSaver.save, nil)
@@ -825,41 +837,6 @@ func TestHostAllocation(t *testing.T) {
 	t.Logf("Saved state: %s", testSaver.lastJson)
 }
 
-func TestVPCExample(t *testing.T) {
-	var conf string
-	t.Logf("TestVPCExample")
-	conf = `{
-    "networks" : [ "romana-us-west-2a" ],
-    "map" :  {
-        "groups"  : [
-            { "routing" : "xyz", "groups" : [] },
-            { "routing" : "xyz", "groups" : [] },
-        ]
-    }
-},
-{
-    "networks" : [ "romana-us-west-2b" ],
-    "map" :  {
-        "assignment" : { "key1 : "value1" },
-        "groups"  : [
-            {  "assignment" : { "key2 : "value2" },  
-               "routing" : "xyz", 
-               "groups" : [] },
-            { "routing" : "xyz", "groups" : [] },
-        ]
-    }
-},`
-	ipam := initIpam(t, conf)
-	host1 := api.Host{Name: "host1",
-		IP: net.ParseIP("10.10.10.10"),
-	}
-	err := ipam.AddHost(host1)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-}
-
 func TestJsonParsing(t *testing.T) {
 	var conf string
 
@@ -1192,5 +1169,59 @@ func TestOutOfBoundsError(t *testing.T) {
 	for i, block := range ipam.ListAllBlocks().Blocks {
 		t.Logf("Block %d has %d allocated addresses", i, block.AllocatedIPCount)
 	}
+}
+
+func TestGenerateJSONSimple(t *testing.T) {
+	updateReq := api.TopologyUpdateRequest{}
+	net1 := api.NetworkDefinition{BlockMask: 30,
+		CIDR: "10.0.0.0/16",
+		Name: "net1",
+	}
+	updateReq.Networks = []api.NetworkDefinition{net1}
+	group1 := api.GroupOrHost{Name: "group1",
+		Groups: make([]api.GroupOrHost, 0),
+	}
+	group2 := api.GroupOrHost{Name: "group2",
+		Groups: make([]api.GroupOrHost, 0),
+	}
+	topoDef1 := api.TopologyDefinition{Networks: []string{"net1"},
+		Map: []api.GroupOrHost{group1, group2},
+	}
+	updateReq.Topologies = []api.TopologyDefinition{topoDef1}
+	b, err := json.Marshal(updateReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf(string(b))
+}
+
+func TestHostAdditionSimple(t *testing.T) {
+
+	t.Logf("TestHostAdditionSimple")
+
+	ipam = initIpam2(t)
+	//	t.Logf(testSaver.lastJson)
+
+	for i := 0; i < 4; i++ {
+		ip := net.ParseIP(fmt.Sprintf("10.10.10.1%d", i))
+		name := fmt.Sprintf("host%d", i)
+		host := api.Host{Name: name,
+			IP: ip,
+		}
+		err := ipam.AddHost(host)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	// We should have 2 hosts in each group now.
+	net1 := ipam.Networks["net1"]
+	for _, grp := range net1.Group.Groups {
+		if len(grp.Hosts) != 2 {
+			t.Fatalf("Expected group %s to have 2 hosts, it has %d", grp.Name, len(grp.Hosts))
+		}
+		t.Logf("Hosts in group %s: %v", grp.Name, grp.Hosts)
+	}
+
+	// 	t.Logf(testSaver.lastJson)
 
 }
