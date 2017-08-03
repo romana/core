@@ -31,7 +31,16 @@ import (
 // "addressName".
 func (r *Romanad) deallocateIP(input interface{}, ctx common.RestContext) (interface{}, error) {
 	addressName := ctx.QueryVariables.Get("addressName")
-	return nil, r.client.IPAM.DeallocateIP(addressName)
+	err := r.client.IPAM.DeallocateIP(addressName)
+	if err == nil {
+		return nil, nil
+	}
+	switch err := err.(type) {
+	default:
+		return nil, err
+	case api.RomanaNotFoundError:
+		return nil, common.NewError404(err.ResourceType, err.ResourceID)
+	}
 }
 
 func (r *Romanad) allocateIP(input interface{}, ctx common.RestContext) (interface{}, error) {

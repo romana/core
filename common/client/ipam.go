@@ -1073,7 +1073,12 @@ func (ipam *IPAM) DeallocateIP(addressName string) error {
 				return err
 			}
 		}
-		return common.NewError404("IP", ip.String())
+		return api.RomanaNotFoundError{ResourceType: "IP",
+			ResourceID: ip.String(),
+		}
+	}
+	return api.RomanaNotFoundError{ResourceType: "addressName",
+		ResourceID: addressName,
 	}
 
 	// find by IPAddress instead of name, so that all
