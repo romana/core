@@ -15,18 +15,79 @@
 
 package api
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 // RomanaNotFoundError represents an error when an entity (or resource)
 // is not found. It is a separate error because clients may wish to check for this
 // error.
 type RomanaNotFoundError struct {
-	// ResourceID specifies the relevant resource ID, if applicable
-	ResourceID string
-	// ResourceType specifies the relevant resource type, if applicable
-	ResourceType string
+	// Attributes represent key-value pairs used to search
+	// for the object.
+	Attributes map[string]string
+	Type       string
+	Message    string
+}
+
+// NewRomanaNotFoundError creates a RomanaNotFoundError. Each element
+// of attrs is interpreted as a "key=value" pair.
+func NewRomanaNotFoundError(message string, t string, attrs ...string) RomanaNotFoundError {
+	attrMap := make(map[string]string)
+	for _, attr := range attrs {
+		kv := strings.SplitN(attr, "=", 2)
+		k := kv[0]
+		v := kv[1]
+		attrMap[k] = v
+	}
+	err := RomanaNotFoundError{Message: message,
+		Type:       t,
+		Attributes: attrMap,
+	}
+	return err
 }
 
 func (rnfe RomanaNotFoundError) Error() string {
-	return fmt.Sprintf("Not found: Resource %s of type %s", rnfe.ResourceID, rnfe.ResourceType)
+	if rnfe.Message == "" {
+		return fmt.Sprintf("An %s object with attributes %v not found", rnfe.Type, rnfe.Attributes)
+	} else {
+		return rnfe.Message
+	}
+}
+
+// RomanaExistsError represents an error when an entity already
+// exists.
+type RomanaExistsError struct {
+	Type string
+	// Attributes represent key-value pairs used to add
+	// the object.
+	Attributes map[string]string
+	Object     interface{}
+	Message    string
+}
+
+func NewRomanaExistsError(message string, obj interface{}, t string, attrs ...string) RomanaExistsError {
+	attrMap := make(map[string]string)
+	for _, attr := range attrs {
+		kv := strings.SplitN(attr, "=", 2)
+		k := kv[0]
+		v := kv[1]
+		attrMap[k] = v
+	}
+	err := RomanaExistsError{Message: message,
+		Type:       t,
+		Object:     obj,
+		Attributes: attrMap,
+	}
+	return err
+}
+
+func (ree RomanaExistsError) Error() string {
+	if ree.Message == "" {
+		return fmt.Sprintf("An %s object identified by %v already exists: %s",
+			ree.Type, ree.Attributes, ree.Object)
+	} else {
+		return ree.Message
+	}
 }

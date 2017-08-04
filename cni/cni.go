@@ -18,6 +18,7 @@ package cni
 import (
 	"fmt"
 	"net"
+
 	"net/http"
 	"sync"
 
@@ -25,6 +26,7 @@ import (
 	"github.com/go-resty/resty"
 	"github.com/romana/core/agent"
 	"github.com/romana/core/common"
+	"github.com/romana/core/common/api"
 	"github.com/romana/core/common/client"
 	"github.com/romana/core/listener"
 	log "github.com/romana/rlog"
@@ -125,8 +127,8 @@ func (DefaultAddressManager) Allocate(config NetConf, client *client.Client, pod
 
 func (DefaultAddressManager) Deallocate(config NetConf, client *client.Client, targetName string) error {
 	err := client.IPAM.DeallocateIP(targetName)
-	if httpE, ok := err.(common.HttpError); ok && httpE.StatusCode == http.StatusNotFound {
-		log.Errorf("CNI attempted to deallocate %s but got %s, suppressing error to prevent kubelet from retries", targetName, httpE)
+	if notFound, ok := err.(api.RomanaNotFoundError); ok {
+		log.Errorf("CNI attempted to deallocate %s but got %s, suppressing error to prevent kubelet from retries", targetName, notFound)
 		return nil
 	}
 

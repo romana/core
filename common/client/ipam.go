@@ -281,11 +281,11 @@ func (hg *Group) findSmallestEligibleGroup(host *Host) *Group {
 func (hg *Group) addHost(host *Host) (bool, error) {
 	log.Tracef(trace.Inside, "Calling addHost on %s", hg.Name)
 	if hg.findHostByName(host.Name) != nil {
-		return false, common.NewError("Host with name %s already exists.", host.Name)
+		return false, api.NewRomanaExistsError("", *host, "host", fmt.Sprintf("name=%s", host.Name))
 	}
 
 	if hg.findHostByIP(host.IP.String()) != nil {
-		return false, common.NewError("Host with IP %s already exists.", host.IP)
+		return false, api.NewRomanaExistsError("", *host, "host", fmt.Sprintf("IP=%s", host.IP))
 	}
 
 	if host.AgentPort == 0 {
@@ -1073,14 +1073,8 @@ func (ipam *IPAM) DeallocateIP(addressName string) error {
 				return err
 			}
 		}
-		return api.RomanaNotFoundError{ResourceType: "IP",
-			ResourceID: ip.String(),
-		}
+		return api.NewRomanaNotFoundError("", "IP", fmt.Sprintf("IP=%s", ip))
 	}
-	return api.RomanaNotFoundError{ResourceType: "addressName",
-		ResourceID: addressName,
-	}
-
 	// find by IPAddress instead of name, so that all
 	// platforms are supported.
 	for name, ip := range ipam.AddressNameToIP {
@@ -1106,7 +1100,7 @@ func (ipam *IPAM) DeallocateIP(addressName string) error {
 		}
 	}
 
-	return common.NewError404("addressName", addressName)
+	return api.NewRomanaNotFoundError("", "address", fmt.Sprintf("name=%s", addressName))
 }
 
 // getNetworksForTenant gets all eligible networks for the

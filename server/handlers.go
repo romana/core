@@ -39,7 +39,7 @@ func (r *Romanad) deallocateIP(input interface{}, ctx common.RestContext) (inter
 	default:
 		return nil, err
 	case api.RomanaNotFoundError:
-		return nil, common.NewError404(err.ResourceType, err.ResourceID)
+		return nil, common.NewError404(err.Type, fmt.Sprintf("%v", err.Attributes))
 	}
 }
 
@@ -188,5 +188,9 @@ func (r *Romanad) addPolicy(input interface{}, ctx common.RestContext) (interfac
 // addPolicy stores the new policy and sends it to all agents.
 func (r *Romanad) addHost(input interface{}, ctx common.RestContext) (interface{}, error) {
 	host := input.(*api.Host)
-	return nil, r.client.IPAM.AddHost(*host)
+	err := r.client.IPAM.AddHost(*host)
+	if exists, ok := err.(api.RomanaExistsError); ok {
+		return nil, common.NewErrorConflict(exists.Object)
+	}
+	return nil, err
 }
