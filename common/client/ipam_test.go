@@ -728,9 +728,9 @@ func TestHostAdditionTags(t *testing.T) {
 
 	tags := make(map[string]string)
 	tags["tier"] = "backend"
-	for i := 0; i < 4; i++ {
-		ip := net.ParseIP(fmt.Sprintf("10.10.10.1%d", i))
-		name := fmt.Sprintf("host%d", i)
+	for i := 0; i < 8; i++ {
+		ip := net.ParseIP(fmt.Sprintf("10.10.100.1%d", i))
+		name := fmt.Sprintf("backend-host-%d", i)
 		host := api.Host{Name: name,
 			IP:   ip,
 			Tags: tags,
@@ -739,17 +739,34 @@ func TestHostAdditionTags(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		t.Logf("Adding host %s (%s) with tags %v", host.Name, host.IP, tags)
 	}
-	// We should have 2 hosts in groups 1 and 3 and 0 in groups 2 and 4
+
+	tags["tier"] = "frontend"
+	for i := 0; i < 4; i++ {
+		ip := net.ParseIP(fmt.Sprintf("10.10.200.1%d", i))
+		name := fmt.Sprintf("frontend-host-%d", i)
+		host := api.Host{Name: name,
+			IP:   ip,
+			Tags: tags,
+		}
+		err := ipam.AddHost(host)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("Adding host %s (%s) with tags %v", host.Name, host.IP, tags)
+	}
+
+	// We should have 4 hosts in groups 1 and 3 and 2 in groups 2 and 4
 	net1 := ipam.Networks["net1"]
 	for i, grp := range net1.Group.Groups {
 		if i == 0 || i == 2 {
-			if len(grp.Hosts) != 2 {
-				t.Fatalf("Expected group %s to have 2 hosts, it has %d", grp.Name, len(grp.Hosts))
+			if len(grp.Hosts) != 4 {
+				t.Fatalf("Expected group %s to have 4 hosts, it has %d", grp.Name, len(grp.Hosts))
 			}
 		} else {
-			if len(grp.Hosts) != 0 {
-				t.Fatalf("Expected group %s to have 2 hosts, it has %d", grp.Name, len(grp.Hosts))
+			if len(grp.Hosts) != 2 {
+				t.Fatalf("Expected group %s to have 0 hosts, it has %d", grp.Name, len(grp.Hosts))
 			}
 		}
 		t.Logf("Hosts in group %s (%v): %v", grp.Name, grp.Assignment, grp.Hosts)
