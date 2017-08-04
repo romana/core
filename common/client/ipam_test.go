@@ -766,7 +766,7 @@ func TestHostAdditionTags(t *testing.T) {
 			}
 		} else {
 			if len(grp.Hosts) != 2 {
-				t.Fatalf("Expected group %s to have 0 hosts, it has %d", grp.Name, len(grp.Hosts))
+				t.Fatalf("Expected group %s to have 2 hosts, it has %d", grp.Name, len(grp.Hosts))
 			}
 		}
 		t.Logf("Hosts in group %s (%v): %v", grp.Name, grp.Assignment, grp.Hosts)
