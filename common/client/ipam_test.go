@@ -30,22 +30,22 @@ var (
 	ipam      *IPAM
 )
 
-func initIpam2(t *testing.T) *IPAM {
-	testName := t.Name()
-	fileName := fmt.Sprintf("testdata/%s.json", testName)
-	t.Logf("Loading data for %s from %s", testName, fileName)
-	b, err := ioutil.ReadFile(fileName)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return initIpam(t, string(b))
-}
-
 func initIpam(t *testing.T, conf string) *IPAM {
-	ipam, err := NewIPAM(testSaver.save, nil)
-	if err != nil {
-		t.Fatal(err)
+	// If not specified, load from file named after this test
+	if conf == "" {
+		testName := t.Name()
+		fileName := fmt.Sprintf("testdata/%s.json", testName)
+		t.Logf("Loading data for %s from %s", testName, fileName)
+		b, err := ioutil.ReadFile(fileName)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err != nil {
+			t.Fatal(err)
+		}
+		conf = string(b)
 	}
+	ipam, err := NewIPAM(testSaver.save, nil)
 	topoReq := api.TopologyUpdateRequest{}
 	err = json.Unmarshal([]byte(conf), &topoReq)
 	if err != nil {
@@ -95,32 +95,7 @@ func TestNewCIDR(t *testing.T) {
 }
 
 func TestBlackout(t *testing.T) {
-	conf := `{
-  "networks":[
-    {
-      "name":"net1",
-      "cidr":"10.0.0.0/30",
-      "block_mask":30
-    }
-  ],
-  "topologies":[
-    {
-      "networks":[
-        "net1"
-      ],
-      "map":[
-        {
-          "routing":"foo",
-          "groups":[{
-            "name":"host1",
-            "ip":"192.168.0.1"
-          }]
-        }
-      ]
-    }
-  ]
-}`
-	ipam = initIpam(t, conf)
+	ipam = initIpam(t, "")
 
 	// 1. Black out something random
 	err = ipam.BlackOut("10.100.100.100/24")
@@ -228,32 +203,7 @@ func TestBlackout(t *testing.T) {
 
 // TestIPReuse tests that an IP can be reused.
 func TestIPReuse(t *testing.T) {
-	conf := `{
-  "networks":[
-    {
-      "name":"net1",
-      "cidr":"10.0.0.0/31",
-      "block_mask":31
-    }
-  ],
-  "topologies":[
-    {
-      "networks":[
-        "net1"
-      ],
-      "map":[
-        {
-          "routing":"foo",
-          "groups":[{
-            "name":"host1",
-            "ip":"192.168.0.1"
-          }]
-        }
-      ]
-    }
-  ]
-}`
-	ipam = initIpam(t, conf)
+	ipam = initIpam(t, "")
 
 	ip, err := ipam.AllocateIP("1", "host1", "ten1", "seg1")
 	t.Logf("TestChunkIPReuse: Allocated %s for ten1:seg1", ip)
@@ -301,32 +251,7 @@ func TestIPReuse(t *testing.T) {
 }
 
 func TestBlockReuseMask32(t *testing.T) {
-	conf := `{
-  "networks":[
-    {
-      "name":"net1",
-      "cidr":"10.0.0.0/31",
-      "block_mask":32
-    }
-  ],
-  "topologies":[
-    {
-      "networks":[
-        "net1"
-      ],
-      "map":[
-        {
-          "routing":"foo",
-          "groups":[{
-            "name":"host1",
-            "ip":"192.168.0.1"
-          }]
-        }
-      ]
-    }
-  ]
-}`
-	ipam = initIpam(t, conf)
+	ipam = initIpam(t, "")
 
 	ip, err := ipam.AllocateIP("1", "host1", "ten1", "seg1")
 	t.Logf("TestChunkBlockReuse: Allocated %s for ten1:seg1", ip)
@@ -375,32 +300,7 @@ func TestBlockReuseMask32(t *testing.T) {
 }
 
 func TestBlockReuseMask30(t *testing.T) {
-	conf := `{
-  "networks":[
-    {
-      "name":"net1",
-      "cidr":"10.0.0.0/8",
-      "block_mask":30
-    }
-  ],
-  "topologies":[
-    {
-      "networks":[
-        "net1"
-      ],
-      "map":[
-        {
-          "routing":"foo",
-          "groups":[{
-            "name":"host1",
-            "ip":"192.168.0.1"
-          }]
-        }
-      ]
-    }
-  ]
-}`
-	ipam = initIpam(t, conf)
+	ipam = initIpam(t, "")
 
 	// 1. Allocate first 4 (/30) addresses
 	for i := 0; i < 4; i++ {
@@ -537,34 +437,8 @@ func TestBlockReuseMask30(t *testing.T) {
 }
 
 // Test32 tests bitmask size 32 - as a corner case.
-func Test32(t *testing.T) {
-	// Part 1. Simple /32 block size test
-	conf := `{
-  "networks":[
-    {
-      "name":"net1",
-      "cidr":"10.0.0.0/24",
-      "block_mask":32
-    }
-  ],
-  "topologies":[
-    {
-      "networks":[
-        "net1"
-      ],
-      "map":[
-        {
-          "routing":"foo",
-          "groups":[{
-            "name":"host1",
-            "ip":"192.168.0.1"
-          }]
-        }
-      ]
-    }
-  ]
-}`
-	ipam = initIpam(t, conf)
+func Test32_1(t *testing.T) {
+	ipam = initIpam(t, "")
 
 	ip, err := ipam.AllocateIP("1", "host1", "ten1", "seg1")
 	t.Logf("TestChunkSegments: Allocated %s for ten1:seg1", ip)
@@ -584,35 +458,13 @@ func Test32(t *testing.T) {
 		t.Fatalf("Expected 10.0.0.1, got %s", ip)
 	}
 
-	// Part 2. Here we add a /32 block size to a /32 CIDR.
-	conf = `{
-  "networks":[
-    {
-      "name":"net1",
-      "cidr":"10.0.0.0/32",
-      "block_mask":32
-    }
-  ],
-  "topologies":[
-    {
-      "networks":[
-        "net1"
-      ],
-      "map":[
-        {
-          "routing":"foo",
-          "groups": [{
-            "name":"host1",
-            "ip":"192.168.0.1"
-          }]
-        }
-      ]
-    }
-  ]
-}`
-	ipam = initIpam(t, conf)
+}
 
-	ip, err = ipam.AllocateIP("2", "host1", "ten1", "seg1")
+func Test32_2(t *testing.T) {
+
+	ipam = initIpam(t, "")
+
+	ip, err := ipam.AllocateIP("2", "host1", "ten1", "seg1")
 	t.Logf("TestChunkSegments: Allocated %s for ten1:seg1", ip)
 	if err != nil {
 		t.Fatal(err)
@@ -635,33 +487,7 @@ func Test32(t *testing.T) {
 
 // TestSegments tests that segments get different blocks.
 func TestSegments(t *testing.T) {
-
-	conf := `{
-  "networks":[
-    {
-      "name":"net1",
-      "cidr":"10.0.0.0/24",
-      "block_mask":30
-    }
-  ],
-  "topologies":[
-    {
-      "networks":[
-        "net1"
-      ],
-      "map":[
-        {
-          "routing":"foo",
-          "groups": [{
-            "name":"host1",
-            "ip":"192.168.0.1"
-          }]
-        }
-      ]
-    }
-  ]
-}`
-	ipam = initIpam(t, conf)
+	ipam = initIpam(t, "")
 
 	ip, err := ipam.AllocateIP("x1", "host1", "ten1", "seg1")
 	t.Logf("TestChunkSegments: Allocated %s for ten1:seg1", ip)
@@ -695,51 +521,7 @@ func TestSegments(t *testing.T) {
 // TestTenants tests that addresses are allocated from networks
 // on which provided tenants are allowed.
 func TestTenants(t *testing.T) {
-	conf := `{
-  "networks":[
-    {
-      "name":"net1",
-      "cidr":"10.200.0.0/16",
-      "block_mask":29,
-      "tenants":[
-        "tenant1",
-        "tenant2"
-      ]
-    },
-    {
-      "name":"net2",
-      "cidr":"10.220.0.0/16",
-      "block_mask":28,
-      "tenants":[
-        "tenant3"
-      ]
-    },
-    {
-      "name":"net3",
-      "cidr":"10.240.0.0/16",
-      "block_mask":28
-    }
-  ],
-  "topologies":[
-    {
-      "networks":[
-        "net1",
-        "net2",
-        "net3"
-      ],
-      "map":[
-        {
-          "routing":"foo",
-          "groups": [{
-            "name":"host1",
-            "ip":"192.168.0.1"
-          }]
-        }
-      ]
-    }
-  ]
-}`
-	ipam = initIpam(t, conf)
+	ipam = initIpam(t, "")
 
 	ip, err := ipam.AllocateIP("x1", "host1", "tenant1", "")
 	if err != nil {
@@ -786,38 +568,7 @@ func TestTenants(t *testing.T) {
 }
 
 func TestHostAllocation(t *testing.T) {
-	conf := `{
-  "networks":[
-    {
-      "name":"net1",
-      "cidr":"10.0.0.0/8",
-      "block_mask":30
-    }
-  ],
-  "topologies":[
-    {
-      "networks":[
-        "net1"
-      ],
-      "map":[
-        {
-          "routing":"test",
-          "groups":[
-            {
-              "name":"ip-192-168-99-10",
-              "ip":"192.168.99.10"
-            },
-            {
-              "name":"ip-192-168-99-11",
-              "ip":"192.168.99.11"
-            }
-          ]
-        }
-      ]
-    }
-  ]
-}`
-	ipam = initIpam(t, conf)
+	ipam = initIpam(t, "")
 
 	ip, err := ipam.AllocateIP("x1", "ip-192-168-99-10", "tenant1", "")
 	if err != nil {
@@ -1113,32 +864,7 @@ func TestJsonParsing(t *testing.T) {
 
 // TestOutOfBoundsError tests an error happening in tests for romana 2.0
 func TestOutOfBoundsError(t *testing.T) {
-	conf := `{
-  "networks":[
-    {
-      "name":"net1",
-      "cidr":"10.0.0.0/8",
-      "block_mask":30
-    }
-  ],
-  "topologies":[
-    {
-      "networks":[
-        "net1"
-      ],
-      "map":[
-        {
-          "routing":"foo",
-          "groups":[{
-            "name":"host1",
-            "ip":"192.168.0.1"
-          }]
-        }
-      ]
-    }
-  ]
-}`
-	ipam = initIpam(t, conf)
+	ipam = initIpam(t, "")
 	maxAddrCnt := 6
 	for i := 0; i < maxAddrCnt; i++ {
 		addr := fmt.Sprintf("addr%d", i)
@@ -1171,35 +897,35 @@ func TestOutOfBoundsError(t *testing.T) {
 	}
 }
 
-func TestGenerateJSONSimple(t *testing.T) {
-	updateReq := api.TopologyUpdateRequest{}
-	net1 := api.NetworkDefinition{BlockMask: 30,
-		CIDR: "10.0.0.0/16",
-		Name: "net1",
-	}
-	updateReq.Networks = []api.NetworkDefinition{net1}
-	group1 := api.GroupOrHost{Name: "group1",
-		Groups: make([]api.GroupOrHost, 0),
-	}
-	group2 := api.GroupOrHost{Name: "group2",
-		Groups: make([]api.GroupOrHost, 0),
-	}
-	topoDef1 := api.TopologyDefinition{Networks: []string{"net1"},
-		Map: []api.GroupOrHost{group1, group2},
-	}
-	updateReq.Topologies = []api.TopologyDefinition{topoDef1}
-	b, err := json.Marshal(updateReq)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Logf(string(b))
-}
+//func TestGenerateJSONSimple(t *testing.T) {
+//	updateReq := api.TopologyUpdateRequest{}
+//	net1 := api.NetworkDefinition{BlockMask: 30,
+//		CIDR: "10.0.0.0/16",
+//		Name: "net1",
+//	}
+//	updateReq.Networks = []api.NetworkDefinition{net1}
+//	group1 := api.GroupOrHost{Name: "group1",
+//		Groups: make([]api.GroupOrHost, 0),
+//	}
+//	group2 := api.GroupOrHost{Name: "group2",
+//		Groups: make([]api.GroupOrHost, 0),
+//	}
+//	topoDef1 := api.TopologyDefinition{Networks: []string{"net1"},
+//		Map: []api.GroupOrHost{group1, group2},
+//	}
+//	updateReq.Topologies = []api.TopologyDefinition{topoDef1}
+//	b, err := json.Marshal(updateReq)
+//	if err != nil {
+//		t.Fatal(err)
+//	}
+//	t.Logf(string(b))
+//}
 
 func TestHostAdditionSimple(t *testing.T) {
 
 	t.Logf("TestHostAdditionSimple")
 
-	ipam = initIpam2(t)
+	ipam = initIpam(t, "")
 	//	t.Logf(testSaver.lastJson)
 
 	for i := 0; i < 4; i++ {

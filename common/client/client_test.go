@@ -310,7 +310,7 @@ func TestConcurrency(t *testing.T) {
 	client = initClient(t, "")
 
 	barrier := make(chan int)
-	cnt := 32
+	cnt := 8
 	locker, err := client.Store.NewLocker("/lock")
 	if err != nil {
 		t.Fatal(err)
