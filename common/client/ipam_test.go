@@ -588,278 +588,46 @@ func TestHostAllocation(t *testing.T) {
 	t.Logf("Saved state: %s", testSaver.lastJson)
 }
 
-func TestJsonParsing(t *testing.T) {
-	var conf string
-
-	// Slide 12: Example 1: Simple, flat network
+func TestParseSimpleFlatNetworkA(t *testing.T) {
 	t.Log("Example 1: Simple, flat network, (a)")
-	conf = `{
-  "networks":[
-    {
-      "name":"vlanA",
-      "cidr":"10.1.0.0/16",
-      "block_mask": 28
-    }
-  ],
-  "topologies":[
-    {
-      "networks":[
-        "vlanA"
-      ],
-      "map":[
-        {
-          "routing":"block-on-host",
-          "groups":[
-            { "name" : "h1", "ip" : "1.1.1.1" },
-            { "name" : "h1", "ip" : "1.1.1.1" },
-            { "name" : "h1", "ip" : "1.1.1.1" },
-            { "name" : "h1", "ip" : "1.1.1.1" }
-          ]
-        }
-      ]
-    }
-  ]
-}`
-	initIpam(t, conf)
+	initIpam(t, "")
 	t.Logf("Slide 12: Example 1: Simple, flat network JSON:\n%s\n", testSaver.lastJson)
+}
 
-	// Slide 13: Example 1: Simple, flat network
+func TestParseSimpleFlatNetworkB(t *testing.T) {
 	t.Logf("Example 1: Simple, flat network, (b)")
-	conf = `{
-  "networks":[
-    {
-      "name":"vlanA",
-      "cidr":"10.1.0.0/16",
-      "block_mask": 28
-   
-    }
-  ],
-  "topologies":[
-    {
-      "networks":[
-        "vlanA"
-      ],
-      "map":[
-        {
-          "routing":"block-announce-bgp:peerxxxxx",
-          "groups":[
-            { "name" : "h1", "ip" : "1.1.1.1" },
-            { "name" : "h2", "ip" : "1.1.1.1" },
-            { "name" : "h3", "ip" : "1.1.1.1" },
-            { "name" : "h4", "ip" : "1.1.1.1" }
-          ]
-        }
-      ]
-    }
-  ]
-}`
-	initIpam(t, conf)
+	initIpam(t, "")
 	t.Logf("Slide 13: Example 1: Simple, flat network:\n%s\n", testSaver.lastJson)
+}
 
-	// Slide 14: Example 1: Simple, flat network
+func TestParseSimpleFlatNetworkC(t *testing.T) {
 	t.Logf("Example 1: Simple, flat network, (c)")
-	conf = `{
-  "networks":[
-    {
-      "name":"vlanA",
-      "cidr":"10.1.0.0/16",
-      "block_mask" : 28
-    }
-  ],
-  "topologies":[
-    {
-      "networks":[
-        "vlanA"
-      ],
-      "map":[
-        {
-          "routing":"block-on-host,block - announce - bgp: peerxxxxx",
-          "groups":[
-            { "name" : "h1", "ip" : "1.1.1.1" },
-            { "name" : "h1", "ip" : "1.1.1.1" },
-            { "name" : "h1", "ip" : "1.1.1.1" },
-            { "name" : "h1", "ip" : "1.1.1.1" }
-          ]
-        }
-      ]
-    }
-  ]
-}`
-	initIpam(t, conf)
+	initIpam(t, "")
 	t.Logf("Slide 14: Example 1: Simple, flat network JSON:\n%s\n", testSaver.lastJson)
+}
 
-	// Slide 15: Example 2: Prefix per host
+func TestParsePrefixPerHostA(t *testing.T) {
 	t.Logf("Example 2: Prefix per host (a)")
-	conf = `{
-  "networks":[
-    {
-      "name":"vlanA",
-      "cidr":"10.1.0.0/16",
-      "block_mask" : 28
-    }
-  ],
-  "topologies":[
-    {
-      "networks":[
-        "vlanA"
-      ],
-      "map":[
-        {
-          "routing":"prefix-on-host",
-          "groups":[
-            { "name" : "h1", "ip" : "1.1.1.1" }
-          ]
-        },
-        {
-          "routing":"prefix-on-host",
-          "groups":[
-            { "name" : "h1", "ip" : "1.1.1.1" }
-          ]
-        },
-        {
-          "routing":"prefix-on-host",
-          "groups":[ { "name" : "h1", "ip" : "1.1.1.1" } ]
-        },
-        {
-          "routing":"prefix-on-host",
-          "groups":[ { "name" : "h1", "ip" : "1.1.1.1" } ]
-        }
-      ]
-    }
-  ]
-}`
-	initIpam(t, conf)
-	t.Logf("Slide 15: Example 2: Prefix per host JSON:\n%s\n", testSaver.lastJson)
+	initIpam(t, "")
+	t.Logf("Slide 15: Example 2: Prefix per host (a) JSON:\n%s\n", testSaver.lastJson)
+}
 
-	// Slide 16: Example 2: Prefix per host
-	t.Logf("Example 2: Prefix per host (b)")
-	conf = `{
-  "networks":[
-    {
-      "name":"vlanA",
-      "cidr":"10.1.0.0/16",
-      "block_mask" : 28
-    }
-  ],
-  "topologies":[
-    {
-      "networks":[
-        "vlanA"
-      ],
-      "map":[
-            {
-              "routing":"prefix-announce-bgp:peerxxxx",
-              "groups":[ { "name" : "h1", "ip" : "1.1.1.1" } ]
-            },
-            {
-              "routing":"prefix-announce-bgp:peerxxxx",
-              "groups":[ { "name" : "h1", "ip" : "1.1.1.1" } ]
-            },
-            {
-              "routing":"prefix-announce-bgp:peerxxxx",
-              "groups":[ { "name" : "h1", "ip" : "1.1.1.1" } ]
-            },
-            {
-              "routing":"prefix-announce-bgp:peerxxxx",
-              "groups":[ { "name" : "h1", "ip" : "1.1.1.1" }  ]
-            }
-      ]
-    }
-  ]
-}`
-	initIpam(t, conf)
-	t.Logf("Slide 16: Example 2: Prefix per host JSON:\n%s\n", testSaver.lastJson)
+func TestParsePrefixPerHostB(t *testing.T) {
+	t.Logf("Example 2: Prefix per host (ab")
+	initIpam(t, "")
+	t.Logf("Slide 16: Example 2: Prefix per host (b) JSON:\n%s\n", testSaver.lastJson)
+}
 
-	// Slide 17: Example 3: Multi-host groups + prefix
+func TestParseMultiHostGroupsWithPrefix(t *testing.T) {
 	t.Logf("Example 3: Multi-host groups + prefix")
-	conf = `{
-  "networks":[
-    {
-      "name":"vlanA",
-      "cidr":"10.1.0.0/16",
-      "block_mask" : 28
-    }
-  ],
-  "topologies":[
-    {
-      "networks":[
-        "vlanA"
-      ],
-      "map":[
-        {
-          "routing":"block-host-routes, prefix-announce-bgp:peerxxxx",
-          "groups":[ { "name" : "h1", "ip" : "1.1.1.1" }, { "name" : "h1", "ip" : "1.1.1.1" } ]
-        },
-        {
-          "routing":"block-host-routes, prefix-announce-bgp:peerxxxx",
-          "groups":[ { "name" : "h1", "ip" : "1.1.1.1" }, { "name" : "h1", "ip" : "1.1.1.1" } ]
-        },
-        {
-          "routing":"block-host-routes, prefix-announce-bgp:peerxxxx",
-          "groups":[ { "name" : "h1", "ip" : "1.1.1.1" }, { "name" : "h1", "ip" : "1.1.1.1" } ]
-        },
-        {
-          "routing":"block-host-routes, prefix-announce-bgp:peerxxxx",
-          "groups":[ { "name" : "h1", "ip" : "1.1.1.1" }, { "name" : "h1", "ip" : "1.1.1.1" } ]
-        }
-      ]
-    }
-  ]
-}`
-	initIpam(t, conf)
+	initIpam(t, "")
 	t.Logf("Slide 17: Example 3: Multi-host groups + prefix JSON:\n%s\n", testSaver.lastJson)
+}
 
-	// Slide 18: Example 4: VPC routing for two AZs
+func TestParseVPCRoutingForTwoAZs(t *testing.T) {
 	t.Logf("Example 4: VPC routing for two AZs")
-	conf = `{
-  "networks":[
-    {
-      "name":"subnetA",
-      "cidr":"10.1.0.0/16",
-      "block_mask" : 28
-    },
-    {
-      "name":"subnetB",
-      "cidr":"10.2.0.0/16",
-      "block_mask" : 28
-    }
-  ],
-  "topologies":[
-    {
-      "networks":[
-        "subnetA"
-      ],
-      "map":[
-        {
-          "routing":"block-host-routes,prefix-announce-vpc",
-          "groups":[]
-        },
-        {
-          "routing":"block-host-routes,prefix-announce-vpc",
-          "groups":[]
-        }
-      ]
-    },
-    {
-      "networks":[
-        "subnetB"
-      ],
-      "map":[
-        {
-          "routing":"block-host-routes,prefix-announce-vpc",
-          "groups":[]
-        },
-        {
-          "routing":"block-host-routes,prefix-announce-vpc",
-          "groups":[]
-        }
-      ]
-    }
-  ]
-}`
-	initIpam(t, conf)
+	initIpam(t, "")
 	t.Logf("Slide 18: Example 4: VPC routing for two AZs JSON:\n%s\n", testSaver.lastJson)
-
 }
 
 // TestOutOfBoundsError tests an error happening in tests for romana 2.0
