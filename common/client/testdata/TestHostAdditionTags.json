@@ -1,40 +1,46 @@
 {
-  "networks":[
+  "networks": [
     {
-      "name":"net1",
-      "cidr":"10.0.0.0/16",
-      "block_mask":30
+      "name": "net1",
+      "cidr": "10.0.0.0/16",
+      "block_mask": 30
     }
   ],
-  "topologies":[
+  "topologies": [
     {
-      "networks":[
+      "networks": [
         "net1"
       ],
-      "map":[
+      "map": [
         {
-          "routing":"foo",
-          "groups":[ 
-                     { 
-                        "assignment" : { "tier" : "frontend" },
-                        "groups" : []
-                      },
-                     { 
-                        "assignment" : { "tier" : "backend" },
-                        "groups" : []
-                      },
-                      { 
-                        "assignment" : { "tier" : "frontend" },
-                        "groups" : []
-                      },
-                      { 
-                        "assignment" : { "tier" : "backend" },
-                        "groups" : []
-                      }
-                   ]
+          "assignment" : { "tier" : "backend" },
+          "groups": [
+            
+          ],
+          "name": "group1"
+        },
+        {
+          "assignment" : { "tier" : "frontend" },
+          "groups": [
+            
+          ],
+          "name": "group2"
+        },
+         {
+          "assignment" : { "tier" : "backend" },
+          "groups": [
+            
+          ],
+          "name": "group3"
+        },
+        {
+          "assignment" : { "tier" : "frontend" },
+          "groups": [
+            
+          ],
+          "name": "group4"
         }
       ]
     }
-
   ]
 }

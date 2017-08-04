@@ -719,3 +719,42 @@ func TestHostAdditionSimple(t *testing.T) {
 	// 	t.Logf(testSaver.lastJson)
 
 }
+
+func TestHostAdditionTags(t *testing.T) {
+	t.Logf("TestHostAdditionTags")
+
+	ipam = initIpam(t, "")
+	//	t.Logf(testSaver.lastJson)
+
+	tags := make(map[string]string)
+	tags["tier"] = "backend"
+	for i := 0; i < 4; i++ {
+		ip := net.ParseIP(fmt.Sprintf("10.10.10.1%d", i))
+		name := fmt.Sprintf("host%d", i)
+		host := api.Host{Name: name,
+			IP:   ip,
+			Tags: tags,
+		}
+		err := ipam.AddHost(host)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	// We should have 2 hosts in groups 1 and 3 and 0 in groups 2 and 4
+	net1 := ipam.Networks["net1"]
+	for i, grp := range net1.Group.Groups {
+		if i == 0 || i == 2 {
+			if len(grp.Hosts) != 2 {
+				t.Fatalf("Expected group %s to have 2 hosts, it has %d", grp.Name, len(grp.Hosts))
+			}
+		} else {
+			if len(grp.Hosts) != 0 {
+				t.Fatalf("Expected group %s to have 2 hosts, it has %d", grp.Name, len(grp.Hosts))
+			}
+		}
+		t.Logf("Hosts in group %s (%v): %v", grp.Name, grp.Assignment, grp.Hosts)
+	}
+
+	// 	t.Logf(testSaver.lastJson)
+
+}

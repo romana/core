@@ -213,35 +213,30 @@ func (hg *Group) String() string {
 }
 
 // isHostEligible checks if the host can be added to this group.
-// If not eligible for reasons other than assignment, an error is returned in addition to
-// "false"
-func (hg *Group) isHostEligible(host *Host) (bool, error) {
-	if hg.findHostByName(host.Name) != nil {
-		return false, common.NewError("Host with name %s already exists.", host.Name)
-	}
-
-	if hg.findHostByIP(host.IP.String()) != nil {
-		return false, common.NewError("Host with IP %s already exists.", host.IP)
-	}
-
+func (hg *Group) isHostEligible(host *Host) bool {
+	log.Tracef(trace.Inside, "Checking eligibility of %s in group %s", host, hg.Name)
 	// Check assignment
 	if hg.Assignment != nil {
 		for k, v := range hg.Assignment {
 			if host.Tags == nil {
-				log.Tracef(trace.Inside, "Group has %v requirements, host has not tags, skipping", hg.Assignment)
-				return false, nil
+				log.Tracef(trace.Inside, "Group %s has %v requirements, host %s has no tags, skipping", hg.Name, hg.Assignment, host)
+				return false
 			}
 			if host.Tags[k] != v {
-				log.Tracef(trace.Inside, "Group requires %s=%s, host has %s", k, v, host.Tags[k])
-				return false, nil
+				log.Tracef(trace.Inside, "Group %s requires %s=%s, host has %s", hg.Name, k, v, host.Tags[k])
+				return false
 			}
 		}
 	}
-	return true, nil
+	return true
 }
 
 // findSmallestGroup finds the group with fewest hosts
-func (hg *Group) findSmallestGroup() *Group {
+func (hg *Group) findSmallestEligibleGroup(host *Host) *Group {
+	if !hg.isHostEligible(host) {
+		log.Tracef(trace.Inside, "Host %s not eligible for group %s", host, hg.Name)
+		return nil
+	}
 	log.Tracef(trace.Inside, "Looking for smallest group in %s", hg.Name)
 	if hg.Groups == nil {
 		return nil
@@ -250,6 +245,11 @@ func (hg *Group) findSmallestGroup() *Group {
 	var curSmallest *Group
 	minHosts := math.MaxInt32
 	for _, g = range hg.Groups {
+		ok := g.isHostEligible(host)
+		if !ok {
+			log.Tracef(trace.Inside, "Host %s not eligible for group %s: %v", host, hg.Name, err)
+			continue
+		}
 		log.Tracef(trace.Inside, "In %s, considering %s", hg.Name, g.Name)
 		if g.Hosts != nil {
 			log.Tracef(trace.Inside, "In %s, considering %s with %d hosts (vs current smallest %d)", hg.Name, g.Name, len(g.Hosts), minHosts)
@@ -258,7 +258,7 @@ func (hg *Group) findSmallestGroup() *Group {
 				curSmallest = g
 			}
 		} else {
-			smallestCandidate := g.findSmallestGroup()
+			smallestCandidate := g.findSmallestEligibleGroup(host)
 			if smallestCandidate != nil {
 				if len(smallestCandidate.Hosts) < minHosts {
 					minHosts = len(smallestCandidate.Hosts)
@@ -273,15 +273,17 @@ func (hg *Group) findSmallestGroup() *Group {
 
 func (hg *Group) addHost(host *Host) (bool, error) {
 	log.Tracef(trace.Inside, "Calling addHost on %s", hg.Name)
-	ok, err := hg.isHostEligible(host)
-	if !ok {
-		return false, err
+	if hg.findHostByName(host.Name) != nil {
+		return false, common.NewError("Host with name %s already exists.", host.Name)
 	}
 
-	// Assignment passes...
+	if hg.findHostByIP(host.IP.String()) != nil {
+		return false, common.NewError("Host with IP %s already exists.", host.IP)
+	}
+
 	if hg.Hosts == nil {
 		// Try to add to one of the subgroups.
-		smallest := hg.findSmallestGroup()
+		smallest := hg.findSmallestEligibleGroup(host)
 		if smallest == nil {
 			return false, errors.New("Cannot add host: no groups available.")
 		}
