@@ -18,6 +18,7 @@ package cni
 import (
 	"fmt"
 	"net"
+	"net/http"
 
 	"github.com/containernetworking/cni/pkg/types"
 	"github.com/go-resty/resty"
@@ -119,7 +120,13 @@ func (DefaultAddressManager) Allocate(config NetConf, client *client.Client, pod
 }
 
 func (DefaultAddressManager) Deallocate(config NetConf, client *client.Client, targetName string) error {
-	return client.IPAM.DeallocateIP(targetName)
+	err := client.IPAM.DeallocateIP(targetName)
+	if httpE, ok := err.(common.HttpError); ok && httpE.StatusCode == http.StatusNotFound {
+		log.Errorf("CNI attempted to deallocate %s but got %s, suppressing error to prevent kubelet from retries", targetName, httpE)
+		return nil
+	}
+
+	return err
 }
 
 // MakeRomanaClient creates romana rest client from CNI config.
