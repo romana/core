@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	"github.com/romana/core/agent/simple/internal/rtable"
+	"github.com/romana/core/agent/simple/internal/sysctl"
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
 	"github.com/romana/core/common/client"
@@ -34,6 +35,14 @@ const (
 	DefaultGwIP         = "127.42.0.1"
 )
 
+var (
+	kernelDefaults = []string{
+		"/proc/sys/net/ipv4/conf/default/proxy_arp",
+		"/proc/sys/net/ipv4/conf/all/proxy_arp",
+		"/proc/sys/net/ipv4/ip_forward",
+	}
+)
+
 func main() {
 	var err error
 
@@ -44,6 +53,7 @@ func main() {
 	provisionSysctls := flag.Bool("provision-sysctls", false, "configure routing sysctls")
 	romanaRouteTableId := flag.Int("route-table-id", DefaultRouteTableId,
 		"id that romana route table should have in /etc/iproute2/rt_tables")
+	multihop := flag.Bool("multihop-blocks", false, "allows multihop blocks")
 	flag.Parse()
 
 	romanaConfig := common.Config{
@@ -76,11 +86,21 @@ func main() {
 	}
 
 	if *provisionSysctls {
-		err := ProvisionSysctls()
+		err := setSysctls()
 		if err != nil {
-			log.Errorf("Failed to provision systls %s", err)
+			log.Errorf("Failed to set sysctls %s", err)
 			os.Exit(2)
 		}
+	}
+
+	ok, err := checkSysctls()
+	if err != nil {
+		log.Errorf("Failed verify the state of essential systls %s", err)
+		os.Exit(2)
+	}
+	if !ok {
+		log.Errorf("Essential sysctls not set, consider using -provision-sysctls flag and ensure you are running from root")
+		os.Exit(2)
 	}
 
 	err = rtable.EnsureRouteTableExist(*romanaRouteTableId)
@@ -129,7 +149,7 @@ func main() {
 				continue
 			}
 
-			createRouteToBlocks(blocks.Blocks, hosts, *romanaRouteTableId, *hostname)
+			createRouteToBlocks(blocks.Blocks, hosts, *romanaRouteTableId, *hostname, *multihop, nlHandle)
 
 		case newHosts := <-hostsChannel:
 			// TODO need mutex for this.
@@ -138,7 +158,7 @@ func main() {
 	}
 }
 
-// IpamHosts is a collection of hosts with search methods.
+// IpamHosts is a collection of hosts with Get method.
 type IpamHosts []api.Host
 
 func (hosts IpamHosts) GetHost(hostname string) *api.Host {
@@ -150,36 +170,25 @@ func (hosts IpamHosts) GetHost(hostname string) *api.Host {
 	return nil
 }
 
-// createRouteToBlocks loops over list of blocks and creates routes when needed.
-func createRouteToBlocks(blocks []api.IPAMBlockResponse, hosts IpamHosts, romanaRouteTableId int, hostname string) {
-	for _, block := range blocks {
-		if block.Host == hostname {
-			log.Errorf("Block %v is local and does not require a route on that host", block)
-			continue
-		}
-
-		host := hosts.GetHost(block.Host)
-		if host == nil {
-			log.Errorf("Block %v belongs to unknown host %s, ignoring", block, block.Host)
-			continue
-		}
-
-		if err := createRouteToBlock(block, host, romanaRouteTableId); err != nil {
-			log.Errorf("%s", err)
+// checkSysctls checks that esseantial sysctl options are set.
+func checkSysctls() (ok bool, err error) {
+	for _, path := range kernelDefaults {
+		ok, err = sysctl.Check(path)
+		if !ok || err != nil {
+			break
 		}
 	}
+
+	return ok, err
 }
 
-// createRouteToBlock creates ip route for given block->host pair in Romana routing table.
-func createRouteToBlock(block api.IPAMBlockResponse, host *api.Host, romanaRouteTableId int) error {
-	route := netlink.Route{
-		Dst:   &block.CIDR.IPNet,
-		Gw:    host.IP,
-		Table: romanaRouteTableId,
+// setSysctls sets essential sysctl options.
+func setSysctls() (err error) {
+	for _, path := range kernelDefaults {
+		err = sysctl.Set(path)
+		if err != nil {
+			break
+		}
 	}
-
-	var err error
-	log.Debugf("About to create route %v", route)
-	err = netlink.RouteAdd(&route)
 	return err
 }

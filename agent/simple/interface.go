@@ -24,14 +24,6 @@ import (
 	"github.com/vishvananda/netlink"
 )
 
-var (
-	kernelDefaults = []string{
-		"/proc/sys/net/ipv4/conf/default/proxy_arp",
-		"/proc/sys/net/ipv4/conf/all/proxy_arp",
-		"/proc/sys/net/ipv4/ip_forward",
-	}
-)
-
 func CreateRomanaGW() error {
 	rgw := &netlink.Dummy{LinkAttrs: netlink.LinkAttrs{Name: "romana-lo", TxQLen: 1000}}
 	if err := netlink.LinkAdd(rgw); err != nil {
