@@ -22,6 +22,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"syscall"
 	"time"
 
 	// aws-sdk-go imports
@@ -78,15 +79,22 @@ func main() {
 
 	// store is not used
 	_ = store
-	stopCh := make(chan struct{})
+
 	// start the controller
-	go controller.Run(stopCh)
+	stopCh := make(chan struct{})
+	doneCh := make(chan struct{})
+	go func() {
+		controller.Run(stopCh)
+		close(doneCh)
+	}()
 
 	// run until killed or interrupted
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt, os.Kill)
+	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
 	select {
 	case <-sigCh:
+		close(stopCh)
+	case <-doneCh:
 		close(stopCh)
 	}
 }
@@ -101,17 +109,25 @@ func add(awsSession *session.Session, obj interface{}) {
 	// zone is not required, but still expected.
 	externalID := node.Spec.ExternalID
 	if externalID == "" {
-		log.Printf("no value for node.Spec.ExternalID on node", node.ObjectMeta.Name)
+		log.Println("no value for node.Spec.ExternalID on node", node.ObjectMeta.Name)
 		return
 	}
 	region, ok := node.ObjectMeta.Labels[unversioned.LabelZoneRegion]
+	if !ok {
+		log.Println("no value for label", unversioned.LabelZoneRegion, "on node", node.ObjectMeta.Name)
+		return
+	}
 	if region == "" {
-		log.Printf("no value for label", unversioned.LabelZoneRegion, "on node", node.ObjectMeta.Name)
+		log.Println("empty value for label", unversioned.LabelZoneRegion, "on node", node.ObjectMeta.Name)
 		return
 	}
 	zone, ok := node.ObjectMeta.Labels[unversioned.LabelZoneFailureDomain]
+	if !ok {
+		log.Println("no value for label", unversioned.LabelZoneFailureDomain, "on node", node.ObjectMeta.Name)
+		return
+	}
 	if zone == "" {
-		log.Printf("no value for label", unversioned.LabelZoneFailureDomain, "on node", node.ObjectMeta.Name)
+		log.Println("empty value for label", unversioned.LabelZoneFailureDomain, "on node", node.ObjectMeta.Name)
 		return
 	}
 
