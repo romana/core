@@ -45,6 +45,13 @@ func createRouteToBlocks(blocks []api.IPAMBlockResponse,
 		}
 
 		if err := createRouteToBlock(block, host, romanaRouteTableId, multihop, nlHandle); err != nil {
+			_, ok := err.(RouteAdjacencyError)
+			if ok {
+				// Lower severity for expected error
+				log.Debugf("%s", err)
+				continue
+			}
+
 			log.Errorf("%s", err)
 		}
 	}
@@ -72,7 +79,7 @@ func createRouteToBlock(block api.IPAMBlockResponse, host *api.Host, romanaRoute
 	}
 
 	if testRoutes[0].Gw != nil && multihop == false {
-		return errors.New(fmt.Sprintf("no directly adjacent route for host %s and multihop is prohibited", host.IP))
+		return RouteAdjacencyError{}
 	}
 
 	route := netlink.Route{
@@ -83,4 +90,10 @@ func createRouteToBlock(block api.IPAMBlockResponse, host *api.Host, romanaRoute
 
 	log.Debugf("About to create route %v", route)
 	return nlHandle.RouteAdd(&route)
+}
+
+type RouteAdjacencyError struct{}
+
+func (RouteAdjacencyError) Error() string {
+	return "no directly adjacent route and multihop is prohibited"
 }

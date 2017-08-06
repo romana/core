@@ -85,7 +85,7 @@ func TestCreateRouteToBlock(t *testing.T) {
 			host:       &api.Host{},
 			multihop:   false,
 			testHandle: testHandle{rg: []netlink.Route{netlink.Route{Gw: net.ParseIP("192.168.99.1")}}},
-			expect:     func(err error) bool { return strings.Contains(err.Error(), "and multihop is prohibited") },
+			expect:     func(err error) bool { _, ok := err.(RouteAdjacencyError); return ok },
 		},
 		{
 			name:       "confirm success for nont adjacent block with multihop enabled",
