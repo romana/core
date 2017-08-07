@@ -21,7 +21,7 @@ import (
 	"strings"
 )
 
-// Set systcl value to 1, takes absolute ralative to /proc filesystem.
+// Set systcl value to 1, the specified path has to start with /proc/sys.
 // Example: /proc/sys/net/ipv4/conf/default/proxy_arp
 func Set(path string) error {
 	if !strings.HasPrefix(path, "/proc/sys") {
@@ -37,7 +37,8 @@ type errorSetBoundary string
 
 func (e errorSetBoundary) Error() string { return string(e) }
 
-// Check that sysctl value is 1, takes absolute path relative to /proc filesystem.
+// Check that sysctl value is 1, the specified path has to start with /proc/sys.
+// For paths outside of /proc/sys result is undetermented.
 func Check(path string) (bool, error) {
 	data, err := ioutil.ReadFile(path)
 	if err != nil {

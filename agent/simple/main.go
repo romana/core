@@ -19,6 +19,7 @@ import (
 	"flag"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/romana/core/agent/simple/internal/rtable"
 	"github.com/romana/core/agent/simple/internal/sysctl"
@@ -36,7 +37,7 @@ const (
 )
 
 var (
-	kernelDefaults = []string{
+	kernelParameter = []string{
 		"/proc/sys/net/ipv4/conf/default/proxy_arp",
 		"/proc/sys/net/ipv4/conf/all/proxy_arp",
 		"/proc/sys/net/ipv4/ip_forward",
@@ -143,6 +144,7 @@ func main() {
 	for {
 		select {
 		case blocks := <-blocksChannel:
+			startTime := time.Now()
 			err := rtable.FlushRomanaTable()
 			if err != nil {
 				log.Errorf("failed to flush romana route table err=(%s)", err)
@@ -150,6 +152,8 @@ func main() {
 			}
 
 			createRouteToBlocks(blocks.Blocks, hosts, *romanaRouteTableId, *hostname, *multihop, nlHandle)
+			runTime := time.Now().Sub(startTime)
+			log.Tracef(4, "Time between route table flush and route table rebuild %s", runTime)
 
 		case newHosts := <-hostsChannel:
 			// TODO need mutex for this.
@@ -172,7 +176,7 @@ func (hosts IpamHosts) GetHost(hostname string) *api.Host {
 
 // checkSysctls checks that esseantial sysctl options are set.
 func checkSysctls() (ok bool, err error) {
-	for _, path := range kernelDefaults {
+	for _, path := range kernelParameter {
 		ok, err = sysctl.Check(path)
 		if !ok || err != nil {
 			break
@@ -184,7 +188,7 @@ func checkSysctls() (ok bool, err error) {
 
 // setSysctls sets essential sysctl options.
 func setSysctls() (err error) {
-	for _, path := range kernelDefaults {
+	for _, path := range kernelParameter {
 		err = sysctl.Set(path)
 		if err != nil {
 			break

@@ -48,7 +48,7 @@ func createRouteToBlocks(blocks []api.IPAMBlockResponse,
 			_, ok := err.(RouteAdjacencyError)
 			if ok {
 				// Lower severity for expected error
-				log.Debugf("%s", err)
+				log.Tracef(4, "%s", err)
 				continue
 			}
 
@@ -63,7 +63,7 @@ type nlHandleRoute interface {
 }
 
 // createRouteToBlock creates ip route for given block->host pair in Romana routing table,
-// the function will fail if requested block is not directly adjacent and multipath false.
+// the function will fail if requested block is not directly adjacent and multihop false.
 func createRouteToBlock(block api.IPAMBlockResponse, host *api.Host, romanaRouteTableId int, multihop bool, nlHandle nlHandleRoute) error {
 	testRoutes, err := nlHandle.RouteGet(host.IP)
 	if err != nil {
