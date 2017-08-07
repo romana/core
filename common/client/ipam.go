@@ -37,7 +37,7 @@ import (
 // This provides an implementation of an IPAM that can allocate
 // blocks of IPs for tenant/segment pair. It assumes IPv4.
 //
-// Address blocks may be taken outÂ of more than one pre-configured
+// Address blocks may be taken out more then one pre-configured
 // address range (Networks).
 
 const (
@@ -516,7 +516,11 @@ func (hg *Group) findHostByName(name string) *Host {
 		}
 	}
 	for _, group := range hg.Groups {
-		return group.findHostByName(name)
+		h := group.findHostByName(name)
+		if h != nil {
+			return h
+		}
+		//	return group.findHostByName(name)
 	}
 	return nil
 }
