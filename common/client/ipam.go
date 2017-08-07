@@ -548,9 +548,11 @@ func (hg *Group) parseMap(groupOrHosts []api.GroupOrHost, cidr CIDR, network *Ne
 	}
 
 	hg.Name = "/"
-	hg.Groups = make([]*Group, len(groupOrHosts))
+	l := len(groupOrHosts) - 1
+	bitsToEncodeGroups := uint(big.NewInt(int64(l)).BitLen())
+	pow2numGroups := 1 << bitsToEncodeGroups
 	// Pad the array to the next power of 2
-	rem := free % len(groupOrHosts)
+	rem := pow2numGroups - len(groupOrHosts)
 	if rem != 0 {
 		// Let's allocate a few more empty slots to complete the power of 2
 		remArr := make([]api.GroupOrHost, rem)
@@ -569,6 +571,7 @@ func (hg *Group) parseMap(groupOrHosts []api.GroupOrHost, cidr CIDR, network *Ne
 	}
 	// bitsPerElement := free - bits.Len32(uint64(len(groupOrHosts)))
 
+	hg.Groups = make([]*Group, pow2numGroups)
 	for i, elt := range groupOrHosts {
 		log.Tracef(trace.Inside, "parseMap: parsing %s", elt.Name)
 		// Calculate CIDR for the current group
@@ -636,7 +639,6 @@ func (hg *Group) parse(arr []api.GroupOrHost, cidr CIDR, network *Network) error
 		// This is hosts
 		isHostList = true
 		hg.Hosts = make([]*Host, len(arr))
-		hg.CIDR = cidr
 		hg.BlockToOwner = make(map[int]string)
 		hg.Blocks = make([]*Block, 0)
 		hg.OwnerToBlocks = make(map[string][]int)
