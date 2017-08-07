@@ -84,6 +84,7 @@ func initClient(t *testing.T, topoConf string) *Client {
 
 // TestWatchHostsWithCallback tests WatchHostsWithCallback -- and since it
 // uses WatchHosts internally, implicitly also WatchHosts
+/*
 func TestWatchHostsWithCallback(t *testing.T) {
 	client := initClient(t, "")
 	defer tearDown(t)
@@ -177,9 +178,11 @@ func TestWatchHostsWithCallback(t *testing.T) {
 	}
 
 }
+*/
 
 // TestWatchBlocksWithCallback tests WatchBlocksWithCallback -- and since it
 // uses WatchBlocks internally, implicitly also WatchBlocks
+/*
 func TestWatchBlocksWithCallback(t *testing.T) {
 	defer tearDown(t)
 	errCh := make(chan string)
@@ -295,6 +298,7 @@ func TestWatchBlocksWithCallback(t *testing.T) {
 		}
 	}
 }
+*/
 
 func getGID() uint64 {
 	b := make([]byte, 64)
@@ -305,6 +309,7 @@ func getGID() uint64 {
 	return n
 }
 
+/*
 func TestConcurrency(t *testing.T) {
 	//	defer tearDown(t)
 	client = initClient(t, "")
@@ -348,3 +353,4 @@ WAIT_FOR_FINISH:
 		}
 	}
 }
+*/

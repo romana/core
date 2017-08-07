@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/big"
 	"net"
 	"regexp"
 	"strings"
@@ -551,7 +552,9 @@ func (hg *Group) parseMap(groupOrHosts []api.GroupOrHost, cidr CIDR, network *Ne
 		remArr := make([]api.GroupOrHost, rem)
 		groupOrHosts = append(groupOrHosts, remArr...)
 	}
-	bitsPerElement := free / len(groupOrHosts)
+	// bitsPerElement := free / len(groupOrHosts)
+	bitsPerElement := free - big.NewInt(int64(len(groupOrHosts))).BitLen()
+	// bitsPerElement := free - bits.Len32(uint64(len(groupOrHosts)))
 
 	for i, elt := range groupOrHosts {
 		log.Tracef(trace.Inside, "parseMap: parsing %s", elt.Name)
@@ -607,6 +610,11 @@ func (hg *Group) parse(arr []api.GroupOrHost, cidr CIDR, network *Network) error
 		log.Tracef(trace.Inside, "Received empty array in group %s, assuming this is a host group", hg.Name)
 		// This is an empty group
 		hg.Hosts = make([]*Host, 0)
+		hg.CIDR = cidr
+		hg.BlockToOwner = make(map[int]string)
+		hg.Blocks = make([]*Block, 0)
+		hg.OwnerToBlocks = make(map[string][]int)
+		hg.ReusableBlocks = make([]int, 0)
 		return nil
 	}
 
