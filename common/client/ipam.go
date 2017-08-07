@@ -557,7 +557,16 @@ func (hg *Group) parseMap(groupOrHosts []api.GroupOrHost, cidr CIDR, network *Ne
 		groupOrHosts = append(groupOrHosts, remArr...)
 	}
 	// bitsPerElement := free / len(groupOrHosts)
-	bitsPerElement := free - big.NewInt(int64(len(groupOrHosts))).BitLen()
+
+	var bitsPerElement int
+	if len(groupOrHosts) == 0 {
+		// No groups is weird bit say we give full cidr in that case.
+		bitsPerElement = free
+	} else {
+		// if len()==1 then we get free - 0 which means
+		// allocate entire cidr to this one group.
+		bitsPerElement = free - big.NewInt(int64(len(groupOrHosts)-1)).BitLen()
+	}
 	// bitsPerElement := free - bits.Len32(uint64(len(groupOrHosts)))
 
 	for i, elt := range groupOrHosts {
