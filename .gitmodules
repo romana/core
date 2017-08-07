@@ -135,3 +135,6 @@
 [submodule "vendor/github.com/hashicorp/go-multierror"]
 	path = vendor/github.com/hashicorp/go-multierror
 	url = https://github.com/hashicorp/go-multierror.git
+[submodule "vendor/github.com/pkg/errors"]
+	path = vendor/github.com/pkg/errors
+	url = https://github.com/pkg/errors
