@@ -164,7 +164,7 @@ func romanaHostAdd(l *KubeListener, node *v1.Node) error {
 	hostIP := net.ParseIP(node.Status.Addresses[0].Address)
 	host := romanaApi.Host{IP: hostIP,
 		Name: hostname,
-		Tags: node.GetAnnotations(),
+		Tags: node.GetLabels(),
 	}
 	return l.client.IPAM.AddHost(host)
 }
