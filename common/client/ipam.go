@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"math/big"
 	"net"
 	"regexp"
 	"strings"
@@ -36,7 +37,7 @@ import (
 // This provides an implementation of an IPAM that can allocate
 // blocks of IPs for tenant/segment pair. It assumes IPv4.
 //
-// Address blocks may be taken outÂ of more than one pre-configured
+// Address blocks may be taken out more then one pre-configured
 // address range (Networks).
 
 const (
@@ -515,7 +516,11 @@ func (hg *Group) findHostByName(name string) *Host {
 		}
 	}
 	for _, group := range hg.Groups {
-		return group.findHostByName(name)
+		h := group.findHostByName(name)
+		if h != nil {
+			return h
+		}
+		//	return group.findHostByName(name)
 	}
 	return nil
 }
@@ -543,16 +548,30 @@ func (hg *Group) parseMap(groupOrHosts []api.GroupOrHost, cidr CIDR, network *Ne
 	}
 
 	hg.Name = "/"
-	hg.Groups = make([]*Group, len(groupOrHosts))
+	l := len(groupOrHosts) - 1
+	bitsToEncodeGroups := uint(big.NewInt(int64(l)).BitLen())
+	pow2numGroups := 1 << bitsToEncodeGroups
 	// Pad the array to the next power of 2
-	rem := free % len(groupOrHosts)
+	rem := pow2numGroups - len(groupOrHosts)
 	if rem != 0 {
 		// Let's allocate a few more empty slots to complete the power of 2
 		remArr := make([]api.GroupOrHost, rem)
 		groupOrHosts = append(groupOrHosts, remArr...)
 	}
-	bitsPerElement := free / len(groupOrHosts)
+	// bitsPerElement := free / len(groupOrHosts)
 
+	var bitsPerElement int
+	if len(groupOrHosts) == 0 {
+		// No groups is weird bit say we give full cidr in that case.
+		bitsPerElement = free
+	} else {
+		// if len()==1 then we get free - 0 which means
+		// allocate entire cidr to this one group.
+		bitsPerElement = free - big.NewInt(int64(len(groupOrHosts)-1)).BitLen()
+	}
+	// bitsPerElement := free - bits.Len32(uint64(len(groupOrHosts)))
+
+	hg.Groups = make([]*Group, pow2numGroups)
 	for i, elt := range groupOrHosts {
 		log.Tracef(trace.Inside, "parseMap: parsing %s", elt.Name)
 		// Calculate CIDR for the current group
@@ -607,6 +626,11 @@ func (hg *Group) parse(arr []api.GroupOrHost, cidr CIDR, network *Network) error
 		log.Tracef(trace.Inside, "Received empty array in group %s, assuming this is a host group", hg.Name)
 		// This is an empty group
 		hg.Hosts = make([]*Host, 0)
+		hg.CIDR = cidr
+		hg.BlockToOwner = make(map[int]string)
+		hg.Blocks = make([]*Block, 0)
+		hg.OwnerToBlocks = make(map[string][]int)
+		hg.ReusableBlocks = make([]int, 0)
 		return nil
 	}
 
@@ -615,7 +639,6 @@ func (hg *Group) parse(arr []api.GroupOrHost, cidr CIDR, network *Network) error
 		// This is hosts
 		isHostList = true
 		hg.Hosts = make([]*Host, len(arr))
-		hg.CIDR = cidr
 		hg.BlockToOwner = make(map[int]string)
 		hg.Blocks = make([]*Block, 0)
 		hg.OwnerToBlocks = make(map[string][]int)
