@@ -627,48 +627,51 @@ func (hg *Group) parseMap(groupOrHosts []api.GroupOrHost, cidr CIDR, network *Ne
 	return nil
 }
 
-func (hg *Group) parse(arr []api.GroupOrHost, cidr CIDR, network *Network) error {
-
-	if hg.BlockToOwner == nil {
+// groupStructuresInit initializes a number of storage structures in a group.
+// If the forceInit parameter is true then it will re-initialize them, even if
+// they already had values.
+func (hg *Group) groupStructuresInit(forceInit bool) {
+	if hg.BlockToOwner == nil || forceInit {
 		hg.BlockToOwner = make(map[int]string)
 	}
-	if hg.BlockToHost == nil {
+	if hg.BlockToHost == nil || forceInit {
 		hg.BlockToHost = make(map[int]string)
 	}
 
-	if hg.OwnerToBlocks == nil {
+	if hg.OwnerToBlocks == nil || forceInit {
 		hg.OwnerToBlocks = make(map[string][]int)
 	}
-	if hg.Blocks == nil {
+	if hg.Blocks == nil || forceInit {
 		hg.Blocks = make([]*Block, 0)
 	}
-	if hg.ReusableBlocks == nil {
+	if hg.ReusableBlocks == nil || forceInit {
 		hg.ReusableBlocks = make([]int, 0)
 	}
+}
+
+func (hg *Group) parse(arr []api.GroupOrHost, cidr CIDR, network *Network) error {
+	hg.groupStructuresInit(false)
+
+	// Every group - no matter what type - gets a CIDR
+	hg.CIDR = cidr
 
 	// First we see what kind of elements we have here - groups or hosts
 	if len(arr) == 0 {
 		log.Tracef(trace.Inside, "Received empty array in group %s, assuming this is a host group", hg.Name)
 		// This is an empty group
 		hg.Hosts = make([]*Host, 0)
-		hg.CIDR = cidr
-		hg.BlockToOwner = make(map[int]string)
-		hg.Blocks = make([]*Block, 0)
-		hg.OwnerToBlocks = make(map[string][]int)
-		hg.ReusableBlocks = make([]int, 0)
+		hg.groupStructuresInit(true)
 		return nil
 	}
 
 	var isHostList bool
 	if arr[0].IP != nil {
-		// This is hosts
+		// This is a group with hosts
 		isHostList = true
 		hg.Hosts = make([]*Host, len(arr))
-		hg.BlockToOwner = make(map[int]string)
-		hg.Blocks = make([]*Block, 0)
-		hg.OwnerToBlocks = make(map[string][]int)
-		hg.ReusableBlocks = make([]int, 0)
+		hg.groupStructuresInit(true)
 	} else {
+		// This is a group that contains more groups
 		arr = hg.padGroupToPow2Size(arr)
 		hg.Groups = make([]*Group, len(arr))
 	}
