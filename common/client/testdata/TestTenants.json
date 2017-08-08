@@ -1,0 +1,44 @@
+{
+  "networks":[
+    {
+      "name":"net1",
+      "cidr":"10.200.0.0/16",
+      "block_mask":29,
+      "tenants":[
+        "tenant1",
+        "tenant2"
+      ]
+    },
+    {
+      "name":"net2",
+      "cidr":"10.220.0.0/16",
+      "block_mask":28,
+      "tenants":[
+        "tenant3"
+      ]
+    },
+    {
+      "name":"net3",
+      "cidr":"10.240.0.0/16",
+      "block_mask":28
+    }
+  ],
+  "topologies":[
+    {
+      "networks":[
+        "net1",
+        "net2",
+        "net3"
+      ],
+      "map":[
+        {
+          "routing":"foo",
+          "groups": [{
+            "name":"host1",
+            "ip":"192.168.0.1"
+          }]
+        }
+      ]
+    }
+  ]
+}

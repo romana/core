@@ -1,0 +1,38 @@
+{
+  "networks":[
+    {
+      "name":"vlanA",
+      "cidr":"10.1.0.0/16",
+      "block_mask" : 28
+    }
+  ],
+  "topologies":[
+    {
+      "networks":[
+        "vlanA"
+      ],
+      "map":[
+        {
+          "routing":"prefix-on-host",
+          "groups":[
+            { "name" : "h1", "ip" : "1.1.1.1" }
+          ]
+        },
+        {
+          "routing":"prefix-on-host",
+          "groups":[
+            { "name" : "h1", "ip" : "1.1.1.1" }
+          ]
+        },
+        {
+          "routing":"prefix-on-host",
+          "groups":[ { "name" : "h1", "ip" : "1.1.1.1" } ]
+        },
+        {
+          "routing":"prefix-on-host",
+          "groups":[ { "name" : "h1", "ip" : "1.1.1.1" } ]
+        }
+      ]
+    }
+  ]
+}

@@ -19,6 +19,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"math"
+	"math/big"
 	"net"
 	"regexp"
 	"strings"
@@ -35,7 +37,7 @@ import (
 // This provides an implementation of an IPAM that can allocate
 // blocks of IPs for tenant/segment pair. It assumes IPv4.
 //
-// Address blocks may be taken outÂ of more than one pre-configured
+// Address blocks may be taken out more then one pre-configured
 // address range (Networks).
 
 const (
@@ -176,6 +178,7 @@ func (h Host) String() string {
 // be a mix. In other words, the invariant is:
 //   - Either Hosts or Groups field is nil
 type Group struct {
+	Name   string   `json:"name"`
 	Hosts  []*Host  `json:"hosts"`
 	Groups []*Group `json:"groups"`
 	// CIDR which is to be subdivided among hosts or sub-groups of this group.
@@ -210,7 +213,67 @@ func (hg *Group) String() string {
 	}
 }
 
+// isHostEligible checks if the host can be added to this group.
+func (hg *Group) isHostEligible(host *Host) bool {
+	log.Tracef(trace.Inside, "Checking eligibility of %s in group %s", host, hg.Name)
+	// Check assignment
+	if hg.Assignment != nil {
+		for k, v := range hg.Assignment {
+			if host.Tags == nil {
+				log.Tracef(trace.Inside, "Group %s has %v requirements, host %s has no tags, skipping", hg.Name, hg.Assignment, host)
+				return false
+			}
+			if host.Tags[k] != v {
+				log.Tracef(trace.Inside, "Group %s requires %s=%s, host has %s", hg.Name, k, v, host.Tags[k])
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// findSmallestGroup finds the group with fewest hosts
+func (hg *Group) findSmallestEligibleGroup(host *Host) *Group {
+	if !hg.isHostEligible(host) {
+		log.Tracef(trace.Inside, "Host %s not eligible for group %s", host, hg.Name)
+		return nil
+	}
+	log.Tracef(trace.Inside, "Looking for smallest group in %s", hg.Name)
+	if hg.Groups == nil {
+		return nil
+	}
+	var g *Group
+	var curSmallest *Group
+	minHosts := math.MaxInt32
+	for _, g = range hg.Groups {
+		ok := g.isHostEligible(host)
+		if !ok {
+			log.Tracef(trace.Inside, "Host %s not eligible for group %s: %v", host, hg.Name, err)
+			continue
+		}
+		log.Tracef(trace.Inside, "In %s, considering %s", hg.Name, g.Name)
+		if g.Hosts != nil {
+			log.Tracef(trace.Inside, "In %s, considering %s with %d hosts (vs current smallest %d)", hg.Name, g.Name, len(g.Hosts), minHosts)
+			if minHosts > len(g.Hosts) {
+				minHosts = len(g.Hosts)
+				curSmallest = g
+			}
+		} else {
+			smallestCandidate := g.findSmallestEligibleGroup(host)
+			if smallestCandidate != nil {
+				if len(smallestCandidate.Hosts) < minHosts {
+					minHosts = len(smallestCandidate.Hosts)
+					curSmallest = smallestCandidate
+				}
+			}
+		}
+	}
+	log.Tracef(trace.Inside, "Group with fewest hosts has %d hosts", len(curSmallest.Hosts))
+	return curSmallest
+}
+
 func (hg *Group) addHost(host *Host) (bool, error) {
+	log.Tracef(trace.Inside, "Calling addHost on %s", hg.Name)
 	if hg.findHostByName(host.Name) != nil {
 		return false, common.NewError("Host with name %s already exists.", host.Name)
 	}
@@ -219,37 +282,16 @@ func (hg *Group) addHost(host *Host) (bool, error) {
 		return false, common.NewError("Host with IP %s already exists.", host.IP)
 	}
 
-	// First check assignment
-	if hg.Assignment != nil {
-		for k, v := range hg.Assignment {
-			if host.Tags == nil {
-				log.Tracef(trace.Inside, "Group has %v requirements, host has not tags, skipping", hg.Assignment)
-				return false, nil
-			}
-			if host.Tags[k] != v {
-				log.Tracef(trace.Inside, "Group requires %s=%s, host has %s", k, v, host.Tags[k])
-				return false, nil
-			}
-		}
-	}
-	// Assignment passes...
 	if hg.Hosts == nil {
 		// Try to add to one of the subgroups.
-		for _, g := range hg.Groups {
-			ok, err := g.addHost(host)
-			if err != nil {
-				return false, err
-			}
-			if ok {
-				// Found a suitable group
-				return ok, nil
-			}
+		smallest := hg.findSmallestEligibleGroup(host)
+		if smallest == nil {
+			return false, errors.New("Cannot add host: no groups available.")
 		}
-		return false, nil
+		return smallest.addHost(host)
 	}
 
 	hg.Hosts = append(hg.Hosts, host)
-	hg.network.ipam.TopologyRevision++
 	return true, nil
 }
 
@@ -474,13 +516,17 @@ func (hg *Group) findHostByName(name string) *Host {
 		}
 	}
 	for _, group := range hg.Groups {
-		return group.findHostByName(name)
+		h := group.findHostByName(name)
+		if h != nil {
+			return h
+		}
+		//	return group.findHostByName(name)
 	}
 	return nil
 }
 
 func (hg *Group) parseMap(groupOrHosts []api.GroupOrHost, cidr CIDR, network *Network) error {
-	// Figure out  what would be the size per
+	// Figure out what would be the size per
 	// element.
 	ones, bits := cidr.Mask.Size()
 	free := bits - ones
@@ -488,17 +534,46 @@ func (hg *Group) parseMap(groupOrHosts []api.GroupOrHost, cidr CIDR, network *Ne
 		// Just do nothing for now...
 		return nil
 	}
-	hg.Groups = make([]*Group, len(groupOrHosts))
+
+	if len(groupOrHosts) == 1 {
+		log.Tracef(trace.Inside, "parseMap of size 1")
+		hg.Name = groupOrHosts[0].Name
+		hg.Assignment = groupOrHosts[0].Assignment
+		hg.Routing = groupOrHosts[0].Routing
+		err = hg.parse(groupOrHosts[0].Groups, cidr, network)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+
+	hg.Name = "/"
+	l := len(groupOrHosts) - 1
+	bitsToEncodeGroups := uint(big.NewInt(int64(l)).BitLen())
+	pow2numGroups := 1 << bitsToEncodeGroups
 	// Pad the array to the next power of 2
-	rem := free % len(groupOrHosts)
+	rem := pow2numGroups - len(groupOrHosts)
 	if rem != 0 {
 		// Let's allocate a few more empty slots to complete the power of 2
 		remArr := make([]api.GroupOrHost, rem)
 		groupOrHosts = append(groupOrHosts, remArr...)
 	}
-	bitsPerElement := free / len(groupOrHosts)
+	// bitsPerElement := free / len(groupOrHosts)
 
+	var bitsPerElement int
+	if len(groupOrHosts) == 0 {
+		// No groups is weird bit say we give full cidr in that case.
+		bitsPerElement = free
+	} else {
+		// if len()==1 then we get free - 0 which means
+		// allocate entire cidr to this one group.
+		bitsPerElement = free - big.NewInt(int64(len(groupOrHosts)-1)).BitLen()
+	}
+	// bitsPerElement := free - bits.Len32(uint64(len(groupOrHosts)))
+
+	hg.Groups = make([]*Group, pow2numGroups)
 	for i, elt := range groupOrHosts {
+		log.Tracef(trace.Inside, "parseMap: parsing %s", elt.Name)
 		// Calculate CIDR for the current group
 		incr := uint64(i << uint(bitsPerElement))
 		elementCIDRIP := common.IntToIPv4(cidr.StartIPInt + incr)
@@ -508,21 +583,22 @@ func (hg *Group) parseMap(groupOrHosts []api.GroupOrHost, cidr CIDR, network *Ne
 		if err != nil {
 			return err
 		}
-
-		hg.Assignment = elt.Assignment
-		hg.Routing = elt.Routing
 		hg.Groups[i] = &Group{}
+		hg.Groups[i].Name = elt.Name
+		hg.Groups[i].Assignment = elt.Assignment
+		hg.Groups[i].Routing = elt.Routing
 		//		log.Tracef(trace.Inside, "Calling parse() on %v with %v", hg.Groups[i], elt.Groups)
 		err = hg.Groups[i].parse(elt.Groups, elementCIDR, network)
 		if err != nil {
 			return err
 		}
-
 	}
+
 	return nil
 }
 
 func (hg *Group) parse(arr []api.GroupOrHost, cidr CIDR, network *Network) error {
+
 	if hg.BlockToOwner == nil {
 		hg.BlockToOwner = make(map[int]string)
 	}
@@ -544,24 +620,25 @@ func (hg *Group) parse(arr []api.GroupOrHost, cidr CIDR, network *Network) error
 	// element.
 	ones, bits := cidr.Mask.Size()
 	free := bits - ones
-	if len(arr) == 0 {
-		// Just do nothing for now...
-		return nil
-	}
 
 	// First we see what kind of elements we have here - groups or hosts
 	if len(arr) == 0 {
+		log.Tracef(trace.Inside, "Received empty array in group %s, assuming this is a host group", hg.Name)
 		// This is an empty group
 		hg.Hosts = make([]*Host, 0)
+		hg.CIDR = cidr
+		hg.BlockToOwner = make(map[int]string)
+		hg.Blocks = make([]*Block, 0)
+		hg.OwnerToBlocks = make(map[string][]int)
+		hg.ReusableBlocks = make([]int, 0)
 		return nil
 	}
 
 	var isHostList bool
-	if arr[0].Name != "" {
+	if arr[0].IP != nil {
 		// This is hosts
 		isHostList = true
 		hg.Hosts = make([]*Host, len(arr))
-		hg.CIDR = cidr
 		hg.BlockToOwner = make(map[int]string)
 		hg.Blocks = make([]*Block, 0)
 		hg.OwnerToBlocks = make(map[string][]int)
@@ -581,7 +658,7 @@ func (hg *Group) parse(arr []api.GroupOrHost, cidr CIDR, network *Network) error
 	bitsPerElement := free / len(arr)
 	for i, elt := range arr {
 		if isHostList {
-			if elt.Name == "" || elt.IP == nil {
+			if elt.IP != nil && elt.Name == "" {
 				return common.NewError("Both name and IP are required for hosts: %v", elt)
 			}
 			// This is host, we inherit the CIDR
@@ -1058,6 +1135,7 @@ func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest) error {
 		for _, netName := range topoDef.Networks {
 			if network, ok := ipam.Networks[netName]; ok {
 				hg := &Group{}
+
 				err := hg.parseMap(topoDef.Map, network.CIDR, network)
 				if err != nil {
 					return err
@@ -1137,6 +1215,11 @@ func (ipam *IPAM) RemoveHost(host api.Host) error {
 			}
 		}
 		myHost.group.Hosts = deleteElementHost(myHost.group.Hosts, i)
+		ipam.TopologyRevision++
+		err = ipam.save(ipam)
+		if err != nil {
+			return err
+		}
 		return nil
 	}
 	return common.NewError("No host found with IP %s and/or name %s", host.IP, host.Name)
@@ -1157,6 +1240,11 @@ func (ipam *IPAM) AddHost(host api.Host) error {
 			return err
 		}
 		if ok {
+			ipam.TopologyRevision++
+			err = ipam.save(ipam)
+			if err != nil {
+				return err
+			}
 			return nil
 		}
 	}

@@ -1,0 +1,46 @@
+{
+  "networks":[
+    {
+      "name":"subnetA",
+      "cidr":"10.1.0.0/16",
+      "block_mask" : 28
+    },
+    {
+      "name":"subnetB",
+      "cidr":"10.2.0.0/16",
+      "block_mask" : 28
+    }
+  ],
+  "topologies":[
+    {
+      "networks":[
+        "subnetA"
+      ],
+      "map":[
+        {
+          "routing":"block-host-routes,prefix-announce-vpc",
+          "groups":[]
+        },
+        {
+          "routing":"block-host-routes,prefix-announce-vpc",
+          "groups":[]
+        }
+      ]
+    },
+    {
+      "networks":[
+        "subnetB"
+      ],
+      "map":[
+        {
+          "routing":"block-host-routes,prefix-announce-vpc",
+          "groups":[]
+        },
+        {
+          "routing":"block-host-routes,prefix-announce-vpc",
+          "groups":[]
+        }
+      ]
+    }
+  ]
+}
