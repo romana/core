@@ -689,6 +689,43 @@ func TestOutOfBoundsError(t *testing.T) {
 //	t.Logf(string(b))
 //}
 
+func TestPrefixGenForEmptyGroups(t *testing.T) {
+
+	t.Logf("TestPrefixGenForEmptyGroups")
+
+	ipam = initIpam(t, "")
+	// t.Logf(testSaver.lastJson)
+
+	net1 := ipam.Networks["net1"]
+	if len(net1.Group.Groups) != 2 {
+		t.Fatalf("Expected exactly two top level groups")
+	}
+
+	// Checking first top-level groups
+	gr1 := net1.Group.Groups[0]
+	if gr1.Groups != nil {
+		t.Fatalf("Expected no sub-groups in first top-level group")
+	}
+	if gr1.CIDR.String() != "10.0.0.0/17" {
+		t.Fatalf("CIDR for first top-level group should be 10.0.0.0/17")
+	}
+
+	// Checking sub-groups in second top-level group
+	gr2 := net1.Group.Groups[1]
+	if gr2.CIDR.String() != "" {
+		t.Fatalf("Second top-level group shouldn't have a CIDR")
+	}
+	if len(gr2.Groups) != 2 {
+		t.Fatalf("Expected two sub-groups in second top-level group")
+	}
+	if gr2.Groups[0].CIDR.String() != "10.0.128.0/18" {
+		t.Fatalf("CIDR for first sub-group should be 10.0.128.0/18")
+	}
+	if gr2.Groups[1].CIDR.String() != "10.0.192.0/18" {
+		t.Fatalf("CIDR for second sub-group should be 10.0.192.0/18")
+	}
+}
+
 func TestHostAdditionSimple(t *testing.T) {
 
 	t.Logf("TestHostAdditionSimple")
@@ -716,7 +753,7 @@ func TestHostAdditionSimple(t *testing.T) {
 		t.Logf("Hosts in group %s: %v", grp.Name, grp.Hosts)
 	}
 
-	// 	t.Logf(testSaver.lastJson)
+	// t.Logf(testSaver.lastJson)
 
 }
 
