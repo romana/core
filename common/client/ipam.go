@@ -646,30 +646,24 @@ func (hg *Group) parse(arr []api.GroupOrHost, cidr CIDR, network *Network) error
 		hg.ReusableBlocks = make([]int, 0)
 	}
 
+	// Every group - no matter what type - gets a CIDR
+	hg.CIDR = cidr
+
 	// First we see what kind of elements we have here - groups or hosts
 	if len(arr) == 0 {
 		log.Tracef(trace.Inside, "Received empty array in group %s, assuming this is a host group", hg.Name)
 		// This is an empty group
 		hg.Hosts = make([]*Host, 0)
-		hg.CIDR = cidr
-		hg.BlockToOwner = make(map[int]string)
-		hg.Blocks = make([]*Block, 0)
-		hg.OwnerToBlocks = make(map[string][]int)
-		hg.ReusableBlocks = make([]int, 0)
 		return nil
 	}
 
 	var isHostList bool
 	if arr[0].IP != nil {
-		// This is hosts
+		// This is a group with hosts
 		isHostList = true
 		hg.Hosts = make([]*Host, len(arr))
-		hg.CIDR = cidr
-		hg.BlockToOwner = make(map[int]string)
-		hg.Blocks = make([]*Block, 0)
-		hg.OwnerToBlocks = make(map[string][]int)
-		hg.ReusableBlocks = make([]int, 0)
 	} else {
+		// This is a group that contains more groups
 		arr = hg.padGroupToPow2Size(arr)
 		hg.Groups = make([]*Group, len(arr))
 	}

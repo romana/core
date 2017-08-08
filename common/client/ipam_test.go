@@ -714,8 +714,8 @@ func TestPrefixGenForEmptyGroups(t *testing.T) {
 
 	// Checking sub-groups in second top-level group
 	gr2 := net1.Group.Groups[1]
-	if gr2.CIDR.String() != "" {
-		t.Fatalf("Second top-level group shouldn't have a CIDR")
+	if gr2.CIDR.String() != "10.0.128.0/17" {
+		t.Fatalf("CIDR for second top-level group should be 10.0.128.0/17")
 	}
 	if len(gr2.Groups) != 2 {
 		t.Fatalf("Expected two sub-groups in second top-level group")
