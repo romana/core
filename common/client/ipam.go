@@ -664,6 +664,7 @@ func (hg *Group) parse(arr []api.GroupOrHost, cidr CIDR, network *Network) error
 		// This is hosts
 		isHostList = true
 		hg.Hosts = make([]*Host, len(arr))
+		hg.CIDR = cidr
 		hg.BlockToOwner = make(map[int]string)
 		hg.Blocks = make([]*Block, 0)
 		hg.OwnerToBlocks = make(map[string][]int)

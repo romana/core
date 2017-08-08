@@ -522,6 +522,7 @@ func TestSegments(t *testing.T) {
 // on which provided tenants are allowed.
 func TestTenants(t *testing.T) {
 	ipam = initIpam(t, "")
+	// t.Log(testSaver.lastJson)
 
 	ip, err := ipam.AllocateIP("x1", "host1", "tenant1", "")
 	if err != nil {
@@ -569,6 +570,7 @@ func TestTenants(t *testing.T) {
 
 func TestHostAllocation(t *testing.T) {
 	ipam = initIpam(t, "")
+	// t.Log(testSaver.lastJson)
 
 	ip, err := ipam.AllocateIP("x1", "ip-192-168-99-10", "tenant1", "")
 	if err != nil {
