@@ -186,8 +186,17 @@ func CmdAdd(args *skel.CmdArgs) error {
 
 	// Return route.
 	err = AddEndpointRoute(hostIface.Name, podAddress)
+	// There is exactly one case when this error doesn't count,
+	// it is when we are trying to create something that exists.
 	if err != nil {
-		return fmt.Errorf("Failed to setup return route to %s via interface %s, err=(%s)", podAddress, hostIface.Name, err)
+		errno, ok := err.(syscall.Errno)
+		if !ok {
+			return fmt.Errorf("Failed to setup return route to %s via interface %s, err=(%s.(%T))", podAddress, hostIface.Name, err, err)
+		}
+
+		if errno != syscall.EEXIST {
+			return fmt.Errorf("Failed to setup return route to %s via interface %s, err=(%s)", podAddress, hostIface.Name, errno)
+		}
 	}
 
 	/* disabled for pre-2.0
