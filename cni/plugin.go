@@ -185,18 +185,10 @@ func CmdAdd(args *skel.CmdArgs) error {
 	}
 
 	// Return route.
-	err = AddEndpointRoute(hostIface.Name, podAddress)
-	// There is exactly one case when this error doesn't count,
-	// it is when we are trying to create something that exists.
+	err = AddEndpointRoute(hostIface.Name, podAddress, nil)
 	if err != nil {
-		errno, ok := err.(syscall.Errno)
-		if !ok {
-			return fmt.Errorf("Failed to setup return route to %s via interface %s, err=(%s.(%T))", podAddress, hostIface.Name, err, err)
-		}
-
-		if errno != syscall.EEXIST {
-			return fmt.Errorf("Failed to setup return route to %s via interface %s, err=(%s)", podAddress, hostIface.Name, errno)
-		}
+		log.Debug(err)
+		return err
 	}
 
 	/* disabled for pre-2.0
@@ -286,9 +278,27 @@ func GetRomanaGwAddr() (*net.IPNet, error) {
 	return addr[0].IPNet, nil
 }
 
+type nlRouteHandle interface {
+	LinkByName(name string) (netlink.Link, error)
+	RouteAdd(*netlink.Route) error
+	RouteReplace(*netlink.Route) error
+	RouteGet(net.IP) ([]netlink.Route, error)
+	Delete()
+}
+
 // AddEndpointRoute adds return /32 route from host to pod.
-func AddEndpointRoute(ifaceName string, ip *net.IPNet) error {
-	veth, err := netlink.LinkByName(ifaceName)
+// This function is designed to take nil as nlRouteHandle argument.
+func AddEndpointRoute(ifaceName string, ip *net.IPNet, nl nlRouteHandle) error {
+	if nl == nil {
+		var nlErr error
+		nl, nlErr = netlink.NewHandle()
+		if nlErr != nil {
+			return fmt.Errorf("couldn't create netlink handle, err=(%s)", nlErr)
+		}
+		defer nl.Delete()
+	}
+
+	veth, err := nl.LinkByName(ifaceName)
 	if err != nil {
 		return err
 	}
@@ -298,9 +308,32 @@ func AddEndpointRoute(ifaceName string, ip *net.IPNet) error {
 		LinkIndex: veth.Attrs().Index,
 	}
 
-	err = netlink.RouteAdd(&returnRoute)
+	err = nl.RouteAdd(&returnRoute)
 	if err != nil {
-		return err
+		errno, ok := err.(syscall.Errno)
+		if !ok {
+			return fmt.Errorf("couldn't create route to %s via interface %s, err=(%s.(%T))",
+				ip, ifaceName, err, err)
+		}
+
+		if errno != syscall.EEXIST {
+			return fmt.Errorf("couldn't create route to %s via interface %s, err=(%s)",
+				ip, ifaceName, err)
+		}
+
+		// ignoring the error since this exists
+		// for logging purposes only.
+		origRoutes, _ := nl.RouteGet(ip.IP)
+
+		// In case interface exists but isn't
+		// pointing to the right interface.
+		err2 := nl.RouteReplace(&returnRoute)
+		if err2 != nil {
+			return fmt.Errorf("couldn't replace route to %s via interface %s, err=(%s)",
+				ip, ifaceName, err)
+		}
+
+		log.Debugf("successfully redirected network %s from %v to %s", ip, origRoutes, ifaceName)
 	}
 
 	return nil
