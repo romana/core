@@ -809,6 +809,29 @@ func TestHostAdditionTags(t *testing.T) {
 		t.Logf("Hosts in group %s (%v): %v", grp.Name, grp.Assignment, grp.Hosts)
 	}
 
+	// Now for some assignments that fail, because the host doesn't have tags
+	// or has the wrong ones
+	host := api.Host{Name: "another-host-1",
+		IP: net.ParseIP("10.10.200.99"),
+	}
+	err := ipam.AddHost(host)
+	if err == nil {
+		// We expect this one to fail
+		t.Fatal(err)
+	}
+
+	tags = make(map[string]string)
+	tags["unknown"] = "unknown"
+	host = api.Host{Name: "another-host-2",
+		IP:   net.ParseIP("10.10.200.99"),
+		Tags: tags,
+	}
+	err = ipam.AddHost(host)
+	if err == nil {
+		// We expect this one to fail
+		t.Fatal(err)
+	}
+
 	// 	t.Logf(testSaver.lastJson)
 
 }
