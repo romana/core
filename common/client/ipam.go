@@ -268,6 +268,11 @@ func (hg *Group) findSmallestEligibleGroup(host *Host) *Group {
 			}
 		}
 	}
+	if curSmallest == nil {
+		log.Tracef(trace.Inside, "Could not find eligible group for host %s", host)
+		return nil
+	}
+
 	log.Tracef(trace.Inside, "Group with fewest hosts has %d hosts", len(curSmallest.Hosts))
 	return curSmallest
 }
