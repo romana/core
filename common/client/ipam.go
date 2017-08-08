@@ -525,11 +525,66 @@ func (hg *Group) findHostByName(name string) *Host {
 	return nil
 }
 
-func (hg *Group) parseMap(groupOrHosts []api.GroupOrHost, cidr CIDR, network *Network) error {
-	// Figure out what would be the size per
-	// element.
+// padGroupToPow2Size adds more elements to the group-or-host array, if we have
+// the bits for it. For example, if 3 groups were requested, we need 2 bits to
+// encode those and therefore, we have space for one more group. We may just as
+// well create it now and leave it empty in that case, since it might be useful
+// later on.
+func (hg *Group) padGroupToPow2Size(groupOrHosts []api.GroupOrHost) []api.GroupOrHost {
+	largestIndex := len(groupOrHosts) - 1
+	bitsToEncodeGroups := uint(big.NewInt(int64(largestIndex)).BitLen())
+	pow2numGroups := 1 << bitsToEncodeGroups
+	// Pad the array to the next power of 2
+	rem := pow2numGroups - len(groupOrHosts)
+	if rem != 0 {
+		// Let's allocate a few more empty slots to complete the power of 2
+		remArr := make([]api.GroupOrHost, rem)
+		groupOrHosts = append(groupOrHosts, remArr...)
+	}
+	return groupOrHosts
+}
+
+// bitsForGroupElements calculates how many bits we have available for the
+// encoding of endpoints. For example, with a 10.0.0.0/24 CIDR and four groups,
+// we lose 2 bits for the encoding of groups. Thus, the function should return
+// 6 in this case: We have 6 bits left for elements within the groups.
+func (hg *Group) bitsForGroupElements(numGroups int, cidr CIDR) int {
+	// Number of free bits in the CIDR
 	ones, bits := cidr.Mask.Size()
 	free := bits - ones
+
+	var n int
+	if numGroups == 0 {
+		// No groups is weird bit say we give full cidr in that case.
+		n = free
+	} else {
+		// Calculate how many bits we need to encode the various groups, then
+		// subtract from the free bits in the CIDR.
+		// Note: if numGroups==1 then we get free - 0 which means
+		// allocate entire cidr to this one group.
+		n = free - big.NewInt(int64(numGroups-1)).BitLen()
+	}
+	return n
+}
+
+// cidrForCurrentGroup calculates the CIDR for the nth group in a list of
+// groups. This can be calculated off the 'index' of the group, the CIDR above
+// this group and the number of bits we need to reserve for elements within the
+// group.
+func (hg *Group) cidrForCurrentGroup(groupIndex int, bitsPerElement int, cidr CIDR) (CIDR, error) {
+	// Calculate CIDR for the current group
+	incr := uint64(groupIndex << uint(bitsPerElement))
+	elementCIDRIP := common.IntToIPv4(cidr.StartIPInt + incr)
+	elementCIDRString := fmt.Sprintf("%s/%d", elementCIDRIP, (32 - bitsPerElement))
+	log.Tracef(trace.Inside, "CIDR String for %s %d: %s", elementCIDRIP, bitsPerElement, elementCIDRString)
+	elementCidr, err := NewCIDR(elementCIDRString)
+	if err != nil {
+		return elementCidr, err
+	}
+	return elementCidr, nil
+}
+
+func (hg *Group) parseMap(groupOrHosts []api.GroupOrHost, cidr CIDR, network *Network) error {
 	if len(groupOrHosts) == 0 {
 		// Just do nothing for now...
 		return nil
@@ -548,38 +603,13 @@ func (hg *Group) parseMap(groupOrHosts []api.GroupOrHost, cidr CIDR, network *Ne
 	}
 
 	hg.Name = "/"
-	l := len(groupOrHosts) - 1
-	bitsToEncodeGroups := uint(big.NewInt(int64(l)).BitLen())
-	pow2numGroups := 1 << bitsToEncodeGroups
-	// Pad the array to the next power of 2
-	rem := pow2numGroups - len(groupOrHosts)
-	if rem != 0 {
-		// Let's allocate a few more empty slots to complete the power of 2
-		remArr := make([]api.GroupOrHost, rem)
-		groupOrHosts = append(groupOrHosts, remArr...)
-	}
-	// bitsPerElement := free / len(groupOrHosts)
+	groupOrHosts = hg.padGroupToPow2Size(groupOrHosts)
+	bitsPerElement := hg.bitsForGroupElements(len(groupOrHosts), cidr)
 
-	var bitsPerElement int
-	if len(groupOrHosts) == 0 {
-		// No groups is weird bit say we give full cidr in that case.
-		bitsPerElement = free
-	} else {
-		// if len()==1 then we get free - 0 which means
-		// allocate entire cidr to this one group.
-		bitsPerElement = free - big.NewInt(int64(len(groupOrHosts)-1)).BitLen()
-	}
-	// bitsPerElement := free - bits.Len32(uint64(len(groupOrHosts)))
-
-	hg.Groups = make([]*Group, pow2numGroups)
+	hg.Groups = make([]*Group, len(groupOrHosts))
 	for i, elt := range groupOrHosts {
 		log.Tracef(trace.Inside, "parseMap: parsing %s", elt.Name)
-		// Calculate CIDR for the current group
-		incr := uint64(i << uint(bitsPerElement))
-		elementCIDRIP := common.IntToIPv4(cidr.StartIPInt + incr)
-		elementCIDRString := fmt.Sprintf("%s/%d", elementCIDRIP, (32 - bitsPerElement))
-		log.Tracef(trace.Inside, "CIDR String for %s %d: %s", elementCIDRIP, bitsPerElement, elementCIDRString)
-		elementCIDR, err := NewCIDR(elementCIDRString)
+		elementCIDR, err := hg.cidrForCurrentGroup(i, bitsPerElement, cidr)
 		if err != nil {
 			return err
 		}
@@ -616,11 +646,6 @@ func (hg *Group) parse(arr []api.GroupOrHost, cidr CIDR, network *Network) error
 		hg.ReusableBlocks = make([]int, 0)
 	}
 
-	// Figure out in the given array, what would be the size per
-	// element.
-	ones, bits := cidr.Mask.Size()
-	free := bits - ones
-
 	// First we see what kind of elements we have here - groups or hosts
 	if len(arr) == 0 {
 		log.Tracef(trace.Inside, "Received empty array in group %s, assuming this is a host group", hg.Name)
@@ -644,18 +669,11 @@ func (hg *Group) parse(arr []api.GroupOrHost, cidr CIDR, network *Network) error
 		hg.OwnerToBlocks = make(map[string][]int)
 		hg.ReusableBlocks = make([]int, 0)
 	} else {
+		arr = hg.padGroupToPow2Size(arr)
 		hg.Groups = make([]*Group, len(arr))
-
-		// Pad the array to the next power of 2
-		rem := free % len(arr)
-		if rem != 0 {
-			// Let's allocate a few more empty slots to complete the power of 2
-			remArr := make([]api.GroupOrHost, rem)
-			arr = append(arr, remArr...)
-		}
 	}
 
-	bitsPerElement := free / len(arr)
+	bitsPerElement := hg.bitsForGroupElements(len(arr), cidr)
 	for i, elt := range arr {
 		if isHostList {
 			if elt.IP != nil && elt.Name == "" {
@@ -666,11 +684,7 @@ func (hg *Group) parse(arr []api.GroupOrHost, cidr CIDR, network *Network) error
 			host.group = hg
 			hg.Hosts[i] = host
 		} else {
-			// Calculate CIDR for the current group
-			incr := uint64(i << uint(bitsPerElement))
-			elementCIDRIP := common.IntToIPv4(cidr.StartIPInt + incr)
-			elementCIDRString := fmt.Sprintf("%s/%d", elementCIDRIP, (32 - bitsPerElement))
-			elementCIDR, err := NewCIDR(elementCIDRString)
+			elementCIDR, err := hg.cidrForCurrentGroup(i, bitsPerElement, cidr)
 			if err != nil {
 				return err
 			}
