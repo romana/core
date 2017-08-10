@@ -278,48 +278,5 @@ func (idRing *IDRing) ReclaimIDNoLock(id uint64) error {
 // mergeRanges will merge contiguous ranges into one, e.g.,
 // [1-2], [3-5] would be merged into a single [1-5] range.
 func (idRing *IDRing) mergeRanges() {
-	// This is a very naive algorithm, a la bubble sort - in a
-	// sense that we go over the array of ranges as many times
-	// as needed until no merges have occurred.
-	// But it'll do for now.
-	//	log.Tracef(trace.Inside, "mergeRanges: Before: %s", *idRing)
-	var changes bool
-	for {
-		changes = false
-		for i, _ := range idRing.Ranges {
-			// Prev ranges is ranges from the start up to the
-			// current one being examined.
-			prevRanges := make([]Range, 0)
-			if i > 0 {
-				prevRanges = idRing.Ranges[0:i]
-			}
-			// follRanges are ranges following the current range and one
-			// after that (as we look at 2 ranges at a time, i and i+1, to
-			// see if they should be merged).
-			follRanges := make([]Range, 0)
-			if i+2 < len(idRing.Ranges) {
-				follRanges = idRing.Ranges[i+2:]
-			}
-			if i < len(idRing.Ranges)-1 {
-				if idRing.Ranges[i].Max == idRing.Ranges[i+1].Min ||
-					idRing.Ranges[i].Max+1 == idRing.Ranges[i+1].Min {
-					// [1-1],[2-2] should merge to [1-2]
-					mergedRange := Range{Min: idRing.Ranges[i].Min,
-						Max: idRing.Ranges[i+1].Max,
-					}
-					newRanges := append(prevRanges, mergedRange)
-					newRanges = append(newRanges, follRanges...)
-					idRing.Ranges = newRanges
-					changes = true
-					//					log.Tracef(trace.Inside, "mergeRanges: %d, prevRanges %s, follRanges %s, newRanges %s", i, prevRanges, follRanges, newRanges)
-					//					log.Tracef(trace.Inside, "mergeRanges: During %s", *idRing)
-					break
-				}
-			}
-		}
-		if !changes {
-			break
-		}
-	}
-	//	log.Tracef(trace.Inside, "mergeRanges: After: %s", *idRing)
+	idRing.Ranges = Merge(idRing.Ranges)
 }
