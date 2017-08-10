@@ -1002,8 +1002,8 @@ func (ipam *IPAM) GetGroupsForNetwork(netName string) *Group {
 // this tenant/segment pair. Will return nil as IP if the entire
 // network is exhausted.
 func (ipam *IPAM) AllocateIP(addressName string, host string, tenant string, segment string) (net.IP, error) {
-	ipam.locker.Lock()
-	defer ipam.locker.Unlock()
+	// ipam.locker.Lock()
+	// defer ipam.locker.Unlock()
 
 	if addr, ok := ipam.AddressNameToIP[addressName]; ok {
 		return nil, common.NewError("Address with name %s already allocated: %s", addressName, addr)
@@ -1043,8 +1043,8 @@ func (ipam *IPAM) AllocateIP(addressName string, host string, tenant string, seg
 // DeallocateIP will deallocate the provided IP (returning an
 // error if it never was allocated in the first place).
 func (ipam *IPAM) DeallocateIP(addressName string) error {
-	ipam.locker.Lock()
-	defer ipam.locker.Unlock()
+	//	ipam.locker.Lock()
+	//	defer ipam.locker.Unlock()
 
 	if ip, ok := ipam.AddressNameToIP[addressName]; ok {
 		log.Tracef(trace.Inside, "IPAM.DeallocateIP: Request to deallocate %s: %s", addressName, ip)

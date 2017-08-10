@@ -46,6 +46,30 @@ func NewClient(config *common.Config) (*Client, error) {
 	}
 
 	return c, nil
+
+}
+
+func NewClientTransaction(config *common.Config) (*Client, sync.Locker, error) {
+	if config.EtcdPrefix == "" {
+		config.EtcdPrefix = DefaultEtcdPrefix
+	}
+	store, err := NewStore(config.EtcdEndpoints, config.EtcdPrefix)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	c := &Client{
+		config: config,
+		Store:  store,
+	}
+
+	locker, err := c.initIpamTransaction()
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return c, locker, nil
+
 }
 
 func (c *Client) ListHosts() api.HostList {
@@ -258,46 +282,54 @@ func (c *Client) DeletePolicy(id string) (bool, error) {
 }
 
 func (c *Client) initIPAM() error {
+	locker, err := c.initIpamTransaction()
+	if locker != nil {
+		locker.Unlock()
+	}
+
+	return err
+}
+
+func (c *Client) initIpamTransaction() (sync.Locker, error) {
 	c.ipamLocker, err = c.Store.NewLocker(ipamKey)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	log.Tracef(trace.Inside, "initIPAM(): Created locker %v", c.ipamLocker)
 
 	c.ipamLocker.Lock()
-	defer c.ipamLocker.Unlock()
 
 	// Check if IPAM info exists in the store
 	ipamExists, err := c.Store.Exists(ipamDataKey)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	if ipamExists {
 		// Load if exists
 		log.Infof("Loading IPAM data from %s", c.Store.getKey(ipamDataKey))
 		kv, err := c.Store.Get(ipamDataKey)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		c.IPAM, err = ParseIPAM(string(kv.Value), c.save, c.ipamLocker)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	} else {
 		// If does not exist, initialize and save
 		log.Infof("No IPAM data found at %s, initializing", c.Store.getKey(ipamDataKey))
 		c.IPAM, err = NewIPAM(c.save, c.ipamLocker)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		err = c.save(c.IPAM)
 		if err != nil {
-			return err
+			return nil, err
 		}
 	}
 
-	return nil
+	return c.ipamLocker, nil
 }
 
 // save implements the Saver interface of IPAM.
