@@ -40,7 +40,7 @@ func (h testHandle) RouteAdd(r *netlink.Route) error {
 func TestCreateRouteToBlock(t *testing.T) {
 	_, ipnet, _ := net.ParseCIDR("100.31.0.0/4")
 	testBlock := api.IPAMBlockResponse{
-		CIDR: api.IPNet{*ipnet},
+		CIDR: api.IPNet{IPNet: *ipnet},
 	}
 
 	cases := []struct {
