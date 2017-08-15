@@ -10,9 +10,6 @@
 [submodule "vendor/github.com/K-Phoen/negotiation"]
 	path = vendor/github.com/K-Phoen/negotiation
 	url = https://github.com/K-Phoen/negotiation.git
-[submodule "vendor/github.com/go-yaml/yaml"]
-	path = vendor/github.com/go-yaml/yaml
-	url = https://github.com/go-yaml/yaml.git
 [submodule "vendor/github.com/mitchellh/mapstructure"]
 	path = vendor/github.com/mitchellh/mapstructure
 	url = https://github.com/mitchellh/mapstructure.git
