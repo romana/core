@@ -23,6 +23,5 @@ import (
 )
 
 func main() {
-	cni.SetLogOutput()
 	skel.PluginMain(cni.CmdAdd, cni.CmdDel, version.All)
 }
