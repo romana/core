@@ -18,28 +18,26 @@ package tools
 import (
 	"errors"
 	"fmt"
-	"go/types"
-	"regexp"
-	"runtime"
-
-	"github.com/go-yaml/yaml"
-	"golang.org/x/tools/go/loader"
-	"golang.org/x/tools/go/ssa"
-	"golang.org/x/tools/go/ssa/ssautil"
-	// TODO make even this dynamic
 	"go/ast"
 	"go/build"
 	"go/doc"
 	"go/parser"
 	"go/token"
-
-	"github.com/romana/core/common"
-	//	"io/ioutil"
+	"go/types"
 	"log"
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
+	"runtime"
 	"strings"
+
+	"github.com/romana/core/common"
+
+	"golang.org/x/tools/go/loader"
+	"golang.org/x/tools/go/ssa"
+	"golang.org/x/tools/go/ssa/ssautil"
+	yaml "gopkg.in/yaml.v2"
 )
 
 const (

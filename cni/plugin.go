@@ -19,6 +19,7 @@ package cni
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"runtime"
@@ -39,6 +40,11 @@ func init() {
 	// must ensure that the goroutine does not jump from OS thread to thread
 	runtime.LockOSThread()
 }
+
+const (
+	DefaultCNILogFile     = "/var/log/romana/cni.log"
+	AlternativeCNILogFile = "/var/tmp/romana-cni.log"
+)
 
 // cmdAdd is a callback functions that gets called by skel.PluginMain
 // in response to ADD method.
@@ -361,6 +367,8 @@ func loadConf(bytes []byte) (*NetConf, error) {
 		return nil, fmt.Errorf("failed to load netconf: %s", err)
 	}
 
+	setLogOutput(n.LogFile)
+
 	// TODO for stas
 	// verify config here
 	if n.RomanaHostName == "" {
@@ -373,4 +381,27 @@ func loadConf(bytes []byte) (*NetConf, error) {
 	}
 
 	return n, nil
+}
+
+// SetLogOutput sets the log output to a file named
+// /var/log/romana/cni.log or if it is not accessible then
+// /var/tmp/romana-cni.log
+func setLogOutput(outputLogFile string) {
+	var err error
+	var logFile *os.File
+
+	if outputLogFile == "" {
+		outputLogFile = DefaultCNILogFile
+	}
+
+	logFile, err = os.OpenFile(outputLogFile,
+		os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		logFile, err = os.OpenFile(AlternativeCNILogFile,
+			os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	}
+
+	if err == nil {
+		log.SetOutput(io.MultiWriter(logFile, os.Stderr))
+	}
 }

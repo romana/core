@@ -83,6 +83,7 @@ type NetConf struct {
 	SegmentLabelName string `json:"segment_label_name"`
 	TenantLabelName  string `json:"tenant_label_name"` // TODO for stas, we don't use it. May be it should go away.
 	UseAnnotations   bool   `json:"use_annotations"`
+	LogFile          string `json:"log_file"`
 }
 
 type DefaultAddressManager struct{}
