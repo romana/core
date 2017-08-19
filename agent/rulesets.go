@@ -133,7 +133,7 @@ var KubeShellXRules = RuleSet{
 	},
 	Rule{
 		Format:    FormatChain,
-		Body:      "%s -m comment --comment Outgoing -j RETURN",
+		Body:      "%s -m comment --comment Outgoing -j ACCEPT",
 		Position:  DefaultPosition,
 		Direction: EgressGlobalDirection,
 	},
@@ -161,7 +161,7 @@ var KubeSaveRestoreRules = RuleSet{
 	},
 	Rule{
 		Format:    FormatChain,
-		Body:      "%s -m comment --comment Outgoing -j RETURN",
+		Body:      "%s -m comment --comment Outgoing -j ACCEPT",
 		Position:  TopPosition,
 		Direction: EgressGlobalDirection,
 	},
@@ -189,7 +189,7 @@ var OpenStackShellRules = RuleSet{
 	},
 	Rule{
 		Format:    FormatChain,
-		Body:      "%s -m comment --comment Outgoing -j RETURN",
+		Body:      "%s -m comment --comment Outgoing -j ACCEPT",
 		Position:  DefaultPosition,
 		Direction: EgressGlobalDirection,
 	},
@@ -223,7 +223,7 @@ var OpenStackSaveRestoreRules = RuleSet{
 	},
 	Rule{
 		Format:    FormatChain,
-		Body:      "%s -m comment --comment Outgoing -j RETURN",
+		Body:      "%s -m comment --comment Outgoing -j ACCEPT",
 		Position:  BottomPosition,
 		Direction: EgressGlobalDirection,
 	},

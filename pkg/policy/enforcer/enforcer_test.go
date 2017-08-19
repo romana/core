@@ -25,7 +25,7 @@ func TestMakeBase(t *testing.T) {
 :ROMANA-OP -
 -A ROMANA-INPUT -m state --state ESTABLISHED -j ACCEPT
 -A ROMANA-INPUT -m comment --comment DefaultDrop -j DROP
--A ROMANA-FORWARD-OUT -m comment --comment Outgoing -j RETURN
+-A ROMANA-FORWARD-OUT -m comment --comment Outgoing -j ACCEPT
 -A ROMANA-FORWARD-OUT -j DROP
 -A ROMANA-FORWARD-IN -m state --state RELATED,ESTABLISHED -j ACCEPT
 -A ROMANA-FORWARD-IN -j ROMANA-OP
