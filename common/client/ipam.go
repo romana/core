@@ -445,7 +445,6 @@ func (hg *Group) injectParents(network *Network) {
 	for i, _ := range hg.Groups {
 		hg.Groups[i].injectParents(network)
 	}
-
 }
 
 // listHosts lists all hosts in this group.
@@ -944,18 +943,19 @@ func (ipam *IPAM) injectParents() {
 	}
 }
 
+// clearIPAM clears IPAM.
+func clearIPAM(ipam *IPAM) {
+	ipam.Networks = make(map[string]*Network)
+	ipam.AddressNameToIP = make(map[string]net.IP)
+	ipam.TenantToNetwork = make(map[string][]string)
+}
+
 // NewIPAM creates a new IPAM object. If locker is not provided,
 // sync.Mutex is used. If an HA deployment is expected, then the locker
 // based on some external resource, e.g., a DB, should be provided.
 func NewIPAM(saver Saver, locker sync.Locker) (*IPAM, error) {
 	ipam := &IPAM{}
-	//	ipam.TenantToNetwork = make(map[string][]int)
-	ipam.Networks = make(map[string]*Network)
-	ipam.AddressNameToIP = make(map[string]net.IP)
-	ipam.TenantToNetwork = make(map[string][]string)
-
-	//	ipam.OwnerToIP = make(map[string][]string)
-	//	ipam.IPToOwner = make(map[string]string)
+	clearIPAM(ipam)
 
 	if locker == nil {
 		ipam.locker = &sync.Mutex{}
@@ -1105,9 +1105,21 @@ func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest) error {
 	ipam.locker.Lock()
 	defer ipam.locker.Unlock()
 
-	if len(ipam.Networks) > 0 {
-		return errors.New("Updating topology after it has been initally set up currently not implemented.")
+	allocatedBlocks := false
+	for _, netDef := range ipam.Networks {
+		// Blocks that have IPs assigned -- if they didn't, they would be
+		// in ReusableBlocks but not here
+		if netDef.Group.BlockToOwner != nil && len(netDef.Group.BlockToOwner) > 0 {
+			allocatedBlocks = true
+			break
+		}
 	}
+
+	if allocatedBlocks {
+		return errors.New("Updating topology after IPs have been allocated currently not implemented.")
+	}
+	clearIPAM(ipam)
+
 	for _, netDef := range req.Networks {
 		if _, ok := ipam.Networks[netDef.Name]; ok {
 			return common.NewError("Network with name %s already defined", netDef.Name)
