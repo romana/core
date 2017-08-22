@@ -775,6 +775,31 @@ func TestHostAdditionSimple(t *testing.T) {
 		t.Fatalf("Expected group %s to have 2 hosts, it has %d", grp.Name, len(grp.Hosts))
 	}
 
+	// Test that it saves, loads and we can still remove a host
+	ipam, err = ParseIPAM(testSaver.lastJson, testSaver.save, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log("Loaded new IPAM...")
+
+	err = ipam.RemoveHost(api.Host{Name: "host1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	net1 = ipam.Networks["net1"]
+	grp = net1.Group.Groups[0]
+	t.Logf("Hosts in group %s: %v", grp.Name, grp.Hosts)
+	if len(grp.Hosts) != 1 {
+		t.Fatalf("Expected group %s to have 1 hosts, it has %d", grp.Name, len(grp.Hosts))
+	}
+
+	grp = net1.Group.Groups[1]
+	t.Logf("Hosts in group %s: %v", grp.Name, grp.Hosts)
+	if len(grp.Hosts) != 1 {
+		t.Fatalf("Expected group %s to have 1 hosts, it has %d", grp.Name, len(grp.Hosts))
+	}
+
 }
 
 func TestHostAdditionTags(t *testing.T) {
