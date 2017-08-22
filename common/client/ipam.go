@@ -297,6 +297,7 @@ func (hg *Group) addHost(host *Host) (bool, error) {
 	}
 
 	hg.Hosts = append(hg.Hosts, host)
+	host.group = hg
 	return true, nil
 }
 
