@@ -30,19 +30,21 @@ var (
 	ipam      *IPAM
 )
 
+func loadTestData(t *testing.T) []byte {
+	testName := t.Name()
+	fileName := fmt.Sprintf("testdata/%s.json", testName)
+	t.Logf("Loading data for %s from %s", testName, fileName)
+	b, err := ioutil.ReadFile(fileName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
 func initIpam(t *testing.T, conf string) *IPAM {
 	// If not specified, load from file named after this test
 	if conf == "" {
-		testName := t.Name()
-		fileName := fmt.Sprintf("testdata/%s.json", testName)
-		t.Logf("Loading data for %s from %s", testName, fileName)
-		b, err := ioutil.ReadFile(fileName)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err != nil {
-			t.Fatal(err)
-		}
+		b := loadTestData(t)
 		conf = string(b)
 	}
 	ipam, err := NewIPAM(testSaver.save, nil)
@@ -588,6 +590,58 @@ func TestHostAllocation(t *testing.T) {
 		t.Fatalf("Expected 10.0.0.4, got %s", ip.String())
 	}
 	t.Logf("Saved state: %s", testSaver.lastJson)
+}
+
+func TestUpdateTopology(t *testing.T) {
+	ipam = initIpam(t, "")
+	// t.Log(testSaver.lastJson)
+
+	_, err := ipam.AllocateIP("x1", "ip-192-168-99-10", "tenant1", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	topo := loadTestData(t)
+	topoReq := api.TopologyUpdateRequest{}
+	err = json.Unmarshal(topo, &topoReq)
+	if err != nil {
+		t.Fatalf("Cannot parse %s: %v", string(topo), err)
+	}
+	// Modify network name and try to update topology
+	topoReq.Networks[0].Name = "net2"
+	topoReq.Topologies[0].Networks[0] = "net2"
+
+	t.Logf("Updating topology to %v", topoReq)
+	err = ipam.UpdateTopology(topoReq)
+	if err == nil {
+		t.Fatal("Expected error on updating topology with allocated IPs, did not get it.")
+	}
+	expectedError := "Updating topology after IPs have been allocated currently not implemented."
+	if err.Error() == expectedError {
+		t.Logf("Got expected error: %s", err)
+	} else {
+		t.Fatalf("Expected %s, got %v", expectedError, err)
+	}
+
+	// Deallocate IP
+	err = ipam.DeallocateIP("x1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Logf("Updating topology to %v", topoReq)
+	err = ipam.UpdateTopology(topoReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Check that we updated.
+	if ipam.Networks["net2"] == nil {
+		t.Fatal("Expected net2 to be in IPAM, got nil")
+	}
+	if ipam.Networks["net1"] != nil {
+		t.Fatal("Expected net1 not to be in IPAM, got %v", ipam.Networks["net1"])
+	}
+
+	// t.Logf("Saved state: %s", testSaver.lastJson)
 }
 
 func TestParseSimpleFlatNetworkA(t *testing.T) {
