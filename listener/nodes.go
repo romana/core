@@ -162,6 +162,7 @@ func romanaHostAdd(l *KubeListener, node *v1.Node) error {
 	}
 	hostname := node.Name
 	hostIP := net.ParseIP(node.Status.Addresses[0].Address)
+	log.Infof("KubeListener: Adding host IP: %s, Name: %s", hostIP, hostname)
 	host := romanaApi.Host{IP: hostIP,
 		Name: hostname,
 		Tags: node.GetLabels(),
@@ -172,6 +173,7 @@ func romanaHostAdd(l *KubeListener, node *v1.Node) error {
 // romanaHostRemove connects to romana API and removes a node from
 // the romana cluster.
 func romanaHostRemove(l *KubeListener, node string) error {
+	log.Infof("KubeListener: Removing host %s", node)
 	if node == "" {
 		log.Errorf("Error: received invalid node name (%s)", node)
 		return errors.New("Error: received invalid node name.")

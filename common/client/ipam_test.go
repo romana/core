@@ -749,13 +749,56 @@ func TestHostAdditionSimple(t *testing.T) {
 	// We should have 2 hosts in each group now.
 	net1 := ipam.Networks["net1"]
 	for _, grp := range net1.Group.Groups {
+		t.Logf("Hosts in group %s: %v", grp.Name, grp.Hosts)
 		if len(grp.Hosts) != 2 {
 			t.Fatalf("Expected group %s to have 2 hosts, it has %d", grp.Name, len(grp.Hosts))
 		}
-		t.Logf("Hosts in group %s: %v", grp.Name, grp.Hosts)
 	}
 
-	// t.Logf(testSaver.lastJson)
+	// Test host removal.
+	err = ipam.RemoveHost(api.Host{Name: "host0"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	net1 = ipam.Networks["net1"]
+	grp := net1.Group.Groups[0]
+
+	// This one should have 1 host left
+	t.Logf("Hosts in group %s: %v", grp.Name, grp.Hosts)
+	if len(grp.Hosts) != 1 {
+		t.Fatalf("Expected group %s to have 1 hosts, it has %d", grp.Name, len(grp.Hosts))
+	}
+
+	grp = net1.Group.Groups[1]
+	t.Logf("Hosts in group %s: %v", grp.Name, grp.Hosts)
+	if len(grp.Hosts) != 2 {
+		t.Fatalf("Expected group %s to have 2 hosts, it has %d", grp.Name, len(grp.Hosts))
+	}
+
+	// Test that it saves, loads and we can still remove a host
+	ipam, err = ParseIPAM(testSaver.lastJson, testSaver.save, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log("Loaded new IPAM...")
+
+	err = ipam.RemoveHost(api.Host{Name: "host1"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	net1 = ipam.Networks["net1"]
+	grp = net1.Group.Groups[0]
+	t.Logf("Hosts in group %s: %v", grp.Name, grp.Hosts)
+	if len(grp.Hosts) != 1 {
+		t.Fatalf("Expected group %s to have 1 hosts, it has %d", grp.Name, len(grp.Hosts))
+	}
+
+	grp = net1.Group.Groups[1]
+	t.Logf("Hosts in group %s: %v", grp.Name, grp.Hosts)
+	if len(grp.Hosts) != 1 {
+		t.Fatalf("Expected group %s to have 1 hosts, it has %d", grp.Name, len(grp.Hosts))
+	}
 
 }
 
