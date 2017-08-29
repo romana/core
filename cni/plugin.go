@@ -126,7 +126,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 		return fmt.Errorf("Failed to detect ipv4 address on romana-gw interface, err=(%s)", err)
 	}
 	*/
-	gwAddr := &net.IPNet{IP: net.ParseIP("127.42.0.1"), Mask: net.IPMask([]byte{0xff, 0xff, 0xff, 0xff})}
+	gwAddr := &net.IPNet{IP: net.ParseIP("172.142.0.1"), Mask: net.IPMask([]byte{0xff, 0xff, 0xff, 0xff})}
 
 	netns, err := ns.GetNS(args.Netns)
 	if err != nil {
