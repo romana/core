@@ -191,6 +191,43 @@ func MakeOperatorPolicyIngressChainName() string {
 	return "ROMANA-OP-IN"
 }
 
+// PolicyPeerType represents type of api.Policy.AppliedTo.
+type PolicyPeerType string
+
+const (
+	PeerHost          PolicyPeerType = "peerHost"
+	PeerLocal         PolicyPeerType = "peerLocal"
+	PeerTenant        PolicyPeerType = "peerTenant"
+	PeerTenantSegment PolicyPeerType = "peerTenantSegment"
+	PeerCIDR          PolicyPeerType = "peerCidr"
+	PeerUnknown       PolicyPeerType = "peerUnknown"
+)
+
+func DetectPolicyPeerType(peer api.Endpoint) PolicyPeerType {
+	if peer.Peer == "local" {
+		return PeerLocal
+	}
+
+	if peer.Peer == "host" {
+		return PeerHost
+	}
+
+	if peer.Cidr != "" {
+		return PeerCIDR
+	}
+
+	if peer.TenantID != "" {
+		if peer.SegmentID != "" {
+			return PeerTenantSegment
+		}
+
+		return PeerTenant
+	}
+
+	return PeerUnknown
+
+}
+
 // PolicyTargetType represents type of api.Policy.AppliedTo.
 type PolicyTargetType string
 
@@ -202,14 +239,19 @@ const (
 
 	// OperatorPolicyIngressTarget represents a policy
 	// that applied to traffic traveling from pods to the host.
-	OperatorPolicyIngressTarget PolicyTargetType = "operator-ingress"
+	OperatorPolicyIngressTarget PolicyTargetType = "operatorIngress"
 
 	// TenantWidePolicyTarget represents a policy that targets entire tenant.
-	TenantWidePolicyTarget PolicyTargetType = "tenant-wide"
+	TenantWidePolicyTarget PolicyTargetType = "tenantWide"
 
 	// TenantSegmentPolicyTarget represents a policy that targets
 	// sepcific segment withing a tenant.
-	TenantSegmentPolicyTarget PolicyTargetType = "tenant-segment"
+	TenantSegmentPolicyTarget PolicyTargetType = "tenantSegment"
+
+	TargetHost          PolicyTargetType = "targetHost"
+	TargetLocal         PolicyTargetType = "targetLocal"
+	TargetTenant        PolicyTargetType = "targetTenant"
+	TargetTenantSegment PolicyTargetType = "targetTenantSegment"
 
 	UnknownPolicyTarget PolicyTargetType = "unknown"
 )
@@ -218,28 +260,54 @@ const (
 // target types.
 func DetectPolicyTargetType(target api.Endpoint) PolicyTargetType {
 	if target.Dest == "local" {
-		return OperatorPolicyTarget
+		return TargetLocal
 	}
 
 	if target.Dest == "host" {
-		return OperatorPolicyIngressTarget
+		return TargetHost
 	}
 
 	if target.TenantID != "" {
 		if target.SegmentID != "" {
-			return TenantSegmentPolicyTarget
+			return TargetTenantSegment
 		}
 
-		return TenantWidePolicyTarget
+		return TargetTenant
 	}
 
 	return UnknownPolicyTarget
 }
 
+const (
+	SchemePolicyOnTop = "policyOnTop"
+	SchemeTargetOnTop = "targetOnTop"
+)
+
+func MakePolicyTranslationTableKey(direction, iptablesSchemeType string, peerType PolicyPeerType, targetType PolicyTargetType) string {
+
+	var result string
+	switch direction {
+	case api.PolicyDirectionIngress:
+		result = fmt.Sprintf("ingress_%s_from_%s_to_%s_", iptablesSchemeType, peerType, targetType)
+	case api.PolicyDirectionEgress:
+		result = fmt.Sprintf("egress_%s_from_%s_to_%s_", iptablesSchemeType, targetType, peerType)
+	}
+
+	return result
+}
+
 // MakeRomanaPolicyName returns the name of iptables chain that hosts
 // policy related rules.
 func MakeRomanaPolicyName(policy api.Policy) string {
-	return fmt.Sprintf("ROMANA-P-%s_", policy.ID)
+	return fmt.Sprintf("ROMANA-P-%s", policy.ID)
+}
+
+func MakeRomanaPolicyNameExtended(policy api.Policy) string {
+	return fmt.Sprintf("%s_X", MakeRomanaPolicyName(policy))
+}
+
+func MakeRomanaPolicyNameRules(policy api.Policy) string {
+	return fmt.Sprintf("%s_R", MakeRomanaPolicyName(policy))
 }
 
 // MakeRomanaPolicyIngressName returns the name of iptables chain that hosts
@@ -281,41 +349,45 @@ func MakePolicyIngressJump(peer api.Endpoint, targetChain string, netConfig fire
 
 // MakePolicyRule translates common.Rule into iptsave.IPrule.
 func MakePolicyRule(rule api.Rule) []*iptsave.IPrule {
+	return MakePolicyRuleWithAction(rule, "ACCEPT")
+}
+
+func MakePolicyRuleWithAction(rule api.Rule, action string) []*iptsave.IPrule {
 	var result []*iptsave.IPrule
 
 	if rule.Protocol == "TCP" {
 		if len(rule.Ports) > 0 {
 			for _, port := range rule.Ports {
-				result = append(result, MakeRuleDefaultWithBody(fmt.Sprintf("-p tcp --dport %d", port), "ACCEPT"))
+				result = append(result, MakeRuleDefaultWithBody(fmt.Sprintf("-p tcp --dport %d", port), action))
 			}
 		}
 
 		if len(rule.PortRanges) > 0 {
 			for _, portRange := range rule.PortRanges {
-				result = append(result, MakeRuleDefaultWithBody(fmt.Sprintf("-p tcp --dport %d:%d", portRange[0], portRange[1]), "ACCEPT"))
+				result = append(result, MakeRuleDefaultWithBody(fmt.Sprintf("-p tcp --dport %d:%d", portRange[0], portRange[1]), action))
 			}
 		}
 
 		if len(rule.Ports) == 0 && len(rule.PortRanges) == 0 {
-			result = append(result, MakeRuleDefaultWithBody("-p tcp", "ACCEPT"))
+			result = append(result, MakeRuleDefaultWithBody("-p tcp", action))
 		}
 	}
 
 	if rule.Protocol == "UDP" {
 		if len(rule.Ports) > 0 {
 			for _, port := range rule.Ports {
-				result = append(result, MakeRuleDefaultWithBody(fmt.Sprintf("-p udp --dport %d", port), "ACCEPT"))
+				result = append(result, MakeRuleDefaultWithBody(fmt.Sprintf("-p udp --dport %d", port), action))
 			}
 		}
 
 		if len(rule.PortRanges) > 0 {
 			for _, portRange := range rule.PortRanges {
-				result = append(result, MakeRuleDefaultWithBody(fmt.Sprintf("-p udp --dport %d:%d", portRange[0], portRange[1]), "ACCEPT"))
+				result = append(result, MakeRuleDefaultWithBody(fmt.Sprintf("-p udp --dport %d:%d", portRange[0], portRange[1]), action))
 			}
 		}
 
 		if len(rule.Ports) == 0 && len(rule.PortRanges) == 0 {
-			result = append(result, MakeRuleDefaultWithBody("-p udp", "ACCEPT"))
+			result = append(result, MakeRuleDefaultWithBody("-p udp", action))
 		}
 	}
 
@@ -323,14 +395,14 @@ func MakePolicyRule(rule api.Rule) []*iptsave.IPrule {
 		// TODO, rule.IcmpType and rule.IcmpType code can't be destinguished between
 		// zero value and none value so processing them is prone to failures.
 		// Need to replaces then as *uint first. Stas.
-		result = append(result, MakeRuleDefaultWithBody("-p icmp", "ACCEPT"))
+		result = append(result, MakeRuleDefaultWithBody("-p icmp", action))
 	}
 
 	if rule.Protocol == "ANY" {
 		// TODO, rule.IcmpType and rule.IcmpType code can't be destinguished between
 		// zero value and none value so processing them is prone to failures.
 		// Need to replaces then as *uint first. Stas.
-		result = append(result, MakeRuleDefaultWithBody("", "ACCEPT"))
+		result = append(result, MakeRuleDefaultWithBody("", action))
 	}
 	return result
 }

@@ -17,6 +17,8 @@
 package enforcer
 
 import (
+	"errors"
+	"fmt"
 	"os/exec"
 	"strings"
 	"time"
@@ -393,4 +395,210 @@ func cleanupUnusedChains(iptables *iptsave.IPtables, exec utilexec.Executable) {
 			desiredFilter.Chains = append(desiredFilter.Chains, &desiredChain)
 		}
 	}
+}
+
+type PolicyTranslationConfig struct {
+	baseChain        string
+	topRuleMatch     func(api.Endpoint) string
+	topRuleAction    func(api.Policy) string
+	secondBaseChain  func(api.Policy) string
+	secondRuleMatch  func(api.Endpoint) string
+	secondRuleAction func(api.Policy) string
+	thirdBaseChain   func(api.Policy) string
+	thirdRuleMatch   func(api.Endpoint) string
+	thirdRuleAction  func(api.Policy) string
+	fourthBaseChain  func(api.Policy) string
+	fourthRuleMatch  func(api.Rule, string) []*iptsave.IPrule
+	fourthRuleAction string
+}
+
+var cases = map[string]PolicyTranslationConfig{
+	MakePolicyTranslationTableKey(
+		api.PolicyDirectionIngress,
+		SchemePolicyOnTop,
+		PeerCIDR,
+		TargetTenant,
+	): PolicyTranslationConfig{
+		baseChain:        firewall.ChainNameEndpointIngress,
+		topRuleMatch:     matchEndpoint(""),
+		topRuleAction:    MakeRomanaPolicyName,
+		secondBaseChain:  MakeRomanaPolicyName,
+		secondRuleMatch:  makeDstTenantMatch,
+		secondRuleAction: MakeRomanaPolicyNameExtended,
+		thirdBaseChain:   MakeRomanaPolicyNameExtended,
+		thirdRuleMatch:   makeSrcCIDRMatch,
+		thirdRuleAction:  MakeRomanaPolicyNameRules,
+		fourthBaseChain:  MakeRomanaPolicyNameRules,
+		fourthRuleMatch:  MakePolicyRuleWithAction,
+		fourthRuleAction: "ACCEPT",
+	},
+	MakePolicyTranslationTableKey(
+		api.PolicyDirectionEgress,
+		SchemeTargetOnTop,
+		PeerTenant,
+		TargetTenant,
+	): PolicyTranslationConfig{
+		baseChain:        firewall.ChainNameEndpointEgress,
+		topRuleMatch:     makeSrcTenantMatch,
+		topRuleAction:    MakeRomanaPolicyName,
+		secondBaseChain:  matchPolicyString(""),
+		secondRuleMatch:  matchEndpoint(""),
+		secondRuleAction: matchPolicyString(""),
+		thirdBaseChain:   MakeRomanaPolicyName,
+		thirdRuleMatch:   makeDstTenantMatch,
+		thirdRuleAction:  MakeRomanaPolicyNameRules,
+		fourthBaseChain:  MakeRomanaPolicyNameRules,
+		fourthRuleMatch:  MakePolicyRuleWithAction,
+		fourthRuleAction: "DROP",
+	},
+}
+
+func makeSrcTenantMatch(e api.Endpoint) string { return makeTenantMatch(e, "src") }
+func makeDstTenantMatch(e api.Endpoint) string { return makeTenantMatch(e, "dst") }
+func makeTenantMatch(e api.Endpoint, direction string) string {
+	return fmt.Sprintf("-m set --match-set tenant%s %s", e.TenantID, direction)
+}
+
+func makeSrcTenantSegmentMatch(e api.Endpoint) string { return makeTenantSegmentMatch(e, "src") }
+func makeDstTenantSegmentMatch(e api.Endpoint) string { return makeTenantSegmentMatch(e, "dst") }
+func makeTenantSegmentMatch(e api.Endpoint, direction string) string {
+	return fmt.Sprintf("-m set --match-set tenant%s_segment%s %s", e.TenantID, e.SegmentID, direction)
+}
+
+func makeSrcCIDRMatch(e api.Endpoint) string { return makeCIDRMatch(e, "s") }
+func makeDstCIDRMatch(e api.Endpoint) string { return makeCIDRMatch(e, "d") }
+func makeCIDRMatch(e api.Endpoint, direction string) string {
+	return fmt.Sprintf("-%s %s", direction, e.Cidr)
+}
+
+func matchEndpoint(s string) func(api.Endpoint) string {
+	return func(api.Endpoint) string { return s }
+}
+func matchPolicyString(s string) func(api.Policy) string {
+	return func(api.Policy) string { return s }
+}
+
+func EnsureRules(baseChain *iptsave.IPchain, rules []*iptsave.IPrule) {
+	for _, rule := range rules {
+		if !baseChain.RuleInChain(rule) {
+			InsertNormalRule(baseChain, rule)
+		}
+	}
+}
+
+func rules2list(rules ...*iptsave.IPrule) (result []*iptsave.IPrule) {
+	for _, r := range rules {
+		result = append(result, r)
+	}
+	return
+}
+
+func makePolicyRuleInDirection(policy api.Policy,
+	iptablesSchemeType string,
+	peer, target api.Endpoint,
+	rule api.Rule,
+	direction string,
+	iptables *iptsave.IPtables) error {
+
+	peerType := DetectPolicyPeerType(peer) // TODO ten/host/local/cidr
+	dstType := DetectPolicyTargetType(target)
+
+	log.Debug("makePolicyRuleInDirection #1")
+
+	key := MakePolicyTranslationTableKey(direction, iptablesSchemeType, peerType, dstType) // TODO
+
+	log.Debug("makePolicyRuleInDirection #2")
+	translationConfig, ok := cases[key]
+	if !ok {
+		return errors.New("can't translate ... ")
+	}
+
+	filter := iptables.TableByName("filter")
+
+	baseChain := EnsureChainExists(filter, translationConfig.baseChain)
+
+	// jump from base chain to policy chain
+	jumpFromBaseToPolicyRule := MakeRuleWithBody(
+		translationConfig.topRuleMatch(target), translationConfig.topRuleAction(policy),
+	)
+
+	EnsureRules(baseChain, rules2list(jumpFromBaseToPolicyRule))
+
+	secondBaseChainName := translationConfig.secondBaseChain(policy)
+	secondRuleMatch := translationConfig.secondRuleMatch(target)
+	secondRuleAction := translationConfig.secondRuleAction(policy)
+	if secondBaseChainName != "" && secondRuleMatch != "" && secondRuleAction != "" {
+		secondBaseChain := EnsureChainExists(filter, secondBaseChainName)
+		jumpFromSecondChainToThirdChainRule := MakeRuleWithBody(
+			secondRuleMatch, secondRuleAction,
+		)
+
+		EnsureRules(secondBaseChain, rules2list(jumpFromSecondChainToThirdChainRule))
+
+	}
+
+	thirdBaseChainName := translationConfig.thirdBaseChain(policy)
+	thirdBaseChain := EnsureChainExists(filter, thirdBaseChainName)
+	thirdRuleMatch := translationConfig.thirdRuleMatch(peer)
+	thirdRuleAction := translationConfig.thirdRuleAction(policy)
+
+	thirdRule := MakeRuleWithBody(
+		thirdRuleMatch, thirdRuleAction,
+	)
+
+	EnsureRules(thirdBaseChain, rules2list(thirdRule))
+
+	fourthBaseChainName := translationConfig.fourthBaseChain(policy)
+	fourthBaseChain := EnsureChainExists(filter, fourthBaseChainName)
+	fourthRuleAction := translationConfig.fourthRuleAction
+	fourthRules := translationConfig.fourthRuleMatch(rule, fourthRuleAction)
+
+	EnsureRules(fourthBaseChain, fourthRules)
+
+	log.Debug("makePolicyRuleInDirection #3")
+	return nil
+}
+
+func makePolicyRules(policy api.Policy, iptablesSchemeType string, iptables *iptsave.IPtables) error {
+	log.Debugf("in makePolicyRules with %+v", policy)
+	for _, target := range policy.AppliedTo {
+		for _, ingress := range policy.Ingress {
+			for _, peer := range ingress.Peers {
+				for _, rule := range ingress.Rules {
+					err := makePolicyRuleInDirection(
+						policy,
+						iptablesSchemeType,
+						peer,
+						target,
+						rule,
+						policy.Direction,
+						iptables,
+					)
+					log.Errorf("Error appying %s policy to target %v and peer %v with rule %v, err=%s", policy.Direction, target, peer, rule, err)
+				}
+			}
+		}
+		/* Egress via dedicated field
+		for _, egress := range policy.Egress {
+			for _, peer := range egress.Peers {
+				for _, rule := range egress.Rules {
+					_ = makePolicyRuleInDirection(
+						policy,
+						iptablesSchemeType,
+						peer,
+						target,
+						rule,
+						api.PolicyDirectionEgress,
+						iptables,
+					)
+				}
+			}
+		}
+		*/
+	}
+	return nil
+}
+
+func validateSrcTargetDir(peerType PolicyPeerType, dstType PolicyTargetType, direction string) error {
+	return nil //TODO
 }
