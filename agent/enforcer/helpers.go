@@ -283,7 +283,7 @@ const (
 	SchemeTargetOnTop = "targetOnTop"
 )
 
-func MakePolicyTranslationTableKey(direction, iptablesSchemeType string, peerType PolicyPeerType, targetType PolicyTargetType) string {
+func MakeBluerprintKey(direction, iptablesSchemeType string, peerType PolicyPeerType, targetType PolicyTargetType) string {
 
 	var result string
 	switch direction {
