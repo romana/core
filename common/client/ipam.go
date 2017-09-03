@@ -1016,7 +1016,13 @@ func (ipam *IPAM) AllocateIP(addressName string, host string, tenant string, seg
 	// defer ipam.locker.Unlock()
 
 	if addr, ok := ipam.AddressNameToIP[addressName]; ok {
-		return nil, common.NewError("Address with name %s already allocated: %s", addressName, addr)
+		return nil, api.NewRomanaExistsError(
+			fmt.Sprintf("Address with name %s already allocated: %s", addressName, addr),
+			addressName,
+			"IP",
+			fmt.Sprintf("name=%s", addressName),
+			fmt.Sprintf("IP=%s", addr))
+
 	}
 
 	// Find eligible networks for the specified tenant

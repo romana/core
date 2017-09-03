@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"net"
 
-	"net/http"
 	"sync"
 
 	"github.com/containernetworking/cni/pkg/types"

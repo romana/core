@@ -45,7 +45,11 @@ func (r *Romanad) deallocateIP(input interface{}, ctx common.RestContext) (inter
 
 func (r *Romanad) allocateIP(input interface{}, ctx common.RestContext) (interface{}, error) {
 	req := input.(*api.IPAMAddressRequest)
-	return r.client.IPAM.AllocateIP(req.Name, req.Host, req.Tenant, req.Segment)
+	retval, err := r.client.IPAM.AllocateIP(req.Name, req.Host, req.Tenant, req.Segment)
+	if exists, ok := err.(api.RomanaExistsError); ok {
+		return nil, common.NewErrorConflict(exists)
+	}
+	return retval, err
 }
 
 // listHosts returns all hosts.
@@ -190,7 +194,7 @@ func (r *Romanad) addHost(input interface{}, ctx common.RestContext) (interface{
 	host := input.(*api.Host)
 	err := r.client.IPAM.AddHost(*host)
 	if exists, ok := err.(api.RomanaExistsError); ok {
-		return nil, common.NewErrorConflict(exists.Object)
+		return nil, common.NewErrorConflict(exists)
 	}
 	return nil, err
 }
