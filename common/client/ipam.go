@@ -875,7 +875,9 @@ func (network *Network) deallocateIP(ip net.IP) error {
 func (network *Network) allocateIP(hostName string, owner string) (net.IP, error) {
 	host := network.Group.findHostByName(hostName)
 	if host == nil {
-		return nil, common.NewError("Host %s not found", hostName)
+		return nil, api.NewRomanaNotFoundError(fmt.Sprintf("Host %s not found", hostName),
+			"host",
+			fmt.Sprintf("hostname=%s", hostName))
 	}
 	ip := host.group.allocateIP(network, hostName, owner)
 	if ip == nil {
