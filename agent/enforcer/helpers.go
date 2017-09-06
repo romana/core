@@ -310,6 +310,14 @@ func MakeRomanaPolicyNameRules(policy api.Policy) string {
 	return fmt.Sprintf("%s_R", MakeRomanaPolicyName(policy))
 }
 
+func MakeRomanaPolicyNameSetSrc(policy api.Policy) string {
+	return fmt.Sprintf("%s_s", MakeRomanaPolicyName(policy))
+}
+
+func MakeRomanaPolicyNameSetDst(policy api.Policy) string {
+	return fmt.Sprintf("%s_d", MakeRomanaPolicyName(policy))
+}
+
 // MakeRomanaPolicyIngressName returns the name of iptables chain that hosts
 // one ingress field of a policy.
 func MakeRomanaPolicyIngressName(policy api.Policy, idx int) string {
