@@ -638,7 +638,7 @@ func TestUpdateTopology(t *testing.T) {
 		t.Fatal("Expected net2 to be in IPAM, got nil")
 	}
 	if ipam.Networks["net1"] != nil {
-		t.Fatal("Expected net1 not to be in IPAM, got %v", ipam.Networks["net1"])
+		t.Fatalf("Expected net1 not to be in IPAM, got %v", ipam.Networks["net1"])
 	}
 
 	// t.Logf("Saved state: %s", testSaver.lastJson)
