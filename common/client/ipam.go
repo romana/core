@@ -1066,6 +1066,32 @@ func (ipam *IPAM) DeallocateIP(addressName string) error {
 		}
 		return common.NewError404("IP", ip.String())
 	}
+
+	// find by IPAddress instead of name, so that all
+	// platforms are supported.
+	for name, ip := range ipam.AddressNameToIP {
+		if ip.String() == addressName {
+			for _, network := range ipam.Networks {
+				if network.CIDR.IPNet.Contains(ip) {
+					log.Tracef(trace.Inside,
+						"IPAM.DeallocateIP: IP %s belongs to network %s",
+						ip, network.Name)
+					err := network.deallocateIP(ip)
+					if err == nil {
+						delete(ipam.AddressNameToIP, name)
+						ipam.AllocationRevision++
+						err = ipam.save(ipam)
+						if err != nil {
+							return err
+						}
+					}
+					return err
+				}
+			}
+			return common.NewError404("IP", ip.String())
+		}
+	}
+
 	return common.NewError404("addressName", addressName)
 }
 
