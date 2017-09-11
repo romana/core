@@ -851,6 +851,14 @@ func TestHostAdditionSimple(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+
+	hosts := ipam.ListHosts()
+	for _, host := range hosts.Hosts {
+		if host.AgentPort == 0 {
+			t.Fatalf("Host Agent Port default value missing.\n")
+		}
+	}
+
 	// We should have 2 hosts in each group now.
 	net1 := ipam.Networks["net1"]
 	for _, grp := range net1.Group.Groups {
