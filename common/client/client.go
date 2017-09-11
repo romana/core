@@ -25,7 +25,7 @@ const (
 type Client struct {
 	config     *common.Config
 	Store      *Store
-	ipamLocker sync.Locker
+	ipamLocker libkvStore.Locker
 	IPAM       *IPAM
 }
 

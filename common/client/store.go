@@ -99,6 +99,30 @@ func (s *Store) PutObject(key string, value []byte) error {
 	return s.Store.Put(key, value, nil)
 }
 
+// Atomizable defines an interface on which it is possible to execute
+// Atomic operations from the point of view of KVStore.
+type Atomizable interface {
+	GetPrevKVPair() *libkvStore.KVPair
+	SetPrevKVPair(*libkvStore.KVPair)
+}
+
+func (s *Store) AtomicPut(key string, value Atomizable) error {
+	key = s.getKey(key)
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	ok, kvp, err := s.Store.AtomicPut(key, b, value.GetPrevKVPair(), nil)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return common.NewError("Could not store value under %s", key)
+	}
+	value.SetPrevKVPair(kvp)
+	return nil
+}
+
 func (s *Store) Get(key string) (*libkvStore.KVPair, error) {
 	return s.Store.Get(s.getKey(key))
 }
@@ -241,34 +265,6 @@ func (store *Store) NewLocker(name string) (sync.Locker, error) {
 		return nil, err
 	}
 	return &storeLocker{key: key, Locker: l}, nil
-}
-
-// Lock implements Lock method of sync.Locker interface.
-// TODO this can block forever -- but there is nothing to
-// do when we fail to lock other than not proceed in the caller,
-// so while retries can be implemented later, that's about it.
-func (sl *storeLocker) Lock() {
-	// TODO do we need these channels?
-	stopChan := make(chan struct{})
-	var err error
-	for {
-		_, err = sl.Locker.Lock(stopChan)
-		if err == nil {
-			return
-		}
-		log.Errorf("Error attempting to acquire lock for %s: %s", sl.key, err)
-		time.Sleep(100 * time.Millisecond)
-	}
-}
-
-// Unlock implements Unlock method of sync.Locker interface.
-func (sl *storeLocker) Unlock() {
-	err := sl.Locker.Unlock()
-	if err != nil {
-		// There is nothing, really, to do if we get an error,
-		// and if not handled here, all this would do is not allow callers to defer.
-		log.Errorf("Error unlocking %s: %s", sl.key, err)
-	}
 }
 
 func init() {

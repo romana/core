@@ -943,6 +943,15 @@ type IPAM struct {
 
 	//	OwnerToIP map[string][]string
 	//	IPToOwner map[string]string
+	prevKVPair *libkvStore.KVPair
+}
+
+func (ipam *IPAM) GetPrevKVPair() *libkvStore.KVPair {
+	return ipam.prevKVPair
+}
+
+func (ipam *IPAM) SetPrevKVPair(kvp *libkvStore.KVPair) {
+	ipam.prevKVPair = kvp
 }
 
 // injectParents is intended to add references to parent objects where appropriate
