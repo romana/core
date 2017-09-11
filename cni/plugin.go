@@ -138,7 +138,10 @@ func CmdAdd(args *skel.CmdArgs) error {
 	contIface := &current.Interface{}
 	hostIface := &current.Interface{}
 	ifName := "eth0"
-	mtu := 1500 //TODO for stas, make configurable
+	mtu := 1500
+	if netConf.MTU > 0 {
+		mtu = netConf.MTU
+	}
 	_, defaultNet, _ := net.ParseCIDR("0.0.0.0/0")
 
 	// And this is a callback inside the callback, it sets up networking

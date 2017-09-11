@@ -73,6 +73,8 @@ type RomanaAllocatorPodDescription struct {
 // NetConf represents parameters CNI plugin receives via stdin.
 type NetConf struct {
 	types.NetConf
+	MTU int `json:"mtu"`
+
 	KubernetesConfig string `json:"kubernetes_config"`
 
 	RomanaClientConfig common.Config `json:"romana_client_config"`
