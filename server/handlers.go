@@ -24,6 +24,7 @@ import (
 	"github.com/go-resty/resty"
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
+	"github.com/romana/core/common/api/errors"
 	"github.com/romana/core/common/client"
 )
 
@@ -32,24 +33,13 @@ import (
 func (r *Romanad) deallocateIP(input interface{}, ctx common.RestContext) (interface{}, error) {
 	addressName := ctx.QueryVariables.Get("addressName")
 	err := r.client.IPAM.DeallocateIP(addressName)
-	if err == nil {
-		return nil, nil
-	}
-	switch err := err.(type) {
-	default:
-		return nil, err
-	case api.RomanaNotFoundError:
-		return nil, common.NewError404(err.Type, fmt.Sprintf("%v", err.Attributes))
-	}
+	return nil, errors.RomanaErrorToHTTPError(err)
 }
 
 func (r *Romanad) allocateIP(input interface{}, ctx common.RestContext) (interface{}, error) {
 	req := input.(*api.IPAMAddressRequest)
 	retval, err := r.client.IPAM.AllocateIP(req.Name, req.Host, req.Tenant, req.Segment)
-	if exists, ok := err.(api.RomanaExistsError); ok {
-		return nil, common.NewErrorConflict(exists)
-	}
-	return retval, err
+	return retval, errors.RomanaErrorToHTTPError(err)
 }
 
 // listHosts returns all hosts.
@@ -193,8 +183,5 @@ func (r *Romanad) addPolicy(input interface{}, ctx common.RestContext) (interfac
 func (r *Romanad) addHost(input interface{}, ctx common.RestContext) (interface{}, error) {
 	host := input.(*api.Host)
 	err := r.client.IPAM.AddHost(*host)
-	if exists, ok := err.(api.RomanaExistsError); ok {
-		return nil, common.NewErrorConflict(exists)
-	}
-	return nil, err
+	return nil, errors.RomanaErrorToHTTPError(err)
 }
