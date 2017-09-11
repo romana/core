@@ -42,6 +42,7 @@ import (
 
 const (
 	msgNoAvailableIP = "No available IP."
+	DefaultAgentPort = 9604
 )
 
 var (
@@ -165,7 +166,7 @@ func (cidr *CIDR) UnmarshalText(data []byte) error {
 type Host struct {
 	Name      string            `json:"name"`
 	IP        net.IP            `json:"ip"`
-	AgentPort int               `json:"agent_port"`
+	AgentPort uint              `json:"agent_port"`
 	Tags      map[string]string `json:"tags"`
 	group     *Group
 }
@@ -285,6 +286,10 @@ func (hg *Group) addHost(host *Host) (bool, error) {
 
 	if hg.findHostByIP(host.IP.String()) != nil {
 		return false, common.NewError("Host with IP %s already exists.", host.IP)
+	}
+
+	if host.AgentPort == 0 {
+		host.AgentPort = DefaultAgentPort
 	}
 
 	if hg.Hosts == nil {
@@ -976,7 +981,11 @@ func (ipam *IPAM) ListHosts() api.HostList {
 	list := make([]api.Host, 0)
 	for _, network := range ipam.Networks {
 		for _, host := range network.Group.ListHosts() {
-			list = append(list, api.Host{IP: host.IP, Name: host.Name})
+			list = append(list, api.Host{
+				IP:        host.IP,
+				Name:      host.Name,
+				AgentPort: host.AgentPort,
+			})
 		}
 	}
 	retval := api.HostList{Hosts: list,
@@ -1066,6 +1075,32 @@ func (ipam *IPAM) DeallocateIP(addressName string) error {
 		}
 		return common.NewError404("IP", ip.String())
 	}
+
+	// find by IPAddress instead of name, so that all
+	// platforms are supported.
+	for name, ip := range ipam.AddressNameToIP {
+		if ip.String() == addressName {
+			for _, network := range ipam.Networks {
+				if network.CIDR.IPNet.Contains(ip) {
+					log.Tracef(trace.Inside,
+						"IPAM.DeallocateIP: IP %s belongs to network %s",
+						ip, network.Name)
+					err := network.deallocateIP(ip)
+					if err == nil {
+						delete(ipam.AddressNameToIP, name)
+						ipam.AllocationRevision++
+						err = ipam.save(ipam)
+						if err != nil {
+							return err
+						}
+					}
+					return err
+				}
+			}
+			return common.NewError404("IP", ip.String())
+		}
+	}
+
 	return common.NewError404("addressName", addressName)
 }
 

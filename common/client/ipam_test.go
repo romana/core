@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
+	"strings"
 	"testing"
 
 	"github.com/romana/core/common/api"
@@ -249,6 +250,56 @@ func TestIPReuse(t *testing.T) {
 	}
 	if ip.String() != "10.0.0.0" {
 		t.Fatalf("Expected 10.0.0.0, got %s", ip)
+	}
+}
+
+// TestIPAM_DeallocateIP tests that an IP can be
+// de-allocated using IP Name or Address.
+func TestIPAM_DeallocateIP(t *testing.T) {
+	ipam = initIpam(t, "")
+
+	ip, err := ipam.AllocateIP("1", "host1", "ten1", "seg1")
+	t.Logf("TestIPAM_DeallocateIP: Allocated %s for ten1:seg1", ip)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ip.String() != "10.0.0.0" {
+		t.Fatalf("TestIPAM_DeallocateIP: Expected 10.0.0.0, got %s", ip)
+	}
+
+	ip, err = ipam.AllocateIP("2", "host1", "ten1", "seg1")
+	t.Logf("TestIPAM_DeallocateIP: Allocated %s for ten1:seg1", ip)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ip.String() != "10.0.0.1" {
+		t.Fatalf("TestIPAM_DeallocateIP: Expected 10.0.0.1, got %s", ip)
+	}
+
+	// Deallocate first IP using IP Name
+	err = ipam.DeallocateIP("1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log("TestIPAM_DeallocateIP: Sucessfully Deallocated IP for ten1:seg1 using IP Name")
+
+	// Deallocate second IP using IP Address
+	err = ipam.DeallocateIP("10.0.0.1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Log("TestIPAM_DeallocateIP: Sucessfully Deallocated IP for ten1:seg1 using IP Address")
+
+	// Negative test case for test 1 above.
+	err = ipam.DeallocateIP("10.0.0.0")
+	if !strings.Contains(err.Error(), "404 Not Found") {
+		t.Fatalf("Expected '404 Not Found' error, got %s", err)
+	}
+
+	// Negative test case for test 2 above.
+	err = ipam.DeallocateIP("2")
+	if !strings.Contains(err.Error(), "404 Not Found") {
+		t.Fatalf("Expected '404 Not Found' error, got %s", err)
 	}
 }
 
@@ -638,7 +689,7 @@ func TestUpdateTopology(t *testing.T) {
 		t.Fatal("Expected net2 to be in IPAM, got nil")
 	}
 	if ipam.Networks["net1"] != nil {
-		t.Fatal("Expected net1 not to be in IPAM, got %v", ipam.Networks["net1"])
+		t.Fatalf("Expected net1 not to be in IPAM, got %v", ipam.Networks["net1"])
 	}
 
 	// t.Logf("Saved state: %s", testSaver.lastJson)
@@ -800,6 +851,14 @@ func TestHostAdditionSimple(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+
+	hosts := ipam.ListHosts()
+	for _, host := range hosts.Hosts {
+		if host.AgentPort == 0 {
+			t.Fatalf("Host Agent Port default value missing.\n")
+		}
+	}
+
 	// We should have 2 hosts in each group now.
 	net1 := ipam.Networks["net1"]
 	for _, grp := range net1.Group.Groups {
