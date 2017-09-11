@@ -40,7 +40,7 @@ func NewClient(config *common.Config) (*Client, error) {
 		Store:  store,
 	}
 
-	err = c.initIPAM()
+	err = c.initIPAM(config.InitialTopology)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +63,7 @@ func NewClientTransaction(config *common.Config) (*Client, sync.Locker, error) {
 		Store:  store,
 	}
 
-	locker, err := c.initIpamTransaction()
+	locker, err := c.initIpamTransaction("")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -281,8 +281,8 @@ func (c *Client) DeletePolicy(id string) (bool, error) {
 	return c.Store.Delete(PoliciesPrefix + id)
 }
 
-func (c *Client) initIPAM() error {
-	locker, err := c.initIpamTransaction()
+func (c *Client) initIPAM(initialTopology string) error {
+	locker, err := c.initIpamTransaction(initialTopology)
 	if locker != nil {
 		locker.Unlock()
 	}
@@ -290,21 +290,25 @@ func (c *Client) initIPAM() error {
 	return err
 }
 
-func (c *Client) initIpamTransaction() (sync.Locker, error) {
+func (c *Client) initIpamTransaction(initialTopology string) (sync.Locker, error) {
+	var err error
 	c.ipamLocker, err = c.Store.NewLocker(ipamKey)
 	if err != nil {
 		return nil, err
 	}
 	log.Tracef(trace.Inside, "initIPAM(): Created locker %v", c.ipamLocker)
-
 	c.ipamLocker.Lock()
 
 	// Check if IPAM info exists in the store
-	ipamExists, err := c.Store.Exists(ipamDataKey)
+	var ipamExists bool
+	ipamExists, err = c.Store.Exists(ipamDataKey)
 	if err != nil {
 		return nil, err
 	}
 	if ipamExists {
+		if initialTopology != "" {
+			log.Infof("Ignoring initial topology as IPAM already exists")
+		}
 		// Load if exists
 		log.Infof("Loading IPAM data from %s", c.Store.getKey(ipamDataKey))
 		kv, err := c.Store.Get(ipamDataKey)
@@ -317,9 +321,13 @@ func (c *Client) initIpamTransaction() (sync.Locker, error) {
 			return nil, err
 		}
 	} else {
-		// If does not exist, initialize and save
-		log.Infof("No IPAM data found at %s, initializing", c.Store.getKey(ipamDataKey))
-		c.IPAM, err = NewIPAM(c.save, c.ipamLocker)
+		// If does not exist -- initialize with initial topology.
+		if initialTopology == "" {
+			log.Infof("No IPAM data found at %s, initializing", c.Store.getKey(ipamDataKey))
+			c.IPAM, err = NewIPAM(c.save, c.ipamLocker)
+		} else {
+			c.IPAM, err = ParseIPAM(initialTopology, c.save, c.ipamLocker)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -328,7 +336,6 @@ func (c *Client) initIpamTransaction() (sync.Locker, error) {
 			return nil, err
 		}
 	}
-
 	return c.ipamLocker, nil
 }
 

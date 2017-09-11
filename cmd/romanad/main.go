@@ -20,6 +20,7 @@ import (
 	"flag"
 	"fmt"
 
+	"io/ioutil"
 	"os"
 	"strings"
 
@@ -34,6 +35,7 @@ func main() {
 	host := flag.String("host", "localhost", "Host to listen on.")
 	port := flag.Int("port", 9600, "Port to listen on.")
 	prefix := flag.String("etcd-prefix", client.DefaultEtcdPrefix, "Prefix to use for etcd data.")
+	topologyFile := flag.String("inintial-topology-file", "", "Initial topology")
 	flag.Parse()
 	if endpointsStr == nil {
 		log.Errorf("No etcd endpoints specified")
@@ -46,13 +48,26 @@ func main() {
 	if !strings.HasPrefix(pr, "/") {
 		pr = "/" + pr
 	}
+
+	var topology string
+
+	if *topologyFile != "" {
+		topoBytes, err := ioutil.ReadFile(*topologyFile)
+		if err != nil {
+			log.Errorf("Cannot read initial-topology-file %s: %s", *topologyFile, err)
+			os.Exit(2)
+		}
+		topology = string(topoBytes)
+	}
+
 	config := common.Config{EtcdEndpoints: endpoints,
-		EtcdPrefix: pr,
+		EtcdPrefix:      pr,
+		InitialTopology: topology,
 	}
 	svcInfo, err := common.InitializeService(romanad, config)
 	if err != nil {
 		log.Error(err)
-		os.Exit(2)
+		os.Exit(3)
 	}
 	if svcInfo != nil {
 		for {
