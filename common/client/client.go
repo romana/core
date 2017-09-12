@@ -1,7 +1,10 @@
 package client
 
 import (
+	"io/ioutil"
 	"sync"
+
+	"encoding/json"
 
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
@@ -40,7 +43,7 @@ func NewClient(config *common.Config) (*Client, error) {
 		Store:  store,
 	}
 
-	err = c.initIPAM(config.InitialTopology)
+	err = c.initIPAM(config.InitialTopologyFile)
 	if err != nil {
 		return nil, err
 	}
@@ -63,7 +66,7 @@ func NewClientTransaction(config *common.Config) (*Client, sync.Locker, error) {
 		Store:  store,
 	}
 
-	locker, err := c.initIpamTransaction("")
+	locker, err := c.initIpamTransaction(nil)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -281,8 +284,8 @@ func (c *Client) DeletePolicy(id string) (bool, error) {
 	return c.Store.Delete(PoliciesPrefix + id)
 }
 
-func (c *Client) initIPAM(initialTopology string) error {
-	locker, err := c.initIpamTransaction(initialTopology)
+func (c *Client) initIPAM(initialTopologyFile *string) error {
+	locker, err := c.initIpamTransaction(initialTopologyFile)
 	if locker != nil {
 		locker.Unlock()
 	}
@@ -290,7 +293,7 @@ func (c *Client) initIPAM(initialTopology string) error {
 	return err
 }
 
-func (c *Client) initIpamTransaction(initialTopology string) (sync.Locker, error) {
+func (c *Client) initIpamTransaction(initialTopologyFile *string) (sync.Locker, error) {
 	var err error
 	c.ipamLocker, err = c.Store.NewLocker(ipamKey)
 	if err != nil {
@@ -306,8 +309,8 @@ func (c *Client) initIpamTransaction(initialTopology string) (sync.Locker, error
 		return nil, err
 	}
 	if ipamExists {
-		if initialTopology != "" {
-			log.Infof("Ignoring initial topology as IPAM already exists")
+		if initialTopologyFile != nil && *initialTopologyFile != "" {
+			log.Infof("Ignoring initial topology file %s as IPAM already exists", initialTopologyFile)
 		}
 		// Load if exists
 		log.Infof("Loading IPAM data from %s", c.Store.getKey(ipamDataKey))
@@ -322,14 +325,23 @@ func (c *Client) initIpamTransaction(initialTopology string) (sync.Locker, error
 		}
 	} else {
 		// If does not exist -- initialize with initial topology.
-		if initialTopology == "" {
-			log.Infof("No IPAM data found at %s, initializing", c.Store.getKey(ipamDataKey))
-			c.IPAM, err = NewIPAM(c.save, c.ipamLocker)
-		} else {
-			c.IPAM, err = ParseIPAM(initialTopology, c.save, c.ipamLocker)
-		}
+
+		log.Infof("No IPAM data found at %s, initializing", c.Store.getKey(ipamDataKey))
+		c.IPAM, err = NewIPAM(c.save, c.ipamLocker)
 		if err != nil {
 			return nil, err
+		}
+		if initialTopologyFile != nil && *initialTopologyFile != "" {
+			topoData, err := ioutil.ReadFile(*initialTopologyFile)
+			if err != nil {
+				return nil, err
+			}
+			topoReq := &api.TopologyUpdateRequest{}
+			json.Unmarshal(topoData, topoReq)
+			err = c.IPAM.UpdateTopology(*topoReq)
+			if err != nil {
+				return nil, err
+			}
 		}
 		err = c.save(c.IPAM)
 		if err != nil {
@@ -341,7 +353,7 @@ func (c *Client) initIpamTransaction(initialTopology string) (sync.Locker, error
 
 // save implements the Saver interface of IPAM.
 func (c *Client) save(ipam *IPAM) error {
-	err = c.Store.PutObject(ipamDataKey, c.IPAM)
+	err := c.Store.PutObject(ipamDataKey, c.IPAM)
 	if err != nil {
 		return err
 	}

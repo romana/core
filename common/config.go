@@ -18,8 +18,8 @@ package common
 // Config is the configuration required for a Romana client library.
 // TODO it is here temporarily until circular imports are resolved.
 type Config struct {
-	EtcdEndpoints   []string
-	EtcdPrefix      string
-	InitialTopology string
-	Mock            bool
+	EtcdEndpoints       []string
+	EtcdPrefix          string
+	InitialTopologyFile *string
+	Mock                bool
 }

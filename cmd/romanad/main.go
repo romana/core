@@ -20,7 +20,6 @@ import (
 	"flag"
 	"fmt"
 
-	"io/ioutil"
 	"os"
 	"strings"
 
@@ -37,6 +36,7 @@ func main() {
 	prefix := flag.String("etcd-prefix", client.DefaultEtcdPrefix, "Prefix to use for etcd data.")
 	topologyFile := flag.String("initial-topology-file", "", "Initial topology")
 	flag.Parse()
+
 	if endpointsStr == nil {
 		log.Errorf("No etcd endpoints specified")
 		os.Exit(1)
@@ -49,20 +49,9 @@ func main() {
 		pr = "/" + pr
 	}
 
-	var topology string
-
-	if *topologyFile != "" {
-		topoBytes, err := ioutil.ReadFile(*topologyFile)
-		if err != nil {
-			log.Errorf("Cannot read initial-topology-file %s: %s", *topologyFile, err)
-			os.Exit(2)
-		}
-		topology = string(topoBytes)
-	}
-
 	config := common.Config{EtcdEndpoints: endpoints,
-		EtcdPrefix:      pr,
-		InitialTopology: topology,
+		EtcdPrefix:          pr,
+		InitialTopologyFile: topologyFile,
 	}
 	svcInfo, err := common.InitializeService(romanad, config)
 	if err != nil {
