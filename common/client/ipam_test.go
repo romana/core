@@ -632,6 +632,14 @@ func TestHostAllocation(t *testing.T) {
 	if ip.String() != "10.0.0.0" {
 		t.Fatalf("Expected 10.0.0.0, got %s", ip.String())
 	}
+	// Test allocation with same name...
+	ip, err = ipam.AllocateIP("x1", "ip-192-168-99-10", "tenant1", "")
+	if err == nil {
+		t.Fatal("Error expected -- allocating another address with same name.")
+	}
+	if _, ok := err.(api.RomanaExistsError); !ok {
+		t.Fatalf("Expected api.RomanaExistsError, got %T: %v", err, err)
+	}
 
 	ip, err = ipam.AllocateIP("x2", "ip-192-168-99-11", "tenant1", "")
 	if err != nil {
@@ -693,6 +701,28 @@ func TestUpdateTopology(t *testing.T) {
 	}
 
 	// t.Logf("Saved state: %s", testSaver.lastJson)
+}
+
+func TestListBlocks(t *testing.T) {
+	ipam = initIpam(t, "")
+	// t.Log(testSaver.lastJson)
+
+	_, err := ipam.AllocateIP("x1", "h1", "tenant1", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = ipam.AllocateIP("x2", "h1", "tenant2", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	br := ipam.ListAllBlocks()
+	if len(br.Blocks) != 2 {
+		t.Errorf("Expected 2 blocks, got %d", len(br.Blocks))
+	}
+	if br.Revision != 2 {
+		t.Errorf("Expected revision 2, got %d", br.Revision)
+	}
+	t.Logf("Have %d blocks, revision %d", len(br.Blocks), br.Revision)
 }
 
 func TestParseSimpleFlatNetworkA(t *testing.T) {

@@ -84,12 +84,12 @@ func (r *Romanad) Routes() common.Routes {
 		},
 		common.Route{
 			Method:  "GET",
-			Pattern: "/networks/{network}/blocks/",
+			Pattern: "/networks/{network}/blocks",
 			Handler: r.listNetworkBlocks,
 		},
 		common.Route{
 			Method:  "GET",
-			Pattern: "/blocks/",
+			Pattern: "/blocks",
 			Handler: r.listAllBlocks,
 		},
 		common.Route{

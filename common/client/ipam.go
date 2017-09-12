@@ -17,7 +17,6 @@ package client
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"math"
 	"math/big"
@@ -28,6 +27,7 @@ import (
 
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
+	"github.com/romana/core/common/api/errors"
 	"github.com/romana/core/common/client/idring"
 	"github.com/romana/core/common/log/trace"
 
@@ -281,11 +281,11 @@ func (hg *Group) findSmallestEligibleGroup(host *Host) *Group {
 func (hg *Group) addHost(host *Host) (bool, error) {
 	log.Tracef(trace.Inside, "Calling addHost on %s", hg.Name)
 	if hg.findHostByName(host.Name) != nil {
-		return false, common.NewError("Host with name %s already exists.", host.Name)
+		return false, errors.NewRomanaExistsError("", *host, "host", fmt.Sprintf("name=%s", host.Name))
 	}
 
 	if hg.findHostByIP(host.IP.String()) != nil {
-		return false, common.NewError("Host with IP %s already exists.", host.IP)
+		return false, errors.NewRomanaExistsError("", *host, "host", fmt.Sprintf("IP=%s", host.IP))
 	}
 
 	if host.AgentPort == 0 {
@@ -296,7 +296,7 @@ func (hg *Group) addHost(host *Host) (bool, error) {
 		// Try to add to one of the subgroups.
 		smallest := hg.findSmallestEligibleGroup(host)
 		if smallest == nil {
-			return false, errors.New("Cannot add host: no groups available.")
+			return false, common.NewError("Cannot add host: no groups available.")
 		}
 		return smallest.addHost(host)
 	}
@@ -875,7 +875,9 @@ func (network *Network) deallocateIP(ip net.IP) error {
 func (network *Network) allocateIP(hostName string, owner string) (net.IP, error) {
 	host := network.Group.findHostByName(hostName)
 	if host == nil {
-		return nil, common.NewError("Host %s not found", hostName)
+		return nil, errors.NewRomanaNotFoundError(fmt.Sprintf("Host %s not found", hostName),
+			"host",
+			fmt.Sprintf("hostname=%s", hostName))
 	}
 	ip := host.group.allocateIP(network, hostName, owner)
 	if ip == nil {
@@ -1016,7 +1018,13 @@ func (ipam *IPAM) AllocateIP(addressName string, host string, tenant string, seg
 	// defer ipam.locker.Unlock()
 
 	if addr, ok := ipam.AddressNameToIP[addressName]; ok {
-		return nil, common.NewError("Address with name %s already allocated: %s", addressName, addr)
+		return nil, errors.NewRomanaExistsError(
+			fmt.Sprintf("Address with name %s already allocated: %s", addressName, addr),
+			addressName,
+			"IP",
+			fmt.Sprintf("name=%s", addressName),
+			fmt.Sprintf("IP=%s", addr))
+
 	}
 
 	// Find eligible networks for the specified tenant
@@ -1047,7 +1055,7 @@ func (ipam *IPAM) AllocateIP(addressName string, host string, tenant string, seg
 			return ip, nil
 		}
 	}
-	return nil, errors.New(msgNoAvailableIP)
+	return nil, common.NewError(msgNoAvailableIP)
 }
 
 // DeallocateIP will deallocate the provided IP (returning an
@@ -1073,9 +1081,8 @@ func (ipam *IPAM) DeallocateIP(addressName string) error {
 				return err
 			}
 		}
-		return common.NewError404("IP", ip.String())
+		return errors.NewRomanaNotFoundError("", "IP", fmt.Sprintf("IP=%s", ip))
 	}
-
 	// find by IPAddress instead of name, so that all
 	// platforms are supported.
 	for name, ip := range ipam.AddressNameToIP {
@@ -1101,7 +1108,7 @@ func (ipam *IPAM) DeallocateIP(addressName string) error {
 		}
 	}
 
-	return common.NewError404("addressName", addressName)
+	return errors.NewRomanaNotFoundError("", "address", fmt.Sprintf("name=%s", addressName))
 }
 
 // getNetworksForTenant gets all eligible networks for the
@@ -1151,7 +1158,7 @@ func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest) error {
 	}
 
 	if allocatedBlocks {
-		return errors.New("Updating topology after IPs have been allocated currently not implemented.")
+		return common.NewError("Updating topology after IPs have been allocated currently not implemented.")
 	}
 	clearIPAM(ipam)
 
@@ -1365,7 +1372,7 @@ func (ipam *IPAM) BlackOut(cidrStr string) error {
 			log.Tracef(trace.Inside, "BlackOut: Checking blocks %v if they have IP in %s", networkBlocks, cidr)
 			for _, block := range networkBlocks {
 				if block.hasIPInCIDR(cidr) {
-					return errors.New("Blackout block contains already allocated IPs.")
+					return common.NewError("Blackout block contains already allocated IPs.")
 				}
 			}
 			network.BlackedOut[i] = cidr
@@ -1386,7 +1393,7 @@ func (ipam *IPAM) BlackOut(cidrStr string) error {
 	log.Tracef(trace.Inside, "BlackOut: Checking blocks %v if they have IP in %s", networkBlocks, cidr)
 	for _, block := range networkBlocks {
 		if block.hasIPInCIDR(cidr) {
-			return errors.New("Blackout block contains already allocated IPs.")
+			return common.NewError("Blackout block contains already allocated IPs.")
 		}
 	}
 
