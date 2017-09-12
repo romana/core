@@ -60,4 +60,8 @@ func main() {
 		panic(err)
 	}
 
+	err = out.Close()
+	if err != nil {
+		panic(err)
+	}
 }
