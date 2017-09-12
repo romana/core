@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	defaultSegmentLabelName = "tier"
+	defaultSegmentLabelName = "romana.io/segment"
 	defaultTenantLabelName  = "namespace"
 )
 
