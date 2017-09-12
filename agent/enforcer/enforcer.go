@@ -185,6 +185,10 @@ func makeBlockSets(blockCache BlockCache, policyCache policyCache.Interface, hos
 		}
 
 		err = sets.AddSet(srcSet)
+		if err != nil {
+			return nil, err
+		}
+
 		err = sets.AddSet(dstSet)
 		if err != nil {
 			return nil, err
