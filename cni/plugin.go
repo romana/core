@@ -253,17 +253,11 @@ func CmdDel(args *skel.CmdArgs) error {
 		return nil
 	}
 
-	romanaClient, locker, err := MakeRomanaClient(netConf)
+	romanaClient, err := MakeRomanaClient(netConf)
 	if err != nil {
 		log.Errorf("Pod %s deletion failed, can't make romana client, %s", k8sargs.MakePodName(), err)
 		return nil
 	}
-	startTime := time.Now()
-	defer func() {
-		locker.Unlock()
-		stopTime := time.Now()
-		log.Tracef(4, "Process %d commited IPAM transaction at %s after %s", os.Getpid(), stopTime, stopTime.Sub(startTime))
-	}()
 
 	deallocator, err := NewRomanaAddressManager(DefaultProvider)
 	if err != nil {

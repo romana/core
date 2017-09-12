@@ -23,8 +23,8 @@ import (
 	"net"
 	"regexp"
 	"strings"
-	"sync"
 
+	libkvStore "github.com/docker/libkv/store"
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
 	"github.com/romana/core/common/api/errors"
@@ -907,22 +907,44 @@ func (network *Network) blackedOutBy(ip net.IP) *CIDR {
 // Saver defines a function that can save the state of the BlockIPAM
 // to a persistent store. Saver is allowed to assume the BlockIPAM
 // can be successfully marshaled to JSON.
-type Saver func(ipam *IPAM) error
+type Saver func(ipam *IPAM, ch <-chan struct{}) error
 
-// ParseIPAM restores IPAM from JSON as stored in the KV store.
-func ParseIPAM(j string, saver Saver, locker sync.Locker) (*IPAM, error) {
+// NewIPAM creates a new IPAM object. If locker is not provided,
+// mutexLocker is used. If an HA deployment is expected, then the locker
+// based on some external resource, e.g., a DB, should be provided.
+func NewIPAM(saver Saver, locker Locker) (*IPAM, error) {
+	ipam := &IPAM{}
+	if locker == nil {
+		ipam.locker = newMutexLocker()
+	} else {
+		ipam.locker = locker
+	}
+	ch, err := ipam.locker.Lock()
+	if err != nil {
+		return nil, err
+	}
+	defer ipam.locker.Unlock()
+	clearIPAM(ipam)
+
+	log.Tracef(trace.Inside, "NewIPAM(): Set locker to %v", ipam.locker)
+
+	ipam.save = saver
+	err = ipam.save(ipam, ch)
+	if err != nil {
+		return nil, err
+	}
+	return ipam, nil
+}
+
+// parseIPAM restores IPAM from JSON
+func parseIPAM(j string) (*IPAM, error) {
 	ipam := &IPAM{}
 	err := json.Unmarshal([]byte(j), ipam)
 	if err != nil {
 		return nil, err
 	}
-	ipam.save = saver
-	if locker == nil {
-		ipam.locker = &sync.Mutex{}
-	} else {
-		ipam.locker = locker
-	}
 	ipam.injectParents()
+	ipam.locker = newMutexLocker()
 	return ipam, nil
 }
 
@@ -937,7 +959,7 @@ type IPAM struct {
 	// Map of address name to IP
 	AddressNameToIP map[string]net.IP `json:"address_name_to_ip"`
 	save            Saver
-	locker          sync.Locker
+	locker          Locker
 
 	TenantToNetwork map[string][]string `json:"tenant_to_network"`
 
@@ -970,28 +992,6 @@ func clearIPAM(ipam *IPAM) {
 	ipam.Networks = make(map[string]*Network)
 	ipam.AddressNameToIP = make(map[string]net.IP)
 	ipam.TenantToNetwork = make(map[string][]string)
-}
-
-// NewIPAM creates a new IPAM object. If locker is not provided,
-// sync.Mutex is used. If an HA deployment is expected, then the locker
-// based on some external resource, e.g., a DB, should be provided.
-func NewIPAM(saver Saver, locker sync.Locker) (*IPAM, error) {
-	ipam := &IPAM{}
-	clearIPAM(ipam)
-
-	if locker == nil {
-		ipam.locker = &sync.Mutex{}
-	} else {
-		ipam.locker = locker
-	}
-	log.Tracef(trace.Inside, "NewIPAM(): Set locker to %v", ipam.locker)
-
-	ipam.save = saver
-	err := ipam.save(ipam)
-	if err != nil {
-		return nil, err
-	}
-	return ipam, nil
 }
 
 func (ipam *IPAM) ListHosts() api.HostList {
@@ -1029,8 +1029,11 @@ func (ipam *IPAM) GetGroupsForNetwork(netName string) *Group {
 // this tenant/segment pair. Will return nil as IP if the entire
 // network is exhausted.
 func (ipam *IPAM) AllocateIP(addressName string, host string, tenant string, segment string) (net.IP, error) {
-	// ipam.locker.Lock()
-	// defer ipam.locker.Unlock()
+	ch, err := ipam.locker.Lock()
+	if err != nil {
+		return nil, err
+	}
+	defer ipam.locker.Unlock()
 
 	if addr, ok := ipam.AddressNameToIP[addressName]; ok {
 		return nil, errors.NewRomanaExistsError(
@@ -1073,7 +1076,7 @@ func (ipam *IPAM) AllocateIP(addressName string, host string, tenant string, seg
 			ipam.AddressNameToIP[addressName] = ip
 			ipam.AllocationRevision++
 			log.Tracef(trace.Inside, "Updated AllocationRevision to %d", ipam.AllocationRevision)
-			err = ipam.save(ipam)
+			err = ipam.save(ipam, ch)
 			if err != nil {
 				return nil, err
 			}
@@ -1086,8 +1089,11 @@ func (ipam *IPAM) AllocateIP(addressName string, host string, tenant string, seg
 // DeallocateIP will deallocate the provided IP (returning an
 // error if it never was allocated in the first place).
 func (ipam *IPAM) DeallocateIP(addressName string) error {
-	//	ipam.locker.Lock()
-	//	defer ipam.locker.Unlock()
+	ch, err := ipam.locker.Lock()
+	if err != nil {
+		return err
+	}
+	defer ipam.locker.Unlock()
 
 	if ip, ok := ipam.AddressNameToIP[addressName]; ok {
 		log.Tracef(trace.Inside, "IPAM.DeallocateIP: Request to deallocate %s: %s", addressName, ip)
@@ -1098,7 +1104,7 @@ func (ipam *IPAM) DeallocateIP(addressName string) error {
 				if err == nil {
 					delete(ipam.AddressNameToIP, addressName)
 					ipam.AllocationRevision++
-					err = ipam.save(ipam)
+					err = ipam.save(ipam, ch)
 					if err != nil {
 						return err
 					}
@@ -1121,7 +1127,7 @@ func (ipam *IPAM) DeallocateIP(addressName string) error {
 					if err == nil {
 						delete(ipam.AddressNameToIP, name)
 						ipam.AllocationRevision++
-						err = ipam.save(ipam)
+						err = ipam.save(ipam, ch)
 						if err != nil {
 							return err
 						}
@@ -1169,8 +1175,11 @@ func (ipam *IPAM) getNetworksForTenant(tenant string) ([]*Network, error) {
 // in conflict with the previous topology.
 func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest) error {
 	var err error
-	//	ipam.locker.Lock()
-	//	defer ipam.locker.Unlock()
+	ch, err := ipam.locker.Lock()
+	if err != nil {
+		return err
+	}
+	defer ipam.locker.Unlock()
 
 	allocatedBlocks := false
 	for _, netDef := range ipam.Networks {
@@ -1250,7 +1259,7 @@ func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest) error {
 		}
 	}
 	ipam.TopologyRevision++
-	err = ipam.save(ipam)
+	err = ipam.save(ipam, ch)
 	if err != nil {
 		return err
 	}
@@ -1281,6 +1290,12 @@ func (ipam *IPAM) ListNetworkBlocks(netName string) *api.IPAMBlocksResponse {
 }
 
 func (ipam *IPAM) RemoveHost(host api.Host) error {
+	ch, err := ipam.locker.Lock()
+	if err != nil {
+		return err
+	}
+	defer ipam.locker.Unlock()
+
 	if host.IP == nil && host.Name == "" {
 		return common.NewError("At least one of IP, Name must be specified to delete a host")
 	}
@@ -1318,7 +1333,7 @@ func (ipam *IPAM) RemoveHost(host api.Host) error {
 		}
 		myHost.group.Hosts = deleteElementHost(myHost.group.Hosts, i)
 		ipam.TopologyRevision++
-		err := ipam.save(ipam)
+		err = ipam.save(ipam, ch)
 		if err != nil {
 			return err
 		}
@@ -1329,6 +1344,12 @@ func (ipam *IPAM) RemoveHost(host api.Host) error {
 
 // AddHost adds host to the current IPAM.
 func (ipam *IPAM) AddHost(host api.Host) error {
+	ch, err := ipam.locker.Lock()
+	if err != nil {
+		return err
+	}
+	defer ipam.locker.Unlock()
+
 	if host.IP == nil {
 		return common.NewError("Host IP is required.")
 	}
@@ -1343,7 +1364,7 @@ func (ipam *IPAM) AddHost(host api.Host) error {
 		}
 		if ok {
 			ipam.TopologyRevision++
-			err = ipam.save(ipam)
+			err = ipam.save(ipam, ch)
 			if err != nil {
 				return err
 			}
@@ -1358,8 +1379,12 @@ func (ipam *IPAM) AddHost(host api.Host) error {
 // result if CIDRs smaller than ipam. Blocks are blacked out and then
 // un-blacked out.
 func (ipam *IPAM) BlackOut(cidrStr string) error {
-	ipam.locker.Lock()
+	ch, err := ipam.locker.Lock()
+	if err != nil {
+		return err
+	}
 	defer ipam.locker.Unlock()
+
 	log.Tracef(trace.Private, "BlackOut: Black out request for %s", cidrStr)
 	cidr, err := NewCIDR(cidrStr)
 	if err != nil {
@@ -1402,7 +1427,7 @@ func (ipam *IPAM) BlackOut(cidrStr string) error {
 			}
 			network.BlackedOut[i] = cidr
 			network.Revison++
-			err := ipam.save(ipam)
+			err := ipam.save(ipam, ch)
 			if err != nil {
 				return err
 			}
@@ -1424,7 +1449,7 @@ func (ipam *IPAM) BlackOut(cidrStr string) error {
 
 	network.BlackedOut = append(network.BlackedOut, cidr)
 	network.Revison++
-	err = ipam.save(ipam)
+	err = ipam.save(ipam, ch)
 	if err != nil {
 		return err
 	}
@@ -1437,7 +1462,10 @@ func (ipam *IPAM) UnBlackOut(cidrStr string) error {
 	// TODO it is possible for this to leave fragmentation - if a block was previously
 	// completely blacked out.
 	// To defragment - defragment the list of allocated IPs in every block.
-	ipam.locker.Lock()
+	ch, err := ipam.locker.Lock()
+	if err != nil {
+		return err
+	}
 	defer ipam.locker.Unlock()
 
 	cidr, err := NewCIDR(cidrStr)
@@ -1471,5 +1499,5 @@ func (ipam *IPAM) UnBlackOut(cidrStr string) error {
 	}
 	network.BlackedOut = deleteElementCIDR(network.BlackedOut, i)
 	network.Revison++
-	return ipam.save(ipam)
+	return ipam.save(ipam, ch)
 }

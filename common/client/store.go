@@ -108,7 +108,7 @@ type Atomizable interface {
 
 func (s *Store) AtomicPut(key string, value Atomizable) error {
 	key = s.getKey(key)
-	b, err := json.Marshal(v)
+	b, err := json.Marshal(value)
 	if err != nil {
 		return err
 	}
@@ -200,8 +200,8 @@ func (s *Store) Delete(key string) (bool, error) {
 
 // ReconnectingWatch wraps libkv Watch method, but attempts to re-establish
 // the watch if it drop.
-func (s *Store) ReconnectingWatch(key string, stopCh <-chan struct{}) (<-chan []byte, error) {
-	outCh := make(chan []byte)
+func (s *Store) ReconnectingWatch(key string, stopCh <-chan struct{}) (<-chan *libkvStore.KVPair, error) {
+	outCh := make(chan *libkvStore.KVPair)
 	inCh, err := s.Watch(s.getKey(key), stopCh)
 	if err != nil {
 		return nil, err
@@ -210,7 +210,7 @@ func (s *Store) ReconnectingWatch(key string, stopCh <-chan struct{}) (<-chan []
 	return outCh, nil
 }
 
-func (s *Store) reconnectingWatcher(key string, stopCh <-chan struct{}, inCh <-chan *libkvStore.KVPair, outCh chan []byte) {
+func (s *Store) reconnectingWatcher(key string, stopCh <-chan struct{}, inCh <-chan *libkvStore.KVPair, outCh chan *libkvStore.KVPair) {
 	var err error
 	log.Trace(trace.Private, "Entering ReconnectingWatch goroutine.")
 	channelClosed := false
@@ -223,7 +223,7 @@ func (s *Store) reconnectingWatcher(key string, stopCh <-chan struct{}, inCh <-c
 		case kv, ok := <-inCh:
 			if ok {
 				channelClosed = false
-				outCh <- kv.Value
+				outCh <- kv
 				break
 			}
 			// Not ok - channel continues to be closed
@@ -251,20 +251,68 @@ func (s *Store) reconnectingWatcher(key string, stopCh <-chan struct{}, inCh <-c
 	}
 }
 
-// StoreLocker implements sync.Locker interface using the
+// Locker implements an interface for locking and unlocking.
+// sync.Locker was not good for our purpose it does not allow
+// for returning an error on lock. libkv's Locker is too libkv-specific
+// and we do not need a stop channel really; and since the use case
+// is to defer Unlock(), no need for it to return an error
+type Locker interface {
+	Lock() (<-chan struct{}, error)
+	Unlock()
+}
+
+// storeLocker implements Locker interface using the
 // lock form the backend store.
 type storeLocker struct {
 	key string
 	libkvStore.Locker
 }
 
-func (store *Store) NewLocker(name string) (sync.Locker, error) {
+// Lock implements Lock method of Locker interface.
+func (sl *storeLocker) Lock() (<-chan struct{}, error) {
+	stopChan := make(chan struct{})
+	return sl.Locker.Lock(stopChan)
+}
+
+// Unlock implements Unlock method of Locker interface.
+func (sl *storeLocker) Unlock() {
+	err := sl.Locker.Unlock()
+	if err != nil {
+		log.Error(err)
+	}
+}
+
+func (store *Store) NewLocker(name string) (Locker, error) {
 	key := store.getKey("/lock/" + name)
 	l, err := store.Store.NewLock(key, nil)
 	if err != nil {
 		return nil, err
 	}
 	return &storeLocker{key: key, Locker: l}, nil
+}
+
+// mutexLocker implements Locker interface with a sync.Mutex
+type mutexLocker struct {
+	mutex *sync.Mutex
+}
+
+// Lock implements Lock method of Locker interface.
+func (ml *mutexLocker) Lock() (<-chan struct{}, error) {
+	ch := make(<-chan struct{})
+	if ml.mutex == nil {
+		ml.mutex = &sync.Mutex{}
+	}
+	ml.mutex.Lock()
+	return ch, nil
+}
+
+// Unlock implements Unlock method of Locker interface.
+func (ml *mutexLocker) Unlock() {
+	ml.mutex.Unlock()
+}
+
+func newMutexLocker() *mutexLocker {
+	return &mutexLocker{mutex: &sync.Mutex{}}
 }
 
 func init() {

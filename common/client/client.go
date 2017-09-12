@@ -3,7 +3,6 @@ package client
 import (
 	"fmt"
 	"io/ioutil"
-	"sync"
 
 	"encoding/json"
 
@@ -25,7 +24,7 @@ const (
 type Client struct {
 	config     *common.Config
 	Store      *Store
-	ipamLocker libkvStore.Locker
+	ipamLocker Locker
 	IPAM       *IPAM
 }
 
@@ -48,32 +47,11 @@ func NewClient(config *common.Config) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-
+	err = c.watchIPAM()
+	if err != nil {
+		return nil, err
+	}
 	return c, nil
-
-}
-
-func NewClientTransaction(config *common.Config) (*Client, sync.Locker, error) {
-	if config.EtcdPrefix == "" {
-		config.EtcdPrefix = DefaultEtcdPrefix
-	}
-	store, err := NewStore(config.EtcdEndpoints, config.EtcdPrefix)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	c := &Client{
-		config: config,
-		Store:  store,
-	}
-
-	locker, err := c.initIpamTransaction(nil)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return c, locker, nil
-
 }
 
 func (c *Client) ListHosts() api.HostList {
@@ -145,10 +123,11 @@ func (c *Client) WatchBlocks(stopCh <-chan struct{}) (<-chan api.IPAMBlocksRespo
 			case <-stopCh:
 				log.Tracef(trace.Inside, "WatchBlocks: Stop message received")
 				return
-			case val := <-ch:
-				ipamJson := string(val)
+			case kv := <-ch:
+				ipamJson := string(kv.Value)
 				log.Tracef(trace.Inside, "WatchBlocks: got JSON [%s]", ipamJson)
-				ipam, err := ParseIPAM(ipamJson, nil, nil)
+
+				ipam, err := parseIPAM(ipamJson)
 				if err != nil {
 					if ipamJson == "" {
 						log.Warnf("WatchBlocks: Received empty IPAM JSON from KV store")
@@ -192,9 +171,9 @@ func (c *Client) WatchHosts(stopCh <-chan struct{}) (<-chan api.HostList, error)
 			case <-stopCh:
 				log.Tracef(trace.Inside, "WatchHosts: Stop message received")
 				return
-			case val := <-ch:
-				ipamJson := string(val)
-				ipam, err := ParseIPAM(ipamJson, nil, nil)
+			case kv := <-ch:
+				ipamJson := string(kv.Value)
+				ipam, err := parseIPAM(ipamJson)
 				log.Tracef(trace.Inside, "WatchHosts: got %s", ipamJson)
 				if err != nil {
 					log.Errorf("WatchHosts: Error parsing IPAM: %s", err)
@@ -311,28 +290,24 @@ func (c *Client) GetPolicy(id string) (api.Policy, error) {
 }
 
 func (c *Client) initIPAM(initialTopologyFile *string) error {
-	locker, err := c.initIpamTransaction(initialTopologyFile)
-	if locker != nil {
-		locker.Unlock()
-	}
-
-	return err
-}
-
-func (c *Client) initIpamTransaction(initialTopologyFile *string) (sync.Locker, error) {
 	var err error
 	c.ipamLocker, err = c.Store.NewLocker(ipamKey)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	log.Tracef(trace.Inside, "initIPAM(): Created locker %v", c.ipamLocker)
 	c.ipamLocker.Lock()
+	ch, err := c.IPAM.locker.Lock()
+	if err != nil {
+		return err
+	}
+	defer c.IPAM.locker.Unlock()
 
 	// Check if IPAM info exists in the store
 	var ipamExists bool
 	ipamExists, err = c.Store.Exists(ipamDataKey)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if ipamExists {
 		if initialTopologyFile != nil && *initialTopologyFile != "" {
@@ -342,21 +317,27 @@ func (c *Client) initIpamTransaction(initialTopologyFile *string) (sync.Locker, 
 		log.Infof("Loading IPAM data from %s", c.Store.getKey(ipamDataKey))
 		kv, err := c.Store.Get(ipamDataKey)
 		if err != nil {
-			return nil, err
+			return err
 		}
-
-		c.IPAM, err = ParseIPAM(string(kv.Value), c.save, c.ipamLocker)
+		c.IPAM, err = parseIPAM(string(kv.Value))
 		if err != nil {
-			return nil, err
+			return err
 		}
+		c.IPAM.save = c.save
+		c.IPAM.locker = c.ipamLocker
+		c.IPAM.SetPrevKVPair(kv)
 	} else {
 		// If does not exist -- initialize with initial topology.
 
 		log.Infof("No IPAM data found at %s, initializing", c.Store.getKey(ipamDataKey))
+		c.IPAM, err = NewIPAM(c.save, c.ipamLocker)
+		if err != nil {
+			return err
+		}
 		if initialTopologyFile != nil && *initialTopologyFile != "" {
 			topoData, err := ioutil.ReadFile(*initialTopologyFile)
 			if err != nil {
-				return nil, fmt.Errorf("error reading %s: %s", *initialTopologyFile, err)
+				return err
 			}
 			topoReq := &api.TopologyUpdateRequest{}
 			err = json.Unmarshal(topoData, topoReq)
@@ -369,7 +350,7 @@ func (c *Client) initIpamTransaction(initialTopologyFile *string) (sync.Locker, 
 			}
 			err = c.IPAM.UpdateTopology(*topoReq)
 			if err != nil {
-				return nil, err
+				return err
 			}
 		} else {
 			c.IPAM, err = NewIPAM(c.save, c.ipamLocker)
@@ -377,20 +358,71 @@ func (c *Client) initIpamTransaction(initialTopologyFile *string) (sync.Locker, 
 				return nil, err
 			}
 		}
-
-		err = c.save(c.IPAM)
+		err = c.save(c.IPAM, ch)
 		if err != nil {
-			return nil, err
+			return err
 		}
 	}
-	return c.ipamLocker, nil
+	return nil
 }
 
 // save implements the Saver interface of IPAM.
-func (c *Client) save(ipam *IPAM) error {
-	b, err := json.Marshal(c.IPAM)
+func (c *Client) save(ipam *IPAM, ch <-chan struct{}) error {
+	select {
+	case <-ch:
+		// Probably no need to reload the state at this point,
+		// as it would be detected by the watch.
+		return common.NewError("Lost lock while saving.")
+	default:
+		err := c.Store.AtomicPut(ipamDataKey, c.IPAM)
+		if err != nil {
+			return err
+		}
+		return nil
+	}
+}
+
+// watchIPAM watches the backing store, and if a new IPAM is detected, it will
+// reinitialize itself with the new value.
+func (c *Client) watchIPAM() error {
+	log.Tracef(trace.Public, "Entering watchIPAM.")
+	stopCh := make(<-chan struct{})
+	ch, err := c.Store.ReconnectingWatch(ipamDataKey, stopCh)
 	if err != nil {
 		return err
 	}
-	return c.Store.PutObject(ipamDataKey, b)
+
+	go func() {
+		log.Tracef(trace.Inside, "watchIPAM: Entering watchIPAM goroutine.")
+		for {
+			select {
+			case kv := <-ch:
+				prevKV := c.IPAM.GetPrevKVPair()
+				if prevKV == nil || kv.LastIndex > prevKV.LastIndex {
+					log.Infof("Received IPAM with revision %d", kv.LastIndex)
+					_, err := c.IPAM.locker.Lock()
+					if err != nil {
+						log.Error(err)
+						// Nothing to do here, but since there is a new version,
+						// IPAM will continue failing on save until we get another one and
+						// try again
+						c.IPAM.locker.Unlock()
+						continue
+					}
+					c.IPAM, err = parseIPAM(string(kv.Value))
+					if err != nil {
+						log.Error(err)
+						c.IPAM.locker.Unlock()
+						continue
+					}
+					c.IPAM.save = c.save
+					c.IPAM.locker = c.ipamLocker
+					c.IPAM.SetPrevKVPair(kv)
+					c.IPAM.locker.Unlock()
+					log.Infof("Loaded IPAM with revision %d", kv.LastIndex)
+				}
+			}
+		}
+	}()
+	return nil
 }
