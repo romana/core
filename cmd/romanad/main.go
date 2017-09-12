@@ -35,7 +35,7 @@ func main() {
 	host := flag.String("host", "localhost", "Host to listen on.")
 	port := flag.Int("port", 9600, "Port to listen on.")
 	prefix := flag.String("etcd-prefix", client.DefaultEtcdPrefix, "Prefix to use for etcd data.")
-	topologyFile := flag.String("inintial-topology-file", "", "Initial topology")
+	topologyFile := flag.String("initial-topology-file", "", "Initial topology")
 	flag.Parse()
 	if endpointsStr == nil {
 		log.Errorf("No etcd endpoints specified")
