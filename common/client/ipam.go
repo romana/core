@@ -1144,8 +1144,8 @@ func (ipam *IPAM) getNetworksForTenant(tenant string) ([]*Network, error) {
 // in conflict with the previous topology.
 func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest) error {
 	var err error
-	ipam.locker.Lock()
-	defer ipam.locker.Unlock()
+	//	ipam.locker.Lock()
+	//	defer ipam.locker.Unlock()
 
 	allocatedBlocks := false
 	for _, netDef := range ipam.Networks {
