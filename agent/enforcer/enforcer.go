@@ -170,15 +170,6 @@ type BlockCache interface {
 	List() []api.IPAMBlockResponse
 }
 
-// suppressItemExist suppresses an error when ipset.AddX()
-// operation failes due to item already exists in collection.
-func suppressItemExist(e error) error {
-	if errors.Cause(e) == ipset.ErrorItemExist {
-		return nil
-	}
-	return e
-}
-
 // makeBlockSets creates ipset configuration for policies and blocks.
 func makeBlockSets(blockCache BlockCache, policyCache policyCache.Interface, hostname string) (*ipset.Ipset, error) {
 	blocks := blockCache.List()
@@ -215,26 +206,26 @@ func makeBlockSets(blockCache BlockCache, policyCache policyCache.Interface, hos
 
 		segmentSetName := makeTenantSetName(block.Tenant, block.Segment)
 		segmentSet, _ := ipset.NewSet(segmentSetName, ipset.SetHashNet)
-		err := suppressItemExist(sets.AddSet(segmentSet))
+		err := ipset.SuppressItemExist(sets.AddSet(segmentSet))
 		if err != nil {
 			return nil, err
 		}
 
 		memberForSegmentSet, _ := ipset.NewMember(block.CIDR.IPNet.String(), segmentSet)
-		err = suppressItemExist(segmentSet.AddMember(memberForSegmentSet))
+		err = ipset.SuppressItemExist(segmentSet.AddMember(memberForSegmentSet))
 		if err != nil {
 			return nil, err
 		}
 
 		tenantSetName := makeTenantSetName(block.Tenant, "")
 		tenantSet, _ := ipset.NewSet(tenantSetName, ipset.SetListSet)
-		err = suppressItemExist(sets.AddSet(tenantSet))
+		err = ipset.SuppressItemExist(sets.AddSet(tenantSet))
 		if err != nil {
 			return nil, err
 		}
 
 		memberForTenantSet, _ := ipset.NewMember(segmentSet.Name, tenantSet)
-		err = suppressItemExist(tenantSet.AddMember(memberForTenantSet))
+		err = ipset.SuppressItemExist(tenantSet.AddMember(memberForTenantSet))
 		if err != nil {
 			return nil, err
 		}
@@ -264,7 +255,7 @@ func makePolicySets(policy api.Policy) (*ipset.Set, *ipset.Set, error) {
 					if err != nil {
 						return nil, nil, err
 					}
-					err = suppressItemExist(setDst.AddMember(member))
+					err = ipset.SuppressItemExist(setDst.AddMember(member))
 					if err != nil {
 						return nil, nil, err
 					}
@@ -273,7 +264,7 @@ func makePolicySets(policy api.Policy) (*ipset.Set, *ipset.Set, error) {
 					if err != nil {
 						return nil, nil, err
 					}
-					err = suppressItemExist(setSrc.AddMember(member))
+					err = ipset.SuppressItemExist(setSrc.AddMember(member))
 					if err != nil {
 						return nil, nil, err
 					}
