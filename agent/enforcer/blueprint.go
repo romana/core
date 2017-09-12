@@ -24,7 +24,7 @@ import (
 
 var blueprints = map[string]RuleBlueprint{
                                    
-	MakeBluerprintKey(
+	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemePolicyOnTop,
 		PeerCIDR,
@@ -44,7 +44,7 @@ var blueprints = map[string]RuleBlueprint{
 		fourthRuleAction: "ACCEPT",
 	},
                   
-	MakeBluerprintKey(
+	MakeBlueprintKey(
 		api.PolicyDirectionEgress,
 		SchemePolicyOnTop,
 		PeerCIDR,
@@ -64,7 +64,7 @@ var blueprints = map[string]RuleBlueprint{
 		fourthRuleAction: "DROP",
 	},
                   
-	MakeBluerprintKey(
+	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemeTargetOnTop,
 		PeerCIDR,
@@ -84,7 +84,7 @@ var blueprints = map[string]RuleBlueprint{
 		fourthRuleAction: "ACCEPT",
 	},
                   
-	MakeBluerprintKey(
+	MakeBlueprintKey(
 		api.PolicyDirectionEgress,
 		SchemeTargetOnTop,
 		PeerCIDR,
@@ -104,7 +104,7 @@ var blueprints = map[string]RuleBlueprint{
 		fourthRuleAction: "DROP",
 	},
                   
-	MakeBluerprintKey(
+	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemePolicyOnTop,
 		PeerCIDR,
@@ -124,7 +124,7 @@ var blueprints = map[string]RuleBlueprint{
 		fourthRuleAction: "ACCEPT",
 	},
                   
-	MakeBluerprintKey(
+	MakeBlueprintKey(
 		api.PolicyDirectionEgress,
 		SchemePolicyOnTop,
 		PeerCIDR,
@@ -144,7 +144,7 @@ var blueprints = map[string]RuleBlueprint{
 		fourthRuleAction: "DROP",
 	},
                   
-	MakeBluerprintKey(
+	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemeTargetOnTop,
 		PeerCIDR,
@@ -164,7 +164,7 @@ var blueprints = map[string]RuleBlueprint{
 		fourthRuleAction: "ACCEPT",
 	},
                   
-	MakeBluerprintKey(
+	MakeBlueprintKey(
 		api.PolicyDirectionEgress,
 		SchemeTargetOnTop,
 		PeerCIDR,
@@ -184,7 +184,7 @@ var blueprints = map[string]RuleBlueprint{
 		fourthRuleAction: "DROP",
 	},
                   
-	MakeBluerprintKey(
+	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemePolicyOnTop,
 		PeerTenant,
@@ -204,7 +204,7 @@ var blueprints = map[string]RuleBlueprint{
 		fourthRuleAction: "ACCEPT",
 	},
                   
-	MakeBluerprintKey(
+	MakeBlueprintKey(
 		api.PolicyDirectionEgress,
 		SchemePolicyOnTop,
 		PeerTenant,
@@ -224,7 +224,7 @@ var blueprints = map[string]RuleBlueprint{
 		fourthRuleAction: "DROP",
 	},
                   
-	MakeBluerprintKey(
+	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemeTargetOnTop,
 		PeerTenant,
@@ -244,7 +244,7 @@ var blueprints = map[string]RuleBlueprint{
 		fourthRuleAction: "ACCEPT",
 	},
                   
-	MakeBluerprintKey(
+	MakeBlueprintKey(
 		api.PolicyDirectionEgress,
 		SchemeTargetOnTop,
 		PeerTenant,
@@ -264,7 +264,7 @@ var blueprints = map[string]RuleBlueprint{
 		fourthRuleAction: "DROP",
 	},
                   
-	MakeBluerprintKey(
+	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemePolicyOnTop,
 		PeerTenantSegment,
@@ -284,7 +284,7 @@ var blueprints = map[string]RuleBlueprint{
 		fourthRuleAction: "ACCEPT",
 	},
                   
-	MakeBluerprintKey(
+	MakeBlueprintKey(
 		api.PolicyDirectionEgress,
 		SchemePolicyOnTop,
 		PeerTenantSegment,
@@ -304,7 +304,7 @@ var blueprints = map[string]RuleBlueprint{
 		fourthRuleAction: "DROP",
 	},
                   
-	MakeBluerprintKey(
+	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemeTargetOnTop,
 		PeerTenantSegment,
@@ -324,7 +324,7 @@ var blueprints = map[string]RuleBlueprint{
 		fourthRuleAction: "ACCEPT",
 	},
                   
-	MakeBluerprintKey(
+	MakeBlueprintKey(
 		api.PolicyDirectionEgress,
 		SchemeTargetOnTop,
 		PeerTenantSegment,
@@ -344,7 +344,7 @@ var blueprints = map[string]RuleBlueprint{
 		fourthRuleAction: "DROP",
 	},
                   
-	MakeBluerprintKey(
+	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemePolicyOnTop,
 		PeerTenant,
@@ -364,7 +364,7 @@ var blueprints = map[string]RuleBlueprint{
 		fourthRuleAction: "ACCEPT",
 	},
                   
-	MakeBluerprintKey(
+	MakeBlueprintKey(
 		api.PolicyDirectionEgress,
 		SchemePolicyOnTop,
 		PeerTenant,
@@ -384,7 +384,7 @@ var blueprints = map[string]RuleBlueprint{
 		fourthRuleAction: "DROP",
 	},
                   
-	MakeBluerprintKey(
+	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemeTargetOnTop,
 		PeerTenant,
@@ -404,7 +404,7 @@ var blueprints = map[string]RuleBlueprint{
 		fourthRuleAction: "ACCEPT",
 	},
                   
-	MakeBluerprintKey(
+	MakeBlueprintKey(
 		api.PolicyDirectionEgress,
 		SchemeTargetOnTop,
 		PeerTenant,
@@ -424,7 +424,7 @@ var blueprints = map[string]RuleBlueprint{
 		fourthRuleAction: "DROP",
 	},
                   
-	MakeBluerprintKey(
+	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemePolicyOnTop,
 		PeerTenantSegment,
@@ -444,7 +444,7 @@ var blueprints = map[string]RuleBlueprint{
 		fourthRuleAction: "ACCEPT",
 	},
                   
-	MakeBluerprintKey(
+	MakeBlueprintKey(
 		api.PolicyDirectionEgress,
 		SchemePolicyOnTop,
 		PeerTenantSegment,
@@ -464,7 +464,7 @@ var blueprints = map[string]RuleBlueprint{
 		fourthRuleAction: "DROP",
 	},
                   
-	MakeBluerprintKey(
+	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemeTargetOnTop,
 		PeerTenantSegment,
@@ -484,7 +484,7 @@ var blueprints = map[string]RuleBlueprint{
 		fourthRuleAction: "ACCEPT",
 	},
                   
-	MakeBluerprintKey(
+	MakeBlueprintKey(
 		api.PolicyDirectionEgress,
 		SchemeTargetOnTop,
 		PeerTenantSegment,
@@ -504,7 +504,7 @@ var blueprints = map[string]RuleBlueprint{
 		fourthRuleAction: "DROP",
 	},
                   
-	MakeBluerprintKey(
+	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemePolicyOnTop,
 		PeerTenant,
@@ -524,7 +524,7 @@ var blueprints = map[string]RuleBlueprint{
 		fourthRuleAction: "ACCEPT",
 	},
                                     
-	MakeBluerprintKey(
+	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemeTargetOnTop,
 		PeerTenant,
@@ -544,7 +544,7 @@ var blueprints = map[string]RuleBlueprint{
 		fourthRuleAction: "ACCEPT",
 	},
                                     
-	MakeBluerprintKey(
+	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemePolicyOnTop,
 		PeerTenantSegment,
@@ -564,7 +564,7 @@ var blueprints = map[string]RuleBlueprint{
 		fourthRuleAction: "ACCEPT",
 	},
                                     
-	MakeBluerprintKey(
+	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemeTargetOnTop,
 		PeerTenantSegment,
@@ -584,7 +584,7 @@ var blueprints = map[string]RuleBlueprint{
 		fourthRuleAction: "ACCEPT",
 	},
                                     
-	MakeBluerprintKey(
+	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemePolicyOnTop,
 		PeerLocal,
@@ -604,7 +604,7 @@ var blueprints = map[string]RuleBlueprint{
 		fourthRuleAction: "ACCEPT",
 	},
                                     
-	MakeBluerprintKey(
+	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemeTargetOnTop,
 		PeerLocal,

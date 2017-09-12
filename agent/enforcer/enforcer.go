@@ -442,7 +442,7 @@ func makePolicyRuleInDirection(policy api.Policy,
 
 	log.Debug("makePolicyRuleInDirection #1")
 
-	key := MakeBluerprintKey(direction, iptablesSchemeType, peerType, dstType) // TODO
+	key := MakeBlueprintKey(direction, iptablesSchemeType, peerType, dstType) // TODO
 
 	translationConfig, ok := blueprints[key]
 	// log.Debugf("makePolicyRuleInDirection with key %s, ok=%t, value=%s", key, ok, translationConfig)

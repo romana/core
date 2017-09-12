@@ -24,7 +24,7 @@ import (
 
 var blueprints = map[string]RuleBlueprint{
 {{ range . }} {{ $Direction := index . 0 }} {{ $Scheme := index . 1}} {{ $PeerType := index . 2}} {{ $TargetType := index . 3}} {{ $BaseChain := index . 4 }} {{ $TopRuleMatch := index . 5 }} {{ $TopRuleAction := index . 6 }} {{ $SecondBaseChain := index . 7 }} {{ $SecondRuleMatch := index . 8 }} {{ $SecondRuleAction := index . 9 }} {{ $ThirdBaseChain := index . 10 }} {{ $ThirdRuleMatch := index . 11 }} {{ $ThirdRuleAction := index . 12 }} {{ $FourthBaseChain := index . 13 }} {{ $FourthRuleMatch := index . 14 }} {{ $FourthRuleAction := index . 15 }} {{ if (ne $BaseChain "BaseChain") }}
-	MakeBluerprintKey(
+	MakeBlueprintKey(
 		{{ $Direction }},
 		{{ $Scheme }},
 		{{ $TargetType }},

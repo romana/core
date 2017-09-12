@@ -283,7 +283,7 @@ const (
 	SchemeTargetOnTop = "targetOnTop"
 )
 
-func MakeBluerprintKey(direction, iptablesSchemeType string, peerType PolicyPeerType, targetType PolicyTargetType) string {
+func MakeBlueprintKey(direction, iptablesSchemeType string, peerType PolicyPeerType, targetType PolicyTargetType) string {
 
 	var result string
 	switch direction {
