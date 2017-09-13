@@ -34,7 +34,9 @@ func main() {
 	host := flag.String("host", "localhost", "Host to listen on.")
 	port := flag.Int("port", 9600, "Port to listen on.")
 	prefix := flag.String("etcd-prefix", client.DefaultEtcdPrefix, "Prefix to use for etcd data.")
+	topologyFile := flag.String("initial-topology-file", "", "Initial topology")
 	flag.Parse()
+
 	if endpointsStr == nil {
 		log.Errorf("No etcd endpoints specified")
 		os.Exit(1)
@@ -46,13 +48,15 @@ func main() {
 	if !strings.HasPrefix(pr, "/") {
 		pr = "/" + pr
 	}
+
 	config := common.Config{EtcdEndpoints: endpoints,
-		EtcdPrefix: pr,
+		EtcdPrefix:          pr,
+		InitialTopologyFile: topologyFile,
 	}
 	svcInfo, err := common.InitializeService(romanad, config)
 	if err != nil {
 		log.Error(err)
-		os.Exit(2)
+		os.Exit(3)
 	}
 	if svcInfo != nil {
 		for {

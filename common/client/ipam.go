@@ -46,7 +46,6 @@ const (
 )
 
 var (
-	err              error
 	tenantNameRegexp = regexp.MustCompile("^[a-zA-Z0-9_]*$")
 )
 
@@ -249,7 +248,7 @@ func (hg *Group) findSmallestEligibleGroup(host *Host) *Group {
 	for _, g = range hg.Groups {
 		ok := g.isHostEligible(host)
 		if !ok {
-			log.Tracef(trace.Inside, "Host %s not eligible for group %s: %v", host, hg.Name, err)
+			log.Tracef(trace.Inside, "Host %s not eligible for group %v", host, hg.Name)
 			continue
 		}
 		log.Tracef(trace.Inside, "In %s, considering %s", hg.Name, g.Name)
@@ -595,6 +594,7 @@ func (hg *Group) cidrForCurrentGroup(groupIndex int, bitsPerElement int, cidr CI
 }
 
 func (hg *Group) parseMap(groupOrHosts []api.GroupOrHost, cidr CIDR, network *Network) error {
+	var err error
 	if len(groupOrHosts) == 0 {
 		// Just do nothing for now...
 		return nil
@@ -1143,9 +1143,9 @@ func (ipam *IPAM) getNetworksForTenant(tenant string) ([]*Network, error) {
 // updateTopology updates the entire topology, returning an error if it is
 // in conflict with the previous topology.
 func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest) error {
-	// TODO
-	ipam.locker.Lock()
-	defer ipam.locker.Unlock()
+	var err error
+	//	ipam.locker.Lock()
+	//	defer ipam.locker.Unlock()
 
 	allocatedBlocks := false
 	for _, netDef := range ipam.Networks {
@@ -1213,7 +1213,7 @@ func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest) error {
 			if network, ok := ipam.Networks[netName]; ok {
 				hg := &Group{}
 
-				err := hg.parseMap(topoDef.Map, network.CIDR, network)
+				err = hg.parseMap(topoDef.Map, network.CIDR, network)
 				if err != nil {
 					return err
 				}
@@ -1293,7 +1293,7 @@ func (ipam *IPAM) RemoveHost(host api.Host) error {
 		}
 		myHost.group.Hosts = deleteElementHost(myHost.group.Hosts, i)
 		ipam.TopologyRevision++
-		err = ipam.save(ipam)
+		err := ipam.save(ipam)
 		if err != nil {
 			return err
 		}

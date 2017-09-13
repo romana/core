@@ -200,6 +200,7 @@ func (s *Store) ReconnectingWatch(key string, stopCh <-chan struct{}) (<-chan []
 }
 
 func (s *Store) reconnectingWatcher(key string, stopCh <-chan struct{}, inCh <-chan *libkvStore.KVPair, outCh chan []byte) {
+	var err error
 	log.Trace(trace.Private, "Entering ReconnectingWatch goroutine.")
 	channelClosed := false
 	retryDelay := 1 * time.Millisecond
