@@ -217,7 +217,7 @@ func (c *Client) ListPolicies() ([]api.Policy, error) {
 	}
 	policies := make([]api.Policy, len(objs))
 	for i, obj := range objs {
-		policies[i] = obj.(api.Policy)
+		policies[i] = *obj.(*api.Policy)
 	}
 	return policies, nil
 }
@@ -272,7 +272,7 @@ func (c *Client) ListTenants() []api.Tenant {
 // AddPolicy adds a policy (or modifies it if policy with such ID already
 // exists)
 func (c *Client) AddPolicy(policy api.Policy) error {
-	return c.Store.PutObject(PoliciesPrefix + "/" + policy.ID, policy)
+	return c.Store.PutObject(PoliciesPrefix+"/"+policy.ID, policy)
 }
 
 // DeletePolicy attempts to delete policy. If the policy does
