@@ -88,9 +88,12 @@ func handleNetworkPolicyEvents(events []Event, l *KubeListener) {
 		// policy name is derived as below in translator and thus use the
 		// same technique to derive the policy name here for deleting it.
 		policyID := getPolicyID(policy)
-		_, err = l.client.DeletePolicy(policyID)
+		ok, err := l.client.DeletePolicy(policyID)
 		if err != nil {
 			log.Errorf("Error deleting policy %s: %s", policyID, err)
+		}
+		if !ok {
+			log.Tracef(4, "can't delete policy %s, not found", policyID)
 		}
 
 	}
@@ -210,8 +213,12 @@ func deleteDefaultPolicy(o *v1.Namespace, l *KubeListener) {
 	// TODO this should be ExternalID, not Name...
 	policyID := getDefaultPolicyID(o)
 
-	if _, err = l.client.DeletePolicy(policyID); err != nil {
+	ok, err := l.client.DeletePolicy(policyID)
+	if err != nil {
 		log.Errorf("In deleteDefaultPolicy :: Error :: failed to delete policy %s: %s\n", policyID, err)
+	}
+	if !ok {
+		log.Tracef(4, "can't delete policy %s, not found", policyID)
 	}
 }
 
@@ -353,9 +360,12 @@ func ProduceNewPolicyEvents(out chan Event, done <-chan struct{}, KubeListener *
 	}
 
 	for k, _ := range oldPolicies {
-		_, err = KubeListener.client.DeletePolicy(oldPolicies[k].ID)
+		ok, err := KubeListener.client.DeletePolicy(oldPolicies[k].ID)
 		if err != nil {
 			log.Errorf("Sync policies detected obsolete policy %s but failed to delete, %s", oldPolicies[k].ID, err)
+		}
+		if !ok {
+			log.Tracef(4, "can't delete policy %s, not found", oldPolicies[k].ID)
 		}
 	}
 }
