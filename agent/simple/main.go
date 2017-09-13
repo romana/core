@@ -33,7 +33,7 @@ import (
 
 const (
 	DefaultRouteTableId = 10
-	DefaultGwIP         = "127.42.0.1"
+	DefaultGwIP         = "172.142.0.1"
 )
 
 var (
@@ -51,6 +51,7 @@ func main() {
 	etcdPrefix := flag.String("prefix", "", "string that prefixes all romana keys in etcd")
 	hostname := flag.String("hostname", "", "name of the host in romana database")
 	provisionIface := flag.Bool("provision-iface", false, "create romana-gw interface and ip")
+	provisionIfaceGwIp := flag.String("provision-iface-gw-ip", DefaultGwIP, "specifies ip address for gateway interface")
 	provisionSysctls := flag.Bool("provision-sysctls", false, "configure routing sysctls")
 	romanaRouteTableId := flag.Int("route-table-id", DefaultRouteTableId,
 		"id that romana route table should have in /etc/iproute2/rt_tables")
@@ -78,7 +79,7 @@ func main() {
 			os.Exit(2)
 		}
 
-		err = SetRomanaGwIP(DefaultGwIP)
+		err = SetRomanaGwIP(*provisionIfaceGwIp)
 		if err != nil {
 			log.Errorf("Failed to install ip address on romana-gw interface. %s", err)
 			os.Exit(2)

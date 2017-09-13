@@ -126,7 +126,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 		return fmt.Errorf("Failed to detect ipv4 address on romana-gw interface, err=(%s)", err)
 	}
 	*/
-	gwAddr := &net.IPNet{IP: net.ParseIP("127.42.0.1"), Mask: net.IPMask([]byte{0xff, 0xff, 0xff, 0xff})}
+	gwAddr := &net.IPNet{IP: net.ParseIP("172.142.0.1"), Mask: net.IPMask([]byte{0xff, 0xff, 0xff, 0xff})}
 
 	netns, err := ns.GetNS(args.Netns)
 	if err != nil {
@@ -138,7 +138,10 @@ func CmdAdd(args *skel.CmdArgs) error {
 	contIface := &current.Interface{}
 	hostIface := &current.Interface{}
 	ifName := "eth0"
-	mtu := 1500 //TODO for stas, make configurable
+	mtu := 1500
+	if netConf.MTU > 0 {
+		mtu = netConf.MTU
+	}
 	_, defaultNet, _ := net.ParseCIDR("0.0.0.0/0")
 
 	// And this is a callback inside the callback, it sets up networking

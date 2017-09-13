@@ -24,6 +24,7 @@ import (
 	"github.com/go-resty/resty"
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
+	"github.com/romana/core/common/api/errors"
 	"github.com/romana/core/common/client"
 )
 
@@ -31,12 +32,14 @@ import (
 // "addressName".
 func (r *Romanad) deallocateIP(input interface{}, ctx common.RestContext) (interface{}, error) {
 	addressName := ctx.QueryVariables.Get("addressName")
-	return nil, r.client.IPAM.DeallocateIP(addressName)
+	err := r.client.IPAM.DeallocateIP(addressName)
+	return nil, errors.RomanaErrorToHTTPError(err)
 }
 
 func (r *Romanad) allocateIP(input interface{}, ctx common.RestContext) (interface{}, error) {
 	req := input.(*api.IPAMAddressRequest)
-	return r.client.IPAM.AllocateIP(req.Name, req.Host, req.Tenant, req.Segment)
+	retval, err := r.client.IPAM.AllocateIP(req.Name, req.Host, req.Tenant, req.Segment)
+	return retval, errors.RomanaErrorToHTTPError(err)
 }
 
 // listHosts returns all hosts.
@@ -179,5 +182,6 @@ func (r *Romanad) addPolicy(input interface{}, ctx common.RestContext) (interfac
 // addPolicy stores the new policy and sends it to all agents.
 func (r *Romanad) addHost(input interface{}, ctx common.RestContext) (interface{}, error) {
 	host := input.(*api.Host)
-	return nil, r.client.IPAM.AddHost(*host)
+	err := r.client.IPAM.AddHost(*host)
+	return nil, errors.RomanaErrorToHTTPError(err)
 }
