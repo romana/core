@@ -16,11 +16,15 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/romana/core/agent/enforcer"
+	utilexec "github.com/romana/core/agent/exec"
+	"github.com/romana/core/agent/internal/cache/policycache"
 	"github.com/romana/core/agent/simple/internal/rtable"
 	"github.com/romana/core/agent/simple/internal/sysctl"
 	"github.com/romana/core/common"
@@ -56,7 +60,13 @@ func main() {
 	romanaRouteTableId := flag.Int("route-table-id", DefaultRouteTableId,
 		"id that romana route table should have in /etc/iproute2/rt_tables")
 	multihop := flag.Bool("multihop-blocks", false, "allows multihop blocks")
+	policyEnforcer := flag.Bool("policy", false, "enable romana policies")
+	nonProd := flag.Bool("accept-non-prod", false, "allow non production usage")
 	flag.Parse()
+
+	if !*nonProd {
+		panic("This is development code and is not suitable for production, please provide -accept-non-prod flag.")
+	}
 
 	romanaConfig := common.Config{
 		EtcdEndpoints: strings.Split(*etcdEndpoints, ","),
@@ -71,6 +81,9 @@ func main() {
 	}
 
 	romanaClient, err := client.NewClient(&romanaConfig)
+	if err != nil {
+		panic(err)
+	}
 
 	if *provisionIface {
 		err := CreateRomanaGW()
@@ -122,6 +135,17 @@ func main() {
 	if err != nil {
 		log.Errorf("Failed to install route rule for romana routing table, %s", err)
 		os.Exit(2)
+	}
+
+	if *policyEnforcer {
+		policyCache := policycache.New()
+		enforcer, err := enforcer.New(policyCache, romanaClient, *hostname, new(utilexec.DefaultExecutor), 10)
+		if err != nil {
+			panic(err)
+		}
+
+		enforcer.Run(context.Background())
+
 	}
 
 	stopCh := make(chan struct{})

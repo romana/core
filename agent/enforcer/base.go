@@ -65,18 +65,12 @@ func MakeBaseRules() []*iptsave.IPchain {
 				&iptsave.IPrule{
 					Match: []*iptsave.Match{
 						&iptsave.Match{
-							Body: "-m comment --comment Outgoing",
+							Body: "-m comment --comment Egress",
 						},
 					},
 					Action: iptsave.IPtablesAction{
 						Type: iptsave.ActionDefault,
-						Body: "RETURN",
-					},
-				},
-				&iptsave.IPrule{
-					Action: iptsave.IPtablesAction{
-						Type: iptsave.ActionDefault,
-						Body: "DROP",
+						Body: "ACCEPT",
 					},
 				},
 			},
@@ -87,6 +81,9 @@ func MakeBaseRules() []*iptsave.IPchain {
 			Rules: []*iptsave.IPrule{
 				&iptsave.IPrule{
 					Match: []*iptsave.Match{
+						&iptsave.Match{
+							Body: "-m comment --comment Ingress",
+						},
 						&iptsave.Match{
 							Body: "-m state --state RELATED,ESTABLISHED",
 						},

@@ -17,6 +17,7 @@
 package enforcer
 
 import (
+	"context"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -25,10 +26,13 @@ import (
 	"github.com/pkg/errors"
 	utilexec "github.com/romana/core/agent/exec"
 	"github.com/romana/core/agent/firewall"
+	"github.com/romana/core/agent/internal/cache/policycache"
+	"github.com/romana/core/agent/internal/controllers/policycontroller"
 	"github.com/romana/core/agent/iptsave"
-	policyCache "github.com/romana/core/agent/policy/cache"
+	"github.com/romana/core/agent/policy/hasher"
 	tenantCache "github.com/romana/core/agent/tenant/cache"
 	"github.com/romana/core/common/api"
+	"github.com/romana/core/common/client"
 	"github.com/romana/core/common/log/trace"
 	"github.com/romana/ipset"
 
@@ -38,22 +42,30 @@ import (
 // Interface defines policy enforcer behavior.
 type Interface interface {
 	// Run starts internal loop that handles updates from policies.
-	Run(<-chan struct{})
+	Run(context.Context)
 }
 
 // Endpoint implements Interface.
 type Enforcer struct {
+	policyCache policycache.Interface
+
+	romanaClient *client.Client
+
+	hostname string
+
+	policyKey string
+
 	// tenant cache provides updates for romana tenants.
 	tenantCache tenantCache.Interface
 
-	// tenantUpdate holds hash associated with last update of tenant cache.
-	tenantUpdate string
+	// blocksUpdate holds hash associated with last update of tenant cache.
+	blocksUpdate bool
 
 	// policy cache provides updates for romana policies.
-	policyCache policyCache.Interface
+	// policyCache policyCache.Interface
 
 	// policyUpdate holds hash associated with last update of policy cache.
-	policyUpdate string
+	policyUpdate bool
 
 	// provides access to romana network configuration required to translate
 	// policies.
@@ -73,9 +85,9 @@ type Enforcer struct {
 }
 
 // New returns new policy enforcer.
-func New(tenantCache tenantCache.Interface,
-	policyCache policyCache.Interface,
-	network firewall.NetConfig,
+func New(policyCache policycache.Interface,
+	client *client.Client,
+	hostname string,
 	utilexec utilexec.Executable,
 	refreshSeconds int) (Interface, error) {
 
@@ -90,22 +102,32 @@ func New(tenantCache tenantCache.Interface,
 	}
 
 	return &Enforcer{
-		tenantCache:    tenantCache,
 		policyCache:    policyCache,
-		netConfig:      network,
+		romanaClient:   client,
+		hostname:       hostname,
 		exec:           utilexec,
 		refreshSeconds: refreshSeconds,
+		policyKey:      "/romana/policies",
 	}, nil
 }
 
 // Run implements Interface.  It reads notifications
 // from the policy cache and from the tenant cache,
 // when either cache chagned re-renders all iptables rules.
-func (a *Enforcer) Run(stop <-chan struct{}) {
+func (a *Enforcer) Run(ctx context.Context) {
 	log.Trace(trace.Public, "Policy enforcer Run()")
 
-	tenants := a.tenantCache.Run(stop)
-	policies := a.policyCache.Run(stop)
+	policies, err := policycontroller.Run(ctx, a.policyKey, a.romanaClient, a.policyCache)
+	if err != nil {
+		panic(err)
+	}
+
+	var romanaBlocks []api.IPAMBlockResponse
+	blocks, err := a.romanaClient.WatchBlocks(ctx.Done())
+	if err != nil {
+		panic(err)
+	}
+
 	iptables := &iptsave.IPtables{}
 	a.ticker = time.NewTicker(time.Duration(a.refreshSeconds) * time.Second)
 	a.paused = false
@@ -120,12 +142,58 @@ func (a *Enforcer) Run(stop <-chan struct{}) {
 					continue
 				}
 
-				if a.policyUpdate == "" && a.tenantUpdate == "" {
-					log.Tracef(5, "Policy enforcer tick skipped due no updates, hash=%s and policy hash=%s", a.tenantUpdate, a.policyUpdate)
+				if !a.policyUpdate && !a.blocksUpdate {
+					log.Tracef(5, "Policy enforcer tick skipped due no updates, block update=%t and policy update=%t", a.blocksUpdate, a.policyUpdate)
 					continue
 				}
 
-				iptables = renderIPtables(a.tenantCache, a.policyCache, a.netConfig)
+				if len(romanaBlocks) == 0 {
+					log.Trace(5, "no blocks, skipping")
+					continue
+				}
+
+				sets, err := makeBlockSets(romanaBlocks, a.policyCache, a.hostname)
+				if err != nil {
+					panic(err)
+				}
+
+				_, err = ipset.Flush(nil)
+				if err != nil {
+					panic(err)
+				}
+
+				ipsetHandle, err := ipset.NewHandle()
+				if err != nil {
+					panic(err)
+				}
+
+				err = ipsetHandle.Start()
+				if err != nil {
+					panic(err)
+				}
+
+				err = ipsetHandle.Create(sets)
+				if err != nil {
+					panic(err)
+				}
+
+				err = ipsetHandle.Add(sets)
+				if err != nil {
+					panic(err)
+				}
+
+				err = ipsetHandle.Quit()
+				if err != nil {
+					panic(err)
+				}
+
+				cTimout, _ := context.WithTimeout(ctx, 10*time.Second)
+				err = ipsetHandle.Wait(cTimout)
+				if err != nil {
+					panic(err)
+				}
+
+				iptables = renderIPtables(a.policyCache, a.hostname, romanaBlocks)
 				cleanupUnusedChains(iptables, a.exec)
 				if ValidateIPtables(iptables, a.exec) {
 					if err := ApplyIPtables(iptables, a.exec); err != nil {
@@ -136,18 +204,20 @@ func (a *Enforcer) Run(stop <-chan struct{}) {
 				} else {
 					log.Tracef(6, "Failed to validate iptables\n%s%n", iptables.Render())
 				}
-				a.policyUpdate = ""
-				a.tenantUpdate = ""
+				a.policyUpdate = false
+				a.blocksUpdate = false
 
-			case hash := <-tenants:
-				log.Trace(4, "Policy enforcer receives update from tenant cache hash=%s", hash)
-				a.tenantUpdate = hash
+			case blocksList := <-blocks:
+				log.Trace(4, "Policy enforcer receives update from cache blocks revision=%d",
+					blocksList.Revision)
+				romanaBlocks = blocksList.Blocks
+				a.blocksUpdate = true
 
-			case hash := <-policies:
-				log.Trace(4, "Policy enforcer receives update from policy cache hash=%s", hash)
-				a.policyUpdate = hash
+			case <-policies:
+				log.Trace(4, "Policy enforcer receives update from policy cache")
+				a.policyUpdate = true
 
-			case <-stop:
+			case <-ctx.Done():
 				log.Infof("Policy enforcer stopping")
 				a.ticker.Stop()
 				return
@@ -166,13 +236,8 @@ func (a *Enforcer) Continue() {
 	a.paused = false
 }
 
-type BlockCache interface {
-	List() []api.IPAMBlockResponse
-}
-
 // makeBlockSets creates ipset configuration for policies and blocks.
-func makeBlockSets(blockCache BlockCache, policyCache policyCache.Interface, hostname string) (*ipset.Ipset, error) {
-	blocks := blockCache.List()
+func makeBlockSets(blocks []api.IPAMBlockResponse, policyCache policycache.Interface, hostname string) (*ipset.Ipset, error) {
 	policies := policyCache.List()
 	sets := ipset.NewIpset()
 
@@ -207,6 +272,7 @@ func makeBlockSets(blockCache BlockCache, policyCache policyCache.Interface, hos
 		}
 
 		// TODO ignore blocks for other hostnames? then what about egress?
+		log.Tracef(5, "Making set for %+v", block)
 
 		segmentSetName := makeTenantSetName(block.Tenant, block.Segment)
 		segmentSet, _ := ipset.NewSet(segmentSetName, ipset.SetHashNet)
@@ -282,7 +348,7 @@ func makePolicySets(policy api.Policy) (*ipset.Set, *ipset.Set, error) {
 
 // renderIPtables creates iptables rules for all romana policies in policy cache
 // except the ones which depends on non-existend tenant/segment.
-func renderIPtables(tenantCache tenantCache.Interface, policyCache policyCache.Interface, netConfig firewall.NetConfig) *iptsave.IPtables {
+func renderIPtables(policyCache policycache.Interface, hostname string, blocks []api.IPAMBlockResponse) *iptsave.IPtables {
 	log.Trace(trace.Private, "Policy enforcer in renderIPtables()")
 
 	// Make empty iptables object.
@@ -295,7 +361,7 @@ func renderIPtables(tenantCache tenantCache.Interface, policyCache policyCache.I
 	}
 
 	makeBase(&iptables)
-	makePolicies(policyCache, netConfig, &iptables)
+	makePolicies(policyCache, hostname, blocks, &iptables)
 
 	return &iptables
 }
@@ -312,7 +378,7 @@ func makeBase(iptables *iptsave.IPtables) {
 
 // makePolicies populates policy related rules into the iptables.
 // TODO need to avoid rendering policies for which there is no targets on the host.
-func makePolicies(policyCache policyCache.Interface, netConfig firewall.NetConfig, iptables *iptsave.IPtables) {
+func makePolicies(policyCache policycache.Interface, hostname string, blocks []api.IPAMBlockResponse, iptables *iptsave.IPtables) {
 	log.Trace(trace.Private, "Policy enforcer in makePolicies()")
 
 	// For now our policies only exist in a filter tables so we don't care
@@ -323,7 +389,7 @@ func makePolicies(policyCache policyCache.Interface, netConfig firewall.NetConfi
 	policies := policyCache.List()
 
 	for _, policy := range policies {
-		_ = makePolicyRules(policy, SchemePolicyOnTop, iptables)
+		_ = makePolicyRules(policy, SchemePolicyOnTop, blocks, iptables)
 	}
 }
 
@@ -382,7 +448,10 @@ func makeTenantSetName(tenant, segment string) string {
 	if segment != "" {
 		setName += fmt.Sprintf("_segment_%s", segment)
 	}
-	return setName
+	hash := hasher.HashListOfStrings([]string{setName})
+
+	log.Debugf("In makeTenantSetName(%s, %s) out with %s", tenant, segment, "ROMANA-"+hash[:16])
+	return "ROMANA-" + hash[:16]
 }
 
 func makeSrcTenantMatch(e api.Endpoint) string { return makeTenantMatch(e, "src") }
@@ -491,12 +560,16 @@ func makePolicyRuleInDirection(policy api.Policy,
 	return nil
 }
 
-func makePolicyRules(policy api.Policy, iptablesSchemeType string, iptables *iptsave.IPtables) error {
+func makePolicyRules(policy api.Policy, iptablesSchemeType string, blocks []api.IPAMBlockResponse, iptables *iptsave.IPtables) error {
 	log.Debugf("in makePolicyRules with %+v", policy)
 	for _, target := range policy.AppliedTo {
 		for _, ingress := range policy.Ingress {
 			for _, peer := range ingress.Peers {
 				for _, rule := range ingress.Rules {
+					if !targetValid(target, blocks) {
+						log.Debugf("Target %s skipped for policy %s as invalid for the host", target, policy.ID)
+						continue
+					}
 					err := makePolicyRuleInDirection(
 						policy,
 						iptablesSchemeType,
@@ -531,4 +604,37 @@ func makePolicyRules(policy api.Policy, iptablesSchemeType string, iptables *ipt
 		*/
 	}
 	return nil
+}
+
+// targetValid validates that endpoint provided as a target refers to the known
+// tenant and segment.
+// Always true for non tenant types of matching.
+func targetValid(target api.Endpoint, blocks []api.IPAMBlockResponse) bool {
+	// if endpoint doesn't match tenant this check is irrelevant.
+	if target.TenantID == "" {
+		return true
+	}
+
+	// accumulate all known segments for this tenant.
+	var segments []string
+	for _, block := range blocks {
+		if block.Tenant == target.TenantID {
+			segments = append(segments, block.Segment)
+		}
+	}
+
+	// valid tenant would have at least one segment ("") with empty name.
+	if len(segments) == 0 {
+		return false
+	}
+
+	// check if segment matchd by target is valid,
+	// target that only matches tenant will match on empty segment ("").
+	for _, segment := range segments {
+		if target.SegmentID == segment {
+			return true
+		}
+	}
+
+	return false
 }

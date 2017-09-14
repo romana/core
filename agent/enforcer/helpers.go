@@ -22,6 +22,7 @@ import (
 	utilexec "github.com/romana/core/agent/exec"
 	"github.com/romana/core/agent/firewall"
 	"github.com/romana/core/agent/iptsave"
+	"github.com/romana/core/agent/policy/hasher"
 	"github.com/romana/core/common/api"
 	"github.com/romana/core/common/log/trace"
 
@@ -299,7 +300,8 @@ func MakeBlueprintKey(direction, iptablesSchemeType string, peerType PolicyPeerT
 // MakeRomanaPolicyName returns the name of iptables chain that hosts
 // policy related rules.
 func MakeRomanaPolicyName(policy api.Policy) string {
-	return fmt.Sprintf("ROMANA-P-%s", policy.ID)
+	hash := hasher.HashRomanaPolicy(policy)
+	return fmt.Sprintf("ROMANA-P-%s", hash[:16])
 }
 
 func MakeRomanaPolicyNameExtended(policy api.Policy) string {
@@ -320,9 +322,11 @@ func MakeRomanaPolicyNameSetDst(policy api.Policy) string {
 
 // MakeRomanaPolicyIngressName returns the name of iptables chain that hosts
 // one ingress field of a policy.
+/*
 func MakeRomanaPolicyIngressName(policy api.Policy, idx int) string {
 	return fmt.Sprintf("ROMANA-P-%s-IN_%d", policy.ID, idx)
 }
+*/
 
 // MakePolicyIngressJump makes jump rule from policy into policy ingress chain.
 func MakePolicyIngressJump(peer api.Endpoint, targetChain string, netConfig firewall.NetConfig) *iptsave.IPrule {
