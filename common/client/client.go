@@ -275,13 +275,13 @@ func (c *Client) ListTenants() []api.Tenant {
 // AddPolicy adds a policy (or modifies it if policy with such ID already
 // exists)
 func (c *Client) AddPolicy(policy api.Policy) error {
-	return c.Store.PutObject(PoliciesPrefix + "/" + policy.ID, policy)
+	return c.Store.PutObject(PoliciesPrefix+"/"+policy.ID, policy)
 }
 
 // DeletePolicy attempts to delete policy. If the policy does
 // not exist, false is returned, instead of an error.
 func (c *Client) DeletePolicy(id string) (bool, error) {
-	return c.Store.Delete(PoliciesPrefix + id)
+	return c.Store.Delete(PoliciesPrefix + "/" + id)
 }
 
 func (c *Client) initIPAM(initialTopologyFile *string) error {
