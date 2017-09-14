@@ -1029,6 +1029,23 @@ func TestHostAdditionTags(t *testing.T) {
 	}
 }
 
-func Test701(t *testing.T) {
+func TestTenantsBug701(t *testing.T) {
 	ipam = initIpam(t, "")
+
+	h := 1
+	for i := 0; i < 100; i++ {
+		addr := fmt.Sprintf("addr%d", i)
+		host := fmt.Sprintf("host%d", h)
+		h++
+		if h > 4 {
+			h = 1
+		}
+		t.Logf("Trying to allocate an address on host %s, try %d", host, i)
+		ip, err := ipam.AllocateIP(addr, host, "tenant1", "")
+
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Log("Host ", host, "  Addr ", i, ": ", ip.String())
+	}
 }

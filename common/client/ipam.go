@@ -519,17 +519,20 @@ func (hg *Group) findHostByIP(ip string) *Host {
 }
 
 func (hg *Group) findHostByName(name string) *Host {
-	for _, h := range hg.Hosts {
-		if h.Name == name {
-			return h
+	if hg.Hosts != nil {
+		for _, h := range hg.Hosts {
+			if h.Name == name {
+				return h
+			}
 		}
 	}
-	for _, group := range hg.Groups {
-		h := group.findHostByName(name)
-		if h != nil {
-			return h
+	if hg.Groups != nil {
+		for _, group := range hg.Groups {
+			h := group.findHostByName(name)
+			if h != nil {
+				return h
+			}
 		}
-		//	return group.findHostByName(name)
 	}
 	return nil
 }
@@ -873,6 +876,9 @@ func (network *Network) deallocateIP(ip net.IP) error {
 // if not, reuse a block that belongs to no tenant. Finally, it will try to allocate a
 // new block.
 func (network *Network) allocateIP(hostName string, owner string) (net.IP, error) {
+	if network.Group == nil {
+		return nil, nil
+	}
 	host := network.Group.findHostByName(hostName)
 	if host == nil {
 		return nil, errors.NewRomanaNotFoundError(fmt.Sprintf("Host %s not found", hostName),
