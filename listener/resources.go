@@ -203,7 +203,7 @@ func getPolicyID(kubePolicy v1beta1.NetworkPolicy) string {
 // prefix followed by the namespace's Name.
 func getDefaultPolicyID(o *v1.Namespace) string {
 	// TODO this should be ExternalID, not Name...
-	return fmt.Sprintf("_AllowAllPods2Talk_%s_", o.GetUID())
+	return fmt.Sprintf("AllowAllPods2Talk_%s_", o.GetUID())
 }
 
 // deleteDefaultPolicy deletes the policy, thus enabling isolation
