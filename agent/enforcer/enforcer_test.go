@@ -4,6 +4,7 @@ import (
 	"net"
 	"testing"
 
+	"github.com/romana/core/agent/internal/cache/policycache"
 	"github.com/romana/core/agent/iptsave"
 	"github.com/romana/core/common/api"
 	"github.com/romana/ipset"
@@ -46,6 +47,25 @@ func TestMakePolicyRules(t *testing.T) {
 	}
 	withProtoPorts := func(proto string, ports ...uint) api.Rule {
 		return api.Rule{Protocol: proto, Ports: ports}
+	}
+
+	blocks := []api.IPAMBlockResponse{
+		api.IPAMBlockResponse{
+			Tenant:  "T800",
+			Segment: "John",
+		},
+		api.IPAMBlockResponse{
+			Tenant:  "T1000",
+			Segment: "",
+		},
+		api.IPAMBlockResponse{
+			Tenant:  "T3000",
+			Segment: "",
+		},
+		api.IPAMBlockResponse{
+			Tenant:  "T100K",
+			Segment: "skynet",
+		},
 	}
 
 	testCases := []struct {
@@ -94,7 +114,7 @@ func TestMakePolicyRules(t *testing.T) {
 	for _, tc := range testCases {
 		sets := ipset.Ipset{}
 		iptables := makeEmptyIptables()
-		err := makePolicyRules(tc.policy, tc.schema, &iptables)
+		err := makePolicyRules(tc.policy, tc.schema, blocks, &iptables)
 		t.Log(iptables.Render())
 		t.Log(sets.Render(ipset.RenderCreate))
 		t.Log(err)
@@ -178,23 +198,6 @@ func TestMakePolicySets(t *testing.T) {
 	}
 }
 
-type fakePolicyCache struct{}
-
-func (p fakePolicyCache) List() []api.Policy { return nil }
-func (p fakePolicyCache) Run(stop <-chan struct{}) <-chan string {
-	return make(chan string)
-}
-
-type fakeBlockCache struct {
-	blocks []api.IPAMBlockResponse
-}
-
-func (b fakeBlockCache) List() []api.IPAMBlockResponse { return b.blocks }
-
-func NewBlockCache(b []api.IPAMBlockResponse) fakeBlockCache {
-	return fakeBlockCache{blocks: b}
-}
-
 func TestMakeBlockSets(t *testing.T) {
 
 	makeCIDR := func(s string) api.IPNet {
@@ -205,12 +208,12 @@ func TestMakeBlockSets(t *testing.T) {
 	testCases := []struct {
 		name       string
 		hostname   string
-		blockCache BlockCache
+		blockCache []api.IPAMBlockResponse
 	}{
 		{
 			name:     "basic 1",
 			hostname: "host1",
-			blockCache: NewBlockCache([]api.IPAMBlockResponse{
+			blockCache: []api.IPAMBlockResponse{
 				api.IPAMBlockResponse{
 					Tenant:  "T800",
 					Segment: "john",
@@ -221,12 +224,12 @@ func TestMakeBlockSets(t *testing.T) {
 					Segment: "skynet",
 					CIDR:    makeCIDR("10.1.0.0/28"),
 				},
-			}),
+			},
 		},
 	}
 
 	for _, tc := range testCases {
-		sets, err := makeBlockSets(tc.blockCache, fakePolicyCache{}, tc.hostname)
+		sets, err := makeBlockSets(tc.blockCache, policycache.New(), tc.hostname)
 		t.Log(sets.Render(ipset.RenderSave))
 		t.Log(err)
 	}
