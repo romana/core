@@ -220,7 +220,7 @@ func (c *Client) ListPolicies() ([]api.Policy, error) {
 	}
 	policies := make([]api.Policy, len(objs))
 	for i, obj := range objs {
-		policies[i] = obj.(api.Policy)
+		policies[i] = *obj.(*api.Policy)
 	}
 	return policies, nil
 }
