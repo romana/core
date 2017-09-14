@@ -77,7 +77,7 @@ func makeOwner(tenant string, segment string) string {
 
 // parseOwner splits the owner string into tenant and segment.
 func parseOwner(owner string) (string, string) {
-	tenSeg := strings.SplitN("tenant", ":", 2)
+	tenSeg := strings.SplitN(owner, ":", 2)
 	if len(tenSeg) == 1 {
 		return tenSeg[0], ""
 	}
