@@ -18,6 +18,7 @@ package enforcer
 import (
 	"bytes"
 	"fmt"
+	"strings"
 
 	utilexec "github.com/romana/core/agent/exec"
 	"github.com/romana/core/agent/firewall"
@@ -201,6 +202,7 @@ const (
 	PeerTenant        PolicyPeerType = "peerTenant"
 	PeerTenantSegment PolicyPeerType = "peerTenantSegment"
 	PeerCIDR          PolicyPeerType = "peerCidr"
+	PeerAny           PolicyPeerType = "peerAny"
 	PeerUnknown       PolicyPeerType = "peerUnknown"
 )
 
@@ -211,6 +213,10 @@ func DetectPolicyPeerType(peer api.Endpoint) PolicyPeerType {
 
 	if peer.Peer == "host" {
 		return PeerHost
+	}
+
+	if peer.Peer == "any" {
+		return PeerAny
 	}
 
 	if peer.Cidr != "" {
@@ -367,7 +373,7 @@ func MakePolicyRule(rule api.Rule) []*iptsave.IPrule {
 func MakePolicyRuleWithAction(rule api.Rule, action string) []*iptsave.IPrule {
 	var result []*iptsave.IPrule
 
-	if rule.Protocol == "TCP" {
+	if strings.ToUpper(rule.Protocol) == "TCP" {
 		if len(rule.Ports) > 0 {
 			for _, port := range rule.Ports {
 				result = append(result, MakeRuleDefaultWithBody(fmt.Sprintf("-p tcp --dport %d", port), action))
@@ -385,7 +391,7 @@ func MakePolicyRuleWithAction(rule api.Rule, action string) []*iptsave.IPrule {
 		}
 	}
 
-	if rule.Protocol == "UDP" {
+	if strings.ToUpper(rule.Protocol) == "UDP" {
 		if len(rule.Ports) > 0 {
 			for _, port := range rule.Ports {
 				result = append(result, MakeRuleDefaultWithBody(fmt.Sprintf("-p udp --dport %d", port), action))
@@ -403,14 +409,14 @@ func MakePolicyRuleWithAction(rule api.Rule, action string) []*iptsave.IPrule {
 		}
 	}
 
-	if rule.Protocol == "ICMP" {
+	if strings.ToUpper(rule.Protocol) == "ICMP" {
 		// TODO, rule.IcmpType and rule.IcmpType code can't be destinguished between
 		// zero value and none value so processing them is prone to failures.
 		// Need to replaces then as *uint first. Stas.
 		result = append(result, MakeRuleDefaultWithBody("-p icmp", action))
 	}
 
-	if rule.Protocol == "ANY" {
+	if strings.ToUpper(rule.Protocol) == "any" {
 		// TODO, rule.IcmpType and rule.IcmpType code can't be destinguished between
 		// zero value and none value so processing them is prone to failures.
 		// Need to replaces then as *uint first. Stas.
