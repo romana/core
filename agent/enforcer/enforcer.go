@@ -628,8 +628,10 @@ func targetValid(target api.Endpoint, blocks []api.IPAMBlockResponse) bool {
 		return false
 	}
 
-	// check if segment matchd by target is valid,
-	// target that only matches tenant will match on empty segment ("").
+	if target.SegmentID == "" {
+		return true
+	}
+
 	for _, segment := range segments {
 		if target.SegmentID == segment {
 			return true
