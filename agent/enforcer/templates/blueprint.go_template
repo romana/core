@@ -1,0 +1,47 @@
+// Copyright (c) 2016 Pani Networks
+// All Rights Reserved.
+//
+// Licensed under the Apache License, Version 2.0 (the "License"); you may
+// not use this file except in compliance with the License. You may obtain
+// a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
+// WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
+// License for the specific language governing permissions and limitations
+// under the License.
+
+// This file if generate. Do not edit.
+
+package enforcer
+
+import (
+	"github.com/romana/core/agent/firewall"
+	"github.com/romana/core/common/api"
+)
+
+var blueprints = map[string]RuleBlueprint{
+{{ range . }} {{ $Direction := index . 0 }} {{ $Scheme := index . 1}} {{ $PeerType := index . 2}} {{ $TargetType := index . 3}} {{ $BaseChain := index . 4 }} {{ $TopRuleMatch := index . 5 }} {{ $TopRuleAction := index . 6 }} {{ $SecondBaseChain := index . 7 }} {{ $SecondRuleMatch := index . 8 }} {{ $SecondRuleAction := index . 9 }} {{ $ThirdBaseChain := index . 10 }} {{ $ThirdRuleMatch := index . 11 }} {{ $ThirdRuleAction := index . 12 }} {{ $FourthBaseChain := index . 13 }} {{ $FourthRuleMatch := index . 14 }} {{ $FourthRuleAction := index . 15 }} {{ if (ne $BaseChain "BaseChain") }}
+	MakeBlueprintKey(
+		{{ $Direction }},
+		{{ $Scheme }},
+		{{ $TargetType }},
+		{{ $PeerType }},
+	): RuleBlueprint{
+		baseChain:        {{ $BaseChain }},
+		topRuleMatch:     {{ $TopRuleMatch }},
+		topRuleAction:    {{ $TopRuleAction }},
+		secondBaseChain:  {{ $SecondBaseChain }},
+		secondRuleMatch:  {{ $SecondRuleMatch }},
+		secondRuleAction: {{ $SecondRuleAction }},
+		thirdBaseChain:   {{ $ThirdBaseChain }},
+		thirdRuleMatch:   {{ $ThirdRuleMatch }},
+		thirdRuleAction:  {{ $ThirdRuleAction }},
+		fourthBaseChain:  {{ $FourthBaseChain }},
+		fourthRuleMatch:  {{ $FourthRuleMatch }},
+		fourthRuleAction: "{{ $FourthRuleAction }}",
+	},
+{{ end }} {{ end }}
+}

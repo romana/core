@@ -17,10 +17,12 @@
 package enforcer
 
 import (
+	"fmt"
 	"os/exec"
 	"strings"
 	"time"
 
+	"github.com/pkg/errors"
 	utilexec "github.com/romana/core/agent/exec"
 	"github.com/romana/core/agent/firewall"
 	"github.com/romana/core/agent/iptsave"
@@ -28,6 +30,7 @@ import (
 	tenantCache "github.com/romana/core/agent/tenant/cache"
 	"github.com/romana/core/common/api"
 	"github.com/romana/core/common/log/trace"
+	"github.com/romana/ipset"
 
 	log "github.com/romana/rlog"
 )
@@ -163,6 +166,120 @@ func (a *Enforcer) Continue() {
 	a.paused = false
 }
 
+type BlockCache interface {
+	List() []api.IPAMBlockResponse
+}
+
+// makeBlockSets creates ipset configuration for policies and blocks.
+func makeBlockSets(blockCache BlockCache, policyCache policyCache.Interface, hostname string) (*ipset.Ipset, error) {
+	blocks := blockCache.List()
+	policies := policyCache.List()
+	sets := ipset.NewIpset()
+
+	// for every policy produce 2 sets, one to match
+	// incoming traffic and one to match outgoing traffic.
+	for _, policy := range policies {
+		srcSet, dstSet, err := makePolicySets(policy)
+		if err != nil {
+			return nil, err
+		}
+
+		err = sets.AddSet(srcSet)
+		if err != nil {
+			return nil, err
+		}
+
+		err = sets.AddSet(dstSet)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// for every block produce 2 sets
+	// - tenant+segment set contains all the blocks
+	// for the relevan t+s combination
+	// - tenant set contains all the t+s sets for the
+	// relevant tenant
+	for _, block := range blocks {
+		if block.Segment == "" {
+			// TODO error, can't distinguish between
+			// tenantSegment set and tenant set
+		}
+
+		// TODO ignore blocks for other hostnames? then what about egress?
+
+		segmentSetName := makeTenantSetName(block.Tenant, block.Segment)
+		segmentSet, _ := ipset.NewSet(segmentSetName, ipset.SetHashNet)
+		err := ipset.SuppressItemExist(sets.AddSet(segmentSet))
+		if err != nil {
+			return nil, err
+		}
+
+		memberForSegmentSet, _ := ipset.NewMember(block.CIDR.IPNet.String(), segmentSet)
+		err = ipset.SuppressItemExist(segmentSet.AddMember(memberForSegmentSet))
+		if err != nil {
+			return nil, err
+		}
+
+		tenantSetName := makeTenantSetName(block.Tenant, "")
+		tenantSet, _ := ipset.NewSet(tenantSetName, ipset.SetListSet)
+		err = ipset.SuppressItemExist(sets.AddSet(tenantSet))
+		if err != nil {
+			return nil, err
+		}
+
+		memberForTenantSet, _ := ipset.NewMember(segmentSet.Name, tenantSet)
+		err = ipset.SuppressItemExist(tenantSet.AddMember(memberForTenantSet))
+		if err != nil {
+			return nil, err
+		}
+
+	}
+
+	return sets, nil
+}
+
+func makePolicySets(policy api.Policy) (*ipset.Set, *ipset.Set, error) {
+	setSrc, err := ipset.NewSet(MakeRomanaPolicyNameSetSrc(policy), ipset.SetHashNet)
+	if err != nil {
+		return setSrc, nil, err
+	}
+
+	setDst, err := ipset.NewSet(MakeRomanaPolicyNameSetDst(policy), ipset.SetHashNet)
+	if err != nil {
+		return setSrc, setDst, err
+	}
+
+	for _, ingress := range policy.Ingress {
+		for _, peer := range ingress.Peers {
+			if peerType := DetectPolicyPeerType(peer); peerType == PeerCIDR {
+				switch policy.Direction {
+				case api.PolicyDirectionEgress:
+					member, err := ipset.NewMember(peer.Cidr, setDst)
+					if err != nil {
+						return nil, nil, err
+					}
+					err = ipset.SuppressItemExist(setDst.AddMember(member))
+					if err != nil {
+						return nil, nil, err
+					}
+				case api.PolicyDirectionIngress:
+					member, err := ipset.NewMember(peer.Cidr, setSrc)
+					if err != nil {
+						return nil, nil, err
+					}
+					err = ipset.SuppressItemExist(setSrc.AddMember(member))
+					if err != nil {
+						return nil, nil, err
+					}
+				}
+			}
+		}
+	}
+
+	return setSrc, setDst, err
+}
+
 // renderIPtables creates iptables rules for all romana policies in policy cache
 // except the ones which depends on non-existend tenant/segment.
 func renderIPtables(tenantCache tenantCache.Interface, policyCache policyCache.Interface, netConfig firewall.NetConfig) *iptsave.IPtables {
@@ -178,7 +295,6 @@ func renderIPtables(tenantCache tenantCache.Interface, policyCache policyCache.I
 	}
 
 	makeBase(&iptables)
-	makeTenantRules(tenantCache, netConfig, &iptables)
 	makePolicies(policyCache, netConfig, &iptables)
 
 	return &iptables
@@ -194,172 +310,21 @@ func makeBase(iptables *iptsave.IPtables) {
 
 }
 
-// makeTenantRules populates tenant/segment rules into the provided
-// iptables object.
-func makeTenantRules(tenantCache tenantCache.Interface, netConfig firewall.NetConfig, iptables *iptsave.IPtables) {
-	log.Trace(trace.Private, "Policy enforcer in makeTenantRules()")
-
-	// For now our policies only exist in a filter tables so we don't care
-	// for other tables.
-	filter := iptables.TableByName("filter")
-
-	tenants := tenantCache.List()
-
-	log.Tracef(5, "Policy enforcer received %d tenants from tenant cache", len(tenants))
-	for _, tenant := range tenants {
-		// :ROMANA-FW-T2
-		tenantIngressChain := EnsureChainExists(filter, MakeTenantIngressChainName(tenant))
-
-		// -A ROMANA-FORWARD-IN -m u32 --u32 "0x10&0xff00f000=0xa002000" -j ROMANA-FW-T2
-		ingressChain := filter.ChainByName(firewall.ChainNameEndpointIngress)
-		if ingressChain == nil {
-			// should never get there.
-			panic("Ingress chain doesn't exist, base rules aren't rendered corretly")
-		}
-		InsertNormalRule(ingressChain, MakeIngressTenantJumpRule(tenant, netConfig))
-		log.Tracef(6, "Policy enforcer processes tenants %s with %d segments", tenant.ID, len(tenant.Segments))
-
-		for _, segment := range tenant.Segments {
-			// :ROMANA-T2-S0
-			segmentChain := EnsureChainExists(filter, MakeSegmentPolicyChainName(tenant.ID, segment.ID))
-
-			// -A ROMANA-FW-T2 -m u32 --u32 "0x10&0xff00ff00=0xa002000" -j ROMANA-T2-S0
-			InsertNormalRule(tenantIngressChain, MakeSegmentPolicyJumpRule(tenant, segment, netConfig))
-
-			// -A ROMANA-T2-S0 -m comment --comment POLICY_CHAIN_FOOTER -j RETURN
-			segmentChain.AppendRule(MakePolicyChainFooterRule())
-		}
-
-		// :ROMANA-T2-W
-		tenantWideChain := EnsureChainExists(filter, MakeTenantWideIngressChainName(tenant.ID))
-		// -A ROMANA-T2-W -m conntrack --ctstate RELATED,ESTABLISHED -j ACCEPT
-		tenantWideChain.InsertRule(0, MakeConntrackEstablishedRule())
-		tenantWideChain.AppendRule(MakePolicyChainFooterRule())
-		// -A ROMANA-T2-W -m comment --comment POLICY_CHAIN_FOOTER -j RETURN
-		// -A ROMANA-FW-T2 -j ROMANA-T2-W
-		InsertNormalRule(tenantIngressChain, MakeTenantWidePolicyJumpRule(tenant))
-	}
-}
-
 // makePolicies populates policy related rules into the iptables.
+// TODO need to avoid rendering policies for which there is no targets on the host.
 func makePolicies(policyCache policyCache.Interface, netConfig firewall.NetConfig, iptables *iptsave.IPtables) {
 	log.Trace(trace.Private, "Policy enforcer in makePolicies()")
 
 	// For now our policies only exist in a filter tables so we don't care
 	// for other tables.
-	filter := iptables.TableByName("filter")
+	// TODO makePolicyRules checks for *filter inside
+	// filter := iptables.TableByName("filter")
 
 	policies := policyCache.List()
 
 	for _, policy := range policies {
-		log.Tracef(5, "Policy enforcer rendering policy %s", policy.ID)
-
-		policyActive := false
-
-		for _, target := range policy.AppliedTo {
-			// This branch covers for situation when
-			// tenant doesn't exist any more but there are
-			// still policies related to that tenant.
-			// We test tenant/segment existance for each target
-			// and insert jumps only when needed.
-
-			if targetChain, ok := targetExists(target, iptables); ok {
-				InsertNormalRule(targetChain, MakeSimpleJumpRule(MakeRomanaPolicyName(policy)))
-
-				log.Tracef(6, "Policy enforcer rendered target %v for policy %s.", target, policy.ID)
-
-				policyActive = true
-			} else {
-				log.Tracef(6, "Policy enforcer skipped  target %v for policy %s.", target, policy.ID)
-			}
-		}
-
-		// Render policy rules only if at least one target exists.
-		if policyActive {
-
-			policyChain := EnsureChainExists(filter, MakeRomanaPolicyName(policy))
-
-			for ingressNum, ingress := range policy.Ingress {
-				log.Tracef(6, "Policy enforcer renders ingress %v from policy %s", ingress, policy.ID)
-
-				// Make ingress chain
-				// -A ROMANA-P-d73a173e1f52-IN_<ingressNum>
-				ingressIndexChainName := MakeRomanaPolicyIngressName(policy, ingressNum)
-				policyIngressChain := EnsureChainExists(filter, ingressIndexChainName)
-
-				for _, peer := range ingress.Peers {
-					_ = peer
-					// render peer
-					// -A ROMANA-P-d73a173e1f52_ -m u32 --u32 "0xc&0xff00ff00=0xa002100" -j ROMANA-P-d73a173e1f52-IN_1
-					InsertNormalRule(policyChain, MakePolicyIngressJump(peer, ingressIndexChainName, netConfig))
-				}
-
-				for _, rule := range ingress.Rules {
-					// render rule
-					// -A ROMANA-P-d73a173e1f52-IN_ -p tcp -m tcp --dport 80 -j ACCEPT
-					for _, iptablesRule := range MakePolicyRule(rule) {
-						InsertNormalRule(policyIngressChain, iptablesRule)
-					}
-				}
-
-				// Last line of the policy
-				// -A ROMANA-P-c5010560ed3e_ -m comment --comment "PolicyId=c5010560ed3e" -j RETURN
-			}
-		} else {
-			log.Tracef(6, "Policy enforcer skips policy %s, probably no valid AppliedTo exists", policy.ID)
-		}
+		_ = makePolicyRules(policy, SchemePolicyOnTop, iptables)
 	}
-}
-
-// targetExists checks if iptables has underlying chains for given target.
-func targetExists(target api.Endpoint, iptables *iptsave.IPtables) (*iptsave.IPchain, bool) {
-	log.Trace(trace.Private, "Policy enforcer in targetExists()")
-
-	// For now our policies only exist in a filter tables so we don't care
-	// for other tables.
-	filter := iptables.TableByName("filter")
-
-	var targetChainName string
-
-	switch DetectPolicyTargetType(target) {
-	case OperatorPolicyTarget:
-		// for operator policies applied to traffic
-		// from anywhere towards pods.
-		// :ROMANA-P-c5010560ed3e_
-		// -A ROMANA-OP -j ROMANA-P-c5010560ed3e_
-		targetChainName = MakeOperatorPolicyChainName()
-
-	case OperatorPolicyIngressTarget:
-		// for operator policies applied to traffic
-		// from pods to host.
-		// :ROMANA-P-c5010560ed3e_
-		// -A ROMANA-OP-IN -j ROMANA-P-c5010560ed3e_
-		targetChainName = MakeOperatorPolicyIngressChainName()
-
-	case TenantWidePolicyTarget:
-		// for tenant wide policies add tenant wide jump
-		// :ROMANA-P-c5010560ed3e_
-		// -A ROMANA-T2-W -j ROMANA-P-a2345713hi7b_
-		targetChainName = MakeTenantWideIngressChainName(target.TenantID)
-
-	case TenantSegmentPolicyTarget:
-		// for other policies add segment to policy jump
-		// :ROMANA-P-d73a173e1f52_
-		// -A ROMANA-T2-S0 -j ROMANA-P-d73a173e1f52_
-		targetChainName = MakeSegmentPolicyChainName(target.TenantID, target.SegmentID)
-
-	default:
-		panic("Uknown policy target type")
-	}
-	log.Tracef(6, "Detected target chain %s for target %v", targetChainName, target)
-
-	chain := filter.ChainByName(targetChainName)
-	if chain == nil {
-		log.Tracef(6, "Policy enforcer fails to validate target %v, base chain doesn't exist %s", target, targetChainName)
-		return nil, false
-	}
-
-	return chain, true
 }
 
 func cleanupUnusedChains(iptables *iptsave.IPtables, exec utilexec.Executable) {
@@ -393,4 +358,177 @@ func cleanupUnusedChains(iptables *iptsave.IPtables, exec utilexec.Executable) {
 			desiredFilter.Chains = append(desiredFilter.Chains, &desiredChain)
 		}
 	}
+}
+
+type RuleBlueprint struct {
+	baseChain        string
+	topRuleMatch     func(api.Endpoint) string
+	topRuleAction    func(api.Policy) string
+	secondBaseChain  func(api.Policy) string
+	secondRuleMatch  func(api.Endpoint) string
+	secondRuleAction func(api.Policy) string
+	thirdBaseChain   func(api.Policy) string
+	thirdRuleMatch   func(api.Endpoint) string
+	thirdRuleAction  func(api.Policy) string
+	fourthBaseChain  func(api.Policy) string
+	fourthRuleMatch  func(api.Rule, string) []*iptsave.IPrule
+	fourthRuleAction string
+}
+
+//go:generate go run internal/gen/main.go -data data/policy.tsv -template templates/blueprint.go_template -out blueprint.go
+
+func makeTenantSetName(tenant, segment string) string {
+	setName := fmt.Sprintf("tenant_%s", tenant)
+	if segment != "" {
+		setName += fmt.Sprintf("_segment_%s", segment)
+	}
+	return setName
+}
+
+func makeSrcTenantMatch(e api.Endpoint) string { return makeTenantMatch(e, "src") }
+func makeDstTenantMatch(e api.Endpoint) string { return makeTenantMatch(e, "dst") }
+func makeTenantMatch(e api.Endpoint, direction string) string {
+	return fmt.Sprintf("-m set --match-set %s %s", makeTenantSetName(e.TenantID, ""), direction)
+}
+
+func makeSrcTenantSegmentMatch(e api.Endpoint) string { return makeTenantSegmentMatch(e, "src") }
+func makeDstTenantSegmentMatch(e api.Endpoint) string { return makeTenantSegmentMatch(e, "dst") }
+func makeTenantSegmentMatch(e api.Endpoint, direction string) string {
+	return fmt.Sprintf("-m set --match-set %s %s", makeTenantSetName(e.TenantID, e.SegmentID), direction)
+}
+
+func makeSrcCIDRMatch(e api.Endpoint) string { return makeCIDRMatch(e, "s") }
+func makeDstCIDRMatch(e api.Endpoint) string { return makeCIDRMatch(e, "d") }
+func makeCIDRMatch(e api.Endpoint, direction string) string {
+	return fmt.Sprintf("-%s %s", direction, e.Cidr)
+}
+
+func matchEndpoint(s string) func(api.Endpoint) string {
+	return func(api.Endpoint) string { return s }
+}
+func matchPolicyString(s string) func(api.Policy) string {
+	return func(api.Policy) string { return s }
+}
+
+func EnsureRules(baseChain *iptsave.IPchain, rules []*iptsave.IPrule) {
+	for _, rule := range rules {
+		if !baseChain.RuleInChain(rule) {
+			InsertNormalRule(baseChain, rule)
+		}
+	}
+}
+
+func rules2list(rules ...*iptsave.IPrule) (result []*iptsave.IPrule) {
+	for _, r := range rules {
+		result = append(result, r)
+	}
+	return
+}
+
+func makePolicyRuleInDirection(policy api.Policy,
+	iptablesSchemeType string,
+	peer, target api.Endpoint,
+	rule api.Rule,
+	direction string,
+	iptables *iptsave.IPtables) error {
+
+	peerType := DetectPolicyPeerType(peer) // TODO ten/host/local/cidr
+	dstType := DetectPolicyTargetType(target)
+
+	log.Debug("makePolicyRuleInDirection #1")
+
+	key := MakeBlueprintKey(direction, iptablesSchemeType, peerType, dstType) // TODO
+
+	translationConfig, ok := blueprints[key]
+	// log.Debugf("makePolicyRuleInDirection with key %s, ok=%t, value=%s", key, ok, translationConfig)
+	if !ok {
+		return errors.New("can't translate ... ")
+	}
+
+	filter := iptables.TableByName("filter")
+
+	baseChain := EnsureChainExists(filter, translationConfig.baseChain)
+
+	// jump from base chain to policy chain
+	jumpFromBaseToPolicyRule := MakeRuleWithBody(
+		translationConfig.topRuleMatch(target), translationConfig.topRuleAction(policy),
+	)
+
+	EnsureRules(baseChain, rules2list(jumpFromBaseToPolicyRule))
+
+	secondBaseChainName := translationConfig.secondBaseChain(policy)
+	secondRuleMatch := translationConfig.secondRuleMatch(target)
+	secondRuleAction := translationConfig.secondRuleAction(policy)
+	if secondBaseChainName != "" && secondRuleMatch != "" && secondRuleAction != "" {
+		secondBaseChain := EnsureChainExists(filter, secondBaseChainName)
+		jumpFromSecondChainToThirdChainRule := MakeRuleWithBody(
+			secondRuleMatch, secondRuleAction,
+		)
+
+		EnsureRules(secondBaseChain, rules2list(jumpFromSecondChainToThirdChainRule))
+
+	}
+
+	thirdBaseChainName := translationConfig.thirdBaseChain(policy)
+	thirdBaseChain := EnsureChainExists(filter, thirdBaseChainName)
+	thirdRuleMatch := translationConfig.thirdRuleMatch(peer)
+	thirdRuleAction := translationConfig.thirdRuleAction(policy)
+
+	thirdRule := MakeRuleWithBody(
+		thirdRuleMatch, thirdRuleAction,
+	)
+
+	EnsureRules(thirdBaseChain, rules2list(thirdRule))
+
+	fourthBaseChainName := translationConfig.fourthBaseChain(policy)
+	fourthBaseChain := EnsureChainExists(filter, fourthBaseChainName)
+	fourthRuleAction := translationConfig.fourthRuleAction
+	fourthRules := translationConfig.fourthRuleMatch(rule, fourthRuleAction)
+
+	EnsureRules(fourthBaseChain, fourthRules)
+
+	log.Debug("makePolicyRuleInDirection #3")
+	return nil
+}
+
+func makePolicyRules(policy api.Policy, iptablesSchemeType string, iptables *iptsave.IPtables) error {
+	log.Debugf("in makePolicyRules with %+v", policy)
+	for _, target := range policy.AppliedTo {
+		for _, ingress := range policy.Ingress {
+			for _, peer := range ingress.Peers {
+				for _, rule := range ingress.Rules {
+					err := makePolicyRuleInDirection(
+						policy,
+						iptablesSchemeType,
+						peer,
+						target,
+						rule,
+						policy.Direction,
+						iptables,
+					)
+					if err != nil {
+						log.Errorf("Error appying %s policy to target %v and peer %v with rule %v, err=%s", policy.Direction, target, peer, rule, err)
+					}
+				}
+			}
+		}
+		/* Egress via dedicated field
+		for _, egress := range policy.Egress {
+			for _, peer := range egress.Peers {
+				for _, rule := range egress.Rules {
+					_ = makePolicyRuleInDirection(
+						policy,
+						iptablesSchemeType,
+						peer,
+						target,
+						rule,
+						api.PolicyDirectionEgress,
+						iptables,
+					)
+				}
+			}
+		}
+		*/
+	}
+	return nil
 }
