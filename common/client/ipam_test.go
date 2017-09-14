@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	"github.com/romana/core/common/api"
+	"github.com/romana/core/common/api/errors"
 )
 
 var (
@@ -83,6 +84,8 @@ func (s *TestSaver) save(ipam *IPAM) error {
 }
 
 func TestNewCIDR(t *testing.T) {
+	var err error
+
 	cidr, err := NewCIDR("10.0.0.0/8")
 	if err != nil {
 		t.Fatal(err)
@@ -98,8 +101,8 @@ func TestNewCIDR(t *testing.T) {
 }
 
 func TestBlackout(t *testing.T) {
+	var err error
 	ipam = initIpam(t, "")
-
 	// 1. Black out something random
 	err = ipam.BlackOut("10.100.100.100/24")
 	if err == nil {
@@ -206,6 +209,8 @@ func TestBlackout(t *testing.T) {
 
 // TestIPReuse tests that an IP can be reused.
 func TestIPReuse(t *testing.T) {
+	var err error
+
 	ipam = initIpam(t, "")
 
 	ip, err := ipam.AllocateIP("1", "host1", "ten1", "seg1")
@@ -256,8 +261,8 @@ func TestIPReuse(t *testing.T) {
 // TestIPAM_DeallocateIP tests that an IP can be
 // de-allocated using IP Name or Address.
 func TestIPAM_DeallocateIP(t *testing.T) {
+	var err error
 	ipam = initIpam(t, "")
-
 	ip, err := ipam.AllocateIP("1", "host1", "ten1", "seg1")
 	t.Logf("TestIPAM_DeallocateIP: Allocated %s for ten1:seg1", ip)
 	if err != nil {
@@ -304,8 +309,8 @@ func TestIPAM_DeallocateIP(t *testing.T) {
 }
 
 func TestBlockReuseMask32(t *testing.T) {
+	var err error
 	ipam = initIpam(t, "")
-
 	ip, err := ipam.AllocateIP("1", "host1", "ten1", "seg1")
 	t.Logf("TestChunkBlockReuse: Allocated %s for ten1:seg1", ip)
 	if err != nil {
@@ -353,6 +358,7 @@ func TestBlockReuseMask32(t *testing.T) {
 }
 
 func TestBlockReuseMask30(t *testing.T) {
+	var err error
 	ipam = initIpam(t, "")
 
 	// 1. Allocate first 4 (/30) addresses
@@ -374,7 +380,7 @@ func TestBlockReuseMask30(t *testing.T) {
 	}
 
 	// 2. Deallocate two addresses
-	err := ipam.DeallocateIP("addr2")
+	err = ipam.DeallocateIP("addr2")
 	if err != nil {
 		t.Log(testSaver.lastJson)
 		t.Fatal(err)
@@ -491,6 +497,8 @@ func TestBlockReuseMask30(t *testing.T) {
 
 // Test32 tests bitmask size 32 - as a corner case.
 func Test32_1(t *testing.T) {
+	var err error
+
 	ipam = initIpam(t, "")
 
 	ip, err := ipam.AllocateIP("1", "host1", "ten1", "seg1")
@@ -514,7 +522,6 @@ func Test32_1(t *testing.T) {
 }
 
 func Test32_2(t *testing.T) {
-
 	ipam = initIpam(t, "")
 
 	ip, err := ipam.AllocateIP("2", "host1", "ten1", "seg1")
@@ -637,7 +644,7 @@ func TestHostAllocation(t *testing.T) {
 	if err == nil {
 		t.Fatal("Error expected -- allocating another address with same name.")
 	}
-	if _, ok := err.(api.RomanaExistsError); !ok {
+	if _, ok := err.(errors.RomanaExistsError); !ok {
 		t.Fatalf("Expected api.RomanaExistsError, got %T: %v", err, err)
 	}
 
@@ -769,6 +776,7 @@ func TestParseVPCRoutingForTwoAZs(t *testing.T) {
 
 // TestOutOfBoundsError tests an error happening in tests for romana 2.0
 func TestOutOfBoundsError(t *testing.T) {
+
 	ipam = initIpam(t, "")
 	maxAddrCnt := 6
 	for i := 0; i < maxAddrCnt; i++ {
@@ -864,7 +872,7 @@ func TestPrefixGenForEmptyGroups(t *testing.T) {
 }
 
 func TestHostAdditionSimple(t *testing.T) {
-
+	var err error
 	t.Logf("TestHostAdditionSimple")
 
 	ipam = initIpam(t, "")
@@ -1019,7 +1027,8 @@ func TestHostAdditionTags(t *testing.T) {
 		// We expect this one to fail
 		t.Fatal(err)
 	}
+}
 
-	// 	t.Logf(testSaver.lastJson)
-
+func Test701(t *testing.T) {
+	ipam = initIpam(t, "")
 }
