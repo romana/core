@@ -228,6 +228,15 @@ func CmdAdd(args *skel.CmdArgs) error {
 
 	result.Interfaces = []*current.Interface{hostIface}
 
+	if netConf.Policy {
+		err := enablePodPolicy(k8sargs.MakeVethName())
+		if err != nil {
+			return err
+			log.Debugf("Pod rule created, err=%s", err)
+		}
+		log.Debugf("Pod rules created")
+	}
+
 	deallocateOnExit = false
 	return types.PrintResult(result, cniVersion)
 }
@@ -270,6 +279,15 @@ func CmdDel(args *skel.CmdArgs) error {
 	err = deallocator.Deallocate(*netConf, romanaClient, k8sargs.MakePodName())
 	if err != nil {
 		return fmt.Errorf("Failed to tear down pod network for %s, err=(%s)", k8sargs.MakePodName(), err)
+	}
+
+	if netConf.Policy {
+		err := disablePodPolicy(k8sargs.MakeVethName())
+		if err != nil {
+			log.Debugf("Failed to delete pod rules, err=%s", err)
+			return err
+		}
+		log.Debugf("Deleted pod rules")
 	}
 
 	/* disabled for pre-2.0
