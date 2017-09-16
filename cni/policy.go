@@ -6,6 +6,7 @@ import (
 	"github.com/romana/core/agent/enforcer"
 	utilexec "github.com/romana/core/agent/exec"
 	"github.com/romana/core/agent/iptsave"
+	"github.com/romana/rlog"
 )
 
 func enablePodPolicy(ifaceName string) error {
@@ -13,7 +14,7 @@ func enablePodPolicy(ifaceName string) error {
 }
 
 func disablePodPolicy(ifaceName string) error {
-	return manageDivertRules(MakeDivertRules(ifaceName, iptsave.RenderAppendRule))
+	return manageDivertRules(MakeDivertRules(ifaceName, iptsave.RenderDeleteRule))
 }
 
 func manageDivertRules(divertRules []*iptsave.IPchain) error {
@@ -34,6 +35,8 @@ func manageDivertRules(divertRules []*iptsave.IPchain) error {
 			},
 		},
 	}
+
+	rlog.Debugf("About to install iptables rules %s", iptables.Render())
 
 	return enforcer.ApplyIPtables(&iptables, new(utilexec.DefaultExecutor))
 }

@@ -22,9 +22,24 @@ import (
 func MakeDivertRules(nodename string, op iptsave.RenderState) []*iptsave.IPchain {
 	return []*iptsave.IPchain{
 		&iptsave.IPchain{
-			Name:        "INPUT",
-			Policy:      "-",
-			RenderState: op,
+			Name:   "ROMANA-INPUT",
+			Policy: "-",
+		},
+		&iptsave.IPchain{
+			Name:   "ROMANA-OUTPUT",
+			Policy: "-",
+		},
+		&iptsave.IPchain{
+			Name:   "ROMANA-FORWARD-IN",
+			Policy: "-",
+		},
+		&iptsave.IPchain{
+			Name:   "ROMANA-FORWARD-OUT",
+			Policy: "-",
+		},
+		&iptsave.IPchain{
+			Name:   "INPUT",
+			Policy: "-",
 			Rules: []*iptsave.IPrule{
 				&iptsave.IPrule{
 					RenderState: op,
@@ -41,9 +56,8 @@ func MakeDivertRules(nodename string, op iptsave.RenderState) []*iptsave.IPchain
 			},
 		},
 		&iptsave.IPchain{
-			Name:        "FORWARD",
-			Policy:      "-",
-			RenderState: op,
+			Name:   "FORWARD",
+			Policy: "-",
 			Rules: []*iptsave.IPrule{
 				&iptsave.IPrule{
 					RenderState: op,
@@ -60,9 +74,8 @@ func MakeDivertRules(nodename string, op iptsave.RenderState) []*iptsave.IPchain
 			},
 		},
 		&iptsave.IPchain{
-			Name:        "FORWARD",
-			Policy:      "-",
-			RenderState: op,
+			Name:   "FORWARD",
+			Policy: "-",
 			Rules: []*iptsave.IPrule{
 				&iptsave.IPrule{
 					RenderState: op,
@@ -79,9 +92,8 @@ func MakeDivertRules(nodename string, op iptsave.RenderState) []*iptsave.IPchain
 			},
 		},
 		&iptsave.IPchain{
-			Name:        "OUTPUT",
-			Policy:      "-",
-			RenderState: op,
+			Name:   "OUTPUT",
+			Policy: "-",
 			Rules: []*iptsave.IPrule{
 				&iptsave.IPrule{
 					RenderState: op,
@@ -92,7 +104,7 @@ func MakeDivertRules(nodename string, op iptsave.RenderState) []*iptsave.IPchain
 					},
 					Action: iptsave.IPtablesAction{
 						Type: iptsave.ActionDefault,
-						Body: "ROMANA-OUT",
+						Body: "ROMANA-OUTPUT",
 					},
 				},
 			},

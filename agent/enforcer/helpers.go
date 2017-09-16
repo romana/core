@@ -416,7 +416,7 @@ func MakePolicyRuleWithAction(rule api.Rule, action string) []*iptsave.IPrule {
 		result = append(result, MakeRuleDefaultWithBody("-p icmp", action))
 	}
 
-	if strings.ToUpper(rule.Protocol) == "any" {
+	if strings.ToUpper(rule.Protocol) == "ANY" {
 		// TODO, rule.IcmpType and rule.IcmpType code can't be destinguished between
 		// zero value and none value so processing them is prone to failures.
 		// Need to replaces then as *uint first. Stas.
