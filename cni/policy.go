@@ -17,6 +17,7 @@ func disablePodPolicy(ifaceName string) error {
 }
 
 func manageDivertRules(divertRules []*iptsave.IPchain) error {
+	var err error
 	if enforcer.IptablesSaveBin, err = exec.LookPath("iptables-save"); err != nil {
 		return err
 	}
