@@ -31,8 +31,8 @@ import (
 )
 
 var (
-	iptablesSaveBin    string
-	iptablesRestoreBin string
+	IptablesSaveBin    string
+	IptablesRestoreBin string
 )
 
 // MakeIngressTenantJumpRule makes a rule to send traffic from romana ingress chain
@@ -478,7 +478,7 @@ func ApplyIPtables(iptables *iptsave.IPtables, exec utilexec.Executable, restore
 		restoreFlags = []string{"--noflush"}
 	}
 
-	cmd := exec.Cmd(iptablesRestoreBin, restoreFlags)
+	cmd := exec.Cmd(IptablesRestoreBin, restoreFlags)
 	reader := bytes.NewReader([]byte(iptables.Render()))
 
 	log.Tracef(trace.Inside, "In applyRules allocating stdin pipe")
@@ -512,7 +512,7 @@ func ApplyIPtables(iptables *iptsave.IPtables, exec utilexec.Executable, restore
 // LoadIPtables calls iptables-save, parses result into iptsave.IPtables.
 func LoadIPtables(exec utilexec.Executable) (*iptsave.IPtables, error) {
 	iptables := &iptsave.IPtables{}
-	rawIptablesSave, err := exec.Exec(iptablesSaveBin, []string{})
+	rawIptablesSave, err := exec.Exec(IptablesSaveBin, []string{})
 	if err != nil {
 		log.Infof("In Init(), failed to call iptables-save, %s", err)
 		return iptables, err

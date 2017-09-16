@@ -93,11 +93,11 @@ func New(policyCache policycache.Interface,
 
 	var err error
 
-	if iptablesSaveBin, err = exec.LookPath("iptables-save"); err != nil {
+	if IptablesSaveBin, err = exec.LookPath("iptables-save"); err != nil {
 		return nil, err
 	}
 
-	if iptablesRestoreBin, err = exec.LookPath("iptables-restore"); err != nil {
+	if IptablesRestoreBin, err = exec.LookPath("iptables-restore"); err != nil {
 		return nil, err
 	}
 
