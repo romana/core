@@ -22,6 +22,83 @@ import (
 func MakeDivertRules(nodename string, op iptsave.RenderState) []*iptsave.IPchain {
 	return []*iptsave.IPchain{
 		&iptsave.IPchain{
+			Name:   "INPUT",
+			Policy: "-",
+			Rules: []*iptsave.IPrule{
+				&iptsave.IPrule{
+					RenderState: op,
+					Match: []*iptsave.Match{
+						&iptsave.Match{
+							Body: "-i " + nodename,
+						},
+					},
+					Action: iptsave.IPtablesAction{
+						Type: iptsave.ActionDefault,
+						Body: "ROMANA-INPUT",
+					},
+				},
+			},
+		},
+		&iptsave.IPchain{
+			Name:   "FORWARD",
+			Policy: "-",
+			Rules: []*iptsave.IPrule{
+				&iptsave.IPrule{
+					RenderState: op,
+					Match: []*iptsave.Match{
+						&iptsave.Match{
+							Body: "-i " + nodename,
+						},
+					},
+					Action: iptsave.IPtablesAction{
+						Type: iptsave.ActionDefault,
+						Body: "ROMANA-FORWARD-OUT",
+					},
+				},
+			},
+		},
+		&iptsave.IPchain{
+			Name:   "FORWARD",
+			Policy: "-",
+			Rules: []*iptsave.IPrule{
+				&iptsave.IPrule{
+					RenderState: op,
+					Match: []*iptsave.Match{
+						&iptsave.Match{
+							Body: "-o " + nodename,
+						},
+					},
+					Action: iptsave.IPtablesAction{
+						Type: iptsave.ActionDefault,
+						Body: "ROMANA-FORWARD-IN",
+					},
+				},
+			},
+		},
+		&iptsave.IPchain{
+			Name:   "OUTPUT",
+			Policy: "-",
+			Rules: []*iptsave.IPrule{
+				&iptsave.IPrule{
+					RenderState: op,
+					Match: []*iptsave.Match{
+						&iptsave.Match{
+							Body: "-o " + nodename,
+						},
+					},
+					Action: iptsave.IPtablesAction{
+						Type: iptsave.ActionDefault,
+						Body: "ROMANA-OUTPUT",
+					},
+				},
+			},
+		},
+	}
+}
+
+func MakeDivertRulesO(nodename string, op iptsave.RenderState) []*iptsave.IPchain {
+	return []*iptsave.IPchain{
+		&iptsave.IPchain{
 			Name:   "ROMANA-INPUT",
 			Policy: "-",
 		},

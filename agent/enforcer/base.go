@@ -25,35 +25,25 @@ import (
 func MakeBaseRules() []*iptsave.IPchain {
 	return []*iptsave.IPchain{
 		&iptsave.IPchain{
-			Name:   "ROMANA-INPUT",
+			Name:   "ROMANA-OUTPUT",
 			Policy: "-",
 			Rules: []*iptsave.IPrule{
 				&iptsave.IPrule{
-					Match: []*iptsave.Match{
-						&iptsave.Match{
-							Body: "-m state --state ESTABLISHED",
-						},
-					},
 					Action: iptsave.IPtablesAction{
 						Type: iptsave.ActionDefault,
 						Body: "ACCEPT",
 					},
 				},
+			},
+		},
+		&iptsave.IPchain{
+			Name:   "ROMANA-INPUT",
+			Policy: "-",
+			Rules: []*iptsave.IPrule{
 				&iptsave.IPrule{
 					Action: iptsave.IPtablesAction{
 						Type: iptsave.ActionDefault,
-						Body: MakeOperatorPolicyIngressChainName(),
-					},
-				},
-				&iptsave.IPrule{
-					Match: []*iptsave.Match{
-						&iptsave.Match{
-							Body: "-m comment --comment DefaultDrop",
-						},
-					},
-					Action: iptsave.IPtablesAction{
-						Type: iptsave.ActionDefault,
-						Body: "DROP",
+						Body: "ACCEPT",
 					},
 				},
 			},

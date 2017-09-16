@@ -1,7 +1,9 @@
 package cni
 
 import (
+	"fmt"
 	"os/exec"
+	"strings"
 
 	"github.com/romana/core/agent/enforcer"
 	utilexec "github.com/romana/core/agent/exec"
@@ -18,6 +20,34 @@ func disablePodPolicy(ifaceName string) error {
 }
 
 func manageDivertRules(divertRules []*iptsave.IPchain) error {
+	IptablesBin, err := exec.LookPath("iptables")
+	if err != nil {
+		return err
+	}
+
+	var rules string
+	for _, chain := range divertRules {
+		rules += chain.RenderFooter()
+	}
+
+	makeArgs := func(a []string, b ...string) []string {
+		var result []string
+		result = append(b, a...)
+		return result
+	}
+
+	for _, rule := range strings.Split(rules, "\n") {
+		rlog.Debugf("EXEC %s", makeArgs(strings.Split(rule, " ")), IptablesBin, "-t", "filter")
+		data, err := exec.Command(IptablesBin, makeArgs(strings.Split(rule, " "), "-t", "filter")...).CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("%s, err=%s", data, err)
+		}
+	}
+
+	return nil
+}
+
+func manageDivertRulesO(divertRules []*iptsave.IPchain) error {
 	var err error
 	if enforcer.IptablesSaveBin, err = exec.LookPath("iptables-save"); err != nil {
 		return err
