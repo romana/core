@@ -627,6 +627,11 @@ func targetValid(target api.Endpoint, blocks []api.IPAMBlockResponse) bool {
 		}
 	}
 
+	if len(segments) == 0 {
+		log.Debugf("target %s is invalid because it matches no segments", target)
+		return false
+	}
+
 	if target.SegmentID == "" {
 		log.Debugf("target %s is valid because it has corresponding block and doesn't match any segment", target)
 		return true
