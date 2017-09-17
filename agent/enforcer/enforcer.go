@@ -612,27 +612,29 @@ func makePolicyRules(policy api.Policy, iptablesSchemeType string, blocks []api.
 func targetValid(target api.Endpoint, blocks []api.IPAMBlockResponse) bool {
 	// if endpoint doesn't match tenant this check is irrelevant.
 	if target.TenantID == "" {
+		log.Debugf("target %s is valid becuase it is not a tenant match", target)
 		return true
 	}
 
 	// accumulate all known segments for this tenant.
 	var segments []string
 	for _, block := range blocks {
+
+		log.Debugf("in targetValid comparing block.Tenant(%s) == target.TenantID(%s) = %t", block.Tenant, target.TenantID, block.Tenant == target.TenantID)
+
 		if block.Tenant == target.TenantID {
 			segments = append(segments, block.Segment)
 		}
 	}
 
-	// valid tenant would have at least one segment ("") with empty name.
-	if len(segments) == 0 {
-		return false
-	}
-
 	if target.SegmentID == "" {
+		log.Debugf("target %s is valid because it has corresponding block and doesn't match any segment", target)
 		return true
 	}
 
 	for _, segment := range segments {
+		log.Debugf("in targetValid comparing target.SegmentID(%s) == segment(%s) = %t", target.SegmentID, segment, target.SegmentID == segment)
+
 		if target.SegmentID == segment {
 			return true
 		}
