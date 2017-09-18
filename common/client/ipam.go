@@ -1040,11 +1040,21 @@ func (ipam *IPAM) AllocateIP(addressName string, host string, tenant string, seg
 	}
 
 	owner := makeOwner(tenant, segment)
+	var lastErr error
 	for _, network := range networksForTenant {
 		ip, err := network.allocateIP(host, owner)
 
 		if err != nil {
-			return nil, err
+			// Several reasons why we may see an error. Common: The requested
+			// host is not in the currently examined network. We can have
+			// different topologies, each with their own network. The requested
+			// host may be in another topology. Therefore, can't leave with
+			// error, but need to keep looking.
+			// We keep the last error in case we continue to get errors for all
+			// networks. That error is then reported as a representative of the
+			// errors we may have seen also for other networks.
+			lastErr = err
+			continue
 		}
 		if ip != nil {
 			ipam.AddressNameToIP[addressName] = ip
@@ -1060,6 +1070,9 @@ func (ipam *IPAM) AllocateIP(addressName string, host string, tenant string, seg
 			}
 			return ip, nil
 		}
+	}
+	if lastErr != nil {
+		return nil, lastErr
 	}
 	return nil, common.NewError(msgNoAvailableIP)
 }

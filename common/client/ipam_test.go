@@ -104,7 +104,7 @@ func TestBlackout(t *testing.T) {
 	var err error
 	ipam = initIpam(t, "")
 	// 1. Black out something random
-	err = ipam.BlackOut("10.100.100.100/24")
+	err := ipam.BlackOut("10.100.100.100/24")
 	if err == nil {
 		t.Fatal("TestChunkBlackout: Expected error that no network found")
 	}
@@ -645,7 +645,7 @@ func TestHostAllocation(t *testing.T) {
 		t.Fatal("Error expected -- allocating another address with same name.")
 	}
 	if _, ok := err.(errors.RomanaExistsError); !ok {
-		t.Fatalf("Expected api.RomanaExistsError, got %T: %v", err, err)
+		t.Fatalf("Expected errors.RomanaExistsError, got %T: %v", err, err)
 	}
 
 	ip, err = ipam.AllocateIP("x2", "ip-192-168-99-11", "tenant1", "")
@@ -772,6 +772,29 @@ func TestParseVPCRoutingForTwoAZs(t *testing.T) {
 	t.Logf("Example 4: VPC routing for two AZs")
 	initIpam(t, "")
 	t.Logf("Slide 18: Example 4: VPC routing for two AZs JSON:\n%s\n", testSaver.lastJson)
+}
+
+func TestMultiNetAllocate(t *testing.T) {
+	t.Logf("Test that we can have different networks for different topologies")
+	ipam = initIpam(t, "")
+
+	ip, err := ipam.AllocateIP("addr1", "host1", "", "")
+	t.Logf("TestChunkSegments: Allocated %s for ", ip)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ip.String() != "10.0.0.0" {
+		t.Fatalf("Expected 10.0.0.0, got %s", ip)
+	}
+
+	ip, err = ipam.AllocateIP("addr2", "host2", "", "")
+	t.Logf("TestChunkSegments: Allocated %s for ", ip)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ip.String() != "11.0.0.0" {
+		t.Fatalf("Expected 11.0.0.0, got %s", ip)
+	}
 }
 
 // TestOutOfBoundsError tests an error happening in tests for romana 2.0
@@ -907,7 +930,7 @@ func TestHostAdditionSimple(t *testing.T) {
 	}
 
 	// Test host removal.
-	err = ipam.RemoveHost(api.Host{Name: "host0"})
+	err := ipam.RemoveHost(api.Host{Name: "host0"})
 	if err != nil {
 		t.Fatal(err)
 	}
