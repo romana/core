@@ -302,8 +302,29 @@ func makeBlockSets(blocks []api.IPAMBlockResponse, policyCache policycache.Inter
 
 	}
 
+	// makes one set that has all the blocks for current host
+	localBlocksSet, err := ipset.NewSet("LocalBlockSetName", ipset.SetHashNet)
+	if err != nil {
+		return nil, err
+	}
+	for _, block := range blocks {
+		if block.Host == hostname {
+			localMemeber, _ := ipset.NewMember(block.CIDR.String(), localBlocksSet)
+			err := ipset.SuppressItemExist(localBlocksSet.AddMember(localMemeber))
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+	err = ipset.SuppressItemExist(sets.AddSet(localBlocksSet))
+	if err != nil {
+		return nil, err
+	}
+
 	return sets, nil
 }
+
+const LocalBlockSetName = "localBlocks"
 
 func makePolicySets(policy api.Policy) (*ipset.Set, *ipset.Set, error) {
 	setSrc, err := ipset.NewSet(MakeRomanaPolicyNameSetSrc(policy), ipset.SetHashNet)
