@@ -303,7 +303,7 @@ func makeBlockSets(blocks []api.IPAMBlockResponse, policyCache policycache.Inter
 	}
 
 	// makes one set that has all the blocks for current host
-	localBlocksSet, err := ipset.NewSet("LocalBlockSetName", ipset.SetHashNet)
+	localBlocksSet, err := ipset.NewSet(LocalBlockSetName, ipset.SetHashNet)
 	if err != nil {
 		return nil, err
 	}
