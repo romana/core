@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
-	"strings"
 	"testing"
 
 	"github.com/romana/core/common/api"
@@ -297,14 +296,20 @@ func TestIPAM_DeallocateIP(t *testing.T) {
 
 	// Negative test case for test 1 above.
 	err = ipam.DeallocateIP("10.0.0.0")
-	if !strings.Contains(err.Error(), "404 Not Found") {
-		t.Fatalf("Expected '404 Not Found' error, got %s", err)
+	if err == nil {
+		t.Fatal("Expected non-nil error")
+	}
+	if _, ok := err.(errors.RomanaNotFoundError); !ok {
+		t.Fatalf("Expected RomanaNotFoundError, got %T", err)
 	}
 
 	// Negative test case for test 2 above.
 	err = ipam.DeallocateIP("2")
-	if !strings.Contains(err.Error(), "404 Not Found") {
-		t.Fatalf("Expected '404 Not Found' error, got %s", err)
+	if err == nil {
+		t.Fatal("Expected non-nil error")
+	}
+	if _, ok := err.(errors.RomanaNotFoundError); !ok {
+		t.Fatalf("Expected RomanaNotFoundError, got %T", err)
 	}
 }
 
