@@ -19,6 +19,8 @@
 package enforcer
 
 import (
+	"fmt"
+
 	"github.com/romana/core/agent/iptsave"
 )
 
@@ -52,6 +54,17 @@ func MakeBaseRules() []*iptsave.IPchain {
 			Name:   "ROMANA-FORWARD-OUT",
 			Policy: "-",
 			Rules: []*iptsave.IPrule{
+				&iptsave.IPrule{
+					Match: []*iptsave.Match{
+						&iptsave.Match{
+							Body: fmt.Sprintf("-m set --match-set %s dst", LocalBlockSetName),
+						},
+					},
+					Action: iptsave.IPtablesAction{
+						Type: iptsave.ActionDefault,
+						Body: "ROMANA-FORWARD-IN",
+					},
+				},
 				&iptsave.IPrule{
 					Match: []*iptsave.Match{
 						&iptsave.Match{
