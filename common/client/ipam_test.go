@@ -780,25 +780,25 @@ func TestParseVPCRoutingForTwoAZs(t *testing.T) {
 }
 
 func TestMultiNetAllocate(t *testing.T) {
-	t.Logf("Test that we can have different networks for different topologies")
+	t.Logf("TestMultiNetAllocate: Test that we can have different networks for different topologies")
 	ipam = initIpam(t, "")
 
 	ip, err := ipam.AllocateIP("addr1", "host1", "", "")
-	t.Logf("TestChunkSegments: Allocated %s for ", ip)
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Logf("TestMultiNetAllocate: Allocated %s for host1", ip)
 	if ip.String() != "10.0.0.0" {
-		t.Fatalf("Expected 10.0.0.0, got %s", ip)
+		t.Fatalf("TestMultiNetAllocate: Expected 10.0.0.0, got %s", ip)
 	}
 
 	ip, err = ipam.AllocateIP("addr2", "host2", "", "")
-	t.Logf("TestChunkSegments: Allocated %s for ", ip)
 	if err != nil {
 		t.Fatal(err)
 	}
+	t.Logf("TestMultiNetAllocate: Allocated %s for host2", ip)
 	if ip.String() != "11.0.0.0" {
-		t.Fatalf("Expected 11.0.0.0, got %s", ip)
+		t.Fatalf("TestMultiNetAllocate: Expected 11.0.0.0, got %s", ip)
 	}
 }
 

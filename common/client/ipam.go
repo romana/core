@@ -322,7 +322,7 @@ func (hg *Group) allocateIP(network *Network, hostName string, owner string) net
 		}
 		log.Tracef(trace.Inside, "All blocks on network %s for owner %s and host %s are exhausted, will try to reuse a block", network.Name, owner, hostName)
 	} else {
-		log.Tracef(trace.Inside, "Network %s has no blocks for owner %s, will try to reuse a block", network.Name, owner)
+		log.Tracef(trace.Inside, "Network %s has no blocks for owner <%s>, will try to reuse a block", network.Name, owner)
 	}
 	// If we are here then all blocks are exhausted. Need to allocate a new block.
 	// First let's see if there are blocks on this group to be reused.
@@ -339,7 +339,7 @@ func (hg *Group) allocateIP(network *Network, hostName string, owner string) net
 			return ip
 		}
 	}
-	log.Tracef(trace.Inside, "Network %s has no blocks to reuse for %s, creating new block", network.Name, owner)
+	log.Tracef(trace.Inside, "Network %s has no blocks to reuse for <%s>, creating new block", network.Name, owner)
 
 	for {
 		var newBlockStartIPInt uint64
@@ -1040,28 +1040,28 @@ func (ipam *IPAM) AllocateIP(addressName string, host string, tenant string, seg
 	}
 
 	owner := makeOwner(tenant, segment)
-	var lastErr error
 	for _, network := range networksForTenant {
+		log.Tracef(trace.Inside, "Trying to allocate IP for host %s on network %s.", host, network.Name)
 		ip, err := network.allocateIP(host, owner)
-
 		if err != nil {
-			// Several reasons why we may see an error. Common: The requested
-			// host is not in the currently examined network. We can have
-			// different topologies, each with their own network. The requested
-			// host may be in another topology. Therefore, can't leave with
-			// error, but need to keep looking.
-			// We keep the last error in case we continue to get errors for all
-			// networks. That error is then reported as a representative of the
-			// errors we may have seen also for other networks.
-			lastErr = err
-			continue
+			switch err := err.(type) {
+			case errors.RomanaNotFoundError:
+				if err.Type == "host" {
+					// This is for when the host is not within the currently examined network.
+					// In such a case, we should just carry on examining other networks.
+					// Any other error so far is a legitimate error and we fail fast.
+					log.Infof("Network %s does not have host %s defined, skipping.", network.Name, host)
+					continue
+				} else {
+					return nil, err
+				}
+			default:
+				return nil, err
+			}
 		}
+
 		if ip != nil {
 			ipam.AddressNameToIP[addressName] = ip
-
-			//			ipam.OwnerToIP[owner] = append(ipam.OwnerToIP[owner], ip)
-			//			ipam.IPToOwner[ip] = owner
-
 			ipam.AllocationRevision++
 			log.Tracef(trace.Inside, "Updated AllocationRevision to %d", ipam.AllocationRevision)
 			err = ipam.save(ipam)
@@ -1070,9 +1070,6 @@ func (ipam *IPAM) AllocateIP(addressName string, host string, tenant string, seg
 			}
 			return ip, nil
 		}
-	}
-	if lastErr != nil {
-		return nil, lastErr
 	}
 	return nil, common.NewError(msgNoAvailableIP)
 }
