@@ -65,7 +65,7 @@ func initClient(t *testing.T, topoConf string) *Client {
 	cfg := &common.Config{EtcdEndpoints: []string{"localhost:2379"},
 		EtcdPrefix: fmt.Sprintf("/romanaTest%d", rand.Int63n(100000)),
 	}
-	client, err = NewClient(cfg)
+	client, err := NewClient(cfg)
 	if err != nil {
 		t.Fatal(err)
 	}
