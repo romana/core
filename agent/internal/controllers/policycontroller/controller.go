@@ -62,7 +62,7 @@ func Run(ctx context.Context, key string, client *client.Client, storage policyc
 			}
 			if err != nil {
 				log.Printf("failed to reconnect policy watcher %s", err)
-				time.Sleep(1)
+				time.Sleep(1 * time.Second)
 				continue
 			}
 

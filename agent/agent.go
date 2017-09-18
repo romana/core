@@ -70,10 +70,10 @@ type Agent struct {
 	TestMode bool
 
 	// Manages iptables rules to reflect romana policies.
-	enforcer enforcer.Interface
+	// enforcer enforcer.Interface
 
 	// Stops policy enforcer.
-	policyStop chan struct{}
+	// policyStop chan struct{}
 
 	// default host interface link
 	defaultLink netlink.Link
@@ -319,8 +319,8 @@ func (a *Agent) Initialize(clientConfig common.Config) error {
 
 	}
 
+	/*
 	if a.policyEnabled {
-		/*
 			// Tenant and Policy cache will poll backend storage every cacheTickTime seconds.
 			var err error
 
@@ -333,8 +333,8 @@ func (a *Agent) Initialize(clientConfig common.Config) error {
 				return err
 			}
 			a.enforcer.Run(a.policyStop)
-		*/
 	}
+	*/
 
 	return nil
 }

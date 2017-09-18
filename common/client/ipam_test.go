@@ -49,6 +49,9 @@ func initIpam(t *testing.T, conf string) *IPAM {
 		conf = string(b)
 	}
 	ipam, err := NewIPAM(testSaver.save, nil)
+	if err != nil {
+		t.Fatalf("Error initializing ipam: %v", err)
+	}
 	topoReq := api.TopologyUpdateRequest{}
 	err = json.Unmarshal([]byte(conf), &topoReq)
 	if err != nil {
@@ -647,7 +650,7 @@ func TestHostAllocation(t *testing.T) {
 	// Test allocation with same name...
 	ip, err = ipam.AllocateIP("x1", "ip-192-168-99-10", "tenant1", "")
 	if err == nil {
-		t.Fatal("Error expected -- allocating another address with same name.")
+		t.Fatalf("Error expected -- allocating another address with same name. got %s", ip.String())
 	}
 	if _, ok := err.(errors.RomanaExistsError); !ok {
 		t.Fatalf("Expected errors.RomanaExistsError, got %T: %v", err, err)

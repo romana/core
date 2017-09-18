@@ -247,7 +247,7 @@ func TestMakeBlockSets(t *testing.T) {
 
 	makeCIDR := func(s string) api.IPNet {
 		_, ipnet, _ := net.ParseCIDR(s)
-		return api.IPNet{*ipnet}
+		return api.IPNet{IPNet: *ipnet}
 	}
 
 	// expectFunc is a signature for a function used in test cases to

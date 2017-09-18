@@ -19,6 +19,7 @@ package firewall
 
 import (
 	"database/sql"
+	_ "github.com/mattn/go-sqlite3"
 	"net"
 	"sync"
 )
@@ -94,7 +95,17 @@ func (c mockFirewallEndpoint) GetIP() net.IP {
 
 func makeMockStore() firewallStore {
 	mockStore := firewallStore{}
-	mockStore.db, _ = sql.Open("sqlite3", "/tmp/agent.db")
+	db, _:= sql.Open("sqlite3", "/tmp/firewall.db")
+	
+	createTable := `CREATE TABLE IF NOT EXISTS iptables_rules (
+		body TEXT PRIMARY KEY,
+		state VARCHAR
+	)`
+	db.Exec(createTable)
+	deleteFromTable := `DELETE FROM iptables_rules`
+	db.Exec(deleteFromTable)
+
 	mockStore.mu = new(sync.RWMutex)
+	mockStore.db = db
 	return mockStore
 }

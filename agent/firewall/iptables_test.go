@@ -50,6 +50,9 @@ func TestCreateChains(t *testing.T) {
 	cmd4 := fmt.Sprintf("%s -w -L ROMANA-FORWARD-IN", iptablesCmd)
 	expect := strings.Join([]string{cmd1, cmd2, cmd3, cmd4}, "\n")
 
+	if mockExec.Commands == nil {
+		t.Fatal("Expected non-nil result in Commands")
+	}
 	if *mockExec.Commands != expect {
 		t.Errorf("Unexpected input from TestCreateChains, expect\n%s, got\n%s", expect, *mockExec.Commands)
 	}
@@ -79,7 +82,10 @@ func TestDivertTraffic(t *testing.T) {
 	cmd1 := fmt.Sprintf("%s -w -C INPUT -i eth0 -j ROMANA-INPUT", iptablesCmd)
 	cmd2 := fmt.Sprintf("%s -A INPUT -i eth0 -j ROMANA-INPUT", iptablesCmd)
 	expect := strings.Join([]string{cmd1, cmd2}, "\n")
-
+	
+	if mockExec.Commands == nil {
+		t.Fatal("Expected non-nil result in Commands")
+	}
 	if *mockExec.Commands != expect {
 		t.Errorf("Unexpected input from TestDivertTraffic, expect\n%s, got\n%s", expect, *mockExec.Commands)
 	}
@@ -109,6 +115,9 @@ func TestCreateDefaultRules(t *testing.T) {
 	expect := strings.Join([]string{cmd1},
 		"\n")
 
+	if mockExec.Commands == nil {
+		t.Fatal("Expected non-nil result in Commands")
+	}
 	if *mockExec.Commands != expect {
 		t.Errorf("Unexpected input from TestCreateRules, expect\n%s, got\n%s", expect, *mockExec.Commands)
 	}
@@ -171,6 +180,9 @@ func TestCreateRules(t *testing.T) {
 	)
 	expect := strings.Join([]string{cmd1}, "\n")
 
+	if mockExec.Commands == nil {
+		t.Fatal("Expected non-nil result in Commands")
+	}
 	if *mockExec.Commands != expect {
 		t.Errorf("Unexpected input from TestCreateRules, expect\n%s, got\n%s", expect, *mockExec.Commands)
 	}
