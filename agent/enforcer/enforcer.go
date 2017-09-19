@@ -288,7 +288,10 @@ func makeBlockSets(blocks []api.IPAMBlockResponse, policyCache policycache.Inter
 		}
 
 		tenantSetName := makeTenantSetName(block.Tenant, "")
-		tenantSet, _ := ipset.NewSet(tenantSetName, ipset.SetListSet)
+		tenantSet := sets.SetByName(tenantSetName)
+		if tenantSet == nil {
+			tenantSet, _ = ipset.NewSet(tenantSetName, ipset.SetListSet)
+		}
 		err = ipset.SuppressItemExist(sets.AddSet(tenantSet))
 		if err != nil {
 			return nil, err

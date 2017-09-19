@@ -37,6 +37,9 @@ func manageDivertRules(divertRules []*iptsave.IPchain) error {
 	}
 
 	for _, rule := range strings.Split(rules, "\n") {
+		if rule == "" {
+			continue
+		}
 		rlog.Debugf("EXEC %s", makeArgs(strings.Split(rule, " ")), IptablesBin, "-t", "filter")
 		data, err := exec.Command(IptablesBin, makeArgs(strings.Split(rule, " "), "-t", "filter")...).CombinedOutput()
 		if err != nil {
