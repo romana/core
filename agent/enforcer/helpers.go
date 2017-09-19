@@ -90,7 +90,8 @@ func InsertNormalRule(chain *iptsave.IPchain, rule *iptsave.IPrule) {
 	var normalIndex int
 
 	for i := len(chain.Rules) - 1; i >= 0; i-- {
-		if chain.Rules[i].Action.Body != "DROP" && chain.Rules[i].Action.Body != "RETURN" {
+		if chain.Rules[i].Action.Body != "DROP" && chain.Rules[i].Action.Body != "RETURN" &&
+			chain.Rules[i].Action.Body != "ACCEPT" {
 			normalIndex = i + 1
 			break
 		}
