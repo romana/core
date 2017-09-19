@@ -342,11 +342,11 @@ func (c *Client) initIPAM(initialTopologyFile *string) error {
 			topoReq := &api.TopologyUpdateRequest{}
 			err = json.Unmarshal(topoData, topoReq)
 			if err != nil {
-				return nil, fmt.Errorf("error processing %s: %s", *initialTopologyFile, err)
+				return fmt.Errorf("error processing %s: %s", *initialTopologyFile, err)
 			}
 			c.IPAM, err = NewIPAM(c.save, c.ipamLocker)
 			if err != nil {
-				return nil, err
+				return err
 			}
 			err = c.IPAM.UpdateTopology(*topoReq)
 			if err != nil {
@@ -355,7 +355,7 @@ func (c *Client) initIPAM(initialTopologyFile *string) error {
 		} else {
 			c.IPAM, err = NewIPAM(c.save, c.ipamLocker)
 			if err != nil {
-				return nil, err
+				return err
 			}
 		}
 		err = c.save(c.IPAM, ch)

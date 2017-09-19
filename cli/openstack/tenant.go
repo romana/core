@@ -81,7 +81,8 @@ func GetTenantName(uuid string) (string, error) {
 		log.Println("Error getting Identity Client: ", err)
 		return "", err
 	}
-	result := projects.Get(c, uuid, projects.GetOpts{})
+	//	result := projects.Get(c, uuid, projects.GetOpts{})
+	result := projects.Get(c, uuid)
 	project, err := result.Extract()
 	if err != nil {
 		log.Printf("Error looking up name for uuid %s: %s.\n", uuid, err)
