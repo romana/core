@@ -296,12 +296,13 @@ func (c *Client) initIPAM(initialTopologyFile *string) error {
 		return err
 	}
 	log.Tracef(trace.Inside, "initIPAM(): Created locker %v", c.ipamLocker)
-	c.ipamLocker.Lock()
-	ch, err := c.IPAM.locker.Lock()
+
+	ch, err := c.ipamLocker.Lock()
+
 	if err != nil {
 		return err
 	}
-	defer c.IPAM.locker.Unlock()
+	defer c.ipamLocker.Unlock()
 
 	// Check if IPAM info exists in the store
 	var ipamExists bool
