@@ -1,272 +1,233 @@
-// +build ignore
-
 package enforcer
 
 import (
+	"net"
 	"testing"
 
 	"github.com/romana/core/agent/iptsave"
-	"github.com/romana/core/common"
+	"github.com/romana/core/common/api"
+	"github.com/romana/ipset"
 )
 
-func TestMakeBase(t *testing.T) {
-	// Make empty iptables object.
-	iptables := iptsave.IPtables{
-		Tables: []*iptsave.IPtable{
-			&iptsave.IPtable{
-				Name: "filter",
+func TestMakePolicyRules(t *testing.T) {
+	makeEmptyIptables := func() iptsave.IPtables {
+		return iptsave.IPtables{
+			Tables: []*iptsave.IPtable{
+				&iptsave.IPtable{
+					Name: "filter",
+				},
+			},
+		}
+	}
+
+	makeEndpoints := func(endpoints ...api.Endpoint) (result []api.Endpoint) {
+		for _, e := range endpoints {
+			result = append(result, e)
+		}
+		return
+	}
+
+	withCidr := func(s ...string) api.Endpoint {
+		return api.Endpoint{Cidr: s[0]}
+	}
+	withTenant := func(t ...string) api.Endpoint {
+		return api.Endpoint{TenantID: t[0]}
+	}
+	withTenantSegment := func(s ...string) api.Endpoint {
+		return api.Endpoint{TenantID: s[0], SegmentID: s[1]}
+	}
+	_ = withTenantSegment
+
+	makeRules := func(rules ...api.Rule) (result []api.Rule) {
+		for _, r := range rules {
+			result = append(result, r)
+		}
+		return result
+	}
+	withProtoPorts := func(proto string, ports ...uint) api.Rule {
+		return api.Rule{Protocol: proto, Ports: ports}
+	}
+
+	testCases := []struct {
+		name   string
+		schema string
+		policy api.Policy
+	}{
+		{
+			name:   "ingress basic",
+			schema: SchemePolicyOnTop,
+			policy: api.Policy{
+				ID:        "<TESTPOLICYID>",
+				Direction: api.PolicyDirectionIngress,
+				AppliedTo: makeEndpoints(withTenant("T1000")),
+				Ingress: []api.RomanaIngress{
+					api.RomanaIngress{
+						Peers: makeEndpoints(withCidr("10.0.0.0/99")),
+						Rules: makeRules(withProtoPorts("TCP", 80, 99, 8080)),
+					},
+				},
+			},
+		},
+		{
+			name:   "egress basic",
+			schema: SchemeTargetOnTop,
+			policy: api.Policy{
+				ID:        "<TESTPOLICYID>",
+				Direction: api.PolicyDirectionEgress,
+				AppliedTo: makeEndpoints(withTenant("T1000"), withTenantSegment("T800", "John")),
+				Ingress: []api.RomanaIngress{
+					api.RomanaIngress{
+						Peers: makeEndpoints(
+							withCidr("10.0.0.0/99"),
+							withTenant("T3000"),
+							withTenantSegment("T100K", "skynet")),
+						Rules: makeRules(
+							withProtoPorts("TCP", 80, 99, 8080),
+							withProtoPorts("UDP", 53, 1194),
+						),
+					},
+				},
 			},
 		},
 	}
 
-	makeBase(&iptables)
-
-	expected := `*filter
-:ROMANA-INPUT -
-:ROMANA-FORWARD-OUT -
-:ROMANA-FORWARD-IN -
-:ROMANA-OP -
--A ROMANA-INPUT -m state --state ESTABLISHED -j ACCEPT
--A ROMANA-INPUT -m comment --comment DefaultDrop -j DROP
--A ROMANA-FORWARD-OUT -m comment --comment Outgoing -j RETURN
--A ROMANA-FORWARD-OUT -j DROP
--A ROMANA-FORWARD-IN -m state --state RELATED,ESTABLISHED -j ACCEPT
--A ROMANA-FORWARD-IN -j ROMANA-OP
--A ROMANA-FORWARD-IN -m comment --comment DefaultDrop -j DROP
--A ROMANA-OP -m comment --comment POLICY_CHAIN_FOOTER -j RETURN
-COMMIT
-`
-	t.Log(iptables.Render())
-	t.Log(expected)
-
-	t.Log(iptables.Render() == expected)
+	for _, tc := range testCases {
+		sets := ipset.Ipset{}
+		iptables := makeEmptyIptables()
+		err := makePolicyRules(tc.policy, tc.schema, &iptables)
+		t.Log(iptables.Render())
+		t.Log(sets.Render(ipset.RenderCreate))
+		t.Log(err)
+	}
 }
 
-type fakeTenantCache []common.Tenant
+func TestMakePolicySets(t *testing.T) {
+	makeEndpoints := func(endpoints ...api.Endpoint) (result []api.Endpoint) {
+		for _, e := range endpoints {
+			result = append(result, e)
+		}
+		return
+	}
 
-func (t fakeTenantCache) Run(stop <-chan struct{}) <-chan string {
-	return make(chan string)
+	withCidr := func(s ...string) api.Endpoint {
+		return api.Endpoint{Cidr: s[0]}
+	}
+	withTenant := func(t ...string) api.Endpoint {
+		return api.Endpoint{TenantID: t[0]}
+	}
+	withTenantSegment := func(s ...string) api.Endpoint {
+		return api.Endpoint{TenantID: s[0], SegmentID: s[1]}
+	}
+	_ = withTenantSegment
+
+	makeRules := func(rules ...api.Rule) (result []api.Rule) {
+		for _, r := range rules {
+			result = append(result, r)
+		}
+		return result
+	}
+	withProtoPorts := func(proto string, ports ...uint) api.Rule {
+		return api.Rule{Protocol: proto, Ports: ports}
+	}
+
+	testCases := []struct {
+		name   string
+		policy api.Policy
+	}{
+		{
+			name: "ingress sets basic",
+			policy: api.Policy{
+				ID:        "<TESTPOLICYID>",
+				Direction: api.PolicyDirectionIngress,
+				AppliedTo: makeEndpoints(withTenant("T1000")),
+				Ingress: []api.RomanaIngress{
+					api.RomanaIngress{
+						Peers: makeEndpoints(withCidr("10.0.0.0/99")),
+						Rules: makeRules(withProtoPorts("TCP", 80, 99, 8080)),
+					},
+				},
+			},
+		},
+		{
+			name: "egress sets basic",
+			policy: api.Policy{
+				ID:        "<TESTPOLICYID>",
+				Direction: api.PolicyDirectionEgress,
+				AppliedTo: makeEndpoints(withTenant("T1000"), withTenantSegment("T800", "John")),
+				Ingress: []api.RomanaIngress{
+					api.RomanaIngress{
+						Peers: makeEndpoints(
+							withCidr("10.0.0.0/99"),
+							withTenant("T3000"),
+							withTenantSegment("T100K", "skynet")),
+						Rules: makeRules(
+							withProtoPorts("TCP", 80, 99, 8080),
+							withProtoPorts("UDP", 53, 1194),
+						),
+					},
+				},
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		set1, set2, err := makePolicySets(tc.policy)
+		sets := ipset.Ipset{Sets: []*ipset.Set{set1, set2}}
+		t.Log(sets.Render(ipset.RenderSave))
+		t.Log(err)
+	}
 }
-func (t fakeTenantCache) List() []common.Tenant {
-	return []common.Tenant(t)
-}
 
-type fakePolicyCache []common.Policy
+type fakePolicyCache struct{}
 
+func (p fakePolicyCache) List() []api.Policy { return nil }
 func (p fakePolicyCache) Run(stop <-chan struct{}) <-chan string {
 	return make(chan string)
 }
-func (p fakePolicyCache) List() []common.Policy {
-	return []common.Policy(p)
+
+type fakeBlockCache struct {
+	blocks []api.IPAMBlockResponse
 }
 
-func TestMakeTenantRules(t *testing.T) {
-	netConfig := MockNC{uint(8), uint(8), uint(4), uint(4), uint(8)}
-	// Make empty iptables object.
-	iptables := iptsave.IPtables{
-		Tables: []*iptsave.IPtable{
-			&iptsave.IPtable{
-				Name: "filter",
-			},
-		},
-	}
+func (b fakeBlockCache) List() []api.IPAMBlockResponse { return b.blocks }
 
-	tenants := []common.Tenant{
-		common.Tenant{
-			NetworkID: uint64(2),
-			Segments: []common.Segment{
-				common.Segment{
-					NetworkID: uint64(20),
-				},
-				common.Segment{
-					NetworkID: uint64(21),
-				},
-				common.Segment{
-					NetworkID: uint64(22),
-				},
-			},
-		},
-		common.Tenant{
-			NetworkID: uint64(1),
-			Segments: []common.Segment{
-				common.Segment{
-					NetworkID: uint64(10),
-				},
-				common.Segment{
-					NetworkID: uint64(11),
-				},
-				common.Segment{
-					NetworkID: uint64(12),
-				},
-			},
-		},
-	}
-
-	cache := fakeTenantCache(tenants)
-
-	makeBase(&iptables)
-	makeTenantRules(cache, netConfig, &iptables)
-
-	t.Logf("\n%s", iptables.Render())
+func NewBlockCache(b []api.IPAMBlockResponse) fakeBlockCache {
+	return fakeBlockCache{blocks: b}
 }
 
-func TestMakePolicies(t *testing.T) {
-	netConfig := MockNC{uint(8), uint(8), uint(4), uint(4), uint(8)}
-	// Make empty iptables object.
-	iptables := iptsave.IPtables{
-		Tables: []*iptsave.IPtable{
-			&iptsave.IPtable{
-				Name: "filter",
-			},
+func TestMakeBlockSets(t *testing.T) {
+
+	makeCIDR := func(s string) api.IPNet {
+		_, ipnet, _ := net.ParseCIDR(s)
+		return api.IPNet{*ipnet}
+	}
+
+	testCases := []struct {
+		name       string
+		hostname   string
+		blockCache BlockCache
+	}{
+		{
+			name:     "basic 1",
+			hostname: "host1",
+			blockCache: NewBlockCache([]api.IPAMBlockResponse{
+				api.IPAMBlockResponse{
+					Tenant:  "T800",
+					Segment: "john",
+					CIDR:    makeCIDR("10.0.0.0/28"),
+				},
+				api.IPAMBlockResponse{
+					Tenant:  "T100k",
+					Segment: "skynet",
+					CIDR:    makeCIDR("10.1.0.0/28"),
+				},
+			}),
 		},
 	}
 
-	tenants := []common.Tenant{
-		common.Tenant{
-			NetworkID: uint64(2),
-			Segments: []common.Segment{
-				common.Segment{
-					NetworkID: uint64(20),
-				},
-				common.Segment{
-					NetworkID: uint64(21),
-				},
-				common.Segment{
-					NetworkID: uint64(22),
-				},
-			},
-		},
-		common.Tenant{
-			NetworkID: uint64(1),
-			Segments: []common.Segment{
-				common.Segment{
-					NetworkID: uint64(10),
-				},
-				common.Segment{
-					NetworkID: uint64(11),
-				},
-				common.Segment{
-					NetworkID: uint64(12),
-				},
-			},
-		},
+	for _, tc := range testCases {
+		sets, err := makeBlockSets(tc.blockCache, fakePolicyCache{}, tc.hostname)
+		t.Log(sets.Render(ipset.RenderSave))
+		t.Log(err)
 	}
-
-	cache := fakeTenantCache(tenants)
-
-	uintPtr := func(i int) *uint64 {
-		u := uint64(i)
-		return &u
-	}
-
-	policies := []common.Policy{
-		common.Policy{
-			Direction:  common.PolicyDirectionIngress,
-			Name:       "pol-dhcp-vm",
-			ExternalID: "FOO1",
-			AppliedTo: []common.Endpoint{
-				common.Endpoint{
-					Dest: "local",
-				},
-			},
-			Ingress: []common.RomanaIngress{
-				common.RomanaIngress{
-					Peers: []common.Endpoint{
-						common.Endpoint{
-							Peer: "host",
-						},
-					},
-					Rules: []common.Rule{
-						common.Rule{
-							Ports:    []uint{uint(68)},
-							Protocol: "UDP",
-						},
-					},
-				},
-			},
-		},
-		common.Policy{
-			Direction:  common.PolicyDirectionIngress,
-			Name:       "icmp-from-cidr",
-			ExternalID: "ICMPCIDR",
-			AppliedTo: []common.Endpoint{
-				common.Endpoint{
-					TenantNetworkID:  uintPtr(1),
-					SegmentNetworkID: uintPtr(12),
-				},
-			},
-			Ingress: []common.RomanaIngress{
-				common.RomanaIngress{
-					Peers: []common.Endpoint{
-						common.Endpoint{
-							Cidr: "200.1.2.0/24",
-						},
-					},
-					Rules: []common.Rule{
-						common.Rule{
-							Protocol: "ICMP",
-						},
-					},
-				},
-			},
-		},
-		common.Policy{
-			Direction:  common.PolicyDirectionIngress,
-			Name:       "tcp-from-tenant",
-			ExternalID: "TCPTENANT",
-			AppliedTo: []common.Endpoint{
-				common.Endpoint{
-					TenantNetworkID:  uintPtr(2),
-					SegmentNetworkID: uintPtr(21),
-				},
-			},
-			Ingress: []common.RomanaIngress{
-				common.RomanaIngress{
-					Peers: []common.Endpoint{
-						common.Endpoint{
-							TenantNetworkID:  uintPtr(1),
-							SegmentNetworkID: uintPtr(12),
-						},
-					},
-					Rules: []common.Rule{
-						common.Rule{
-							Protocol: "TCP",
-							Ports:    []uint{80, 443},
-						},
-					},
-				},
-			},
-		},
-		common.Policy{
-			Direction:  common.PolicyDirectionIngress,
-			Name:       "any-from-host",
-			ExternalID: "ANY4HOST",
-			AppliedTo: []common.Endpoint{
-				common.Endpoint{
-					Dest: "local",
-				},
-			},
-			Ingress: []common.RomanaIngress{
-				common.RomanaIngress{
-					Peers: []common.Endpoint{
-						common.Endpoint{
-							Peer: "host",
-						},
-					},
-					Rules: []common.Rule{
-						common.Rule{
-							Protocol: "ANY",
-						},
-					},
-				},
-			},
-		},
-	}
-
-	policyCache := fakePolicyCache(policies)
-	makeBase(&iptables)
-	makeTenantRules(cache, netConfig, &iptables)
-	makePolicies(policyCache, netConfig, &iptables)
-
-	t.Logf("Policies rendered \n%s", iptables.Render())
 }

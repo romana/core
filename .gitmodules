@@ -139,3 +139,6 @@
 [submodule "vendor/github.com/aws/aws-sdk-go"]
 	path = vendor/github.com/aws/aws-sdk-go
 	url = https://github.com/aws/aws-sdk-go
+[submodule "vendor/github.com/romana/ipset"]
+	path = vendor/github.com/romana/ipset
+	url = https://github.com/romana/ipset
