@@ -1173,14 +1173,16 @@ func (ipam *IPAM) getNetworksForTenant(tenant string) ([]*Network, error) {
 
 // updateTopology updates the entire topology, returning an error if it is
 // in conflict with the previous topology.
-func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest) error {
+func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest, lockAndSave bool) error {
 	var err error
-	ch, err := ipam.locker.Lock()
-	if err != nil {
-		return err
+	var ch <-chan struct{}
+	if lockAndSave {
+		ch, err = ipam.locker.Lock()
+		if err != nil {
+			return err
+		}
+		defer ipam.locker.Unlock()
 	}
-	defer ipam.locker.Unlock()
-
 	allocatedBlocks := false
 	for _, netDef := range ipam.Networks {
 		// Blocks that have IPs assigned -- if they didn't, they would be
@@ -1259,9 +1261,11 @@ func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest) error {
 		}
 	}
 	ipam.TopologyRevision++
-	err = ipam.save(ipam, ch)
-	if err != nil {
-		return err
+	if lockAndSave {
+		err = ipam.save(ipam, ch)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }

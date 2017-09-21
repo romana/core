@@ -331,10 +331,10 @@ func (c *Client) initIPAM(initialTopologyFile *string) error {
 		// If does not exist -- initialize with initial topology.
 
 		log.Infof("No IPAM data found at %s, initializing", c.Store.getKey(ipamDataKey))
-		c.IPAM, err = NewIPAM(c.save, c.ipamLocker)
-		if err != nil {
-			return err
+		c.IPAM = &IPAM{locker: c.ipamLocker,
+			save: c.save,
 		}
+
 		if initialTopologyFile != nil && *initialTopologyFile != "" {
 			topoData, err := ioutil.ReadFile(*initialTopologyFile)
 			if err != nil {
@@ -345,16 +345,7 @@ func (c *Client) initIPAM(initialTopologyFile *string) error {
 			if err != nil {
 				return fmt.Errorf("error processing %s: %s", *initialTopologyFile, err)
 			}
-			c.IPAM, err = NewIPAM(c.save, c.ipamLocker)
-			if err != nil {
-				return err
-			}
-			err = c.IPAM.UpdateTopology(*topoReq)
-			if err != nil {
-				return err
-			}
-		} else {
-			c.IPAM, err = NewIPAM(c.save, c.ipamLocker)
+			err = c.IPAM.UpdateTopology(*topoReq, false)
 			if err != nil {
 				return err
 			}
@@ -363,6 +354,7 @@ func (c *Client) initIPAM(initialTopologyFile *string) error {
 		if err != nil {
 			return err
 		}
+		log.Infof("Initialized with %s", *initialTopologyFile)
 	}
 	return nil
 }
