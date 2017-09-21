@@ -111,13 +111,16 @@ func TestMakePolicyRules(t *testing.T) {
 		},
 	}
 
+	toList := func(p ...api.Policy) []api.Policy {
+		return p
+	}
+
 	for _, tc := range testCases {
 		sets := ipset.Ipset{}
 		iptables := makeEmptyIptables()
-		err := makePolicyRules(tc.policy, tc.schema, blocks, &iptables)
+		makePolicies(toList(tc.policy), "localhost", blocks, &iptables)
 		t.Log(iptables.Render())
 		t.Log(sets.Render(ipset.RenderCreate))
-		t.Log(err)
 	}
 }
 

@@ -25,12 +25,10 @@ import (
 
 	"github.com/pkg/errors"
 	utilexec "github.com/romana/core/agent/exec"
-	"github.com/romana/core/agent/firewall"
 	"github.com/romana/core/agent/internal/cache/policycache"
 	"github.com/romana/core/agent/internal/controllers/policycontroller"
 	"github.com/romana/core/agent/iptsave"
 	"github.com/romana/core/agent/policy/hasher"
-	tenantCache "github.com/romana/core/agent/tenant/cache"
 	"github.com/romana/core/common/api"
 	"github.com/romana/core/common/client"
 	"github.com/romana/core/common/log/trace"
@@ -47,29 +45,24 @@ type Interface interface {
 
 // Endpoint implements Interface.
 type Enforcer struct {
+
+	// provides updates about romana policies.
 	policyCache policycache.Interface
 
+	// client to access romana API.
 	romanaClient *client.Client
 
+	// name of a current host.
 	hostname string
 
+	// location of the policies in romana database.
 	policyKey string
-
-	// tenant cache provides updates for romana tenants.
-	tenantCache tenantCache.Interface
 
 	// blocksUpdate holds hash associated with last update of tenant cache.
 	blocksUpdate bool
 
-	// policy cache provides updates for romana policies.
-	// policyCache policyCache.Interface
-
 	// policyUpdate holds hash associated with last update of policy cache.
 	policyUpdate bool
-
-	// provides access to romana network configuration required to translate
-	// policies.
-	netConfig firewall.NetConfig
 
 	// Delay between main loop runs.
 	ticker *time.Ticker
@@ -112,7 +105,7 @@ func New(policyCache policycache.Interface,
 }
 
 // Run implements Interface.  It reads notifications
-// from the policy cache and from the tenant cache,
+// from the policy cache and from the block cache,
 // when either cache chagned re-renders all iptables rules.
 func (a *Enforcer) Run(ctx context.Context) {
 	log.Trace(trace.Public, "Policy enforcer Run()")
@@ -385,7 +378,7 @@ func renderIPtables(policyCache policycache.Interface, hostname string, blocks [
 	}
 
 	makeBase(&iptables)
-	makePolicies(policyCache, hostname, blocks, &iptables)
+	makePolicies(policyCache.List(), hostname, blocks, &iptables)
 
 	return &iptables
 }
@@ -401,118 +394,38 @@ func makeBase(iptables *iptsave.IPtables) {
 }
 
 // makePolicies populates policy related rules into the iptables.
-// TODO need to avoid rendering policies for which there is no targets on the host.
-func makePolicies(policyCache policycache.Interface, hostname string, blocks []api.IPAMBlockResponse, iptables *iptsave.IPtables) {
+func makePolicies(policies []api.Policy, hostname string, blocks []api.IPAMBlockResponse, iptables *iptsave.IPtables) {
 	log.Trace(trace.Private, "Policy enforcer in makePolicies()")
 
-	// For now our policies only exist in a filter tables so we don't care
-	// for other tables.
-	// TODO makePolicyRules checks for *filter inside
-	// filter := iptables.TableByName("filter")
-
-	policies := policyCache.List()
-
-	/*
-		for _, policy := range policies {
-			_ = makePolicyRules(policy, SchemePolicyOnTop, blocks, iptables)
-		}
-	*/
-
-	/*begin policy iterator version*/
+	// iterator iterates over each combination of
+	// policy * target * peer * rule.
 	iterator := PolicyIterator{policies: policies}
 	for iterator.Next() {
 		policy, target, peer, rule := iterator.Items()
 
-		if !targetValid(*target, blocks) {
-			log.Debugf("Target %s skipped for policy %s as invalid for the host", *target, policy.ID)
+		// skip rules which don't have a valid target.
+		// TODO filter blocks by current host to avoid unnecessary rules.
+		if !targetValid(target, blocks) {
+			log.Debugf("Target %s skipped for policy %s as invalid for the host", target, policy.ID)
 			continue
 		}
-		err := makePolicyRuleInDirection(
-			*policy,
+
+		// translates singe romana policy Rule into iptables chains.
+		err := translateRule(
+			policy,
 			SchemePolicyOnTop,
-			*peer,
-			*target,
-			*rule,
+			peer,
+			target,
+			rule,
 			policy.Direction,
 			iptables,
 		)
+
 		if err != nil {
 			log.Errorf("Error appying %s policy to target %v and peer %v with rule %v, err=%s", policy.Direction, target, peer, rule, err)
 		}
 
 	}
-	/*end policies iterator version*/
-
-}
-
-type PolicyIterator struct {
-	policies   []api.Policy
-	policyIdx  int
-	targetIdx  int
-	ingressIdx int
-	peerIdx    int
-	ruleIdx    int
-	started    bool
-}
-
-func (i PolicyIterator) Next() bool {
-	if !i.started {
-		i.started = true
-		return true
-	}
-
-	policy, _, ingress, _, _ := i.items()
-
-	if i.ruleIdx < len(ingress.Rules)-1 {
-		i.ruleIdx += 1
-		return true
-	}
-
-	if i.peerIdx < len(ingress.Peers)-1 {
-		i.peerIdx += 1
-		i.ruleIdx = 0
-		return true
-	}
-
-	if i.ingressIdx < len(policy.Ingress)-1 {
-		i.ingressIdx += 1
-		i.ruleIdx = 0
-		i.peerIdx = 0
-		return true
-	}
-
-	if i.targetIdx < len(policy.AppliedTo)-1 {
-		i.targetIdx += 1
-		i.ingressIdx = 0
-		i.ruleIdx = 0
-		i.peerIdx = 0
-		return true
-	}
-
-	if i.policyIdx < len(i.policies)-1 {
-		i.policyIdx += 1
-		i.targetIdx = 0
-		i.ingressIdx = 0
-		i.ruleIdx = 0
-		i.peerIdx = 0
-		return true
-	}
-
-	return false
-}
-
-func (i PolicyIterator) Items() (*api.Policy, *api.Endpoint, *api.Endpoint, *api.Rule) {
-	policy, target, _, peer, rule := i.items()
-	return policy, target, peer, rule
-}
-
-func (i PolicyIterator) items() (*api.Policy, *api.Endpoint, *api.RomanaIngress, *api.Endpoint, *api.Rule) {
-	policy := i.policies[i.policyIdx]
-	target := policy.AppliedTo[i.targetIdx]
-	ingress := policy.Ingress[i.ingressIdx]
-	peer := policy.Ingress[i.ingressIdx].Peers[i.peerIdx]
-	rule := policy.Ingress[i.ingressIdx].Rules[i.ruleIdx]
-	return &policy, &target, &ingress, &peer, &rule
 }
 
 func cleanupUnusedChains(iptables *iptsave.IPtables, exec utilexec.Executable) {
@@ -609,14 +522,11 @@ func EnsureRules(baseChain *iptsave.IPchain, rules []*iptsave.IPrule) {
 	}
 }
 
-func rules2list(rules ...*iptsave.IPrule) (result []*iptsave.IPrule) {
-	for _, r := range rules {
-		result = append(result, r)
-	}
-	return
+func rules2list(rules ...*iptsave.IPrule) []*iptsave.IPrule {
+	return rules
 }
 
-func makePolicyRuleInDirection(policy api.Policy,
+func translateRule(policy api.Policy,
 	iptablesSchemeType string,
 	peer, target api.Endpoint,
 	rule api.Rule,
@@ -679,52 +589,6 @@ func makePolicyRuleInDirection(policy api.Policy,
 	EnsureRules(fourthBaseChain, fourthRules)
 
 	log.Debug("makePolicyRuleInDirection #3")
-	return nil
-}
-
-func makePolicyRules(policy api.Policy, iptablesSchemeType string, blocks []api.IPAMBlockResponse, iptables *iptsave.IPtables) error {
-	log.Debugf("in makePolicyRules with %+v", policy)
-	for _, target := range policy.AppliedTo {
-		for _, ingress := range policy.Ingress {
-			for _, peer := range ingress.Peers {
-				for _, rule := range ingress.Rules {
-					if !targetValid(target, blocks) {
-						log.Debugf("Target %s skipped for policy %s as invalid for the host", target, policy.ID)
-						continue
-					}
-					err := makePolicyRuleInDirection(
-						policy,
-						iptablesSchemeType,
-						peer,
-						target,
-						rule,
-						policy.Direction,
-						iptables,
-					)
-					if err != nil {
-						log.Errorf("Error appying %s policy to target %v and peer %v with rule %v, err=%s", policy.Direction, target, peer, rule, err)
-					}
-				}
-			}
-		}
-		/* Egress via dedicated field
-		for _, egress := range policy.Egress {
-			for _, peer := range egress.Peers {
-				for _, rule := range egress.Rules {
-					_ = makePolicyRuleInDirection(
-						policy,
-						iptablesSchemeType,
-						peer,
-						target,
-						rule,
-						api.PolicyDirectionEgress,
-						iptables,
-					)
-				}
-			}
-		}
-		*/
-	}
 	return nil
 }
 
