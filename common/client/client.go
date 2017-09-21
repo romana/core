@@ -1,6 +1,7 @@
 package client
 
 import (
+	"fmt"
 	"io/ioutil"
 	"sync"
 
@@ -310,7 +311,7 @@ func (c *Client) initIpamTransaction(initialTopologyFile *string) (sync.Locker, 
 	}
 	if ipamExists {
 		if initialTopologyFile != nil && *initialTopologyFile != "" {
-			log.Infof("Ignoring initial topology file %s as IPAM already exists", initialTopologyFile)
+			log.Infof("Ignoring initial topology file %s as IPAM already exists", *initialTopologyFile)
 		}
 		// Load if exists
 		log.Infof("Loading IPAM data from %s", c.Store.getKey(ipamDataKey))
@@ -327,22 +328,31 @@ func (c *Client) initIpamTransaction(initialTopologyFile *string) (sync.Locker, 
 		// If does not exist -- initialize with initial topology.
 
 		log.Infof("No IPAM data found at %s, initializing", c.Store.getKey(ipamDataKey))
-		c.IPAM, err = NewIPAM(c.save, c.ipamLocker)
-		if err != nil {
-			return nil, err
-		}
 		if initialTopologyFile != nil && *initialTopologyFile != "" {
 			topoData, err := ioutil.ReadFile(*initialTopologyFile)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("error reading %s: %s", *initialTopologyFile, err)
 			}
 			topoReq := &api.TopologyUpdateRequest{}
-			json.Unmarshal(topoData, topoReq)
+			err = json.Unmarshal(topoData, topoReq)
+			if err != nil {
+				return nil, fmt.Errorf("error processing %s: %s", *initialTopologyFile, err)
+			}
+			c.IPAM, err = NewIPAM(c.save, c.ipamLocker)
+			if err != nil {
+				return nil, err
+			}
 			err = c.IPAM.UpdateTopology(*topoReq)
 			if err != nil {
 				return nil, err
 			}
+		} else {
+			c.IPAM, err = NewIPAM(c.save, c.ipamLocker)
+			if err != nil {
+				return nil, err
+			}
 		}
+
 		err = c.save(c.IPAM)
 		if err != nil {
 			return nil, err

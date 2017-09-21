@@ -322,7 +322,7 @@ func (hg *Group) allocateIP(network *Network, hostName string, owner string) net
 		}
 		log.Tracef(trace.Inside, "All blocks on network %s for owner %s and host %s are exhausted, will try to reuse a block", network.Name, owner, hostName)
 	} else {
-		log.Tracef(trace.Inside, "Network %s has no blocks for owner %s, will try to reuse a block", network.Name, owner)
+		log.Tracef(trace.Inside, "Network %s has no blocks for owner <%s>, will try to reuse a block", network.Name, owner)
 	}
 	// If we are here then all blocks are exhausted. Need to allocate a new block.
 	// First let's see if there are blocks on this group to be reused.
@@ -339,7 +339,7 @@ func (hg *Group) allocateIP(network *Network, hostName string, owner string) net
 			return ip
 		}
 	}
-	log.Tracef(trace.Inside, "Network %s has no blocks to reuse for %s, creating new block", network.Name, owner)
+	log.Tracef(trace.Inside, "Network %s has no blocks to reuse for <%s>, creating new block", network.Name, owner)
 
 	for {
 		var newBlockStartIPInt uint64
@@ -519,17 +519,20 @@ func (hg *Group) findHostByIP(ip string) *Host {
 }
 
 func (hg *Group) findHostByName(name string) *Host {
-	for _, h := range hg.Hosts {
-		if h.Name == name {
-			return h
+	if hg.Hosts != nil {
+		for _, h := range hg.Hosts {
+			if h.Name == name {
+				return h
+			}
 		}
 	}
-	for _, group := range hg.Groups {
-		h := group.findHostByName(name)
-		if h != nil {
-			return h
+	if hg.Groups != nil {
+		for _, group := range hg.Groups {
+			h := group.findHostByName(name)
+			if h != nil {
+				return h
+			}
 		}
-		//	return group.findHostByName(name)
 	}
 	return nil
 }
@@ -873,6 +876,9 @@ func (network *Network) deallocateIP(ip net.IP) error {
 // if not, reuse a block that belongs to no tenant. Finally, it will try to allocate a
 // new block.
 func (network *Network) allocateIP(hostName string, owner string) (net.IP, error) {
+	if network.Group == nil {
+		return nil, nil
+	}
 	host := network.Group.findHostByName(hostName)
 	if host == nil {
 		return nil, errors.NewRomanaNotFoundError(fmt.Sprintf("Host %s not found", hostName),
@@ -1035,17 +1041,27 @@ func (ipam *IPAM) AllocateIP(addressName string, host string, tenant string, seg
 
 	owner := makeOwner(tenant, segment)
 	for _, network := range networksForTenant {
+		log.Tracef(trace.Inside, "Trying to allocate IP for host %s on network %s.", host, network.Name)
 		ip, err := network.allocateIP(host, owner)
-
 		if err != nil {
-			return nil, err
+			switch err := err.(type) {
+			case errors.RomanaNotFoundError:
+				if err.Type == "host" {
+					// This is for when the host is not within the currently examined network.
+					// In such a case, we should just carry on examining other networks.
+					// Any other error so far is a legitimate error and we fail fast.
+					log.Infof("Network %s does not have host %s defined, skipping.", network.Name, host)
+					continue
+				} else {
+					return nil, err
+				}
+			default:
+				return nil, err
+			}
 		}
+
 		if ip != nil {
 			ipam.AddressNameToIP[addressName] = ip
-
-			//			ipam.OwnerToIP[owner] = append(ipam.OwnerToIP[owner], ip)
-			//			ipam.IPToOwner[ip] = owner
-
 			ipam.AllocationRevision++
 			log.Tracef(trace.Inside, "Updated AllocationRevision to %d", ipam.AllocationRevision)
 			err = ipam.save(ipam)
