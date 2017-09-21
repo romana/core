@@ -21,7 +21,6 @@ import (
 	"strings"
 
 	utilexec "github.com/romana/core/agent/exec"
-	"github.com/romana/core/agent/firewall"
 	"github.com/romana/core/agent/iptsave"
 	"github.com/romana/core/agent/policy/hasher"
 	"github.com/romana/core/common/api"
@@ -34,55 +33,6 @@ var (
 	IptablesSaveBin    string
 	IptablesRestoreBin string
 )
-
-// MakeIngressTenantJumpRule makes a rule to send traffic from romana ingress chain
-// into a tenant specific chain.
-// -A ROMANA-FORWARD-IN -m u32 --u32 "0x10&0xff00f000=0xa002000" -j ROMANA-FW-T2
-func MakeIngressTenantJumpRule(tenant api.Tenant, netConfig firewall.NetConfig) *iptsave.IPrule {
-
-	//	romanaCidr, _ := netConfig.PNetCIDR()
-	//	u32TenantMatch := u32.New(netConfig).MatchNetId(u32.IPNETtoUint(romanaCidr)).MatchTenantId(tenant.ID).MatchDst()
-	//	tenantChainName := MakeTenantIngressChainName(tenant)
-	//
-	//	rule := iptsave.IPrule{
-	//		Match: []*iptsave.Match{
-	//			&iptsave.Match{
-	//				Body: fmt.Sprintf("-m u32 --u32 \"%s\"", u32TenantMatch),
-	//			},
-	//		},
-	//		Action: iptsave.IPtablesAction{
-	//			Type: iptsave.ActionOther,
-	//			Body: tenantChainName,
-	//		},
-	//	}
-	//
-	//	return &rule
-	return nil
-}
-
-// MakeSegmentPolicyJumpRule makes a rule to send traffic from tenant specific chain
-// into a segment specific chain.
-// -A ROMANA-FW-T2 -m u32 --u32 "0x10&0xff00ff00=0xa002000" -j ROMANA-T2-S0
-func MakeSegmentPolicyJumpRule(tenant api.Tenant, segment api.Segment, netConfig firewall.NetConfig) *iptsave.IPrule {
-	//	romanaCidr, _ := netConfig.PNetCIDR()
-	//	u32SegmentMatch := u32.New(netConfig).MatchNetId(u32.IPNETtoUint(romanaCidr)).MatchTenantId(uint(tenant.NetworkID)).MatchSegmentId(uint(segment.NetworkID)).MatchDst()
-	//	segmentChainName := MakeSegmentPolicyChainName(tenant.NetworkID, segment.NetworkID)
-	//
-	//	rule := iptsave.IPrule{
-	//		Match: []*iptsave.Match{
-	//			&iptsave.Match{
-	//				Body: fmt.Sprintf("-m u32 --u32 \"%s\"", u32SegmentMatch),
-	//			},
-	//		},
-	//		Action: iptsave.IPtablesAction{
-	//			Type: iptsave.ActionOther,
-	//			Body: segmentChainName,
-	//		},
-	//	}
-	//
-	//	return &rule
-	return nil
-}
 
 // InsertNormalRule discovers position in a chain just above all DROP and RETURN
 // rules. Useful for the rules other then default drops and chain terminators.
@@ -98,18 +48,6 @@ func InsertNormalRule(chain *iptsave.IPchain, rule *iptsave.IPrule) {
 	}
 
 	chain.InsertRule(normalIndex, rule)
-}
-
-// MakeTenantIngressChainName returns the name of iptables chain
-// that holds ingress rules for specific romana tenant.
-func MakeTenantIngressChainName(tenant api.Tenant) string {
-	return fmt.Sprintf("ROMANA-FW-T%s", tenant.ID)
-}
-
-// MakeSegmentPolicyChainName returns the name of iptables chain
-// that holds policies for specific tenant's segment.
-func MakeSegmentPolicyChainName(tenantID string, segmentID string) string {
-	return fmt.Sprintf("ROMANA-T%s-S%s", tenantID, segmentID)
 }
 
 // EnsureChainExists ensures that IPchain exists in IPtable.
@@ -142,12 +80,6 @@ func MakePolicyChainFooterRule() *iptsave.IPrule {
 	return &rule
 }
 
-// MakeTenantWideIngressChainName returns a name for iptables chain that hosts
-// policies that are applied to entire tenant.
-func MakeTenantWideIngressChainName(tenantID string) string {
-	return fmt.Sprintf("ROMANA-T%s-W", tenantID)
-}
-
 // MakeConntrackEstablishedRule returns a rule that usually sits on top of a
 // certan chain and accepts TCP packets known to iptables conntrack module.
 func MakeConntrackEstablishedRule() *iptsave.IPrule {
@@ -176,12 +108,6 @@ func MakeSimpleJumpRule(target string) *iptsave.IPrule {
 		},
 	}
 	return &rule
-}
-
-// MakeTenantWidePolicyJumpRule returns a rule that jumps into the iptables
-// chain that hosts policies for the entire tenant.
-func MakeTenantWidePolicyJumpRule(tenant api.Tenant) *iptsave.IPrule {
-	return MakeSimpleJumpRule(MakeTenantWideIngressChainName(tenant.ID))
 }
 
 // MakeOperatorPolicyChainName returns the name for iptables chain
@@ -325,45 +251,6 @@ func MakeRomanaPolicyNameSetSrc(policy api.Policy) string {
 
 func MakeRomanaPolicyNameSetDst(policy api.Policy) string {
 	return fmt.Sprintf("%s_d", MakeRomanaPolicyName(policy))
-}
-
-// MakeRomanaPolicyIngressName returns the name of iptables chain that hosts
-// one ingress field of a policy.
-/*
-func MakeRomanaPolicyIngressName(policy api.Policy, idx int) string {
-	return fmt.Sprintf("ROMANA-P-%s-IN_%d", policy.ID, idx)
-}
-*/
-
-// MakePolicyIngressJump makes jump rule from policy into policy ingress chain.
-func MakePolicyIngressJump(peer api.Endpoint, targetChain string, netConfig firewall.NetConfig) *iptsave.IPrule {
-	// TODO extract NetId from netConfig. Stas
-	if peer.Peer == "any" || peer.Peer == "local" {
-		return MakeRuleWithBody("", targetChain)
-	}
-
-	if peer.Peer == "host" {
-		return MakeRuleWithBody(fmt.Sprintf("-s %s/32", netConfig.RomanaGW()), targetChain)
-	}
-
-	if peer.Cidr != "" {
-		return MakeRuleWithBody(fmt.Sprintf("-s %s", peer.Cidr), targetChain)
-	}
-
-	//	romanaCidr, _ := netConfig.PNetCIDR()
-	if peer.TenantID != "" && peer.SegmentID != "" {
-		panic("Unimplemented")
-		//		u32TenantMatch := u32.New(netConfig).MatchNetId(u32.IPNETtoUint(romanaCidr)).MatchTenantId(uint(*peer.TenantNetworkID)).MatchSegmentId(uint(*peer.SegmentNetworkID)).MatchSrc()
-		//		return MakeRuleWithBody(fmt.Sprintf("-m u32 --u32 \"%s\"", u32TenantMatch), targetChain)
-	}
-
-	if peer.TenantID != "" {
-		panic("Unimplemented")
-		//		u32TenantMatch := u32.New(netConfig).MatchNetId(u32.IPNETtoUint(romanaCidr)).MatchTenantId(uint(*peer.TenantNetworkID)).MatchSrc()
-		//		return MakeRuleWithBody(fmt.Sprintf("-m u32 --u32 \"%s\"", u32TenantMatch), targetChain)
-	}
-
-	panic("Can not render policy ingress")
 }
 
 // MakePolicyRule translates common.Rule into iptsave.IPrule.
