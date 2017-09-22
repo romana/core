@@ -7,6 +7,7 @@ import (
 	"github.com/romana/core/agent/internal/cache/policycache"
 	"github.com/romana/core/agent/iptsave"
 	"github.com/romana/core/common/api"
+	"github.com/romana/core/pkg/policytools"
 	"github.com/romana/ipset"
 )
 
@@ -75,7 +76,7 @@ func TestMakePolicyRules(t *testing.T) {
 	}{
 		{
 			name:   "ingress basic",
-			schema: SchemePolicyOnTop,
+			schema: policytools.SchemePolicyOnTop,
 			policy: api.Policy{
 				ID:        "<TESTPOLICYID>",
 				Direction: api.PolicyDirectionIngress,
@@ -90,7 +91,7 @@ func TestMakePolicyRules(t *testing.T) {
 		},
 		{
 			name:   "egress basic",
-			schema: SchemeTargetOnTop,
+			schema: policytools.SchemeTargetOnTop,
 			policy: api.Policy{
 				ID:        "<TESTPOLICYID>",
 				Direction: api.PolicyDirectionEgress,

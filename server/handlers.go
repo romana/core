@@ -26,6 +26,7 @@ import (
 	"github.com/romana/core/common/api"
 	"github.com/romana/core/common/api/errors"
 	"github.com/romana/core/common/client"
+	"github.com/romana/core/pkg/policytools"
 )
 
 // deallocateIP deallocates IP specified by query parameter
@@ -151,10 +152,11 @@ func (r *Romanad) deletePolicy(input interface{}, ctx common.RestContext) (inter
 			return nil, common.NewError400("Request must either be to /policies/{policy} or have a body.")
 		}
 		policy := input.(*api.Policy)
-		err := policy.Validate()
+		err := policytools.ValidatePolicy(*policy)
 		if err != nil {
-			return nil, err
+			return nil, common.NewUnprocessableEntityError(err.Error())
 		}
+
 		policyID = policy.ID
 	}
 	found, err := r.client.DeletePolicy(policyID)

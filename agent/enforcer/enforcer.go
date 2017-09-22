@@ -18,7 +18,6 @@ package enforcer
 
 import (
 	"context"
-	"fmt"
 	"os/exec"
 	"strings"
 	"time"
@@ -28,10 +27,10 @@ import (
 	"github.com/romana/core/agent/internal/cache/policycache"
 	"github.com/romana/core/agent/internal/controllers/policycontroller"
 	"github.com/romana/core/agent/iptsave"
-	"github.com/romana/core/agent/policy/hasher"
 	"github.com/romana/core/common/api"
 	"github.com/romana/core/common/client"
 	"github.com/romana/core/common/log/trace"
+	"github.com/romana/core/pkg/policytools"
 	"github.com/romana/ipset"
 
 	log "github.com/romana/rlog"
@@ -267,7 +266,7 @@ func makeBlockSets(blocks []api.IPAMBlockResponse, policyCache policycache.Inter
 		// TODO ignore blocks for other hostnames? then what about egress?
 		log.Tracef(5, "Making set for %+v", block)
 
-		segmentSetName := makeTenantSetName(block.Tenant, block.Segment)
+		segmentSetName := policytools.MakeTenantSetName(block.Tenant, block.Segment)
 		segmentSet, _ := ipset.NewSet(segmentSetName, ipset.SetHashNet)
 		err := ipset.SuppressItemExist(sets.AddSet(segmentSet))
 		if err != nil {
@@ -280,7 +279,7 @@ func makeBlockSets(blocks []api.IPAMBlockResponse, policyCache policycache.Inter
 			return nil, err
 		}
 
-		tenantSetName := makeTenantSetName(block.Tenant, "")
+		tenantSetName := policytools.MakeTenantSetName(block.Tenant, "")
 		tenantSet := sets.SetByName(tenantSetName)
 		if tenantSet == nil {
 			tenantSet, _ = ipset.NewSet(tenantSetName, ipset.SetListSet)
@@ -323,19 +322,19 @@ func makeBlockSets(blocks []api.IPAMBlockResponse, policyCache policycache.Inter
 const LocalBlockSetName = "localBlocks"
 
 func makePolicySets(policy api.Policy) (*ipset.Set, *ipset.Set, error) {
-	setSrc, err := ipset.NewSet(MakeRomanaPolicyNameSetSrc(policy), ipset.SetHashNet)
+	setSrc, err := ipset.NewSet(policytools.MakeRomanaPolicyNameSetSrc(policy), ipset.SetHashNet)
 	if err != nil {
 		return setSrc, nil, err
 	}
 
-	setDst, err := ipset.NewSet(MakeRomanaPolicyNameSetDst(policy), ipset.SetHashNet)
+	setDst, err := ipset.NewSet(policytools.MakeRomanaPolicyNameSetDst(policy), ipset.SetHashNet)
 	if err != nil {
 		return setSrc, setDst, err
 	}
 
 	for _, ingress := range policy.Ingress {
 		for _, peer := range ingress.Peers {
-			if peerType := DetectPolicyPeerType(peer); peerType == PeerCIDR {
+			if peerType := policytools.DetectPolicyPeerType(peer); peerType == policytools.PeerCIDR {
 				switch policy.Direction {
 				case api.PolicyDirectionEgress:
 					member, err := ipset.NewMember(peer.Cidr, setDst)
@@ -399,7 +398,12 @@ func makePolicies(policies []api.Policy, hostname string, blocks []api.IPAMBlock
 
 	// iterator iterates over each combination of
 	// policy * target * peer * rule.
-	iterator := PolicyIterator{policies: policies}
+	iterator, err := policytools.NewPolicyIterator(policies)
+	if err != nil {
+		// no policies, nothing to do.
+		return
+	}
+
 	for iterator.Next() {
 		policy, target, peer, rule := iterator.Items()
 
@@ -413,7 +417,7 @@ func makePolicies(policies []api.Policy, hostname string, blocks []api.IPAMBlock
 		// translates singe romana policy Rule into iptables chains.
 		err := translateRule(
 			policy,
-			SchemePolicyOnTop,
+			policytools.SchemePolicyOnTop,
 			peer,
 			target,
 			rule,
@@ -478,42 +482,6 @@ type RuleBlueprint struct {
 
 //go:generate go run internal/gen/main.go -data data/policy.tsv -template templates/blueprint.go_template -out blueprint.go
 
-func makeTenantSetName(tenant, segment string) string {
-	setName := fmt.Sprintf("tenant_%s", tenant)
-	if segment != "" {
-		setName += fmt.Sprintf("_segment_%s", segment)
-	}
-	hash := hasher.HashListOfStrings([]string{setName})
-
-	log.Debugf("In makeTenantSetName(%s, %s) out with %s", tenant, segment, "ROMANA-"+hash[:16])
-	return "ROMANA-" + hash[:16]
-}
-
-func makeSrcTenantMatch(e api.Endpoint) string { return makeTenantMatch(e, "src") }
-func makeDstTenantMatch(e api.Endpoint) string { return makeTenantMatch(e, "dst") }
-func makeTenantMatch(e api.Endpoint, direction string) string {
-	return fmt.Sprintf("-m set --match-set %s %s", makeTenantSetName(e.TenantID, ""), direction)
-}
-
-func makeSrcTenantSegmentMatch(e api.Endpoint) string { return makeTenantSegmentMatch(e, "src") }
-func makeDstTenantSegmentMatch(e api.Endpoint) string { return makeTenantSegmentMatch(e, "dst") }
-func makeTenantSegmentMatch(e api.Endpoint, direction string) string {
-	return fmt.Sprintf("-m set --match-set %s %s", makeTenantSetName(e.TenantID, e.SegmentID), direction)
-}
-
-func makeSrcCIDRMatch(e api.Endpoint) string { return makeCIDRMatch(e, "s") }
-func makeDstCIDRMatch(e api.Endpoint) string { return makeCIDRMatch(e, "d") }
-func makeCIDRMatch(e api.Endpoint, direction string) string {
-	return fmt.Sprintf("-%s %s", direction, e.Cidr)
-}
-
-func matchEndpoint(s string) func(api.Endpoint) string {
-	return func(api.Endpoint) string { return s }
-}
-func matchPolicyString(s string) func(api.Policy) string {
-	return func(api.Policy) string { return s }
-}
-
 func EnsureRules(baseChain *iptsave.IPchain, rules []*iptsave.IPrule) {
 	for _, rule := range rules {
 		if !baseChain.RuleInChain(rule) {
@@ -533,14 +501,14 @@ func translateRule(policy api.Policy,
 	direction string,
 	iptables *iptsave.IPtables) error {
 
-	peerType := DetectPolicyPeerType(peer) // TODO ten/host/local/cidr
-	dstType := DetectPolicyTargetType(target)
+	peerType := policytools.DetectPolicyPeerType(peer) // TODO ten/host/local/cidr
+	dstType := policytools.DetectPolicyTargetType(target)
 
 	log.Debug("makePolicyRuleInDirection #1")
 
-	key := MakeBlueprintKey(direction, iptablesSchemeType, peerType, dstType) // TODO
+	key := policytools.MakeBlueprintKey(direction, iptablesSchemeType, peerType, dstType) // TODO
 
-	translationConfig, ok := blueprints[key]
+	translationConfig, ok := policytools.Blueprints[key]
 	// log.Debugf("makePolicyRuleInDirection with key %s, ok=%t, value=%s", key, ok, translationConfig)
 	if !ok {
 		return errors.New("can't translate ... ")
@@ -548,21 +516,21 @@ func translateRule(policy api.Policy,
 
 	filter := iptables.TableByName("filter")
 
-	baseChain := EnsureChainExists(filter, translationConfig.baseChain)
+	baseChain := EnsureChainExists(filter, translationConfig.BaseChain)
 
 	// jump from base chain to policy chain
-	jumpFromBaseToPolicyRule := MakeRuleWithBody(
-		translationConfig.topRuleMatch(target), translationConfig.topRuleAction(policy),
+	jumpFromBaseToPolicyRule := policytools.MakeRuleWithBody(
+		translationConfig.TopRuleMatch(target), translationConfig.TopRuleAction(policy),
 	)
 
 	EnsureRules(baseChain, rules2list(jumpFromBaseToPolicyRule))
 
-	secondBaseChainName := translationConfig.secondBaseChain(policy)
-	secondRuleMatch := translationConfig.secondRuleMatch(target)
-	secondRuleAction := translationConfig.secondRuleAction(policy)
+	secondBaseChainName := translationConfig.SecondBaseChain(policy)
+	secondRuleMatch := translationConfig.SecondRuleMatch(target)
+	secondRuleAction := translationConfig.SecondRuleAction(policy)
 	if secondBaseChainName != "" && secondRuleMatch != "" && secondRuleAction != "" {
 		secondBaseChain := EnsureChainExists(filter, secondBaseChainName)
-		jumpFromSecondChainToThirdChainRule := MakeRuleWithBody(
+		jumpFromSecondChainToThirdChainRule := policytools.MakeRuleWithBody(
 			secondRuleMatch, secondRuleAction,
 		)
 
@@ -570,21 +538,21 @@ func translateRule(policy api.Policy,
 
 	}
 
-	thirdBaseChainName := translationConfig.thirdBaseChain(policy)
+	thirdBaseChainName := translationConfig.ThirdBaseChain(policy)
 	thirdBaseChain := EnsureChainExists(filter, thirdBaseChainName)
-	thirdRuleMatch := translationConfig.thirdRuleMatch(peer)
-	thirdRuleAction := translationConfig.thirdRuleAction(policy)
+	thirdRuleMatch := translationConfig.ThirdRuleMatch(peer)
+	thirdRuleAction := translationConfig.ThirdRuleAction(policy)
 
-	thirdRule := MakeRuleWithBody(
+	thirdRule := policytools.MakeRuleWithBody(
 		thirdRuleMatch, thirdRuleAction,
 	)
 
 	EnsureRules(thirdBaseChain, rules2list(thirdRule))
 
-	fourthBaseChainName := translationConfig.fourthBaseChain(policy)
+	fourthBaseChainName := translationConfig.FourthBaseChain(policy)
 	fourthBaseChain := EnsureChainExists(filter, fourthBaseChainName)
-	fourthRuleAction := translationConfig.fourthRuleAction
-	fourthRules := translationConfig.fourthRuleMatch(rule, fourthRuleAction)
+	fourthRuleAction := translationConfig.FourthRuleAction
+	fourthRules := translationConfig.FourthRuleMatch(rule, fourthRuleAction)
 
 	EnsureRules(fourthBaseChain, fourthRules)
 
