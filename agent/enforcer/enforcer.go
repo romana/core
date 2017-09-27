@@ -49,8 +49,11 @@ type Enforcer struct {
 	// provides updates about romana policies.
 	policies <-chan api.Policy
 
-	// updates about romana blocks
-	blocks <-chan api.IPAMBlocksResponse
+	// updates about romana blocksChannel
+	blocksChannel <-chan api.IPAMBlocksResponse
+
+	// blocks
+	blocks api.IPAMBlocksResponse
 
 	// name of a current host.
 	hostname string
@@ -77,7 +80,8 @@ type Enforcer struct {
 // New returns new policy enforcer.
 func New(policy policycache.Interface,
 	policies <-chan api.Policy,
-	blocks <-chan api.IPAMBlocksResponse,
+	blocks api.IPAMBlocksResponse,
+	blocksChannel <-chan api.IPAMBlocksResponse,
 	hostname string,
 	utilexec utilexec.Executable,
 	refreshSeconds int) (Interface, error) {
@@ -95,6 +99,8 @@ func New(policy policycache.Interface,
 	return &Enforcer{
 		policyCache:    policy,
 		policies:       policies,
+		blocks:         blocks,
+		blocksChannel:  blocksChannel,
 		hostname:       hostname,
 		exec:           utilexec,
 		refreshSeconds: refreshSeconds,
@@ -108,6 +114,7 @@ func (a *Enforcer) Run(ctx context.Context) {
 	log.Trace(trace.Public, "Policy enforcer Run()")
 
 	var romanaBlocks []api.IPAMBlockResponse
+	romanaBlocks = a.blocks.Blocks
 
 	iptables := &iptsave.IPtables{}
 	a.ticker = time.NewTicker(time.Duration(a.refreshSeconds) * time.Second)
@@ -158,7 +165,7 @@ func (a *Enforcer) Run(ctx context.Context) {
 				a.policyUpdate = false
 				a.blocksUpdate = false
 
-			case blocksList := <-a.blocks:
+			case blocksList := <-a.blocksChannel:
 				log.Trace(4, "Policy enforcer receives update from cache blocks revision=%d",
 					blocksList.Revision)
 				romanaBlocks = blocksList.Blocks

@@ -157,13 +157,15 @@ func main() {
 			os.Exit(2)
 		}
 
+		blocksList := romanaClient.IPAM.ListAllBlocks()
+
 		// blocks are needed in both, route agent and policy agent
 		// this duplicates blocks channel into the 2 new channels, one
 		// used here for policies and another one passed down for routes.
 		var extraBlocksChannel <-chan api.IPAMBlocksResponse
 		blocksChannel, extraBlocksChannel = fanOut(ctx, blocksChannel)
 
-		enforcer, err := enforcer.New(policyCache, policies, extraBlocksChannel, *hostname, new(utilexec.DefaultExecutor), 10)
+		enforcer, err := enforcer.New(policyCache, policies, *blocksList, extraBlocksChannel, *hostname, new(utilexec.DefaultExecutor), 10)
 		if err != nil {
 			log.Errorf("Failed to create policy enforcer, %s", err)
 			os.Exit(2)
