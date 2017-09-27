@@ -77,7 +77,7 @@ type Enforcer struct {
 }
 
 // New returns new policy enforcer.
-func New(policyCache policycache.Interface,
+func New(policy policycache.Interface,
 	client *client.Client,
 	hostname string,
 	utilexec utilexec.Executable,
@@ -94,7 +94,7 @@ func New(policyCache policycache.Interface,
 	}
 
 	return &Enforcer{
-		policyCache:    policyCache,
+		policyCache:    policy,
 		romanaClient:   client,
 		hostname:       hostname,
 		exec:           utilexec,
