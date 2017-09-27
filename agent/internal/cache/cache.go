@@ -15,6 +15,9 @@ func New() Interface {
 	return Cache{Items: items}
 }
 
+// note: implementation here uses methods on struct
+// instead of pointers because map itself is a pointer.
+
 type Cache struct {
 	Items map[string]interface{}
 	sync.Mutex

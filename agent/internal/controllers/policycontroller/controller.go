@@ -83,7 +83,7 @@ func Run(ctx context.Context, key string, client *client.Client, storage policyc
 				}
 
 				if errp := json.Unmarshal([]byte(value), &p); errp != nil {
-					log.Printf("failed to unmarshal policy %v, err=%s", value, err)
+					log.Printf("failed to unmarshal policy %v, err=%s", value, errp)
 					continue
 				}
 
