@@ -25,10 +25,8 @@ import (
 	"github.com/pkg/errors"
 	utilexec "github.com/romana/core/agent/exec"
 	"github.com/romana/core/agent/internal/cache/policycache"
-	"github.com/romana/core/agent/internal/controllers/policycontroller"
 	"github.com/romana/core/agent/iptsave"
 	"github.com/romana/core/common/api"
-	"github.com/romana/core/common/client"
 	"github.com/romana/core/common/log/trace"
 	"github.com/romana/core/pkg/policytools"
 	"github.com/romana/ipset"
@@ -45,17 +43,17 @@ type Interface interface {
 // Endpoint implements Interface.
 type Enforcer struct {
 
-	// provides updates about romana policies.
+	// provides access to in memeory policy cache.
 	policyCache policycache.Interface
 
-	// client to access romana API.
-	romanaClient *client.Client
+	// provides updates about romana policies.
+	policies <-chan api.Policy
+
+	// updates about romana blocks
+	blocks <-chan api.IPAMBlocksResponse
 
 	// name of a current host.
 	hostname string
-
-	// location of the policies in romana database.
-	policyKey string
 
 	// blocksUpdate holds hash associated with last update of tenant cache.
 	blocksUpdate bool
@@ -78,7 +76,8 @@ type Enforcer struct {
 
 // New returns new policy enforcer.
 func New(policy policycache.Interface,
-	client *client.Client,
+	policies <-chan api.Policy,
+	blocks <-chan api.IPAMBlocksResponse,
 	hostname string,
 	utilexec utilexec.Executable,
 	refreshSeconds int) (Interface, error) {
@@ -95,11 +94,10 @@ func New(policy policycache.Interface,
 
 	return &Enforcer{
 		policyCache:    policy,
-		romanaClient:   client,
+		policies:       policies,
 		hostname:       hostname,
 		exec:           utilexec,
 		refreshSeconds: refreshSeconds,
-		policyKey:      "/romana/policies",
 	}, nil
 }
 
@@ -109,16 +107,7 @@ func New(policy policycache.Interface,
 func (a *Enforcer) Run(ctx context.Context) {
 	log.Trace(trace.Public, "Policy enforcer Run()")
 
-	policies, err := policycontroller.Run(ctx, a.policyKey, a.romanaClient, a.policyCache)
-	if err != nil {
-		panic(err)
-	}
-
 	var romanaBlocks []api.IPAMBlockResponse
-	blocks, err := a.romanaClient.WatchBlocks(ctx.Done())
-	if err != nil {
-		panic(err)
-	}
 
 	iptables := &iptsave.IPtables{}
 	a.ticker = time.NewTicker(time.Duration(a.refreshSeconds) * time.Second)
@@ -146,45 +135,15 @@ func (a *Enforcer) Run(ctx context.Context) {
 
 				sets, err := makeBlockSets(romanaBlocks, a.policyCache, a.hostname)
 				if err != nil {
-					panic(err)
+					log.Errorf("Failed to update ipsets, can't apply Romana policies, %s", err)
+					continue
 				}
 
-				_, err = ipset.Flush(nil)
+				err = updateIpsets(ctx, sets)
 				if err != nil {
-					panic(err)
+					log.Errorf("Failed to update ipsets, can't apply Romana policies, %s", err)
+					continue
 				}
-
-				ipsetHandle, err := ipset.NewHandle()
-				if err != nil {
-					panic(err)
-				}
-
-				err = ipsetHandle.Start()
-				if err != nil {
-					panic(err)
-				}
-
-				err = ipsetHandle.Create(sets)
-				if err != nil {
-					panic(err)
-				}
-
-				err = ipsetHandle.Add(sets)
-				if err != nil {
-					panic(err)
-				}
-
-				err = ipsetHandle.Quit()
-				if err != nil {
-					panic(err)
-				}
-
-				cTimout, _ := context.WithTimeout(ctx, 10*time.Second)
-				err = ipsetHandle.Wait(cTimout)
-				if err != nil {
-					panic(err)
-				}
-
 				iptables = renderIPtables(a.policyCache, a.hostname, romanaBlocks)
 				cleanupUnusedChains(iptables, a.exec)
 				if ValidateIPtables(iptables, a.exec) {
@@ -199,13 +158,13 @@ func (a *Enforcer) Run(ctx context.Context) {
 				a.policyUpdate = false
 				a.blocksUpdate = false
 
-			case blocksList := <-blocks:
+			case blocksList := <-a.blocks:
 				log.Trace(4, "Policy enforcer receives update from cache blocks revision=%d",
 					blocksList.Revision)
 				romanaBlocks = blocksList.Blocks
 				a.blocksUpdate = true
 
-			case <-policies:
+			case <-a.policies:
 				log.Trace(4, "Policy enforcer receives update from policy cache")
 				a.policyUpdate = true
 

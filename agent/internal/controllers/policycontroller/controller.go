@@ -15,7 +15,7 @@ import (
 	"github.com/pkg/errors"
 )
 
-func Run(ctx context.Context, key string, client *client.Client, storage policycache.Interface) (chan api.Policy, error) {
+func Run(ctx context.Context, key string, client *client.Client, storage policycache.Interface) (<-chan api.Policy, error) {
 	policies, err := client.Store.GetExt(key, store.GetOptions{Recursive: true})
 	if err != nil {
 		return nil, errors.Wrap(err, "controller init fail")
