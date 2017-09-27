@@ -310,6 +310,31 @@ func (c *Client) initIPAM(initialTopologyFile *string) error {
 	if err != nil {
 		return err
 	}
+
+	// make sure there is sane data in ipam.
+	if ipamExists {
+		ipamData, err := c.Store.GetString(ipamDataKey, "")
+		if err != nil {
+			log.Printf("error while fetching ipam data: %s", err)
+			return err
+		}
+		log.Printf("ipam data: %s", ipamData)
+		if ipamData == "" {
+			ipamExists = false
+		} else {
+			ipam := &IPAM{}
+			err := json.Unmarshal([]byte(ipamData), ipam)
+			if err != nil {
+				log.Printf("error while un-marshalling ipam data: %s", err)
+				return err
+			}
+			if ipam.AllocationRevision < 1 || ipam.TopologyRevision < 1 {
+				c.Store.Delete(ipamDataKey)
+				ipamExists = false
+			}
+		}
+	}
+
 	if ipamExists {
 		if initialTopologyFile != nil && *initialTopologyFile != "" {
 			log.Infof("Ignoring initial topology file %s as IPAM already exists", *initialTopologyFile)
