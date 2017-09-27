@@ -374,12 +374,11 @@ func makePolicies(policies []api.Policy, hostname string, blocks []api.IPAMBlock
 		policy, target, peer, rule := iterator.Items()
 
 		// skip rules which don't have a valid target.
-		/* disabled due to virtual tenants
+		// TODO filter blocks by current host to avoid unnecessary rules.
 		if !targetValid(target, blocks) {
 			log.Debugf("Target %s skipped for policy %s as invalid for the host", target, policy.ID)
 			continue
 		}
-		*/
 
 		// translates singe romana policy Rule into iptables chains.
 		err := translateRule(
