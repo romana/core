@@ -136,8 +136,7 @@ func (r *Romanad) distributePolicy(policy *api.Policy) error {
 // returns the policy.
 func (r *Romanad) getPolicy(input interface{}, ctx common.RestContext) (interface{}, error) {
 	policyName := ctx.PathVariables["policy"]
-	policy := &api.Policy{}
-	err := r.client.Store.GetObject(client.PoliciesPrefix+policyName, policy)
+	policy, err := r.client.GetPolicy(client.PoliciesPrefix+policyName)
 	if err != nil {
 		return nil, err
 	}

@@ -215,13 +215,23 @@ func (c *Client) WatchHosts(stopCh <-chan struct{}) (<-chan api.HostList, error)
 }
 
 func (c *Client) ListPolicies() ([]api.Policy, error) {
-	objs, err := c.Store.ListObjects(PoliciesPrefix, &api.Policy{})
+	kvps, err := c.Store.ListObjects(PoliciesPrefix)
 	if err != nil {
 		return nil, err
 	}
-	policies := make([]api.Policy, len(objs))
-	for i, obj := range objs {
-		policies[i] = *obj.(*api.Policy)
+	policies := make([]api.Policy, 0, len(kvps))
+	errors := []error{}
+	for i, v := range kvps {
+		p := api.Policy{}
+		err := json.Unmarshal(v.Value, &p)
+		if err != nil {
+			errors = append(errors, fmt.Errorf("error decoding policy %d: %v: %v", i+1, v.Value, err))
+			continue
+		}
+		policies = append(policies, p)
+	}
+	if len(errors) > 0 {
+		return policies, fmt.Errorf("%d decoding errors. %v", len(errors), errors)
 	}
 	return policies, nil
 }
@@ -276,13 +286,28 @@ func (c *Client) ListTenants() []api.Tenant {
 // AddPolicy adds a policy (or modifies it if policy with such ID already
 // exists)
 func (c *Client) AddPolicy(policy api.Policy) error {
-	return c.Store.PutObject(PoliciesPrefix+"/"+policy.ID, policy)
+	b, err := json.Marshal(policy)
+	if err != nil {
+		return err
+	}
+	return c.Store.PutObject(PoliciesPrefix+"/"+policy.ID, b)
 }
 
 // DeletePolicy attempts to delete policy. If the policy does
 // not exist, false is returned, instead of an error.
 func (c *Client) DeletePolicy(id string) (bool, error) {
 	return c.Store.Delete(PoliciesPrefix + "/" + id)
+}
+
+// GetPolicy attempts to retrieve a policy.
+func (c *Client) GetPolicy(id string) (api.Policy, error) {
+	p := api.Policy{}
+	v, err := c.Store.GetObject(id)
+	if err != nil {
+		return p, err
+	}
+	err = json.Unmarshal(v.Value, &p)
+	return p, err
 }
 
 func (c *Client) initIPAM(initialTopologyFile *string) error {
@@ -363,9 +388,9 @@ func (c *Client) initIpamTransaction(initialTopologyFile *string) (sync.Locker, 
 
 // save implements the Saver interface of IPAM.
 func (c *Client) save(ipam *IPAM) error {
-	err := c.Store.PutObject(ipamDataKey, c.IPAM)
+	b, err := json.Marshal(c.IPAM)
 	if err != nil {
 		return err
 	}
-	return nil
+	return c.Store.PutObject(ipamDataKey, b)
 }
