@@ -225,7 +225,7 @@ func (tg *TranslateGroup) makeNextIngressPeer(translator *Translator) error {
 			}
 		}
 
-		romanaIngress.Peers = append(romanaIngress.Peers, sourceEndpoint)
+		tg.romanaPolicy.Ingress[tg.ingressIndex].Peers = append(tg.romanaPolicy.Ingress[tg.ingressIndex].Peers, sourceEndpoint)
 
 	}
 
