@@ -256,6 +256,12 @@ func (tg *TranslateGroup) makeNextRule(translator *Translator) error {
 		tg.romanaPolicy.Ingress[tg.ingressIndex].Rules = append(tg.romanaPolicy.Ingress[tg.ingressIndex].Rules, rule)
 	}
 
+	// treat policy with no rules as policy that targets all traffic.
+	if len(ingress.Ports) == 0 {
+		rule := api.Rule{Protocol: api.Wildcard}
+		tg.romanaPolicy.Ingress[tg.ingressIndex].Rules = append(tg.romanaPolicy.Ingress[tg.ingressIndex].Rules, rule)
+	}
+
 	return nil
 }
 
