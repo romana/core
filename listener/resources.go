@@ -137,6 +137,7 @@ func handleNamespaceEvent(e Event, l *KubeListener) {
 	} else if e.Type == KubeEventDeleted {
 		log.Infof("KubeEventDeleted: deleting default policy for namespace %s (%s)", namespace.GetName(), namespace.GetUID())
 		deleteDefaultPolicy(namespace, l)
+		return
 	}
 
 	// Ignore repeated events during namespace termination
