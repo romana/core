@@ -280,7 +280,7 @@ func CmdDel(args *skel.CmdArgs) error {
 	if netConf.Policy {
 		err := disablePodPolicy(k8sargs.MakeVethName())
 		if err != nil {
-			log.Errorf("Failed to cleanup poliy rules for pod %s, err=%s", k8sargs.MakePodName(), err)
+			log.Errorf("Failed to cleanup policy rules for pod %s, err=%s", k8sargs.MakePodName(), err)
 			return nil
 		}
 		log.Debugf("Deleted pod rules")
