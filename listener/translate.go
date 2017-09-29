@@ -192,7 +192,7 @@ func (tg *TranslateGroup) translateTarget(translator *Translator) error {
 /// makeNextIngressPeer analyzes current Ingress rule and adds new Peer to romanaPolicy.Peers.
 func (tg *TranslateGroup) makeNextIngressPeer(translator *Translator) error {
 	ingress := tg.kubePolicy.Spec.Ingress[tg.ingressIndex]
-	romanaIngress := tg.romanaPolicy.Ingress[tg.ingressIndex]
+	// romanaIngress := tg.romanaPolicy.Ingress[tg.ingressIndex]
 
 	for _, fromEntry := range ingress.From {
 		var sourceEndpoint api.Endpoint
@@ -232,8 +232,12 @@ func (tg *TranslateGroup) makeNextIngressPeer(translator *Translator) error {
 	// kubernetes policy with empty Ingress with empty From field matches traffic
 	// from all sources.
 	if len(ingress.From) == 0 {
-		romanaIngress.Peers = append(romanaIngress.Peers, api.Endpoint{Peer: api.Wildcard})
+		tg.romanaPolicy.Ingress[tg.ingressIndex].Peers = append(tg.romanaPolicy.Ingress[tg.ingressIndex].Peers, api.Endpoint{Peer: api.Wildcard})
+
+		log.Debugf("Translating empty From as Peer:any %v", tg.romanaPolicy.Ingress[tg.ingressIndex].Peers)
 	}
+
+	log.Debugf("Translating From %+v as Peer %+v", ingress.From, tg.romanaPolicy.Ingress[tg.ingressIndex].Peers)
 
 	return nil
 }
