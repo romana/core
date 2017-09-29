@@ -234,10 +234,7 @@ func (tg *TranslateGroup) makeNextIngressPeer(translator *Translator) error {
 	if len(ingress.From) == 0 {
 		tg.romanaPolicy.Ingress[tg.ingressIndex].Peers = append(tg.romanaPolicy.Ingress[tg.ingressIndex].Peers, api.Endpoint{Peer: api.Wildcard})
 
-		log.Debugf("Translating empty From as Peer:any %v", tg.romanaPolicy.Ingress[tg.ingressIndex].Peers)
 	}
-
-	log.Debugf("Translating From %+v as Peer %+v", ingress.From, tg.romanaPolicy.Ingress[tg.ingressIndex].Peers)
 
 	return nil
 }
