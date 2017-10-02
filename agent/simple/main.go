@@ -62,12 +62,7 @@ func main() {
 		"id that romana route table should have in /etc/iproute2/rt_tables")
 	multihop := flag.Bool("multihop-blocks", false, "allows multihop blocks")
 	policyEnforcer := flag.Bool("policy", false, "enable romana policies")
-	nonProd := flag.Bool("accept-non-prod", false, "allow non production usage")
 	flag.Parse()
-
-	if !*nonProd {
-		panic("This is development code and is not suitable for production, please provide -accept-non-prod flag.")
-	}
 
 	romanaConfig := common.Config{
 		EtcdEndpoints: strings.Split(*etcdEndpoints, ","),
