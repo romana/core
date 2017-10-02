@@ -998,6 +998,9 @@ func (ipam *IPAM) ListHosts() api.HostList {
 	list := make([]api.Host, 0)
 	for _, network := range ipam.Networks {
 		for _, host := range network.Group.ListHosts() {
+			if host.AgentPort == 0 {
+				host.AgentPort = DefaultAgentPort
+			}
 			list = append(list, api.Host{
 				IP:        host.IP,
 				Name:      host.Name,
