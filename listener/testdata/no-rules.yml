@@ -1,0 +1,15 @@
+apiVersion: extensions/v1beta1
+kind: NetworkPolicy
+metadata:
+ name: pol1
+ namespace: tenant-a
+spec:
+ podSelector:
+  matchLabels:
+   romana.io/segment: backend
+ ingress:
+ - from:
+   - podSelector:
+      matchLabels:
+       romana.io/segment: frontend
+   ports:

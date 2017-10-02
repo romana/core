@@ -120,12 +120,6 @@ func CmdAdd(args *skel.CmdArgs) error {
 	}
 
 	// Networking setup
-	/* replaced with static for now
-	gwAddr, err := GetRomanaGwAddr()
-	if err != nil {
-		return fmt.Errorf("Failed to detect ipv4 address on romana-gw interface, err=(%s)", err)
-	}
-	*/
 	gwAddr := &net.IPNet{IP: net.ParseIP("172.142.0.1"), Mask: net.IPMask([]byte{0xff, 0xff, 0xff, 0xff})}
 
 	netns, err := ns.GetNS(args.Netns)
@@ -209,13 +203,6 @@ func CmdAdd(args *skel.CmdArgs) error {
 		return err
 	}
 
-	/* disabled for pre-2.0
-	err = NotifyAgent(podAddress, hostIface.Name, NotifyPodUp)
-	if err != nil {
-		return err
-	}
-	*/
-
 	result := &current.Result{
 		IPs: []*current.IPConfig{
 			&current.IPConfig{
@@ -228,6 +215,15 @@ func CmdAdd(args *skel.CmdArgs) error {
 
 	result.Interfaces = []*current.Interface{hostIface}
 
+	if netConf.Policy {
+		err := enablePodPolicy(k8sargs.MakeVethName())
+		if err != nil {
+			log.Errorf("Failed to hook pod %s to Romana policy, err=%s", k8sargs.MakePodName(), err)
+			return err
+		}
+		log.Debugf("Pod rules created")
+	}
+
 	deallocateOnExit = false
 	return types.PrintResult(result, cniVersion)
 }
@@ -235,12 +231,17 @@ func CmdAdd(args *skel.CmdArgs) error {
 // cmdDel is a callback functions that gets called by skel.PluginMain
 // in response to DEL method.
 func CmdDel(args *skel.CmdArgs) error {
+	// It only make sense to report retriable errors
+	// back to kubernetes when deleting a pod
+	// otherwise it will be stuck in deallocation loop forever.
 	var err error
+
 	// netConf stores Romana related config
 	// that comes form stdin.
 	netConf, err := loadConf(args.StdinData)
 	if err != nil {
-		return err
+		log.Errorf("Pod deletion failed, can't load CNI config, %s", err)
+		return nil
 	}
 
 	// LoadArgs parses kubernetes related parameters from CNI
@@ -248,12 +249,14 @@ func CmdDel(args *skel.CmdArgs) error {
 	k8sargs := K8sArgs{}
 	err = types.LoadArgs(args.Args, &k8sargs)
 	if err != nil {
-		return err
+		log.Errorf("Pod deletion failed, can't parse kubernetes arguments, %s", err)
+		return nil
 	}
 
 	romanaClient, locker, err := MakeRomanaClient(netConf)
 	if err != nil {
-		return err
+		log.Errorf("Pod %s deletion failed, can't make romana client, %s", k8sargs.MakePodName(), err)
+		return nil
 	}
 	startTime := time.Now()
 	defer func() {
@@ -264,20 +267,24 @@ func CmdDel(args *skel.CmdArgs) error {
 
 	deallocator, err := NewRomanaAddressManager(DefaultProvider)
 	if err != nil {
-		return err
+		log.Errorf("Pod %s deletion failed, can't deallocate ip address, %s", k8sargs.MakePodName(), err)
+		return nil
 	}
 
 	err = deallocator.Deallocate(*netConf, romanaClient, k8sargs.MakePodName())
 	if err != nil {
 		return fmt.Errorf("Failed to tear down pod network for %s, err=(%s)", k8sargs.MakePodName(), err)
+		return nil
 	}
 
-	/* disabled for pre-2.0
-	err = NotifyAgent(nil, k8sargs.MakeVethName(), NotifyPodDown)
-	if err != nil {
-		return err
+	if netConf.Policy {
+		err := disablePodPolicy(k8sargs.MakeVethName())
+		if err != nil {
+			log.Errorf("Failed to cleanup policy rules for pod %s, err=%s", k8sargs.MakePodName(), err)
+			return nil
+		}
+		log.Debugf("Deleted pod rules")
 	}
-	*/
 
 	return nil
 }

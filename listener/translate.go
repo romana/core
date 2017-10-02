@@ -160,14 +160,15 @@ const TranslateGroupStartIndex = 0
 // translateTarget analizes kubePolicy and fills romanaPolicy.AppliedTo field.
 func (tg *TranslateGroup) translateTarget(translator *Translator) error {
 
+	var targetEndpoint api.Endpoint
+
 	// Translate kubernetes namespace into romana tenant. Must be defined.
 	tenantID := GetTenantIDFromNamespaceName(tg.kubePolicy.ObjectMeta.Namespace)
+	targetEndpoint.TenantID = tenantID
 
 	// Empty PodSelector means policy applied to the entire namespace.
 	if len(tg.kubePolicy.Spec.PodSelector.MatchLabels) == 0 {
-		tg.romanaPolicy.AppliedTo = []api.Endpoint{
-			api.Endpoint{TenantID: tenantID},
-		}
+		tg.romanaPolicy.AppliedTo = []api.Endpoint{targetEndpoint}
 
 		log.Tracef(trace.Inside, "Segment was not specified in policy %v, assuming target is a namespace", tg.kubePolicy)
 		return nil
@@ -176,14 +177,14 @@ func (tg *TranslateGroup) translateTarget(translator *Translator) error {
 	// If PodSelector is not empty then segment label must be defined.
 	kubeSegmentID, ok := tg.kubePolicy.Spec.PodSelector.MatchLabels[translator.segmentLabelName]
 	if !ok || kubeSegmentID == "" {
-		log.Errorf("Expected segment to be specified in podSelector part as %s", translator.segmentLabelName)
-		return common.NewError("Expected segment to be specified in podSelector part as '%s'", translator.segmentLabelName)
+		tg.romanaPolicy.AppliedTo = []api.Endpoint{targetEndpoint}
+		log.Tracef(trace.Inside, "Segment was not specified in policy %v, assuming target is a namespace", tg.kubePolicy)
+		return nil
 	}
 
-	tg.romanaPolicy.AppliedTo = []api.Endpoint{
-		api.Endpoint{TenantID: tenantID,
-			SegmentID: kubeSegmentID},
-	}
+	targetEndpoint.SegmentID = kubeSegmentID
+
+	tg.romanaPolicy.AppliedTo = []api.Endpoint{targetEndpoint}
 
 	return nil
 }
@@ -191,16 +192,10 @@ func (tg *TranslateGroup) translateTarget(translator *Translator) error {
 /// makeNextIngressPeer analyzes current Ingress rule and adds new Peer to romanaPolicy.Peers.
 func (tg *TranslateGroup) makeNextIngressPeer(translator *Translator) error {
 	ingress := tg.kubePolicy.Spec.Ingress[tg.ingressIndex]
+	// romanaIngress := tg.romanaPolicy.Ingress[tg.ingressIndex]
 
 	for _, fromEntry := range ingress.From {
-		// Exactly one of From.PodSelector or From.NamespaceSelector must be specified.
-		if fromEntry.PodSelector == nil && fromEntry.NamespaceSelector == nil {
-			log.Errorf("Either PodSElector or NamespacesSelector must be specified")
-			return common.NewError("Either PodSElector or NamespacesSelector must be specified")
-		} else if fromEntry.PodSelector != nil && fromEntry.NamespaceSelector != nil {
-			log.Errorf("Exactly one of PodSElector or NamespacesSelector must be specified")
-			return common.NewError("Exactly on of PodSElector or NamespacesSelector must be specified")
-		}
+		var sourceEndpoint api.Endpoint
 
 		// This ingress field matching a namespace which will be our source tenant.
 		if fromEntry.NamespaceSelector != nil {
@@ -210,38 +205,37 @@ func (tg *TranslateGroup) makeNextIngressPeer(translator *Translator) error {
 				return common.NewError("Expected tenant name to be specified in NamespaceSelector field with a key %s", translator.tenantLabelName)
 			}
 
-			// Found a source tenant, let's register it as romana Peeer.
-			tg.romanaPolicy.Ingress[tg.ingressIndex].Peers = append(tg.romanaPolicy.Ingress[tg.ingressIndex].Peers,
-				api.Endpoint{TenantID: tenantID})
+			// Found a source tenant, let's register it as romana Peer.
+			sourceEndpoint.TenantID = tenantID
 		}
 
-		// This ingress field matches a segment and source tenant is a same as target tenant.
+		// if source tenant not specified assume same as target tenant.
+		if sourceEndpoint.TenantID == "" {
+			sourceEndpoint.TenantID = GetTenantIDFromNamespaceName(tg.kubePolicy.ObjectMeta.Namespace)
+		}
+
+		// This ingress field matches a either one segment or all segments.
 		if fromEntry.PodSelector != nil {
-			tenantID := GetTenantIDFromNamespaceName(tg.kubePolicy.ObjectMeta.Namespace)
-
-			// If podSelector is empty match all traffic from the tenant.
-			if len(fromEntry.PodSelector.MatchLabels) == 0 {
-				tg.romanaPolicy.Ingress[tg.ingressIndex].Peers = append(tg.romanaPolicy.Ingress[tg.ingressIndex].Peers,
-					api.Endpoint{TenantID: tenantID})
-
-				log.Tracef(trace.Inside, "No segment specified when translating ingress rule %v", tg.kubePolicy.Spec.Ingress[tg.ingressIndex])
-				return nil
-			}
 
 			// Get segment name from podSelector.
 			kubeSegmentID, ok := fromEntry.PodSelector.MatchLabels[translator.segmentLabelName]
-			if !ok || kubeSegmentID == "" {
-				log.Errorf("Expected segment to be specified in podSelector part as %s", translator.segmentLabelName)
-				return common.NewError("Expected segment to be specified in podSelector part as '%s'", translator.segmentLabelName)
+			if ok {
+				// Register source tenant/segment as a romana Peer.
+				sourceEndpoint.SegmentID = kubeSegmentID
 			}
-
-			// Register source tenant/segment as a romana Peer.
-			tg.romanaPolicy.Ingress[tg.ingressIndex].Peers = append(tg.romanaPolicy.Ingress[tg.ingressIndex].Peers,
-				api.Endpoint{TenantID: tenantID,
-					SegmentID: kubeSegmentID})
 		}
 
+		tg.romanaPolicy.Ingress[tg.ingressIndex].Peers = append(tg.romanaPolicy.Ingress[tg.ingressIndex].Peers, sourceEndpoint)
+
 	}
+
+	// kubernetes policy with empty Ingress with empty From field matches traffic
+	// from all sources.
+	if len(ingress.From) == 0 {
+		tg.romanaPolicy.Ingress[tg.ingressIndex].Peers = append(tg.romanaPolicy.Ingress[tg.ingressIndex].Peers, api.Endpoint{Peer: api.Wildcard})
+
+	}
+
 	return nil
 }
 
@@ -253,6 +247,12 @@ func (tg *TranslateGroup) makeNextRule(translator *Translator) error {
 		proto := strings.ToLower(string(*toPort.Protocol))
 		ports := []uint{uint(toPort.Port.IntValue())}
 		rule := api.Rule{Protocol: proto, Ports: ports}
+		tg.romanaPolicy.Ingress[tg.ingressIndex].Rules = append(tg.romanaPolicy.Ingress[tg.ingressIndex].Rules, rule)
+	}
+
+	// treat policy with no rules as policy that targets all traffic.
+	if len(ingress.Ports) == 0 {
+		rule := api.Rule{Protocol: api.Wildcard}
 		tg.romanaPolicy.Ingress[tg.ingressIndex].Rules = append(tg.romanaPolicy.Ingress[tg.ingressIndex].Rules, rule)
 	}
 

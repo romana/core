@@ -16,7 +16,6 @@
 package client
 
 import (
-	"encoding/json"
 	"strconv"
 	"strings"
 	"sync"
@@ -94,14 +93,10 @@ func (s *Store) Exists(key string) (bool, error) {
 	return s.Store.Exists(s.getKey(key))
 }
 
-func (s *Store) PutObject(key string, v interface{}) error {
+func (s *Store) PutObject(key string, value []byte) error {
 	key = s.getKey(key)
-	b, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-	log.Tracef(trace.Inside, "Saving object under key %s: %s", key, string(b))
-	return s.Store.Put(key, b, nil)
+	log.Tracef(trace.Inside, "Saving object under key %s: %s", key, string(value))
+	return s.Store.Put(key, value, nil)
 }
 
 func (s *Store) Get(key string) (*libkvStore.KVPair, error) {
@@ -119,31 +114,23 @@ func (s *Store) GetBool(key string, defaultValue bool) (bool, error) {
 	return common.ToBool(string(kvp.Value))
 }
 
-func (s *Store) ListObjects(key string, obj interface{}) ([]interface{}, error) {
+func (s *Store) ListObjects(key string) ([]*libkvStore.KVPair, error) {
 	kvps, err := s.Store.List(s.getKey(key))
 	if err != nil {
 		return nil, err
 	}
-	retval := make([]interface{}, len(kvps))
-	for i, kvp := range kvps {
-		err = json.Unmarshal(kvp.Value, obj)
-		if err != nil {
-			return nil, err
-		}
-		retval[i] = obj
-	}
-	return retval, nil
+	return kvps, nil
 }
 
-func (s *Store) GetObject(key string, obj interface{}) error {
+func (s *Store) GetObject(key string) (*libkvStore.KVPair, error) {
 	kvp, err := s.Store.Get(s.getKey(key))
 	if err != nil {
 		if err == libkvStore.ErrKeyNotFound {
-			return nil
+			return nil, nil
 		}
-		return err
+		return nil, err
 	}
-	return json.Unmarshal(kvp.Value, obj)
+	return kvp, nil
 }
 
 func (s *Store) GetString(key string, defaultValue string) (string, error) {

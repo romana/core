@@ -16,11 +16,16 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/romana/core/agent/enforcer"
+	utilexec "github.com/romana/core/agent/exec"
+	"github.com/romana/core/agent/internal/cache/policycache"
+	"github.com/romana/core/agent/internal/controllers/policycontroller"
 	"github.com/romana/core/agent/simple/internal/rtable"
 	"github.com/romana/core/agent/simple/internal/sysctl"
 	"github.com/romana/core/common"
@@ -56,6 +61,7 @@ func main() {
 	romanaRouteTableId := flag.Int("route-table-id", DefaultRouteTableId,
 		"id that romana route table should have in /etc/iproute2/rt_tables")
 	multihop := flag.Bool("multihop-blocks", false, "allows multihop blocks")
+	policyEnforcer := flag.Bool("policy", false, "enable romana policies")
 	flag.Parse()
 
 	romanaConfig := common.Config{
@@ -71,6 +77,9 @@ func main() {
 	}
 
 	romanaClient, err := client.NewClient(&romanaConfig)
+	if err != nil {
+		panic(err)
+	}
 
 	if *provisionIface {
 		err := CreateRomanaGW()
@@ -124,23 +133,49 @@ func main() {
 		os.Exit(2)
 	}
 
-	stopCh := make(chan struct{})
-	defer close(stopCh)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	// blocksChannel := WatchBlocks(ctx, romanaClient)
-	blocksChannel, err := romanaClient.WatchBlocks(stopCh)
+	blocksChannel, err := romanaClient.WatchBlocks(ctx.Done())
+	if err != nil {
+		log.Errorf("Failed to subscribe to Romana blocks updates, %s", err)
+		os.Exit(2)
+	}
+
+	if *policyEnforcer {
+		ctx := context.Background()
+		policyCache := policycache.New()
+		var policyEtdKey = "/romana/policies"
+		policies, err := policycontroller.Run(ctx, policyEtdKey, romanaClient, policyCache)
+		if err != nil {
+			log.Errorf("Failed to start policy controller, %s", err)
+			os.Exit(2)
+		}
+
+		blocksList := romanaClient.IPAM.ListAllBlocks()
+
+		// blocks are needed in both, route agent and policy agent
+		// this duplicates blocks channel into the 2 new channels, one
+		// used here for policies and another one passed down for routes.
+		var extraBlocksChannel <-chan api.IPAMBlocksResponse
+		blocksChannel, extraBlocksChannel = fanOut(ctx, blocksChannel)
+
+		enforcer, err := enforcer.New(policyCache, policies, *blocksList, extraBlocksChannel, *hostname, new(utilexec.DefaultExecutor), 10)
+		if err != nil {
+			log.Errorf("Failed to create policy enforcer, %s", err)
+			os.Exit(2)
+		}
+
+		enforcer.Run(ctx)
+
+	}
+
+	hostsChannel, err := romanaClient.WatchHosts(ctx.Done())
 	if err != nil {
 		log.Errorf("Failed to start watching for blocks, %s", err)
 		os.Exit(2)
 	}
-	// hostsChannel := WatchHosts(ctx, romanaClient)
-	hostsChannel, err := romanaClient.WatchHosts(stopCh)
-	if err != nil {
-		log.Errorf("Failed to start watching for blocks, %s", err)
-		os.Exit(2)
-	}
 
-	// hosts := IpamHosts(romanaClient.ListHosts().Hosts)
 	hosts := IpamHosts{}
 	for {
 		select {
@@ -161,6 +196,31 @@ func main() {
 			hosts = IpamHosts(newHosts.Hosts)
 		}
 	}
+}
+
+// fanOut duplicates data from one channel into 2 identical channels.
+func fanOut(ctx context.Context, in <-chan api.IPAMBlocksResponse) (<-chan api.IPAMBlocksResponse, <-chan api.IPAMBlocksResponse) {
+	out1 := make(chan api.IPAMBlocksResponse, 1)
+	out2 := make(chan api.IPAMBlocksResponse, 1)
+
+	go func() {
+		for {
+			select {
+			case b := <-in:
+				log.Trace(5, "Blocks fan out tick")
+				out1 <- b
+				out2 <- b
+			case <-ctx.Done():
+				close(out1)
+				close(out2)
+				return
+			}
+
+		}
+
+	}()
+
+	return out1, out2
 }
 
 // IpamHosts is a collection of hosts with Get method.
