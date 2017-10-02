@@ -39,6 +39,38 @@ func NewPolicyIterator(policies []api.Policy) (*PolicyIterator, error) {
 		return nil, fmt.Errorf("must have non empty policies list")
 	}
 
+	emptyIngress := func(p api.Policy) bool {
+		return len(p.Ingress) == 0
+	}
+
+	emptyRules := func(p api.Policy) bool {
+		for _, i := range p.Ingress {
+			if len(i.Rules) == 0 {
+				return true
+			}
+		}
+		return false
+	}
+
+	emptyPeers := func(p api.Policy) bool {
+		for _, i := range p.Ingress {
+			if len(i.Peers) == 0 {
+				return true
+			}
+		}
+		return false
+	}
+
+	emptyTargets := func(p api.Policy) bool {
+		return len(p.AppliedTo) == 0
+	}
+
+	for _, p := range policies {
+		if emptyIngress(p) || emptyTargets(p) || emptyPeers(p) || emptyRules(p) {
+			return nil, fmt.Errorf("policy %s has .Ingress .AppliedTo .Peers or .Rules field empty", p)
+		}
+	}
+
 	return &PolicyIterator{policies: policies}, nil
 }
 
