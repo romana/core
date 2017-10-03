@@ -15,10 +15,9 @@ import (
 const (
 	DefaultEtcdPrefix    = "/romana"
 	DefaultEtcdEndpoints = "localhost:2379"
-
-	ipamKey        = "/ipam"
-	ipamDataKey    = ipamKey + "/data"
-	PoliciesPrefix = "/policies"
+	ipamKey              = "/ipam"
+	ipamDataKey          = ipamKey + "/data"
+	PoliciesPrefix       = "/policies"
 )
 
 type Client struct {
@@ -290,6 +289,8 @@ func (c *Client) GetPolicy(id string) (api.Policy, error) {
 }
 
 func (c *Client) initIPAM(initialTopologyFile *string) error {
+	log.Tracef(trace.Inside, "initIPAM(): Entered with %v", initialTopologyFile)
+
 	var err error
 	c.ipamLocker, err = c.Store.NewLocker(ipamKey)
 	if err != nil {
@@ -310,26 +311,29 @@ func (c *Client) initIPAM(initialTopologyFile *string) error {
 	if err != nil {
 		return err
 	}
-
+	log.Infof("IPAM exists at %s: %t", ipamDataKey, ipamExists)
 	// make sure there is sane data in ipam.
 	if ipamExists {
 		ipamData, err := c.Store.GetString(ipamDataKey, "")
 		if err != nil {
-			log.Printf("error while fetching ipam data: %s", err)
+			log.Errorf("Error while fetching ipam data: %s", err)
 			return err
 		}
-		log.Printf("ipam data: %s", ipamData)
+		log.Infof("IPAM data: %s", ipamData)
 		if ipamData == "" {
+			log.Trace(trace.Inside, "Setting ipamExists to false because ipamData = \"\"")
 			ipamExists = false
 		} else {
 			ipam := &IPAM{}
 			err := json.Unmarshal([]byte(ipamData), ipam)
 			if err != nil {
-				log.Printf("error while un-marshalling ipam data: %s", err)
+				log.Errorf("Error while un-marshalling ipam data: %s", err)
 				return err
 			}
-			if ipam.AllocationRevision < 1 || ipam.TopologyRevision < 1 {
+			if ipam.AllocationRevision < 1 && ipam.TopologyRevision < 1 {
+				log.Warnf("Allocation revision: %d, Topology revision %d, deleting", ipam.AllocationRevision, ipam.TopologyRevision)
 				c.Store.Delete(ipamDataKey)
+				log.Trace(trace.Inside, "Setting ipamExists to false because deleted")
 				ipamExists = false
 			}
 		}
@@ -374,12 +378,13 @@ func (c *Client) initIPAM(initialTopologyFile *string) error {
 			if err != nil {
 				return err
 			}
+			log.Infof("Initialized IPAM with %s", *initialTopologyFile)
 		}
 		err = c.save(c.IPAM, ch)
 		if err != nil {
 			return err
 		}
-		log.Infof("Initialized with %s", *initialTopologyFile)
+
 	}
 	return nil
 }

@@ -16,6 +16,9 @@
 package client
 
 import (
+	"bytes"
+	"encoding/json"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -259,27 +262,54 @@ func (s *Store) reconnectingWatcher(key string, stopCh <-chan struct{}, inCh <-c
 type Locker interface {
 	Lock() (<-chan struct{}, error)
 	Unlock()
+	GetOwner() uint64
 }
 
 // storeLocker implements Locker interface using the
 // lock form the backend store.
 type storeLocker struct {
-	key string
+	key   string
+	owner uint64
 	libkvStore.Locker
+}
+
+func getGID() uint64 {
+	b := make([]byte, 64)
+	b = b[:runtime.Stack(b, false)]
+	b = bytes.TrimPrefix(b, []byte("goroutine "))
+	b = b[:bytes.IndexByte(b, ' ')]
+	n, _ := strconv.ParseUint(string(b), 10, 64)
+	return n
+}
+
+func (sl *storeLocker) GetOwner() uint64 {
+	return sl.owner
 }
 
 // Lock implements Lock method of Locker interface.
 func (sl *storeLocker) Lock() (<-chan struct{}, error) {
 	stopChan := make(chan struct{})
-	return sl.Locker.Lock(stopChan)
+	ch, err := sl.Locker.Lock(stopChan)
+	if err == nil {
+		sl.owner = getGID()
+		log.Tracef(trace.Inside, "Got lock for %s (owned by %d)", sl.key, sl.owner)
+	} else {
+		log.Tracef(trace.Inside, "Error getting lock for %s: %s", sl.key, err)
+	}
+	return ch, err
 }
 
 // Unlock implements Unlock method of Locker interface.
 func (sl *storeLocker) Unlock() {
+	prevOwner := sl.owner
+	sl.owner = 0
 	err := sl.Locker.Unlock()
 	if err != nil {
+		sl.owner = prevOwner
 		log.Error(err)
 	}
+
+	log.Tracef(trace.Inside, "Unlocked lock %s (owned by %d)", sl.key, prevOwner)
 }
 
 func (store *Store) NewLocker(name string) (Locker, error) {
@@ -294,6 +324,11 @@ func (store *Store) NewLocker(name string) (Locker, error) {
 // mutexLocker implements Locker interface with a sync.Mutex
 type mutexLocker struct {
 	mutex *sync.Mutex
+	owner uint64
+}
+
+func (ml *mutexLocker) GetOwner() uint64 {
+	return ml.owner
 }
 
 // Lock implements Lock method of Locker interface.
@@ -303,11 +338,13 @@ func (ml *mutexLocker) Lock() (<-chan struct{}, error) {
 		ml.mutex = &sync.Mutex{}
 	}
 	ml.mutex.Lock()
+	ml.owner = getGID()
 	return ch, nil
 }
 
 // Unlock implements Unlock method of Locker interface.
 func (ml *mutexLocker) Unlock() {
+	ml.owner = 0
 	ml.mutex.Unlock()
 }
 

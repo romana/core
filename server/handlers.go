@@ -39,6 +39,12 @@ func (r *Romanad) deallocateIP(input interface{}, ctx common.RestContext) (inter
 
 func (r *Romanad) allocateIP(input interface{}, ctx common.RestContext) (interface{}, error) {
 	req := input.(*api.IPAMAddressRequest)
+	if req.Name == "" {
+		return nil, common.NewError400("Name required")
+	}
+	if req.Host == "" {
+		return nil, common.NewError400("Host required")
+	}
 	retval, err := r.client.IPAM.AllocateIP(req.Name, req.Host, req.Tenant, req.Segment)
 	return retval, errors.RomanaErrorToHTTPError(err)
 }

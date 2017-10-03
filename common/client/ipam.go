@@ -278,7 +278,7 @@ func (hg *Group) findSmallestEligibleGroup(host *Host) *Group {
 }
 
 func (hg *Group) addHost(host *Host) (bool, error) {
-	log.Tracef(trace.Inside, "Calling addHost on %s", hg.Name)
+	log.Tracef(trace.Inside, "Calling addHost(%s) on group %s", host.Name, hg.Name)
 	if hg.findHostByName(host.Name) != nil {
 		return false, errors.NewRomanaExistsError("", *host, "host", fmt.Sprintf("name=%s", host.Name))
 	}
@@ -1032,10 +1032,13 @@ func (ipam *IPAM) GetGroupsForNetwork(netName string) *Group {
 // this tenant/segment pair. Will return nil as IP if the entire
 // network is exhausted.
 func (ipam *IPAM) AllocateIP(addressName string, host string, tenant string, segment string) (net.IP, error) {
+	log.Tracef(trace.Inside, "Entering IPAM.AllocateIP()")
 	ch, err := ipam.locker.Lock()
 	if err != nil {
+		log.Tracef(trace.Inside, "IPAM.AllocateIP: error acquiring a lock")
 		return nil, err
 	}
+	log.Tracef(trace.Inside, "IPAM.AllocateIP: got a lock")
 	defer ipam.locker.Unlock()
 
 	if addr, ok := ipam.AddressNameToIP[addressName]; ok {
@@ -1371,6 +1374,7 @@ func (ipam *IPAM) AddHost(host api.Host) error {
 		}
 		if ok {
 			ipam.TopologyRevision++
+			log.Infof("Added host %s (%s) to network %s", host.Name, host.IP, net.Name)
 			err = ipam.save(ipam, ch)
 			if err != nil {
 				return err
