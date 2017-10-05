@@ -37,6 +37,7 @@ import (
 type Store struct {
 	prefix string
 	libkvStore.Store
+	//	etcdCli *clientv3.Client
 }
 
 func NewStore(etcdEndpoints []string, prefix string) (*Store, error) {
@@ -49,9 +50,19 @@ func NewStore(etcdEndpoints []string, prefix string) (*Store, error) {
 		etcdEndpoints,
 		&libkvStore.Config{},
 	)
+
 	if err != nil {
 		return nil, err
 	}
+
+	// BEGIN EXPERIMENT...
+	//	myStore.etcdCli, err := clientv3.New(clientv3.Config{
+	//		Endpoints: etcdEndpoints,
+	//	})
+	//	if err != nil {
+	//		return nil, err
+	//	}
+	// END EXPERIMENT
 
 	// Test connection
 	_, err = myStore.Exists("test")
@@ -75,7 +86,7 @@ func normalize(key string) string {
 	}
 	normalizedKey := strings.Join(normalizedElts, "/")
 	normalizedKey = "/" + normalizedKey
-	log.Tracef(trace.Inside, "Normalized key %s to %s", key, normalizedKey)
+	//	log.Tracef(trace.Inside, "Normalized key %s to %s", key, normalizedKey)
 	return normalizedKey
 }
 
@@ -115,7 +126,8 @@ func (s *Store) AtomicPut(key string, value Atomizable) error {
 	if err != nil {
 		return err
 	}
-	ok, kvp, err := s.Store.AtomicPut(key, b, value.GetPrevKVPair(), nil)
+	prevVal := value.GetPrevKVPair()
+	ok, kvp, err := s.Store.AtomicPut(key, b, prevVal, nil)
 	if err != nil {
 		return err
 	}
@@ -123,6 +135,11 @@ func (s *Store) AtomicPut(key string, value Atomizable) error {
 		return common.NewError("Could not store value under %s", key)
 	}
 	value.SetPrevKVPair(kvp)
+	prevIdx := uint64(0)
+	if prevVal != nil {
+		prevIdx = prevVal.LastIndex
+	}
+	log.Tracef(trace.Inside, "%d: AtomicPut(): At key %s, went from %d to %d", getGID(), key, prevIdx, kvp.LastIndex)
 	return nil
 }
 
@@ -215,7 +232,7 @@ func (s *Store) ReconnectingWatch(key string, stopCh <-chan struct{}) (<-chan *l
 
 func (s *Store) reconnectingWatcher(key string, stopCh <-chan struct{}, inCh <-chan *libkvStore.KVPair, outCh chan *libkvStore.KVPair) {
 	var err error
-	log.Trace(trace.Private, "Entering ReconnectingWatch goroutine.")
+	log.Tracef(trace.Private, "Entering ReconnectingWatch goroutine: %d", getGID())
 	channelClosed := false
 	retryDelay := 1 * time.Millisecond
 	for {
@@ -273,6 +290,7 @@ type storeLocker struct {
 	libkvStore.Locker
 }
 
+// See https://blog.sgmansfield.com/2015/12/goroutine-ids/
 func getGID() uint64 {
 	b := make([]byte, 64)
 	b = b[:runtime.Stack(b, false)]
@@ -292,9 +310,9 @@ func (sl *storeLocker) Lock() (<-chan struct{}, error) {
 	ch, err := sl.Locker.Lock(stopChan)
 	if err == nil {
 		sl.owner = getGID()
-		log.Tracef(trace.Inside, "Got lock for %s (owned by %d)", sl.key, sl.owner)
+		log.Tracef(trace.Inside, "%d: Got lock for %s (owned by %d)", getGID(), sl.key, sl.owner)
 	} else {
-		log.Tracef(trace.Inside, "Error getting lock for %s: %s", sl.key, err)
+		log.Tracef(trace.Inside, "%d: Error getting lock for %s: %s", getGID(), sl.key, err)
 	}
 	return ch, err
 }
@@ -306,10 +324,20 @@ func (sl *storeLocker) Unlock() {
 	err := sl.Locker.Unlock()
 	if err != nil {
 		sl.owner = prevOwner
-		log.Error(err)
-	}
+		//		switch err := err.(type) {
+		//		case etcd.Error:
+		//			if err.Code == etcd.ErrorCodeKeyNotFound {
+		//				// If key is not found, then we did not hold the lock to begin with,
+		//				// and unlock was called by a defer...
+		//			}
+		//		default:
+		//			log.Errorf("%d: Error unlocking %s: %s (%T)", sl.key, err, err)
+		//		}
+		log.Errorf("%d: Error unlocking %s: %s (%T)", getGID(), sl.key, err, err)
 
-	log.Tracef(trace.Inside, "Unlocked lock %s (owned by %d)", sl.key, prevOwner)
+	} else {
+		log.Tracef(trace.Inside, "%d: Unlocked lock %s (owned by %d)", getGID(), sl.key, prevOwner)
+	}
 }
 
 func (store *Store) NewLocker(name string) (Locker, error) {

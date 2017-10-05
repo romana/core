@@ -3,6 +3,7 @@ package client
 import (
 	"fmt"
 	"io/ioutil"
+	"sync"
 
 	"encoding/json"
 
@@ -21,10 +22,11 @@ const (
 )
 
 type Client struct {
-	config     *common.Config
-	Store      *Store
-	ipamLocker Locker
-	IPAM       *IPAM
+	savingMutex *sync.RWMutex
+	config      *common.Config
+	Store       *Store
+	ipamLocker  Locker
+	IPAM        *IPAM
 }
 
 // NewClient creates a new Client object based on provided config
@@ -38,8 +40,9 @@ func NewClient(config *common.Config) (*Client, error) {
 	}
 
 	c := &Client{
-		config: config,
-		Store:  store,
+		config:      config,
+		Store:       store,
+		savingMutex: &sync.RWMutex{},
 	}
 
 	err = c.initIPAM(config.InitialTopologyFile)
@@ -289,8 +292,11 @@ func (c *Client) GetPolicy(id string) (api.Policy, error) {
 }
 
 func (c *Client) initIPAM(initialTopologyFile *string) error {
-	log.Tracef(trace.Inside, "initIPAM(): Entered with %v", initialTopologyFile)
-
+	if initialTopologyFile != nil {
+		log.Tracef(trace.Inside, "initIPAM(): Entered with %s", *initialTopologyFile)
+	} else {
+		log.Tracef(trace.Inside, "initIPAM(): Entered.")
+	}
 	var err error
 	c.ipamLocker, err = c.Store.NewLocker(ipamKey)
 	if err != nil {
@@ -299,10 +305,10 @@ func (c *Client) initIPAM(initialTopologyFile *string) error {
 	log.Tracef(trace.Inside, "initIPAM(): Created locker %v", c.ipamLocker)
 
 	ch, err := c.ipamLocker.Lock()
-
 	if err != nil {
 		return err
 	}
+	log.Tracef(trace.Inside, "initIPAM(): Got lock")
 	defer c.ipamLocker.Unlock()
 
 	// Check if IPAM info exists in the store
@@ -391,16 +397,33 @@ func (c *Client) initIPAM(initialTopologyFile *string) error {
 
 // save implements the Saver interface of IPAM.
 func (c *Client) save(ipam *IPAM, ch <-chan struct{}) error {
+	log.Tracef(trace.Inside, "Trying to acquire savingMutex\n")
+	c.savingMutex.Lock()
+	log.Tracef(trace.Inside, "Acquired savingMutex\n")
+	defer c.savingMutex.Unlock()
+	var err error
+	log.Tracef(trace.Inside, "Entering save() from %d", getGID())
 	select {
-	case <-ch:
+	case msg := <-ch:
+
+		// Is it possible to actually "lose" a lock via this channel?
+		// Examination of libkv code appears to point to the fact that
+		// a message on this channel would only be sent to the owner.
+		// That is, it only is sent here:
+		// https://github.com/romana/libkv/blob/master/store/etcd/etcd.go#L589
+
 		// Probably no need to reload the state at this point,
 		// as it would be detected by the watch.
-		return common.NewError("Lost lock while saving.")
+		//		err = common.NewError("Lost lock while saving in %d: %p", getGID(), &msg)
+		log.Warn(fmt.Sprintf("Lost lock while saving in %d: %p", getGID(), &msg))
+		return nil
 	default:
-		err := c.Store.AtomicPut(ipamDataKey, c.IPAM)
+		err = c.Store.AtomicPut(ipamDataKey, c.IPAM)
 		if err != nil {
+			log.Errorf("Error saving IPAM: %s: %d", err, getGID())
 			return err
 		}
+		log.Tracef(trace.Inside, "%d: Saved IPAM (Alloc rev: %d, Topo rev: %d): IPAM rev %d", getGID(), ipam.AllocationRevision, ipam.TopologyRevision, c.IPAM.GetPrevKVPair().LastIndex)
 		return nil
 	}
 }
@@ -416,20 +439,21 @@ func (c *Client) watchIPAM() error {
 	}
 
 	go func() {
-		log.Tracef(trace.Inside, "watchIPAM: Entering watchIPAM goroutine.")
+		log.Tracef(trace.Inside, "watchIPAM: Entering watchIPAM goroutine: %d", getGID())
 		for {
+			c.savingMutex.RLock()
+
 			select {
 			case kv := <-ch:
 				prevKV := c.IPAM.GetPrevKVPair()
 				if prevKV == nil || kv.LastIndex > prevKV.LastIndex {
-					log.Infof("Received IPAM with revision %d", kv.LastIndex)
+					log.Infof("Received IPAM with revision %d, current last revision %d", kv.LastIndex, prevKV.LastIndex)
 					_, err := c.IPAM.locker.Lock()
 					if err != nil {
 						log.Error(err)
 						// Nothing to do here, but since there is a new version,
 						// IPAM will continue failing on save until we get another one and
 						// try again
-						c.IPAM.locker.Unlock()
 						continue
 					}
 					c.IPAM, err = parseIPAM(string(kv.Value))
@@ -444,6 +468,9 @@ func (c *Client) watchIPAM() error {
 					c.IPAM.locker.Unlock()
 					log.Infof("Loaded IPAM with revision %d", kv.LastIndex)
 				}
+				c.savingMutex.RUnlock()
+			default:
+				c.savingMutex.RUnlock()
 			}
 		}
 	}()

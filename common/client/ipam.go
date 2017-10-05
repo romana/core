@@ -97,7 +97,7 @@ type CIDR struct {
 
 func initCIDR(s string, cidr *CIDR) error {
 	ip, ipNet, err := net.ParseCIDR(s)
-	log.Tracef(trace.Inside, "In initCIDR(\"%s\") got %s, %s, %v", s, ip, ipNet, err)
+	//	log.Tracef(trace.Inside, "In initCIDR(\"%s\") got %s, %s, %v", s, ip, ipNet, err)
 	if err != nil {
 		return err
 	}
@@ -395,7 +395,7 @@ func (hg *Group) deallocateIP(ip net.IP) error {
 		var block *Block
 		var blockID int
 		for blockID, block = range hg.Blocks {
-			log.Tracef(trace.Inside, "Checking if block %d (%s) contains %s: %v", blockID, block.CIDR, ip, block.CIDR.IPNet.Contains(ip))
+			//			log.Tracef(trace.Inside, "Checking if block %d (%s) contains %s: %v", blockID, block.CIDR, ip, block.CIDR.IPNet.Contains(ip))
 			if block.CIDR.IPNet.Contains(ip) {
 				log.Tracef(trace.Private, "Group.deallocateIP: IP to deallocate %s belongs to block %s", ip, block.CIDR)
 				err := block.deallocateIP(ip)
