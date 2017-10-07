@@ -174,7 +174,7 @@ func (tg *TranslateGroup) translateTarget(translator *Translator) error {
 		return nil
 	}
 
-	// If PodSelector is not empty then segment label must be defined.
+	// If PodSelector not specified assume tenant wide policy.
 	kubeSegmentID, ok := tg.kubePolicy.Spec.PodSelector.MatchLabels[translator.segmentLabelName]
 	if !ok || kubeSegmentID == "" {
 		tg.romanaPolicy.AppliedTo = []api.Endpoint{targetEndpoint}
