@@ -322,6 +322,10 @@ func makePolicySets(policy api.Policy) (*ipset.Set, error) {
 	return policySet, nil
 }
 
+// validateFunc is a signature for a function that validates api.Endpoint
+// according to some criteria.
+type validateFunc func(target api.Endpoint) bool
+
 // renderIPtables creates iptables rules for all romana policies in policy cache
 // except the ones which depends on non-existend tenant/segment.
 func renderIPtables(policyCache policycache.Interface, hostname string, blocks []api.IPAMBlockResponse) *iptsave.IPtables {
@@ -336,8 +340,26 @@ func renderIPtables(policyCache policycache.Interface, hostname string, blocks [
 		},
 	}
 
+	// filter out blocks that are assigned to remote hosts,
+	// this should prevent policies being created
+	// across an entire cluster.
+	var localBlocks []api.IPAMBlockResponse
+	for _, block := range blocks {
+		if block.Host == hostname {
+			localBlocks = append(localBlocks, block)
+		}
+	}
+
+	// validateTargetForHost returns validateFunc that only accepts
+	// targets which have endpoints on current host.
+	validateTargetForHost := func(blocks []api.IPAMBlockResponse) validateFunc {
+		return func(target api.Endpoint) bool {
+			return targetValid(target, blocks)
+		}
+	}
+
 	makeBase(&iptables)
-	makePolicies(policyCache.List(), hostname, blocks, &iptables)
+	makePolicies(policyCache.List(), validateTargetForHost(localBlocks), &iptables)
 
 	return &iptables
 }
@@ -353,14 +375,14 @@ func makeBase(iptables *iptsave.IPtables) {
 }
 
 // makePolicies populates policy related rules into the iptables.
-func makePolicies(policies []api.Policy, hostname string, blocks []api.IPAMBlockResponse, iptables *iptsave.IPtables) {
+func makePolicies(policies []api.Policy, valid validateFunc, iptables *iptsave.IPtables) {
 	log.Trace(trace.Private, "Policy enforcer in makePolicies()")
 
 	// iterator iterates over each combination of
 	// policy * target * peer * rule.
 	iterator, err := policytools.NewPolicyIterator(policies)
 	if err != nil {
-		// no policies, nothing to do.
+		log.Errorf("can not iterate over policies, err=%s", err)
 		return
 	}
 
@@ -369,7 +391,7 @@ func makePolicies(policies []api.Policy, hostname string, blocks []api.IPAMBlock
 
 		// skip rules which don't have a valid target.
 		// TODO filter blocks by current host to avoid unnecessary rules.
-		if !targetValid(target, blocks) {
+		if !valid(target) {
 			log.Debugf("Target %s skipped for policy %s as invalid for the host", target, policy.ID)
 			continue
 		}

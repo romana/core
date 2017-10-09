@@ -1,8 +1,13 @@
 package enforcer
 
 import (
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/romana/core/agent/internal/cache/policycache"
@@ -51,24 +56,26 @@ func TestMakePolicyRules(t *testing.T) {
 		return api.Rule{Protocol: proto, Ports: ports}
 	}
 
-	blocks := []api.IPAMBlockResponse{
-		api.IPAMBlockResponse{
-			Tenant:  "T800",
-			Segment: "John",
-		},
-		api.IPAMBlockResponse{
-			Tenant:  "T1000",
-			Segment: "",
-		},
-		api.IPAMBlockResponse{
-			Tenant:  "T3000",
-			Segment: "",
-		},
-		api.IPAMBlockResponse{
-			Tenant:  "T100K",
-			Segment: "skynet",
-		},
-	}
+	/*
+		blocks := []api.IPAMBlockResponse{
+			api.IPAMBlockResponse{
+				Tenant:  "T800",
+				Segment: "John",
+			},
+			api.IPAMBlockResponse{
+				Tenant:  "T1000",
+				Segment: "",
+			},
+			api.IPAMBlockResponse{
+				Tenant:  "T3000",
+				Segment: "",
+			},
+			api.IPAMBlockResponse{
+				Tenant:  "T100K",
+				Segment: "skynet",
+			},
+		}
+	*/
 
 	testCases := []struct {
 		name   string
@@ -117,10 +124,12 @@ func TestMakePolicyRules(t *testing.T) {
 		return p
 	}
 
+	noop := func(target api.Endpoint) bool { return true }
+
 	for _, tc := range testCases {
 		sets := ipset.Ipset{}
 		iptables := makeEmptyIptables()
-		makePolicies(toList(tc.policy), "localhost", blocks, &iptables)
+		makePolicies(toList(tc.policy), noop, &iptables)
 		t.Log(iptables.Render())
 		t.Log(sets.Render(ipset.RenderCreate))
 	}
@@ -265,5 +274,85 @@ func TestMakeBlockSets(t *testing.T) {
 		sets, err := makeBlockSets(tc.blockCache, policycache.New(), tc.hostname)
 		t.Log(sets.Render(ipset.RenderSave))
 		t.Log(err)
+	}
+}
+
+var tdir = "testdata"
+
+func TestMakePolicies(t *testing.T) {
+	files, err := ioutil.ReadDir(tdir)
+	if err != nil {
+		t.Skip("Folder with test data not found")
+	}
+	_ = files
+
+	loadRomanaPolicy := func(file string) (*api.Policy, error) {
+		data, err := ioutil.ReadFile(filepath.Join(tdir, file))
+		if err != nil {
+			return nil, err
+		}
+
+		var policy api.Policy
+
+		err = json.Unmarshal(data, &policy)
+
+		if err != nil {
+			return nil, err
+		}
+
+		return &policy, nil
+	}
+
+	toList := func(p ...api.Policy) []api.Policy {
+		return p
+	}
+
+	noop := func(target api.Endpoint) bool { return true }
+	_ = loadRomanaPolicy
+
+	test := func(file string, t *testing.T) func(*testing.T) {
+		return func(t *testing.T) {
+			policy, err := loadRomanaPolicy(file)
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			iptables := iptsave.IPtables{
+				Tables: []*iptsave.IPtable{
+					&iptsave.IPtable{
+						Name: "filter",
+					},
+				},
+			}
+
+			makePolicies(toList(*policy), noop, &iptables)
+
+			referenceName := strings.Replace(file, ".json", ".iptables", -1)
+
+			// generate golden files
+			if os.Getenv("MAKE_GOLD") != "" {
+				err = ioutil.WriteFile(filepath.Join(tdir, referenceName), []byte(iptables.Render()), 0644)
+				if err != nil {
+					t.Fatal(err)
+				}
+
+				return
+			}
+
+			referenceFile, err := ioutil.ReadFile(filepath.Join(tdir, referenceName))
+			if err != nil {
+				t.Fatal(err)
+			}
+
+			if string(referenceFile) != iptables.Render() {
+				t.Fatal(file)
+			}
+		}
+	}
+
+	for _, file := range files {
+		if strings.HasSuffix(file.Name(), ".json") {
+			t.Run(file.Name(), test(file.Name(), t))
+		}
 	}
 }
