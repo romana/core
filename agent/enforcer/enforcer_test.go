@@ -1,6 +1,7 @@
 package enforcer
 
 import (
+	"fmt"
 	"net"
 	"testing"
 
@@ -142,21 +143,46 @@ func TestMakePolicySets(t *testing.T) {
 	withTenantSegment := func(s ...string) api.Endpoint {
 		return api.Endpoint{TenantID: s[0], SegmentID: s[1]}
 	}
-	_ = withTenantSegment
-
-	makeRules := func(rules ...api.Rule) (result []api.Rule) {
-		for _, r := range rules {
-			result = append(result, r)
+	/*
+		makeRules := func(rules ...api.Rule) (result []api.Rule) {
+			for _, r := range rules {
+				result = append(result, r)
+			}
+			return result
 		}
-		return result
-	}
-	withProtoPorts := func(proto string, ports ...uint) api.Rule {
-		return api.Rule{Protocol: proto, Ports: ports}
+		withProtoPorts := func(proto string, ports ...uint) api.Rule {
+			return api.Rule{Protocol: proto, Ports: ports}
+		}
+	*/
+
+	// expectFunc is a signature for a function used in test cases to
+	// assert test success.
+	type expectFunc func(*ipset.Set, error) error
+
+	// return expectFunc that looks for provided cidrs in Set.
+	matchIpsetMember := func(cidrs ...string) expectFunc {
+		return func(set *ipset.Set, err error) error {
+			for _, cidr := range cidrs {
+				for _, member := range set.Members {
+					if member.Elem == cidr {
+						// found
+						continue
+					}
+
+					return fmt.Errorf("cidr %s not found in set %s",
+						cidr, set)
+				}
+			}
+
+			return nil
+		}
+
 	}
 
 	testCases := []struct {
 		name   string
 		policy api.Policy
+		expect expectFunc
 	}{
 		{
 			name: "ingress sets basic",
@@ -167,10 +193,10 @@ func TestMakePolicySets(t *testing.T) {
 				Ingress: []api.RomanaIngress{
 					api.RomanaIngress{
 						Peers: makeEndpoints(withCidr("10.0.0.0/99")),
-						Rules: makeRules(withProtoPorts("TCP", 80, 99, 8080)),
 					},
 				},
 			},
+			expect: matchIpsetMember("10.0.0.0/99"),
 		},
 		{
 			name: "egress sets basic",
@@ -184,21 +210,24 @@ func TestMakePolicySets(t *testing.T) {
 							withCidr("10.0.0.0/99"),
 							withTenant("T3000"),
 							withTenantSegment("T100K", "skynet")),
-						Rules: makeRules(
-							withProtoPorts("TCP", 80, 99, 8080),
-							withProtoPorts("UDP", 53, 1194),
-						),
 					},
 				},
 			},
+			expect: matchIpsetMember("10.0.0.0/99"),
 		},
 	}
 
 	for _, tc := range testCases {
-		set1, set2, err := makePolicySets(tc.policy)
-		sets := ipset.Ipset{Sets: []*ipset.Set{set1, set2}}
-		t.Log(sets.Render(ipset.RenderSave))
-		t.Log(err)
+		t.Run(tc.name, func(t *testing.T) {
+			set1, err := makePolicySets(tc.policy)
+			sets := ipset.Ipset{Sets: []*ipset.Set{set1}}
+			t.Log(sets.Render(ipset.RenderSave))
+
+			err = tc.expect(set1, err)
+			if err != nil {
+				t.Error(err)
+			}
+		})
 	}
 }
 

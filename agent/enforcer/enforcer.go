@@ -202,17 +202,12 @@ func makeBlockSets(blocks []api.IPAMBlockResponse, policyCache policycache.Inter
 	// for every policy produce 2 sets, one to match
 	// incoming traffic and one to match outgoing traffic.
 	for _, policy := range policies {
-		srcSet, dstSet, err := makePolicySets(policy)
+		policySet, err := makePolicySets(policy)
 		if err != nil {
 			return nil, err
 		}
 
-		err = sets.AddSet(srcSet)
-		if err != nil {
-			return nil, err
-		}
-
-		err = sets.AddSet(dstSet)
+		err = sets.AddSet(policySet)
 		if err != nil {
 			return nil, err
 		}
@@ -287,45 +282,44 @@ func makeBlockSets(blocks []api.IPAMBlockResponse, policyCache policycache.Inter
 
 const LocalBlockSetName = "localBlocks"
 
-func makePolicySets(policy api.Policy) (*ipset.Set, *ipset.Set, error) {
-	setSrc, err := ipset.NewSet(policytools.MakeRomanaPolicyNameSetSrc(policy), ipset.SetHashNet)
-	if err != nil {
-		return setSrc, nil, err
+// makePolicySets produces a set that matches traffic selected by policy Peer fileds.
+func makePolicySets(policy api.Policy) (*ipset.Set, error) {
+	var policySet *ipset.Set
+	var err error
+
+	switch policy.Direction {
+	case api.PolicyDirectionEgress:
+		policySet, err = ipset.NewSet(
+			policytools.MakeRomanaPolicyNameSetDst(policy), ipset.SetHashNet)
+	case api.PolicyDirectionIngress:
+		policySet, err = ipset.NewSet(
+			policytools.MakeRomanaPolicyNameSetDst(policy), ipset.SetHashNet)
 	}
 
-	setDst, err := ipset.NewSet(policytools.MakeRomanaPolicyNameSetDst(policy), ipset.SetHashNet)
 	if err != nil {
-		return setSrc, setDst, err
+		return nil, err
 	}
 
 	for _, ingress := range policy.Ingress {
 		for _, peer := range ingress.Peers {
-			if peerType := policytools.DetectPolicyPeerType(peer); peerType == policytools.PeerCIDR {
-				switch policy.Direction {
-				case api.PolicyDirectionEgress:
-					member, err := ipset.NewMember(peer.Cidr, setDst)
-					if err != nil {
-						return nil, nil, err
-					}
-					err = ipset.SuppressItemExist(setDst.AddMember(member))
-					if err != nil {
-						return nil, nil, err
-					}
-				case api.PolicyDirectionIngress:
-					member, err := ipset.NewMember(peer.Cidr, setSrc)
-					if err != nil {
-						return nil, nil, err
-					}
-					err = ipset.SuppressItemExist(setSrc.AddMember(member))
-					if err != nil {
-						return nil, nil, err
-					}
-				}
+			peerType := policytools.DetectPolicyPeerType(peer)
+			if peerType != policytools.PeerCIDR {
+				continue
+			}
+
+			member, err := ipset.NewMember(peer.Cidr, policySet)
+			if err != nil {
+				return nil, err
+			}
+
+			err = ipset.SuppressItemExist(policySet.AddMember(member))
+			if err != nil {
+				return nil, err
 			}
 		}
 	}
 
-	return setSrc, setDst, err
+	return policySet, nil
 }
 
 // renderIPtables creates iptables rules for all romana policies in policy cache
