@@ -425,23 +425,6 @@ func cleanupUnusedChains(iptables *iptsave.IPtables, exec utilexec.Executable) {
 	}
 }
 
-type RuleBlueprint struct {
-	baseChain        string
-	topRuleMatch     func(api.Endpoint) string
-	topRuleAction    func(api.Policy) string
-	secondBaseChain  func(api.Policy) string
-	secondRuleMatch  func(api.Endpoint) string
-	secondRuleAction func(api.Policy) string
-	thirdBaseChain   func(api.Policy) string
-	thirdRuleMatch   func(api.Endpoint) string
-	thirdRuleAction  func(api.Policy) string
-	fourthBaseChain  func(api.Policy) string
-	fourthRuleMatch  func(api.Rule, string) []*iptsave.IPrule
-	fourthRuleAction string
-}
-
-//go:generate go run internal/gen/main.go -data data/policy.tsv -template templates/blueprint.go_template -out blueprint.go
-
 func EnsureRules(baseChain *iptsave.IPchain, rules []*iptsave.IPrule) {
 	for _, rule := range rules {
 		if !baseChain.RuleInChain(rule) {
