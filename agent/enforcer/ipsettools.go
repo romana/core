@@ -18,6 +18,10 @@ func updateIpsets(ctx context.Context, sets *ipset.Ipset) error {
 		return err
 	}
 
+	// attempt to cleanup unused chains,
+	// can err, don't care.
+	_, _ = ipset.Destroy(nil)
+
 	ipsetHandle, err := ipset.NewHandle()
 	if err != nil {
 		return err
