@@ -67,9 +67,6 @@ type Enforcer struct {
 	// Delay between main loop runs.
 	ticker *time.Ticker
 
-	// Used to pause main loop.
-	paused bool
-
 	// exec used to apply iptables policies.
 	exec utilexec.Executable
 
@@ -118,18 +115,12 @@ func (a *Enforcer) Run(ctx context.Context) {
 
 	iptables := &iptsave.IPtables{}
 	a.ticker = time.NewTicker(time.Duration(a.refreshSeconds) * time.Second)
-	a.paused = false
 
 	go func() {
 		for {
 			select {
 			case <-a.ticker.C:
 				log.Trace(4, "Policy enforcer tick started")
-				if a.paused {
-					log.Tracef(5, "Policy enforcer tick skipped due to pause")
-					continue
-				}
-
 				if !a.policyUpdate && !a.blocksUpdate {
 					log.Tracef(5, "Policy enforcer tick skipped due no updates, block update=%t and policy update=%t", a.blocksUpdate, a.policyUpdate)
 					continue
@@ -182,16 +173,6 @@ func (a *Enforcer) Run(ctx context.Context) {
 			}
 		}
 	}()
-}
-
-// Pause main loop.
-func (a *Enforcer) Pause() {
-	a.paused = true
-}
-
-// Continue main loop.
-func (a *Enforcer) Continue() {
-	a.paused = false
 }
 
 // makeBlockSets creates ipset configuration for policies and blocks.
@@ -460,6 +441,8 @@ func rules2list(rules ...*iptsave.IPrule) []*iptsave.IPrule {
 	return rules
 }
 
+// translateRule translates specific combination of peer, target and rule into
+// the set of iptables rules.
 func translateRule(policy api.Policy,
 	iptablesSchemeType string,
 	peer, target api.Endpoint,
@@ -467,27 +450,36 @@ func translateRule(policy api.Policy,
 	direction string,
 	iptables *iptsave.IPtables) error {
 
+	// detect target and peer type to choose proper translation scheme.
 	peerType := policytools.DetectPolicyPeerType(peer)
 	dstType := policytools.DetectPolicyTargetType(target)
 
+	// translationConfig is a schema that describes how to translate particular
+	// combination of parameters.
 	key := policytools.MakeBlueprintKey(direction, iptablesSchemeType, peerType, dstType)
-
 	translationConfig, ok := policytools.Blueprints[key]
 	if !ok {
 		return errors.New("can't translate ... ")
 	}
 
+	// for now all our policies live in *filter table
 	filter := iptables.TableByName("filter")
 
-	baseChain := EnsureChainExists(filter, translationConfig.BaseChain)
+	// every combination of parameters will  be translated in 3 or 4 iptables
+	// rules
+	// rule 1-2) filters traffic by target - aka tenant owner of the policy
+	// rule 3) filters traffic by peer - aka remote tenant, cidr, etc...
+	// rule 4) filters traffic according to l4 protocal spec, and applies
+	// a rule - aka ACCEPT/REJECT
 
-	// jump from base chain to policy chain
+	// first rule filters traffic for target tenant.
+	baseChain := EnsureChainExists(filter, translationConfig.BaseChain)
 	jumpFromBaseToPolicyRule := policytools.MakeRuleWithBody(
 		translationConfig.TopRuleMatch(target), translationConfig.TopRuleAction(policy),
 	)
-
 	EnsureRules(baseChain, rules2list(jumpFromBaseToPolicyRule))
 
+	// second rule filters traffic for target tenant (optional for SchemePolicyOnTop)
 	secondBaseChainName := translationConfig.SecondBaseChain(policy)
 	secondRuleMatch := translationConfig.SecondRuleMatch(target)
 	secondRuleAction := translationConfig.SecondRuleAction(policy)
@@ -501,22 +493,21 @@ func translateRule(policy api.Policy,
 
 	}
 
+	// third rule filters traffic by peer
 	thirdBaseChainName := translationConfig.ThirdBaseChain(policy)
 	thirdBaseChain := EnsureChainExists(filter, thirdBaseChainName)
 	thirdRuleMatch := translationConfig.ThirdRuleMatch(peer)
 	thirdRuleAction := translationConfig.ThirdRuleAction(policy)
-
 	thirdRule := policytools.MakeRuleWithBody(
 		thirdRuleMatch, thirdRuleAction,
 	)
-
 	EnsureRules(thirdBaseChain, rules2list(thirdRule))
 
+	// fourth rule filters traffic by protocol spec.
 	fourthBaseChainName := translationConfig.FourthBaseChain(policy)
 	fourthBaseChain := EnsureChainExists(filter, fourthBaseChainName)
 	fourthRuleAction := translationConfig.FourthRuleAction
 	fourthRules := translationConfig.FourthRuleMatch(rule, fourthRuleAction)
-
 	EnsureRules(fourthBaseChain, fourthRules)
 
 	return nil
