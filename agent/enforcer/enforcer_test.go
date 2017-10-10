@@ -429,3 +429,76 @@ func TestMakePolicies(t *testing.T) {
 		}
 	}
 }
+
+func TestTargetValid(t *testing.T) {
+	testCases := []struct {
+		name   string
+		target api.Endpoint
+		blocks []api.IPAMBlockResponse
+		expect bool
+	}{
+		{
+			name:   "basic invalid target",
+			target: api.Endpoint{TenantID: "T1000"},
+			expect: false,
+		},
+		{
+			name:   "target doesn't match tenant",
+			target: api.Endpoint{Peer: "any"},
+			expect: true,
+		},
+		{
+			name:   "target invalid due to no corresponding tenant blocks",
+			target: api.Endpoint{TenantID: "T1000"},
+			blocks: []api.IPAMBlockResponse{
+				api.IPAMBlockResponse{
+					Tenant:  "T800",
+					Segment: "John",
+				},
+			},
+			expect: false,
+		},
+		{
+			name:   "target invalid, no corresponding segment",
+			target: api.Endpoint{TenantID: "T100K", SegmentID: "skynet"},
+			blocks: []api.IPAMBlockResponse{
+				api.IPAMBlockResponse{
+					Tenant:  "T800",
+					Segment: "John",
+				},
+			},
+			expect: false,
+		},
+		{
+			name:   "target is invalid, matches tenant",
+			target: api.Endpoint{TenantID: "T800"},
+			blocks: []api.IPAMBlockResponse{
+				api.IPAMBlockResponse{
+					Tenant:  "T800",
+					Segment: "John",
+				},
+			},
+			expect: true,
+		},
+		{
+			name:   "target is valid, matches tenant and segment",
+			target: api.Endpoint{TenantID: "T800", SegmentID: "John"},
+			blocks: []api.IPAMBlockResponse{
+				api.IPAMBlockResponse{
+					Tenant:  "T800",
+					Segment: "John",
+				},
+			},
+			expect: true,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := targetValid(tc.target, tc.blocks)
+			if result != tc.expect {
+				t.Fatalf("unexpected result %t", result)
+			}
+		})
+	}
+}
