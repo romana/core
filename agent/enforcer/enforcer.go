@@ -199,8 +199,7 @@ func makeBlockSets(blocks []api.IPAMBlockResponse, policyCache policycache.Inter
 	policies := policyCache.List()
 	sets := ipset.NewIpset()
 
-	// for every policy produce 2 sets, one to match
-	// incoming traffic and one to match outgoing traffic.
+	// for every policy produce a set to match policy related traffic.
 	for _, policy := range policies {
 		policySet, err := makePolicySets(policy)
 		if err != nil {
@@ -280,6 +279,8 @@ func makeBlockSets(blocks []api.IPAMBlockResponse, policyCache policycache.Inter
 	return sets, nil
 }
 
+// LocalBlockSetName is an ipset set that matches traffic for endpoints
+// located on current host.
 const LocalBlockSetName = "localBlocks"
 
 // makePolicySets produces a set that matches traffic selected by policy Peer fileds.
@@ -466,15 +467,12 @@ func translateRule(policy api.Policy,
 	direction string,
 	iptables *iptsave.IPtables) error {
 
-	peerType := policytools.DetectPolicyPeerType(peer) // TODO ten/host/local/cidr
+	peerType := policytools.DetectPolicyPeerType(peer)
 	dstType := policytools.DetectPolicyTargetType(target)
 
-	log.Debug("makePolicyRuleInDirection #1")
-
-	key := policytools.MakeBlueprintKey(direction, iptablesSchemeType, peerType, dstType) // TODO
+	key := policytools.MakeBlueprintKey(direction, iptablesSchemeType, peerType, dstType)
 
 	translationConfig, ok := policytools.Blueprints[key]
-	// log.Debugf("makePolicyRuleInDirection with key %s, ok=%t, value=%s", key, ok, translationConfig)
 	if !ok {
 		return errors.New("can't translate ... ")
 	}
@@ -521,7 +519,6 @@ func translateRule(policy api.Policy,
 
 	EnsureRules(fourthBaseChain, fourthRules)
 
-	log.Debug("makePolicyRuleInDirection #3")
 	return nil
 }
 

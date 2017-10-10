@@ -247,10 +247,55 @@ func TestMakeBlockSets(t *testing.T) {
 		return api.IPNet{*ipnet}
 	}
 
+	// expectFunc is a signature for a function used in test cases to
+	// assert test success.
+	type expectFunc func(*ipset.Ipset, error) error
+
+	// return expectFunc that looks for provided elems in Set.
+	matchElemInSet := func(setname string, elems ...string) expectFunc {
+		return func(sets *ipset.Ipset, err error) error {
+			set := sets.SetByName(setname)
+
+			if set == nil {
+				return fmt.Errorf("no such set %s", setname)
+			}
+
+			for _, elem := range elems {
+				found := false
+				for _, member := range set.Members {
+					if member.Elem == elem {
+						found = true
+						continue
+					}
+
+				}
+				if !found {
+					return fmt.Errorf("elem %s not found in set %s",
+						elem, set)
+				}
+			}
+
+			return nil
+		}
+	}
+
+	// returns expectFunc that checks that provided elems not included on Set.
+	matchElemNotInSet := func(setname string, elems ...string) expectFunc {
+		return func(sets *ipset.Ipset, err error) error {
+			err = matchElemInSet(setname, elems...)(sets, nil)
+			if err != nil {
+				return nil
+			}
+
+			return fmt.Errorf("at least one of %v found in %s", elems, setname)
+		}
+	}
+
 	testCases := []struct {
 		name       string
 		hostname   string
 		blockCache []api.IPAMBlockResponse
+		expect     []expectFunc
 	}{
 		{
 			name:     "basic 1",
@@ -260,12 +305,34 @@ func TestMakeBlockSets(t *testing.T) {
 					Tenant:  "T800",
 					Segment: "john",
 					CIDR:    makeCIDR("10.0.0.0/28"),
+					Host:    "host1",
 				},
 				api.IPAMBlockResponse{
 					Tenant:  "T100k",
 					Segment: "skynet",
 					CIDR:    makeCIDR("10.1.0.0/28"),
+					Host:    "host1",
 				},
+				api.IPAMBlockResponse{
+					Tenant:  "T34",
+					Segment: "pirozhok",
+					CIDR:    makeCIDR("192.168.1.0/28"),
+					Host:    "host2",
+				},
+			},
+			expect: []expectFunc{
+				// test proper cidrs in local blocks
+				matchElemInSet(LocalBlockSetName, "10.1.0.0/28", "10.0.0.0/28"),
+
+				// test local blocks don't get wrong cidrs
+				matchElemNotInSet(LocalBlockSetName, "192.168.1.0/28"),
+
+				// test segment set has appropriate cidr
+				matchElemInSet(policytools.MakeTenantSetName("T800", "john"), "10.0.0.0/28"),
+
+				// test tenant set has segment set
+				matchElemInSet(policytools.MakeTenantSetName("T800", ""),
+					policytools.MakeTenantSetName("T800", "john")),
 			},
 		},
 	}
@@ -273,7 +340,13 @@ func TestMakeBlockSets(t *testing.T) {
 	for _, tc := range testCases {
 		sets, err := makeBlockSets(tc.blockCache, policycache.New(), tc.hostname)
 		t.Log(sets.Render(ipset.RenderSave))
-		t.Log(err)
+
+		for _, expect := range tc.expect {
+			err := expect(sets, err)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
 	}
 }
 
