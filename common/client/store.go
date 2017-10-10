@@ -238,7 +238,7 @@ func (s *Store) reconnectingWatcher(key string, stopCh <-chan struct{}, inCh <-c
 	for {
 		select {
 		case <-stopCh:
-			log.Tracef(trace.Inside, "Stop message received for WatchHosts")
+			log.Info("Stop message received for WatchHosts")
 			return
 		case kv, ok := <-inCh:
 			if ok {
