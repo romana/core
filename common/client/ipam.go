@@ -1275,6 +1275,7 @@ func (ipam *IPAM) RemoveHost(host api.Host) error {
 	if host.IP == nil && host.Name == "" {
 		return common.NewError("At least one of IP, Name must be specified to delete a host")
 	}
+	removedHost := false
 	for _, net := range ipam.Networks {
 		var myHost *Host
 		if host.IP == nil {
@@ -1313,9 +1314,12 @@ func (ipam *IPAM) RemoveHost(host api.Host) error {
 		if err != nil {
 			return err
 		}
-		return nil
+		removedHost = true
 	}
-	return common.NewError("No host found with IP %s and/or name %s", host.IP, host.Name)
+	if !removedHost {
+		return common.NewError("No host found with IP %s and/or name %s", host.IP, host.Name)
+	}
+	return nil
 }
 
 // AddHost adds host to the current IPAM.
@@ -1327,6 +1331,7 @@ func (ipam *IPAM) AddHost(host api.Host) error {
 		return common.NewError("Host name is required.")
 	}
 	myHost := &Host{IP: host.IP, Name: host.Name, Tags: host.Tags}
+	addedHost := false
 	for _, net := range ipam.Networks {
 		ok, err := net.Group.addHost(myHost)
 		if err != nil {
@@ -1338,10 +1343,13 @@ func (ipam *IPAM) AddHost(host api.Host) error {
 			if err != nil {
 				return err
 			}
-			return nil
+			addedHost = true
 		}
 	}
-	return common.NewError("No suitable groups to add host %s to.", host)
+	if !addedHost {
+		return common.NewError("No suitable groups to add host %s to.", host)
+	}
+	return nil
 }
 
 // BlackOut removes a CIDR from consideration. It is an error if CIDR
