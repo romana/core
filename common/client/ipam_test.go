@@ -103,7 +103,7 @@ func TestBlackout(t *testing.T) {
 	var err error
 	ipam = initIpam(t, "")
 	// 1. Black out something random
-	err := ipam.BlackOut("10.100.100.100/24")
+	err = ipam.BlackOut("10.100.100.100/24")
 	if err == nil {
 		t.Fatal("TestChunkBlackout: Expected error that no network found")
 	}
@@ -912,6 +912,7 @@ func TestHostAdditionSimple(t *testing.T) {
 		host := api.Host{Name: name,
 			IP: ip,
 		}
+		t.Logf("Adding host %s (%s)", host.Name, host.IP)
 		err := ipam.AddHost(host)
 		if err != nil {
 			t.Fatal(err)
@@ -925,33 +926,46 @@ func TestHostAdditionSimple(t *testing.T) {
 		}
 	}
 
+	var netNames = [...]string{"net1", "net2"}
+
 	// We should have 2 hosts in each group now.
-	net1 := ipam.Networks["net1"]
-	for _, grp := range net1.Group.Groups {
-		t.Logf("Hosts in group %s: %v", grp.Name, grp.Hosts)
-		if len(grp.Hosts) != 2 {
-			t.Fatalf("Expected group %s to have 2 hosts, it has %d", grp.Name, len(grp.Hosts))
+	for i := range netNames {
+		netName := netNames[i]
+		net := ipam.Networks[netName]
+		for _, grp := range net.Group.Groups {
+			t.Logf("Net %s: Hosts in group %s: %v", netName, grp.Name, grp.Hosts)
+			if len(grp.Hosts) != 2 {
+				t.Fatalf("Net %s: Expected group %s to have 2 hosts, it has %d", netName, grp.Name, len(grp.Hosts))
+			}
 		}
 	}
 
 	// Test host removal.
-	err := ipam.RemoveHost(api.Host{Name: "host0"})
+	t.Logf("Removing host 'host0'")
+	err = ipam.RemoveHost(api.Host{Name: "host0"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	net1 = ipam.Networks["net1"]
-	grp := net1.Group.Groups[0]
 
-	// This one should have 1 host left
-	t.Logf("Hosts in group %s: %v", grp.Name, grp.Hosts)
-	if len(grp.Hosts) != 1 {
-		t.Fatalf("Expected group %s to have 1 hosts, it has %d", grp.Name, len(grp.Hosts))
-	}
+	//	t.Logf(testSaver.lastJson)
+	// One of the groups in each network should only have one host left now
+	for i := range netNames {
+		netName := netNames[i]
+		net := ipam.Networks[netName]
 
-	grp = net1.Group.Groups[1]
-	t.Logf("Hosts in group %s: %v", grp.Name, grp.Hosts)
-	if len(grp.Hosts) != 2 {
-		t.Fatalf("Expected group %s to have 2 hosts, it has %d", grp.Name, len(grp.Hosts))
+		grp := net.Group.Groups[0]
+
+		// This one should have 1 host left
+		t.Logf("Net %s: Hosts in group %s: %v", netName, grp.Name, grp.Hosts)
+		if len(grp.Hosts) != 1 {
+			t.Fatalf("Net %s: Expected group %s to have 1 hosts, it has %d", netName, grp.Name, len(grp.Hosts))
+		}
+
+		grp = net.Group.Groups[1]
+		t.Logf("Net %s: Hosts in group %s: %v", netName, grp.Name, grp.Hosts)
+		if len(grp.Hosts) != 2 {
+			t.Fatalf("Net %s: Expected group %s to have 2 hosts, it has %d", netName, grp.Name, len(grp.Hosts))
+		}
 	}
 
 	// Test that it saves, loads and we can still remove a host
@@ -966,8 +980,8 @@ func TestHostAdditionSimple(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	net1 = ipam.Networks["net1"]
-	grp = net1.Group.Groups[0]
+	net1 := ipam.Networks["net1"]
+	grp := net1.Group.Groups[0]
 	t.Logf("Hosts in group %s: %v", grp.Name, grp.Hosts)
 	if len(grp.Hosts) != 1 {
 		t.Fatalf("Expected group %s to have 1 hosts, it has %d", grp.Name, len(grp.Hosts))
@@ -1061,7 +1075,7 @@ func TestTenantsBug701(t *testing.T) {
 	ipam = initIpam(t, "")
 
 	h := 1
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 31; i++ {
 		addr := fmt.Sprintf("addr%d", i)
 		host := fmt.Sprintf("host%d", h)
 		h++

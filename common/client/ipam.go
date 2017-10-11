@@ -1272,76 +1272,95 @@ func (ipam *IPAM) ListNetworkBlocks(netName string) *api.IPAMBlocksResponse {
 }
 
 func (ipam *IPAM) RemoveHost(host api.Host) error {
+	var err error
 	if host.IP == nil && host.Name == "" {
 		return common.NewError("At least one of IP, Name must be specified to delete a host")
 	}
+	removedHost := false
+	var hostToRemove *Host
 	for _, net := range ipam.Networks {
-		var myHost *Host
+		log.Tracef(trace.Inside, "Looking for host %v (%s) to remove from net %s\n", host.IP, host.Name, net.Name)
+		hostToRemove = nil
 		if host.IP == nil {
-			myHost = net.Group.findHostByName(host.Name)
+			hostToRemove = net.Group.findHostByName(host.Name)
 		} else {
-			myHost = net.Group.findHostByIP(host.IP.String())
+			hostToRemove = net.Group.findHostByIP(host.IP.String())
 			if host.Name != "" {
-				if myHost.Name != host.Name {
-					return common.NewError("Found host with IP %s but it has name %s, not %s", host.IP, myHost.Name, host.Name)
+				if hostToRemove.Name != host.Name {
+					return common.NewError("Found host with IP %s but it has name %s, not %s", host.IP, hostToRemove.Name, host.Name)
 				}
 			}
 		}
-		if myHost == nil {
+		if hostToRemove == nil {
+			log.Tracef(trace.Inside, "Host %v (%s) not found in net %s\n", host.IP, host.Name, net.Name)
 			continue
 		}
 		blockCount := 0
-		for _, hostName := range myHost.group.BlockToHost {
-			if hostName == myHost.Name {
+		for _, hostName := range hostToRemove.group.BlockToHost {
+			if hostName == hostToRemove.Name {
 				blockCount++
 			}
 		}
 		if blockCount > 0 {
 			// TODO - or deallocate?
-			return common.NewError("Host %s has %d blocks allocated on it, will not delete", myHost.Name, blockCount)
+			return common.NewError("Host %s has %d blocks allocated on it, will not delete", hostToRemove.Name, blockCount)
 		}
 		var i int
 		var curHost *Host
-		for i, curHost = range myHost.group.Hosts {
-			if curHost.IP.String() == myHost.IP.String() {
+
+		for i, curHost = range hostToRemove.group.Hosts {
+			if curHost.IP.String() == hostToRemove.IP.String() {
+				log.Tracef(trace.Inside, "Net %s: removing host %s (%d) from group %s (%v)\n", net.Name, hostToRemove, i, hostToRemove.group.Name, hostToRemove.group.Hosts)
+				hostToRemove.group.Hosts = deleteElementHost(hostToRemove.group.Hosts, i)
+				log.Tracef(trace.Inside, "Net %s, after removal: %v", net.Name, hostToRemove.group.Hosts)
+				removedHost = true
 				break
 			}
 		}
-		myHost.group.Hosts = deleteElementHost(myHost.group.Hosts, i)
+	}
+	if removedHost {
 		ipam.TopologyRevision++
-		err := ipam.save(ipam)
+		err = ipam.save(ipam)
 		if err != nil {
 			return err
 		}
-		return nil
+	} else {
+		return common.NewError("No host found with IP %s and/or name %s", host.IP, host.Name)
 	}
-	return common.NewError("No host found with IP %s and/or name %s", host.IP, host.Name)
+	return nil
 }
 
 // AddHost adds host to the current IPAM.
 func (ipam *IPAM) AddHost(host api.Host) error {
+	var err error
 	if host.IP == nil {
 		return common.NewError("Host IP is required.")
 	}
 	if host.Name == "" {
 		return common.NewError("Host name is required.")
 	}
-	myHost := &Host{IP: host.IP, Name: host.Name, Tags: host.Tags}
+
+	addedHost := false
 	for _, net := range ipam.Networks {
+		myHost := &Host{IP: host.IP, Name: host.Name, Tags: host.Tags}
 		ok, err := net.Group.addHost(myHost)
 		if err != nil {
 			return err
 		}
 		if ok {
-			ipam.TopologyRevision++
-			err = ipam.save(ipam)
-			if err != nil {
-				return err
-			}
-			return nil
+			addedHost = true
 		}
 	}
-	return common.NewError("No suitable groups to add host %s to.", host)
+	if addedHost {
+		ipam.TopologyRevision++
+		err = ipam.save(ipam)
+		if err != nil {
+			return err
+		}
+	} else {
+		return common.NewError("No suitable groups to add host %s to.", host)
+	}
+	return nil
 }
 
 // BlackOut removes a CIDR from consideration. It is an error if CIDR
