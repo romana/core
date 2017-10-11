@@ -947,11 +947,12 @@ func TestHostAdditionSimple(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Logf(testSaver.lastJson)
+	//	t.Logf(testSaver.lastJson)
 	// One of the groups in each network should only have one host left now
 	for i := range netNames {
 		netName := netNames[i]
 		net := ipam.Networks[netName]
+
 		grp := net.Group.Groups[0]
 
 		// This one should have 1 host left
@@ -1074,7 +1075,7 @@ func TestTenantsBug701(t *testing.T) {
 	ipam = initIpam(t, "")
 
 	h := 1
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 31; i++ {
 		addr := fmt.Sprintf("addr%d", i)
 		host := fmt.Sprintf("host%d", h)
 		h++
