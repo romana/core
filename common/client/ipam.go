@@ -1307,19 +1307,15 @@ func (ipam *IPAM) RemoveHost(host api.Host) error {
 		}
 		var i int
 		var curHost *Host
-		foundHostToRemove := false
 
 		for i, curHost = range hostToRemove.group.Hosts {
 			if curHost.IP.String() == hostToRemove.IP.String() {
-				foundHostToRemove = true
+				log.Tracef(trace.Inside, "Net %s: removing host %s (%d) from group %s (%v)\n", net.Name, hostToRemove, i, hostToRemove.group.Name, hostToRemove.group.Hosts)
+				hostToRemove.group.Hosts = deleteElementHost(hostToRemove.group.Hosts, i)
+				log.Tracef(trace.Inside, "Net %s, after removal: %v", net.Name, hostToRemove.group.Hosts)
+				removedHost = true
 				break
 			}
-		}
-		if foundHostToRemove {
-			log.Tracef(trace.Inside, "Net %s: removing host %s (%d) from group %s (%v)\n", net.Name, hostToRemove, i, hostToRemove.group.Name, hostToRemove.group.Hosts)
-			hostToRemove.group.Hosts = deleteElementHost(hostToRemove.group.Hosts, i)
-			log.Tracef(trace.Inside, "Net %s, after removal: %v", net.Name, hostToRemove.group.Hosts)
-			removedHost = true
 		}
 	}
 	if removedHost {
