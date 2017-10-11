@@ -46,7 +46,7 @@ const (
 )
 
 var (
-	tenantNameRegexp = regexp.MustCompile("^[a-zA-Z0-9_]*$")
+	tenantNameRegexp = regexp.MustCompile("^[a-zA-Z0-9_-]*$")
 )
 
 func deleteElementInt(arr []int, i int) []int {
