@@ -441,10 +441,10 @@ func (c *Client) watchIPAM() error {
 	go func() {
 		log.Tracef(trace.Inside, "watchIPAM: Entering watchIPAM goroutine: %d", getGID())
 		for {
-			c.savingMutex.RLock()
 
 			select {
 			case kv := <-ch:
+				c.savingMutex.RLock()
 				prevKV := c.IPAM.GetPrevKVPair()
 				if prevKV == nil || kv.LastIndex > prevKV.LastIndex {
 					log.Infof("Received IPAM with revision %d, current last revision %d", kv.LastIndex, prevKV.LastIndex)
@@ -454,12 +454,14 @@ func (c *Client) watchIPAM() error {
 						// Nothing to do here, but since there is a new version,
 						// IPAM will continue failing on save until we get another one and
 						// try again
+						c.savingMutex.RUnlock()
 						continue
 					}
 					c.IPAM, err = parseIPAM(string(kv.Value))
 					if err != nil {
 						log.Error(err)
 						c.IPAM.locker.Unlock()
+						c.savingMutex.RUnlock()
 						continue
 					}
 					c.IPAM.save = c.save
@@ -468,8 +470,6 @@ func (c *Client) watchIPAM() error {
 					c.IPAM.locker.Unlock()
 					log.Infof("Loaded IPAM with revision %d", kv.LastIndex)
 				}
-				c.savingMutex.RUnlock()
-			default:
 				c.savingMutex.RUnlock()
 			}
 		}
