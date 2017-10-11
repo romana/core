@@ -72,7 +72,7 @@ type TestSaver struct {
 	lastJson string
 }
 
-func (s *TestSaver) save(ipam *IPAM) error {
+func (s *TestSaver) save(ipam *IPAM, ch <-chan struct{}) error {
 	b, err := json.MarshalIndent(ipam, "", "  ")
 	if err != nil {
 		return err
@@ -969,7 +969,8 @@ func TestHostAdditionSimple(t *testing.T) {
 	}
 
 	// Test that it saves, loads and we can still remove a host
-	ipam, err = ParseIPAM(testSaver.lastJson, testSaver.save, nil)
+	ipam, err = parseIPAM(testSaver.lastJson)
+	ipam.save = testSaver.save
 	if err != nil {
 		t.Fatal(err)
 	}
