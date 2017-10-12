@@ -28,6 +28,57 @@ import (
 	log "github.com/romana/rlog"
 )
 
+// GetGroupGyHost finds all groups on IPAM which have host with given hostname,
+// returns map[NetworkName]Group. If host not found in any group of a network
+// then the network isn't mentioned in return map.
+func GetGroupGyHost(ipam *client.IPAM, hostname string) map[string]*client.Group {
+
+	hostInList := func(hosts []*client.Host, hostname string) bool {
+		for _, host := range hosts {
+			if host.Name == hostname {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	// hostInGroup is a recursive function, currently in Go anonymous functions
+	// can't be recursive, which is why this variable exists to make the function
+	// _less_ anonymous.
+	var hostInGroup func(group *client.Group, hostname string) *client.Group
+
+	hostInGroup = func(group *client.Group, hostname string) *client.Group {
+		if hostInList(group.Hosts, hostname) {
+			return group
+		}
+
+		if group.Groups == nil {
+			return nil
+		}
+
+		for _, nestedGroup := range group.Groups {
+			g := hostInGroup(nestedGroup, hostname)
+			if g != nil {
+				return g
+			}
+		}
+
+		return nil
+	}
+
+	res := make(map[string]*client.Group)
+
+	for netName, net := range ipam.Networks {
+		group := hostInGroup(net.Group, hostname)
+		if group != nil {
+			res[netName] = group
+		}
+	}
+
+	return res
+}
+
 func main() {
 	var err error
 
@@ -82,7 +133,14 @@ func main() {
 		case blocks := <-blocksChannel:
 			startTime := time.Now()
 
-			createRouteToBlocks(blocks.Blocks, *hostname, bird)
+			hostGroups := GetGroupGyHost(romanaClient.IPAM, *hostname)
+			args := make(map[string]interface{})
+
+			if len(hostGroups) > 0 {
+				args["HostGroups"] = hostGroups
+			}
+
+			createRouteToBlocks(blocks.Blocks, args, *hostname, bird)
 			runTime := time.Now().Sub(startTime)
 			log.Tracef(4, "Time between route table flush and route table rebuild %s", runTime)
 
