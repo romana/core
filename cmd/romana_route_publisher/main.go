@@ -28,10 +28,10 @@ import (
 	log "github.com/romana/rlog"
 )
 
-// GetGroupGyHost finds all groups on IPAM which have host with given hostname,
+// GetGroupByHost finds all groups on IPAM which have host with given hostname,
 // returns map[NetworkName]Group. If host not found in any group of a network
 // then the network isn't mentioned in return map.
-func GetGroupGyHost(ipam *client.IPAM, hostname string) map[string]*client.Group {
+func GetGroupByBost(ipam *client.IPAM, hostname string) map[string]*client.Group {
 
 	hostInList := func(hosts []*client.Host, hostname string) bool {
 		for _, host := range hosts {

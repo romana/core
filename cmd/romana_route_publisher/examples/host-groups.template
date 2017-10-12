@@ -1,0 +1,15 @@
+{{ $hg := index .Args "HostGroups" -}}
+
+protocol static static_bgp {
+{{ range $net, $group := $hg }}
+	# Network {{ $net }}
+	route {{ $group.CIDR }} reject;
+{{ end }}
+}
+
+protocol bgp bgp_def {
+	export where proto = "static_bgp";
+        direct;
+	local as {{.LocalAS}};
+	neighbor 192.168.99.1 as {{.LocalAS}};
+}
