@@ -1,0 +1,25 @@
+{
+    "apiVersion": "extensions/v1beta1",
+    "kind": "NetworkPolicy",
+    "metadata": {
+        "name": "pol1",
+        "namespace": "tenant-a"
+    },
+    "spec": {
+        "ingress": [
+            {
+                "ports": [
+                    {
+                        "port": 80,
+                        "protocol": "TCP"
+                    }
+                ]
+            }
+        ],
+        "podSelector": {
+            "matchLabels": {
+                "romana.io/segment": "backend"
+            }
+        }
+    }
+}

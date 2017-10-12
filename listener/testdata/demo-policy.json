@@ -1,0 +1,1 @@
+{"id":"kube.tenant-a.pol1.a8e9618f-ab1d-11e7-a1ea-068bf013416e","direction":"ingress","applied_to":[{"tenant_id":"tenant-a","segment_id":"backend"}],"ingress":[{"peers":[{"tenant_id":"tenant-a","segment_id":"frontend"}],"rules":[{"protocol":"tcp","ports":[80]}]}]}

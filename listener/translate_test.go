@@ -13,21 +13,106 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// +build ignore
-
 package listener
 
 import (
+	"encoding/json"
+	"io/ioutil"
+	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 
-	"github.com/romana/core/common"
+	"github.com/romana/core/common/api"
 
 	"k8s.io/client-go/pkg/api/unversioned"
 	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/pkg/apis/extensions/v1beta1"
 	"k8s.io/client-go/pkg/util/intstr"
 )
+
+var tdir = "testdata"
+
+func TestTranslatePolicy(t *testing.T) {
+	files, err := ioutil.ReadDir(tdir)
+	if err != nil {
+		t.Skip("Folder with test data not found")
+	}
+
+	loadKubePolicy := func(file string) (*v1beta1.NetworkPolicy, error) {
+		data, err := ioutil.ReadFile(filepath.Join(tdir, file))
+		if err != nil {
+			return nil, err
+		}
+
+		var policy v1beta1.NetworkPolicy
+
+		err = json.Unmarshal(data, &policy)
+
+		if err != nil {
+			return nil, err
+		}
+
+		return &policy, nil
+	}
+
+	loadRomanaPolicy := func(file string) (*api.Policy, error) {
+		data, err := ioutil.ReadFile(filepath.Join(tdir, file))
+		if err != nil {
+			return nil, err
+		}
+
+		var policy api.Policy
+
+		err = json.Unmarshal(data, &policy)
+
+		if err != nil {
+			return nil, err
+		}
+
+		return &policy, nil
+	}
+
+	translator := Translator{
+		cacheMu:          &sync.Mutex{},
+		segmentLabelName: "romana.io/segment",
+	}
+
+	policyToList := func(p ...v1beta1.NetworkPolicy) []v1beta1.NetworkPolicy { return p }
+
+	// Loads file as kube policy and translates it to Romana policy,
+	// then loads reference Romana policy from .json file and compares.
+	test := func(file string, t *testing.T) func(*testing.T) {
+		return func(t *testing.T) {
+			policy, err := loadKubePolicy(file)
+			if err != nil {
+				t.Fatalf("failed to read policy %s, err=%s", file, err)
+			}
+
+			romanaPolicy, _, err := translator.Kube2RomanaBulk(policyToList(*policy))
+			if err != nil {
+				t.Fatalf("failed to convert k8s policy to romana policy, err=%s", err)
+			}
+
+			referencePolicyName := strings.Replace(file, ".kube", ".json", -1)
+			referencePolicy, err := loadRomanaPolicy(referencePolicyName)
+			if err != nil {
+				t.Fatalf("failed to load reference policy %s, err=%s", file, err)
+			}
+
+			if len(romanaPolicy) > 0 && romanaPolicy[0].String() == referencePolicy.String() {
+				t.Fatalf("policy\n%s\ndoesn't match reference policy\n%s", romanaPolicy, referencePolicy)
+			}
+
+		}
+	}
+
+	for _, file := range files {
+		if strings.HasSuffix(file.Name(), ".kube") {
+			t.Run(file.Name(), test(file.Name(), t))
+		}
+	}
+}
 
 func TestTranslateTarget(t *testing.T) {
 	tg := TranslateGroup{
@@ -36,44 +121,43 @@ func TestTranslateTarget(t *testing.T) {
 				Namespace: "default",
 			},
 		},
-		romanaPolicy: &common.Policy{
-			Name: "TestPolicy",
+		romanaPolicy: &api.Policy{
+			ID: "TestPolicy",
 		},
 	}
 
 	translator := Translator{
-		tenantsCache: []TenantCacheEntry{
-			TenantCacheEntry{
-				Tenant: common.Tenant{
-					Name: "default",
-					ID:   3,
-				},
-				Segments: []common.Segment{
-					common.Segment{
-						Name: "TestSegment",
-						ID:   2,
-					},
-				},
-			},
-		},
 		cacheMu:          &sync.Mutex{},
 		segmentLabelName: "role",
 	}
 
 	testCases := []struct {
 		PodSelector  unversioned.LabelSelector
-		RomanaPolicy common.Policy
-		expected     func(*common.Policy) bool
+		RomanaPolicy api.Policy
+		expected     func(*api.Policy) bool
 	}{
 		{
 			PodSelector: unversioned.LabelSelector{
 				MatchLabels: map[string]string{},
 			},
-			RomanaPolicy: common.Policy{
-				Name: "TestPolicyWithoutTargetSegment",
+			RomanaPolicy: api.Policy{
+				ID: "TestPolicyWithoutTargetSegment",
 			},
-			expected: func(p *common.Policy) bool {
-				return p.AppliedTo[0].TenantID == 3
+			expected: func(p *api.Policy) bool {
+				return p.AppliedTo[0].TenantID == "default"
+			},
+		},
+		{
+			PodSelector: unversioned.LabelSelector{
+				MatchLabels: map[string]string{
+					"unrelated_label": "banana",
+				},
+			},
+			RomanaPolicy: api.Policy{
+				ID: "TestPolicyWithoutTargetSegment2",
+			},
+			expected: func(p *api.Policy) bool {
+				return p.AppliedTo[0].TenantID == "default"
 			},
 		}, {
 			PodSelector: unversioned.LabelSelector{
@@ -81,11 +165,11 @@ func TestTranslateTarget(t *testing.T) {
 					"role": "TestSegment",
 				},
 			},
-			RomanaPolicy: common.Policy{
-				Name: "TestPolicyWithSegment",
+			RomanaPolicy: api.Policy{
+				ID: "TestPolicyWithSegment",
 			},
-			expected: func(p *common.Policy) bool {
-				return p.AppliedTo[0].SegmentID == 2
+			expected: func(p *api.Policy) bool {
+				return p.AppliedTo[0].SegmentID == "TestSegment"
 			},
 		},
 	}
@@ -99,7 +183,7 @@ func TestTranslateTarget(t *testing.T) {
 		}
 
 		if !testCase.expected(tg.romanaPolicy) {
-			t.Errorf("Failed to translate romana policy %s", tg.romanaPolicy.Name)
+			t.Errorf("Failed to translate romana policy %s", tg.romanaPolicy.ID)
 		}
 	}
 }
@@ -116,37 +200,13 @@ func TestMakeNextIngressPeer(t *testing.T) {
 				},
 			},
 		},
-		romanaPolicy: &common.Policy{
-			Name: "TestPolicy",
+		romanaPolicy: &api.Policy{
+			ID: "TestPolicy",
 		},
 		ingressIndex: 0,
 	}
 
 	translator := Translator{
-		tenantsCache: []TenantCacheEntry{
-			TenantCacheEntry{
-				Tenant: common.Tenant{
-					Name: "default",
-					ID:   3,
-				},
-				Segments: []common.Segment{
-					common.Segment{
-						Name: "TestSegment",
-						ID:   2,
-					},
-					common.Segment{
-						Name: "AnotherTestSegment",
-						ID:   3,
-					},
-				},
-			},
-			TenantCacheEntry{
-				Tenant: common.Tenant{
-					Name: "source-tenant",
-					ID:   4,
-				},
-			},
-		},
 		cacheMu:          &sync.Mutex{},
 		segmentLabelName: "role",
 		tenantLabelName:  "tenantName",
@@ -154,8 +214,8 @@ func TestMakeNextIngressPeer(t *testing.T) {
 
 	testCases := []struct {
 		From         []v1beta1.NetworkPolicyPeer
-		RomanaPolicy common.Policy
-		expected     func(*common.Policy) bool
+		RomanaPolicy api.Policy
+		expected     func(*api.Policy) bool
 	}{
 		{
 			From: []v1beta1.NetworkPolicyPeer{
@@ -163,14 +223,14 @@ func TestMakeNextIngressPeer(t *testing.T) {
 					PodSelector: &unversioned.LabelSelector{},
 				},
 			},
-			RomanaPolicy: common.Policy{
-				Name: "TestPolicyWithoutSegment",
-				Ingress: []common.RomanaIngress{
-					common.RomanaIngress{},
+			RomanaPolicy: api.Policy{
+				ID: "TestPolicyWithoutSegment",
+				Ingress: []api.RomanaIngress{
+					api.RomanaIngress{},
 				},
 			},
-			expected: func(p *common.Policy) bool {
-				return p.Ingress[0].Peers[0].TenantID == 3
+			expected: func(p *api.Policy) bool {
+				return p.Ingress[0].Peers[0].TenantID == "default"
 			},
 		}, {
 			From: []v1beta1.NetworkPolicyPeer{
@@ -182,14 +242,14 @@ func TestMakeNextIngressPeer(t *testing.T) {
 					},
 				},
 			},
-			RomanaPolicy: common.Policy{
-				Name: "TestPolicyWithoutSegment",
-				Ingress: []common.RomanaIngress{
-					common.RomanaIngress{},
+			RomanaPolicy: api.Policy{
+				ID: "TestPolicyWithoutSegment",
+				Ingress: []api.RomanaIngress{
+					api.RomanaIngress{},
 				},
 			},
-			expected: func(p *common.Policy) bool {
-				return p.Ingress[0].Peers[0].TenantID == 4
+			expected: func(p *api.Policy) bool {
+				return p.Ingress[0].Peers[0].TenantID == "source-tenant"
 			},
 		}, {
 			From: []v1beta1.NetworkPolicyPeer{
@@ -208,14 +268,25 @@ func TestMakeNextIngressPeer(t *testing.T) {
 					},
 				},
 			},
-			RomanaPolicy: common.Policy{
-				Name: "TestPolicyWithSegments",
-				Ingress: []common.RomanaIngress{
-					common.RomanaIngress{},
+			RomanaPolicy: api.Policy{
+				ID: "TestPolicyWithSegments",
+				Ingress: []api.RomanaIngress{
+					api.RomanaIngress{},
 				},
 			},
-			expected: func(p *common.Policy) bool {
-				return p.Ingress[0].Peers[0].TenantID == 3 && p.Ingress[0].Peers[0].SegmentID == 2 && p.Ingress[0].Peers[1].TenantID == 3 && p.Ingress[0].Peers[1].SegmentID == 3
+			expected: func(p *api.Policy) bool {
+				return p.Ingress[0].Peers[0].TenantID == "default" && p.Ingress[0].Peers[0].SegmentID == "TestSegment" && p.Ingress[0].Peers[1].TenantID == "default" && p.Ingress[0].Peers[1].SegmentID == "AnotherTestSegment"
+			},
+		}, {
+			From: []v1beta1.NetworkPolicyPeer{},
+			RomanaPolicy: api.Policy{
+				ID: "TestPolicyEmtyIngress",
+				Ingress: []api.RomanaIngress{
+					api.RomanaIngress{},
+				},
+			},
+			expected: func(p *api.Policy) bool {
+				return p.Ingress[0].Peers[0].Peer == "any"
 			},
 		},
 	}
@@ -229,7 +300,7 @@ func TestMakeNextIngressPeer(t *testing.T) {
 		}
 
 		if !testCase.expected(tg.romanaPolicy) {
-			t.Errorf("Failed to translate romana policy %s", tg.romanaPolicy.Name)
+			t.Errorf("Failed to translate romana policy %s", tg.romanaPolicy.ID)
 		}
 	}
 }
@@ -243,8 +314,8 @@ func TestMakeNextRule(t *testing.T) {
 				},
 			},
 		},
-		romanaPolicy: &common.Policy{
-			Name: "TestPolicy",
+		romanaPolicy: &api.Policy{
+			ID: "TestPolicy",
 		},
 		ingressIndex: 0,
 	}
@@ -261,8 +332,8 @@ func TestMakeNextRule(t *testing.T) {
 
 	testCases := []struct {
 		ToPorts      []v1beta1.NetworkPolicyPort
-		RomanaPolicy common.Policy
-		expected     func(*common.Policy) bool
+		RomanaPolicy api.Policy
+		expected     func(*api.Policy) bool
 	}{
 		{
 			ToPorts: []v1beta1.NetworkPolicyPort{
@@ -275,14 +346,25 @@ func TestMakeNextRule(t *testing.T) {
 					Protocol: &portUDP,
 				},
 			},
-			RomanaPolicy: common.Policy{
-				Name: "TestPolicyWithPorts",
-				Ingress: []common.RomanaIngress{
-					common.RomanaIngress{},
+			RomanaPolicy: api.Policy{
+				ID: "TestPolicyWithPorts",
+				Ingress: []api.RomanaIngress{
+					api.RomanaIngress{},
 				},
 			},
-			expected: func(p *common.Policy) bool {
+			expected: func(p *api.Policy) bool {
 				return p.Ingress[0].Rules[0].Ports[0] == 80 && p.Ingress[0].Rules[0].Protocol == "tcp" && p.Ingress[0].Rules[1].Ports[0] == 53 && p.Ingress[0].Rules[1].Protocol == "udp"
+			},
+		}, {
+			ToPorts: []v1beta1.NetworkPolicyPort{},
+			RomanaPolicy: api.Policy{
+				ID: "TestPolicyWithPorts",
+				Ingress: []api.RomanaIngress{
+					api.RomanaIngress{},
+				},
+			},
+			expected: func(p *api.Policy) bool {
+				return p.Ingress[0].Rules[0].Protocol == api.Wildcard
 			},
 		},
 	}
@@ -296,7 +378,7 @@ func TestMakeNextRule(t *testing.T) {
 		}
 
 		if !testCase.expected(tg.romanaPolicy) {
-			t.Errorf("Failed to translate romana policy %s", tg.romanaPolicy.Name)
+			t.Errorf("Failed to translate romana policy %s", tg.romanaPolicy.ID)
 		}
 	}
 }

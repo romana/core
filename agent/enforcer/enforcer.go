@@ -67,9 +67,6 @@ type Enforcer struct {
 	// Delay between main loop runs.
 	ticker *time.Ticker
 
-	// Used to pause main loop.
-	paused bool
-
 	// exec used to apply iptables policies.
 	exec utilexec.Executable
 
@@ -118,18 +115,12 @@ func (a *Enforcer) Run(ctx context.Context) {
 
 	iptables := &iptsave.IPtables{}
 	a.ticker = time.NewTicker(time.Duration(a.refreshSeconds) * time.Second)
-	a.paused = false
 
 	go func() {
 		for {
 			select {
 			case <-a.ticker.C:
 				log.Trace(4, "Policy enforcer tick started")
-				if a.paused {
-					log.Tracef(5, "Policy enforcer tick skipped due to pause")
-					continue
-				}
-
 				if !a.policyUpdate && !a.blocksUpdate {
 					log.Tracef(5, "Policy enforcer tick skipped due no updates, block update=%t and policy update=%t", a.blocksUpdate, a.policyUpdate)
 					continue
@@ -184,35 +175,19 @@ func (a *Enforcer) Run(ctx context.Context) {
 	}()
 }
 
-// Pause main loop.
-func (a *Enforcer) Pause() {
-	a.paused = true
-}
-
-// Continue main loop.
-func (a *Enforcer) Continue() {
-	a.paused = false
-}
-
 // makeBlockSets creates ipset configuration for policies and blocks.
 func makeBlockSets(blocks []api.IPAMBlockResponse, policyCache policycache.Interface, hostname string) (*ipset.Ipset, error) {
 	policies := policyCache.List()
 	sets := ipset.NewIpset()
 
-	// for every policy produce 2 sets, one to match
-	// incoming traffic and one to match outgoing traffic.
+	// for every policy produce a set to match policy related traffic.
 	for _, policy := range policies {
-		srcSet, dstSet, err := makePolicySets(policy)
+		policySet, err := makePolicySets(policy)
 		if err != nil {
 			return nil, err
 		}
 
-		err = sets.AddSet(srcSet)
-		if err != nil {
-			return nil, err
-		}
-
-		err = sets.AddSet(dstSet)
+		err = sets.AddSet(policySet)
 		if err != nil {
 			return nil, err
 		}
@@ -285,48 +260,53 @@ func makeBlockSets(blocks []api.IPAMBlockResponse, policyCache policycache.Inter
 	return sets, nil
 }
 
+// LocalBlockSetName is an ipset set that matches traffic for endpoints
+// located on current host.
 const LocalBlockSetName = "localBlocks"
 
-func makePolicySets(policy api.Policy) (*ipset.Set, *ipset.Set, error) {
-	setSrc, err := ipset.NewSet(policytools.MakeRomanaPolicyNameSetSrc(policy), ipset.SetHashNet)
-	if err != nil {
-		return setSrc, nil, err
+// makePolicySets produces a set that matches traffic selected by policy Peer fields.
+func makePolicySets(policy api.Policy) (*ipset.Set, error) {
+	var policySet *ipset.Set
+	var err error
+
+	switch policy.Direction {
+	case api.PolicyDirectionEgress:
+		policySet, err = ipset.NewSet(
+			policytools.MakeRomanaPolicyNameSetDst(policy), ipset.SetHashNet)
+	case api.PolicyDirectionIngress:
+		policySet, err = ipset.NewSet(
+			policytools.MakeRomanaPolicyNameSetSrc(policy), ipset.SetHashNet)
 	}
 
-	setDst, err := ipset.NewSet(policytools.MakeRomanaPolicyNameSetDst(policy), ipset.SetHashNet)
 	if err != nil {
-		return setSrc, setDst, err
+		return nil, err
 	}
 
 	for _, ingress := range policy.Ingress {
 		for _, peer := range ingress.Peers {
-			if peerType := policytools.DetectPolicyPeerType(peer); peerType == policytools.PeerCIDR {
-				switch policy.Direction {
-				case api.PolicyDirectionEgress:
-					member, err := ipset.NewMember(peer.Cidr, setDst)
-					if err != nil {
-						return nil, nil, err
-					}
-					err = ipset.SuppressItemExist(setDst.AddMember(member))
-					if err != nil {
-						return nil, nil, err
-					}
-				case api.PolicyDirectionIngress:
-					member, err := ipset.NewMember(peer.Cidr, setSrc)
-					if err != nil {
-						return nil, nil, err
-					}
-					err = ipset.SuppressItemExist(setSrc.AddMember(member))
-					if err != nil {
-						return nil, nil, err
-					}
-				}
+			peerType := policytools.DetectPolicyPeerType(peer)
+			if peerType != policytools.PeerCIDR {
+				continue
+			}
+
+			member, err := ipset.NewMember(peer.Cidr, policySet)
+			if err != nil {
+				return nil, err
+			}
+
+			err = ipset.SuppressItemExist(policySet.AddMember(member))
+			if err != nil {
+				return nil, err
 			}
 		}
 	}
 
-	return setSrc, setDst, err
+	return policySet, nil
 }
+
+// validateFunc is a signature for a function that validates api.Endpoint
+// according to some criteria.
+type validateFunc func(target api.Endpoint) bool
 
 // renderIPtables creates iptables rules for all romana policies in policy cache
 // except the ones which depends on non-existend tenant/segment.
@@ -342,8 +322,26 @@ func renderIPtables(policyCache policycache.Interface, hostname string, blocks [
 		},
 	}
 
+	// filter out blocks that are assigned to remote hosts,
+	// this should prevent policies being created
+	// across an entire cluster.
+	var localBlocks []api.IPAMBlockResponse
+	for _, block := range blocks {
+		if block.Host == hostname {
+			localBlocks = append(localBlocks, block)
+		}
+	}
+
+	// validateTargetForHost returns validateFunc that only accepts
+	// targets which have endpoints on current host.
+	validateTargetForHost := func(blocks []api.IPAMBlockResponse) validateFunc {
+		return func(target api.Endpoint) bool {
+			return targetValid(target, blocks)
+		}
+	}
+
 	makeBase(&iptables)
-	makePolicies(policyCache.List(), hostname, blocks, &iptables)
+	makePolicies(policyCache.List(), validateTargetForHost(localBlocks), &iptables)
 
 	return &iptables
 }
@@ -359,14 +357,14 @@ func makeBase(iptables *iptsave.IPtables) {
 }
 
 // makePolicies populates policy related rules into the iptables.
-func makePolicies(policies []api.Policy, hostname string, blocks []api.IPAMBlockResponse, iptables *iptsave.IPtables) {
+func makePolicies(policies []api.Policy, valid validateFunc, iptables *iptsave.IPtables) {
 	log.Trace(trace.Private, "Policy enforcer in makePolicies()")
 
 	// iterator iterates over each combination of
 	// policy * target * peer * rule.
 	iterator, err := policytools.NewPolicyIterator(policies)
 	if err != nil {
-		// no policies, nothing to do.
+		log.Errorf("can not iterate over policies, err=%s", err)
 		return
 	}
 
@@ -375,7 +373,7 @@ func makePolicies(policies []api.Policy, hostname string, blocks []api.IPAMBlock
 
 		// skip rules which don't have a valid target.
 		// TODO filter blocks by current host to avoid unnecessary rules.
-		if !targetValid(target, blocks) {
+		if !valid(target) {
 			log.Debugf("Target %s skipped for policy %s as invalid for the host", target, policy.ID)
 			continue
 		}
@@ -431,23 +429,6 @@ func cleanupUnusedChains(iptables *iptsave.IPtables, exec utilexec.Executable) {
 	}
 }
 
-type RuleBlueprint struct {
-	baseChain        string
-	topRuleMatch     func(api.Endpoint) string
-	topRuleAction    func(api.Policy) string
-	secondBaseChain  func(api.Policy) string
-	secondRuleMatch  func(api.Endpoint) string
-	secondRuleAction func(api.Policy) string
-	thirdBaseChain   func(api.Policy) string
-	thirdRuleMatch   func(api.Endpoint) string
-	thirdRuleAction  func(api.Policy) string
-	fourthBaseChain  func(api.Policy) string
-	fourthRuleMatch  func(api.Rule, string) []*iptsave.IPrule
-	fourthRuleAction string
-}
-
-//go:generate go run internal/gen/main.go -data data/policy.tsv -template templates/blueprint.go_template -out blueprint.go
-
 func EnsureRules(baseChain *iptsave.IPchain, rules []*iptsave.IPrule) {
 	for _, rule := range rules {
 		if !baseChain.RuleInChain(rule) {
@@ -460,6 +441,8 @@ func rules2list(rules ...*iptsave.IPrule) []*iptsave.IPrule {
 	return rules
 }
 
+// translateRule translates specific combination of peer, target and rule into
+// the set of iptables rules.
 func translateRule(policy api.Policy,
 	iptablesSchemeType string,
 	peer, target api.Endpoint,
@@ -467,30 +450,36 @@ func translateRule(policy api.Policy,
 	direction string,
 	iptables *iptsave.IPtables) error {
 
-	peerType := policytools.DetectPolicyPeerType(peer) // TODO ten/host/local/cidr
+	// detect target and peer type to choose proper translation scheme.
+	peerType := policytools.DetectPolicyPeerType(peer)
 	dstType := policytools.DetectPolicyTargetType(target)
 
-	log.Debug("makePolicyRuleInDirection #1")
-
-	key := policytools.MakeBlueprintKey(direction, iptablesSchemeType, peerType, dstType) // TODO
-
+	// translationConfig is a schema that describes how to translate particular
+	// combination of parameters.
+	key := policytools.MakeBlueprintKey(direction, iptablesSchemeType, peerType, dstType)
 	translationConfig, ok := policytools.Blueprints[key]
-	// log.Debugf("makePolicyRuleInDirection with key %s, ok=%t, value=%s", key, ok, translationConfig)
 	if !ok {
 		return errors.New("can't translate ... ")
 	}
 
+	// for now all our policies live in *filter table
 	filter := iptables.TableByName("filter")
 
-	baseChain := EnsureChainExists(filter, translationConfig.BaseChain)
+	// every combination of parameters will  be translated in 3 or 4 iptables
+	// rules
+	// rule 1-2) filters traffic by target - aka tenant owner of the policy
+	// rule 3) filters traffic by peer - aka remote tenant, cidr, etc...
+	// rule 4) filters traffic according to l4 protocol spec, and applies
+	// a rule - aka ACCEPT/REJECT
 
-	// jump from base chain to policy chain
+	// first rule filters traffic for target tenant.
+	baseChain := EnsureChainExists(filter, translationConfig.BaseChain)
 	jumpFromBaseToPolicyRule := policytools.MakeRuleWithBody(
 		translationConfig.TopRuleMatch(target), translationConfig.TopRuleAction(policy),
 	)
-
 	EnsureRules(baseChain, rules2list(jumpFromBaseToPolicyRule))
 
+	// second rule filters traffic for target tenant (optional for SchemePolicyOnTop)
 	secondBaseChainName := translationConfig.SecondBaseChain(policy)
 	secondRuleMatch := translationConfig.SecondRuleMatch(target)
 	secondRuleAction := translationConfig.SecondRuleAction(policy)
@@ -504,25 +493,23 @@ func translateRule(policy api.Policy,
 
 	}
 
+	// third rule filters traffic by peer
 	thirdBaseChainName := translationConfig.ThirdBaseChain(policy)
 	thirdBaseChain := EnsureChainExists(filter, thirdBaseChainName)
 	thirdRuleMatch := translationConfig.ThirdRuleMatch(peer)
 	thirdRuleAction := translationConfig.ThirdRuleAction(policy)
-
 	thirdRule := policytools.MakeRuleWithBody(
 		thirdRuleMatch, thirdRuleAction,
 	)
-
 	EnsureRules(thirdBaseChain, rules2list(thirdRule))
 
+	// fourth rule filters traffic by protocol spec.
 	fourthBaseChainName := translationConfig.FourthBaseChain(policy)
 	fourthBaseChain := EnsureChainExists(filter, fourthBaseChainName)
 	fourthRuleAction := translationConfig.FourthRuleAction
 	fourthRules := translationConfig.FourthRuleMatch(rule, fourthRuleAction)
-
 	EnsureRules(fourthBaseChain, fourthRules)
 
-	log.Debug("makePolicyRuleInDirection #3")
 	return nil
 }
 
