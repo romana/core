@@ -264,7 +264,7 @@ func makeBlockSets(blocks []api.IPAMBlockResponse, policyCache policycache.Inter
 // located on current host.
 const LocalBlockSetName = "localBlocks"
 
-// makePolicySets produces a set that matches traffic selected by policy Peer fileds.
+// makePolicySets produces a set that matches traffic selected by policy Peer fields.
 func makePolicySets(policy api.Policy) (*ipset.Set, error) {
 	var policySet *ipset.Set
 	var err error
@@ -275,7 +275,7 @@ func makePolicySets(policy api.Policy) (*ipset.Set, error) {
 			policytools.MakeRomanaPolicyNameSetDst(policy), ipset.SetHashNet)
 	case api.PolicyDirectionIngress:
 		policySet, err = ipset.NewSet(
-			policytools.MakeRomanaPolicyNameSetDst(policy), ipset.SetHashNet)
+			policytools.MakeRomanaPolicyNameSetSrc(policy), ipset.SetHashNet)
 	}
 
 	if err != nil {
@@ -469,7 +469,7 @@ func translateRule(policy api.Policy,
 	// rules
 	// rule 1-2) filters traffic by target - aka tenant owner of the policy
 	// rule 3) filters traffic by peer - aka remote tenant, cidr, etc...
-	// rule 4) filters traffic according to l4 protocal spec, and applies
+	// rule 4) filters traffic according to l4 protocol spec, and applies
 	// a rule - aka ACCEPT/REJECT
 
 	// first rule filters traffic for target tenant.
