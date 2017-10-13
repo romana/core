@@ -181,7 +181,7 @@ func TestMakePolicySets(t *testing.T) {
 						continue
 					}
 
-					return fmt.Errorf("cidr %s not found in set %s",
+					return fmt.Errorf("cidr %s not found in set %v",
 						cidr, set)
 				}
 			}
@@ -247,7 +247,7 @@ func TestMakeBlockSets(t *testing.T) {
 
 	makeCIDR := func(s string) api.IPNet {
 		_, ipnet, _ := net.ParseCIDR(s)
-		return api.IPNet{*ipnet}
+		return api.IPNet{IPNet: *ipnet}
 	}
 
 	// expectFunc is a signature for a function used in test cases to
@@ -273,7 +273,7 @@ func TestMakeBlockSets(t *testing.T) {
 
 				}
 				if !found {
-					return fmt.Errorf("elem %s not found in set %s",
+					return fmt.Errorf("elem %s not found in set %v",
 						elem, set)
 				}
 			}
@@ -285,8 +285,8 @@ func TestMakeBlockSets(t *testing.T) {
 	// returns expectFunc that checks that provided elems not included on Set.
 	matchElemNotInSet := func(setname string, elems ...string) expectFunc {
 		return func(sets *ipset.Ipset, err error) error {
-			err = matchElemInSet(setname, elems...)(sets, nil)
-			if err != nil {
+			err1 := matchElemInSet(setname, elems...)(sets, err)
+			if err1 != nil {
 				return nil
 			}
 

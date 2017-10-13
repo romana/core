@@ -66,6 +66,10 @@ func main() {
 	}
 
 	romanaClient, err := client.NewClient(&romanaConfig)
+	if err != nil {
+		log.Errorf("Failed to initialize romana client: %v", err)
+		os.Exit(2)
+	}
 
 	stopCh := make(chan struct{})
 	defer close(stopCh)

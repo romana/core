@@ -16,39 +16,11 @@
 package sysctl
 
 import (
-	"flag"
-	"io/ioutil"
-	"os"
 	"path/filepath"
 	"testing"
 )
 
 const testFileDir = "testdata"
-
-var cleanupFlag = flag.Bool("cleanup", true, "cleanup temporary files after run")
-
-// prepareTestFile takes a name of a test file and creates a copy of that file
-// with a random name.
-// It returns tmporary file name, cleanup function and an error if any.
-func prepareTestFile(t *testing.T, caseFile string) (string, func()) {
-	tmpFile, err := ioutil.TempFile(testFileDir, caseFile)
-	if err != nil {
-		t.Fatalf("failed to create tmp file %s", err)
-	}
-	cleanup := func() { os.Remove(tmpFile.Name()) }
-
-	testData, err := ioutil.ReadFile(filepath.Join(testFileDir, caseFile))
-	if err != nil {
-		t.Fatalf("failed to read test data from %s, err=%s", caseFile, err)
-	}
-
-	err = ioutil.WriteFile(tmpFile.Name(), testData, os.ModePerm)
-	if err != nil {
-		t.Fatalf("failed to write data to the tmp file %s, err=%s", tmpFile.Name(), err)
-	}
-
-	return tmpFile.Name(), cleanup
-}
 
 func TestCheck(t *testing.T) {
 	cases := []struct {

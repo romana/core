@@ -78,7 +78,8 @@ func main() {
 
 	romanaClient, err := client.NewClient(&romanaConfig)
 	if err != nil {
-		panic(err)
+		log.Errorf("Failed to initialize romana client: %v", err)
+		os.Exit(2)
 	}
 
 	if *provisionIface {

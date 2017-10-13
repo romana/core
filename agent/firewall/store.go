@@ -99,7 +99,7 @@ func (firewallStore *firewallStore) addIPtablesRuleUnsafe(rule *IPtablesRule) er
 		panic("In addIPtablesRule(), db is nil")
 	}
 
-	st, err := db.Prepare("INSERT INTO iptables_rule (body, state) VALUES (?,?)")
+	st, err := db.Prepare("INSERT INTO iptables_rules (body, state) VALUES (?,?)")
 	if err != nil {
 		return err
 	}

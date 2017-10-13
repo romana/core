@@ -199,10 +199,12 @@ func makeBlockSets(blocks []api.IPAMBlockResponse, policyCache policycache.Inter
 	// - tenant set contains all the t+s sets for the
 	// relevant tenant
 	for _, block := range blocks {
-		if block.Segment == "" {
-			// TODO error, can't distinguish between
-			// tenantSegment set and tenant set
-		}
+		/*
+			if block.Segment == "" {
+				// TODO error, can't distinguish between
+				// tenantSegment set and tenant set
+			}
+		*/
 
 		// TODO ignore blocks for other hostnames? then what about egress?
 		log.Tracef(5, "Making set for %+v", block)

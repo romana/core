@@ -12,7 +12,8 @@ type Interface interface {
 
 func New() Interface {
 	items := make(map[string]interface{})
-	return Cache{Items: items}
+	m := &sync.Mutex{}
+	return Cache{Items: items, Mutex: m}
 }
 
 // note: implementation here uses methods on struct
@@ -20,7 +21,7 @@ func New() Interface {
 
 type Cache struct {
 	Items map[string]interface{}
-	sync.Mutex
+	*sync.Mutex
 }
 
 func (s Cache) Put(key string, item interface{}) {

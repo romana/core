@@ -275,7 +275,7 @@ func CmdDel(args *skel.CmdArgs) error {
 
 	err = deallocator.Deallocate(*netConf, romanaClient, k8sargs.MakePodName())
 	if err != nil {
-		return fmt.Errorf("Failed to tear down pod network for %s, err=(%s)", k8sargs.MakePodName(), err)
+		log.Errorf("Failed to tear down pod network for %s, err=(%s)", k8sargs.MakePodName(), err)
 		return nil
 	}
 
