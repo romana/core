@@ -2,16 +2,13 @@
 	This is a tempalte to that can be rendered by  
 	Romana route publisher into bird.conf
 
-	It will export list of CIDRs (prefix groups)
-	which current host is a part of.
+	It will export list of CIDRs (blocks) which
+	are served by the current host.
 */}}
-{{ $hg := index .Args "HostGroups" -}}
-
 protocol static static_bgp {
-{{ range $net, $group := $hg }}
-	# Network {{ $net }}
-	route {{ $group.CIDR }} reject;
-{{ end }}
+	{{range .Networks}}
+	route {{.}} reject;
+	{{end}}
 }
 
 protocol bgp bgp_def {
