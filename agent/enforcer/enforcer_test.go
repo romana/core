@@ -285,8 +285,8 @@ func TestMakeBlockSets(t *testing.T) {
 	// returns expectFunc that checks that provided elems not included on Set.
 	matchElemNotInSet := func(setname string, elems ...string) expectFunc {
 		return func(sets *ipset.Ipset, err error) error {
-			err = matchElemInSet(setname, elems...)(sets, nil)
-			if err != nil {
+			err1 := matchElemInSet(setname, elems...)(sets, err)
+			if err1 != nil {
 				return nil
 			}
 
