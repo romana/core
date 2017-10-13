@@ -29,7 +29,6 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/go-check/check"
 	"github.com/pborman/uuid"
 	"github.com/romana/core/common/log/trace"
 	log "github.com/romana/rlog"
@@ -50,19 +49,6 @@ var environ map[string]string
 func Environ() map[string]string {
 	once.Do(initEnviron)
 	return environ
-}
-
-// ExpectHttp fails if the error is not an HttpError
-// with a specified status code.
-func ExpectHttpError(c *check.C, err error, code int) {
-	switch err := err.(type) {
-	case HttpError:
-		if err.StatusCode != code {
-			c.Fatalf("Expected %d, got %s", code, err)
-		}
-	default:
-		c.Fatalf("Expected %d, got %s", code, err)
-	}
 }
 
 func initEnviron() {
