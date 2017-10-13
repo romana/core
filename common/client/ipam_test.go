@@ -57,7 +57,7 @@ func initIpam(t *testing.T, conf string) *IPAM {
 	if err != nil {
 		t.Fatalf("Cannot parse %s: %v", conf, err)
 	}
-	err = ipam.UpdateTopology(topoReq)
+	err = ipam.UpdateTopology(topoReq, false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -686,7 +686,7 @@ func TestUpdateTopology(t *testing.T) {
 	topoReq.Topologies[0].Networks[0] = "net2"
 
 	t.Logf("Updating topology to %v", topoReq)
-	err = ipam.UpdateTopology(topoReq)
+	err = ipam.UpdateTopology(topoReq, false)
 	if err == nil {
 		t.Fatal("Expected error on updating topology with allocated IPs, did not get it.")
 	}
@@ -703,7 +703,7 @@ func TestUpdateTopology(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Logf("Updating topology to %v", topoReq)
-	err = ipam.UpdateTopology(topoReq)
+	err = ipam.UpdateTopology(topoReq, false)
 	if err != nil {
 		t.Fatal(err)
 	}
