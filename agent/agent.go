@@ -320,20 +320,20 @@ func (a *Agent) Initialize(clientConfig common.Config) error {
 	}
 
 	/*
-	if a.policyEnabled {
-			// Tenant and Policy cache will poll backend storage every cacheTickTime seconds.
-			var err error
+		if a.policyEnabled {
+				// Tenant and Policy cache will poll backend storage every cacheTickTime seconds.
+				var err error
 
-			a.policyStop = make(chan struct{})
-			tenantCache := tenantCache.New(a.client, tenantCache.Config{CacheTickSeconds: a.cacheTickTime})
-			policyCache := policyCache.New(a.client, policyCache.Config{CacheTickSeconds: a.cacheTickTime})
-			a.enforcer, err = enforcer.New(tenantCache, policyCache, a.networkConfig, a.Helper.Executor, a.policyRefreshSeconds)
-			if err != nil {
-				log.Error("Agent.Initialize() : Failed to connect to database.")
-				return err
-			}
-			a.enforcer.Run(a.policyStop)
-	}
+				a.policyStop = make(chan struct{})
+				tenantCache := tenantCache.New(a.client, tenantCache.Config{CacheTickSeconds: a.cacheTickTime})
+				policyCache := policyCache.New(a.client, policyCache.Config{CacheTickSeconds: a.cacheTickTime})
+				a.enforcer, err = enforcer.New(tenantCache, policyCache, a.networkConfig, a.Helper.Executor, a.policyRefreshSeconds)
+				if err != nil {
+					log.Error("Agent.Initialize() : Failed to connect to database.")
+					return err
+				}
+				a.enforcer.Run(a.policyStop)
+		}
 	*/
 
 	return nil

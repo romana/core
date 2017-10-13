@@ -82,7 +82,7 @@ func TestDivertTraffic(t *testing.T) {
 	cmd1 := fmt.Sprintf("%s -w -C INPUT -i eth0 -j ROMANA-INPUT", iptablesCmd)
 	cmd2 := fmt.Sprintf("%s -A INPUT -i eth0 -j ROMANA-INPUT", iptablesCmd)
 	expect := strings.Join([]string{cmd1, cmd2}, "\n")
-	
+
 	if mockExec.Commands == nil {
 		t.Fatal("Expected non-nil result in Commands")
 	}

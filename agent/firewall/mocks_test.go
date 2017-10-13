@@ -95,8 +95,8 @@ func (c mockFirewallEndpoint) GetIP() net.IP {
 
 func makeMockStore() firewallStore {
 	mockStore := firewallStore{}
-	db, _:= sql.Open("sqlite3", "/tmp/firewall.db")
-	
+	db, _ := sql.Open("sqlite3", "/tmp/firewall.db")
+
 	createTable := `CREATE TABLE IF NOT EXISTS iptables_rules (
 		body TEXT PRIMARY KEY,
 		state VARCHAR

@@ -45,9 +45,9 @@ type KubeListener struct {
 	Addr   string
 	client *client.Client
 
-	segmentLabelName              string
-	tenantLabelName               string
-	namespaceBufferSize           uint64
+	segmentLabelName    string
+	tenantLabelName     string
+	namespaceBufferSize uint64
 
 	lastEventPerNamespace map[string]uint64
 
