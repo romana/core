@@ -67,6 +67,7 @@ func main() {
 	flag.Parse()
 
 	fmt.Println(common.BuildInfo())
+	MetricStart()
 
 	romanaConfig := common.Config{
 		EtcdEndpoints: strings.Split(*etcdEndpoints, ","),
