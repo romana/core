@@ -15,7 +15,10 @@
 
 package api
 
-import "net"
+import (
+	"fmt"
+	"net"
+)
 
 // TODO should this really be kept alongside BlocksResponse?
 type Tenant struct {
@@ -98,6 +101,14 @@ type Host struct {
 	// TODO this is a placeholder for now so that agent builds
 	RomanaIp string            `json:"romana_ip"`
 	Tags     map[string]string `json:"tags"`
+}
+
+func (h Host) String() string {
+	val := fmt.Sprintf("%s (IP: %s, Romana IP: %s)", h.Name, h.IP, h.RomanaIp)
+	if h.Tags != nil {
+		val += fmt.Sprintf(" Tags: %s", h.Tags)
+	}
+	return val
 }
 
 type HostList struct {

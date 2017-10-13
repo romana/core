@@ -39,6 +39,12 @@ func (r *Romanad) deallocateIP(input interface{}, ctx common.RestContext) (inter
 
 func (r *Romanad) allocateIP(input interface{}, ctx common.RestContext) (interface{}, error) {
 	req := input.(*api.IPAMAddressRequest)
+	if req.Name == "" {
+		return nil, common.NewError400("Name required")
+	}
+	if req.Host == "" {
+		return nil, common.NewError400("Host required")
+	}
 	retval, err := r.client.IPAM.AllocateIP(req.Name, req.Host, req.Tenant, req.Segment)
 	return retval, errors.RomanaErrorToHTTPError(err)
 }
@@ -94,7 +100,7 @@ func (r *Romanad) listNetworks(input interface{}, ctx common.RestContext) (inter
 // updateTopology serves to update topology information in the Romana service
 func (r *Romanad) updateTopology(input interface{}, ctx common.RestContext) (interface{}, error) {
 	topoReq := input.(*api.TopologyUpdateRequest)
-	return nil, r.client.IPAM.UpdateTopology(*topoReq)
+	return nil, r.client.IPAM.UpdateTopology(*topoReq, true)
 }
 
 // normalizePolicy
@@ -136,7 +142,7 @@ func (r *Romanad) distributePolicy(policy *api.Policy) error {
 // returns the policy.
 func (r *Romanad) getPolicy(input interface{}, ctx common.RestContext) (interface{}, error) {
 	policyName := ctx.PathVariables["policy"]
-	policy, err := r.client.GetPolicy(client.PoliciesPrefix+policyName)
+	policy, err := r.client.GetPolicy(client.PoliciesPrefix + policyName)
 	if err != nil {
 		return nil, err
 	}

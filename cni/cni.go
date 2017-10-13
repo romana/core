@@ -19,8 +19,6 @@ import (
 	"fmt"
 	"net"
 
-	"sync"
-
 	"github.com/containernetworking/cni/pkg/types"
 	"github.com/go-resty/resty"
 	"github.com/romana/core/agent"
@@ -136,13 +134,13 @@ func (DefaultAddressManager) Deallocate(config NetConf, client *client.Client, t
 }
 
 // MakeRomanaClient creates romana rest client from CNI config.
-func MakeRomanaClient(config *NetConf) (*client.Client, sync.Locker, error) {
+func MakeRomanaClient(config *NetConf) (*client.Client, error) {
 	var err error
-	client, locker, err := client.NewClientTransaction(&config.RomanaClientConfig)
+	client, err := client.NewClient(&config.RomanaClientConfig)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return client, locker, nil
+	return client, nil
 }
 
 const (
