@@ -181,7 +181,7 @@ func TestMakePolicySets(t *testing.T) {
 						continue
 					}
 
-					return fmt.Errorf("cidr %s not found in set %s",
+					return fmt.Errorf("cidr %s not found in set %v",
 						cidr, set)
 				}
 			}
@@ -273,7 +273,7 @@ func TestMakeBlockSets(t *testing.T) {
 
 				}
 				if !found {
-					return fmt.Errorf("elem %s not found in set %s",
+					return fmt.Errorf("elem %s not found in set %v",
 						elem, set)
 				}
 			}
