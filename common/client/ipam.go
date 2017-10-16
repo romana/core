@@ -1328,16 +1328,6 @@ func (ipam *IPAM) RemoveHost(host api.Host) error {
 			log.Tracef(trace.Inside, "Host %v (%s) not found in net %s\n", host.IP, host.Name, net.Name)
 			continue
 		}
-		blockCount := 0
-		for _, hostName := range hostToRemove.group.BlockToHost {
-			if hostName == hostToRemove.Name {
-				blockCount++
-			}
-		}
-		if blockCount > 0 {
-			// TODO - or deallocate?
-			return common.NewError("Host %s has %d blocks allocated on it, will not delete", hostToRemove.Name, blockCount)
-		}
 		var i int
 		var curHost *Host
 
@@ -1348,6 +1338,12 @@ func (ipam *IPAM) RemoveHost(host api.Host) error {
 				log.Tracef(trace.Inside, "Net %s, after removal: %v", net.Name, hostToRemove.group.Hosts)
 				removedHost = true
 				break
+			}
+		}
+		for k, v := range hostToRemove.group.BlockToHost {
+			if v == curHost.Name {
+				delete(hostToRemove.group.BlockToHost, k)
+				hostToRemove.group.ReusableBlocks = append(hostToRemove.group.ReusableBlocks, k)
 			}
 		}
 	}
