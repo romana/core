@@ -63,6 +63,18 @@ var (
 			Help: "Number of enforcer ticks since start.",
 		},
 	)
+	NumManagedSets = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "num_managed_sets",
+			Help: "Number ipset sets managed by Romana policy.",
+		},
+	)
+	NumPolicyRules = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "num_policy_rules",
+			Help: "Number of Romana policy rules applied to the host.",
+		},
+	)
 )
 
 func init() {
@@ -74,6 +86,8 @@ func init() {
 		NumPolicyUpdates,
 		NumBlockUpdates,
 		NumEnforcerTick,
+		NumManagedSets,
+		NumPolicyRules,
 	} {
 		err := prometheus.Register(counter)
 		if err != nil {

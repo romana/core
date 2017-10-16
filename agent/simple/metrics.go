@@ -16,12 +16,41 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	log "github.com/romana/rlog"
 )
 
-func MetricStart() {
-	http.Handle("/", promhttp.Handler())
-	http.ListenAndServe(":9090", nil)
+var (
+	NumManagedRoutes = prometheus.NewGauge(
+		prometheus.GaugeOpts{
+			Name: "num_managed_routes",
+			Help: "Number of routes managed by Romana agent on the host.",
+		},
+	)
+)
+
+func init() {
+	for _, counter := range []prometheus.Counter{
+		NumManagedRoutes,
+	} {
+		err := prometheus.Register(counter)
+		if err != nil {
+			log.Error("Failed to register metric", err)
+		}
+	}
+}
+
+func MetricStart(port int) {
+	if port <= 0 {
+		return
+	}
+
+	go func() {
+		http.Handle("/", promhttp.Handler())
+		log.Errorf("Metrics publishing stopped due to %s", http.ListenAndServe(fmt.Sprintf(":%d", port), nil))
+	}()
 }

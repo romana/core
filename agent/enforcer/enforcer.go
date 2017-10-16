@@ -120,7 +120,6 @@ func (a *Enforcer) Run(ctx context.Context) {
 		for {
 			select {
 			case <-a.ticker.C:
-				log.Trace(4, "Policy enforcer tick started")
 				if !a.policyUpdate && !a.blocksUpdate {
 					log.Tracef(5, "Policy enforcer tick skipped due no updates, block update=%t and policy update=%t", a.blocksUpdate, a.policyUpdate)
 					continue
@@ -130,29 +129,39 @@ func (a *Enforcer) Run(ctx context.Context) {
 					log.Trace(5, "no blocks, skipping")
 					continue
 				}
+				NumEnforcerTick.Inc()
 
 				sets, err := makeBlockSets(romanaBlocks, a.policyCache, a.hostname)
 				if err != nil {
 					log.Errorf("Failed to update ipsets, can't apply Romana policies, %s", err)
+					ErrMakeSets.Inc()
 					continue
 				}
 
 				err = updateIpsets(ctx, sets)
 				if err != nil {
 					log.Errorf("Failed to update ipsets, can't apply Romana policies, %s", err)
+					ErrApplySets.Inc()
 					continue
 				}
+				NumBlockUpdates.Inc()
+				NumManagedSets.Set(float64(len(sets.Sets)))
+
 				iptables = renderIPtables(a.policyCache, a.hostname, romanaBlocks)
 				cleanupUnusedChains(iptables, a.exec)
 				if ValidateIPtables(iptables, a.exec) {
 					if err := ApplyIPtables(iptables, a.exec); err != nil {
 						log.Errorf("iptables-restore call failed %s", err)
+						ErrApplyIptables.Inc()
 					}
 					log.Tracef(6, "Applied iptables rules\n%s", iptables.Render())
 
 				} else {
+					ErrValidateIptables.Inc()
 					log.Tracef(6, "Failed to validate iptables\n%s%n", iptables.Render())
 				}
+				NumPolicyUpdates.Inc()
+
 				a.policyUpdate = false
 				a.blocksUpdate = false
 
@@ -373,6 +382,8 @@ func makePolicies(policies []api.Policy, valid validateFunc, iptables *iptsave.I
 		return
 	}
 
+	NumPolicyRules.Set(float64(0))
+
 	for iterator.Next() {
 		policy, target, peer, rule := iterator.Items()
 
@@ -396,8 +407,10 @@ func makePolicies(policies []api.Policy, valid validateFunc, iptables *iptsave.I
 
 		if err != nil {
 			log.Errorf("Error appying %s policy to target %v and peer %v with rule %v, err=%s", policy.Direction, target, peer, rule, err)
+			continue
 		}
 
+		NumPolicyRules.Inc()
 	}
 }
 

@@ -142,3 +142,24 @@
 [submodule "vendor/github.com/romana/ipset"]
 	path = vendor/github.com/romana/ipset
 	url = https://github.com/romana/ipset
+[submodule "vendor/github.com/prometheus/client_golang"]
+	path = vendor/github.com/prometheus/client_golang
+	url = https://github.com/prometheus/client_golang
+[submodule "vendor/github.com/beorn7/perks"]
+	path = vendor/github.com/beorn7/perks
+	url = https://github.com/beorn7/perks
+[submodule "vendor/github.com/golang/protobuf"]
+	path = vendor/github.com/golang/protobuf
+	url = http://github.com/golang/protobuf
+[submodule "vendor/github.com/matttproud/golang_protobuf_extensions"]
+	path = vendor/github.com/matttproud/golang_protobuf_extensions
+	url = https://github.com/matttproud/golang_protobuf_extensions
+[submodule "vendor/github.com/prometheus/client_model"]
+	path = vendor/github.com/prometheus/client_model
+	url = https://github.com/prometheus/client_model
+[submodule "vendor/github.com/prometheus/common"]
+	path = vendor/github.com/prometheus/common
+	url = https://github.com/prometheus/common
+[submodule "vendor/github.com/prometheus/procfs"]
+	path = vendor/github.com/prometheus/procfs
+	url = https://github.com/prometheus/procfs

@@ -64,10 +64,12 @@ func main() {
 		"id that romana route table should have in /etc/iproute2/rt_tables")
 	multihop := flag.Bool("multihop-blocks", false, "allows multihop blocks")
 	policyEnforcer := flag.Bool("policy", false, "enable romana policies")
+	metricsPort := flag.Int("metrics", 9607, "tcp port to expose prometheus metrics, -1 means disable")
 	flag.Parse()
 
 	fmt.Println(common.BuildInfo())
-	MetricStart()
+
+	MetricStart(*metricsPort)
 
 	romanaConfig := common.Config{
 		EtcdEndpoints: strings.Split(*etcdEndpoints, ","),
