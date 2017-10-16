@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"os"
 	"runtime"
@@ -193,6 +194,13 @@ func CmdAdd(args *skel.CmdArgs) error {
 	})
 	if err != nil {
 		return fmt.Errorf("Failed to create veth interfaces in namespace %v, err=(%s)", netns, err)
+	}
+
+	// set proxy_delay to zero
+	err = ioutil.WriteFile(fmt.Sprintf("/proc/sys/net/ipv4/neigh/%s/proxy_delay", hostIface.Name), []byte("0"), 0)
+	if err != nil {
+		// this is an optimization, so errors are logged, but don't result in failure
+		log.Infof("Failed to set proxy_delay for %s, err=(%s)", hostIface.Name, err)
 	}
 
 	// Return route.
