@@ -117,10 +117,6 @@ func CmdAdd(args *skel.CmdArgs) error {
 	if err != nil {
 		return err
 	}
-	podIP, err := netlink.ParseAddr(podAddress.String())
-	if err != nil {
-		return fmt.Errorf("netlink failed to parse address %s, err=(%s)", podAddress, err)
-	}
 
 	// Networking setup
 	gwAddr := &net.IPNet{IP: net.ParseIP("172.142.0.1"), Mask: net.IPMask([]byte{0xff, 0xff, 0xff, 0xff})}
@@ -179,6 +175,11 @@ func CmdAdd(args *skel.CmdArgs) error {
 			return fmt.Errorf("failed to discover container veth, err=(%s)", err)
 		}
 
+		podIP, err := netlink.ParseAddr(podAddress.String())
+		if err != nil {
+			return fmt.Errorf("netlink failed to parse address %s, err=(%s)", podAddress, err)
+		}
+
 		err = netlink.AddrAdd(containerVethLink, podIP)
 		if err != nil {
 			return fmt.Errorf("failed to add ip address %s to the interface %s, err=(%s)", podIP, containerVeth.Name, err)
@@ -192,16 +193,6 @@ func CmdAdd(args *skel.CmdArgs) error {
 	})
 	if err != nil {
 		return fmt.Errorf("Failed to create veth interfaces in namespace %v, err=(%s)", netns, err)
-	}
-
-	// add address to host veth
-	hostVeth, err := netlink.LinkByName(hostIface.Name)
-	if err != nil {
-		return fmt.Errorf("Failed to find host veth using name %v: %v", hostIface.Name, err)
-	}
-	err = netlink.AddrAdd(hostVeth, podIP)
-	if err != nil {
-		return fmt.Errorf("failed to assign ip %v to host vetn %v: %v", podIP, hostIface.Name, err)
 	}
 
 	// Return route.
