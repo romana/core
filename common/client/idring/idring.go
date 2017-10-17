@@ -110,6 +110,20 @@ func (ir IDRing) String() string {
 	return s
 }
 
+// Clear clears out the ring (reverts it to what it was when originally constructed)
+func (ir *IDRing) Clear() {
+	if ir.locker != nil {
+		ir.locker.Lock()
+		defer ir.locker.Unlock()
+	}
+
+	r := Range{Min: ir.OrigMin,
+		Max: ir.OrigMax,
+	}
+	ir.Ranges = []Range{r}
+	log.Tracef(trace.Inside, "After clear, have %s\n", ir)
+}
+
 // Invert() returns an IDRing that is the inverse of this IDRing
 // (that is, containing Ranges that are ranges not of available, but
 // of taken IDs).

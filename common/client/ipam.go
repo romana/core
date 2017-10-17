@@ -729,6 +729,10 @@ func (b Block) String() string {
 	return fmt.Sprintf("Block %s (rev. %d): %s", b.CIDR, b.Revision, b.Pool)
 }
 
+func (b *Block) clear() {
+	b.Pool.Clear()
+}
+
 // newBlock creates a new Block on the given host.
 func newBlock(cidr CIDR) *Block {
 	eb := &Block{CIDR: cidr,
@@ -1343,6 +1347,7 @@ func (ipam *IPAM) RemoveHost(host api.Host) error {
 		for k, v := range hostToRemove.group.BlockToHost {
 			if v == curHost.Name {
 				delete(hostToRemove.group.BlockToHost, k)
+				hostToRemove.group.Blocks[k].clear()
 				hostToRemove.group.ReusableBlocks = append(hostToRemove.group.ReusableBlocks, k)
 			}
 		}
@@ -1373,10 +1378,11 @@ func (ipam *IPAM) AddHost(host api.Host) error {
 	if host.Name == "" {
 		return common.NewError("Host name is required.")
 	}
-
+	log.Tracef(trace.Inside, "Entering AddHost with %d networks\n", len(ipam.Networks))
 	addedHost := false
 	for _, net := range ipam.Networks {
 		myHost := &Host{IP: host.IP, Name: host.Name, Tags: host.Tags}
+		log.Tracef(trace.Inside, "Attempting to add host %s (%s) to network %s\n", host.Name, host.IP, net.Name)
 		ok, err := net.Group.addHost(myHost)
 		if err != nil {
 			return err
