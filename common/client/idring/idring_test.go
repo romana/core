@@ -79,6 +79,9 @@ func TestClear(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected error %s", err)
 	}
+	if id != 2 {
+		t.Fatalf("Expected 2, got %d", id)
+	}
 }
 
 func TestAllocation(t *testing.T) {
