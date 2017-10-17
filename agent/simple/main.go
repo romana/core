@@ -146,8 +146,8 @@ func main() {
 	if *policyEnforcer {
 		ctx := context.Background()
 		policyCache := policycache.New()
-		var policyEtdKey = "/romana/policies"
-		policies, err := policycontroller.Run(ctx, policyEtdKey, romanaClient, policyCache)
+		var policyEtcdKey = "/romana/policies"
+		policies, err := policycontroller.Run(ctx, policyEtcdKey, romanaClient, policyCache)
 		if err != nil {
 			log.Errorf("Failed to start policy controller, %s", err)
 			os.Exit(2)
