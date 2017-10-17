@@ -167,6 +167,8 @@ func romanaHostAdd(l *KubeListener, node *v1.Node) error {
 		Name: hostname,
 		Tags: node.GetLabels(),
 	}
+	l.clientMu.Lock()
+	defer l.clientMu.Unlock()
 	return l.client.IPAM.AddHost(host)
 }
 
@@ -178,5 +180,7 @@ func romanaHostRemove(l *KubeListener, node string) error {
 		log.Errorf("Error: received invalid node name (%s)", node)
 		return errors.New("Error: received invalid node name.")
 	}
+	l.clientMu.Lock()
+	defer l.clientMu.Unlock()
 	return l.client.IPAM.RemoveHost(romanaApi.Host{Name: node})
 }

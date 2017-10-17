@@ -19,6 +19,7 @@ package listener
 import (
 	"fmt"
 	"os"
+	"sync"
 
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
@@ -42,8 +43,9 @@ const (
 // 2. policyNotificationPathPrefix + <namespace name> + policyNotificationPathPostfix
 //    for policy additions/deletions.
 type KubeListener struct {
-	Addr   string
-	client *client.Client
+	Addr     string
+	client   *client.Client
+	clientMu *sync.Mutex
 
 	segmentLabelName    string
 	tenantLabelName     string
@@ -107,6 +109,7 @@ func (l *KubeListener) Initialize(clientConfig common.Config) error {
 	if err != nil {
 		return err
 	}
+	l.clientMu = &sync.Mutex{}
 	err = l.loadConfig()
 	if err != nil {
 		return err
