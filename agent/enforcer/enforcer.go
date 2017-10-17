@@ -210,7 +210,10 @@ func makeBlockSets(blocks []api.IPAMBlockResponse, policyCache policycache.Inter
 		log.Tracef(5, "Making set for %+v", block)
 
 		segmentSetName := policytools.MakeTenantSetName(block.Tenant, block.Segment)
-		segmentSet, _ := ipset.NewSet(segmentSetName, ipset.SetHashNet)
+		segmentSet := sets.SetByName(segmentSetName)
+		if segmentSet == nil {
+			segmentSet, _ = ipset.NewSet(segmentSetName, ipset.SetHashNet)
+		}
 		err := ipset.SuppressItemExist(sets.AddSet(segmentSet))
 		if err != nil {
 			return nil, err
