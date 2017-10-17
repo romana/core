@@ -145,8 +145,8 @@ func (l *KubeListener) kubernetesDeleteNodeEventHandler(n interface{}) {
 		node.Name, node.Status.Addresses)
 
 	if err := romanaHostRemove(l, node.Name); err != nil {
-		log.Errorf("Error processing Delete Event received for node(%s) ",
-			node.Name)
+		log.Errorf("Error processing Delete Event received for node(%s): %v",
+			node.Name, err)
 		return
 	}
 
