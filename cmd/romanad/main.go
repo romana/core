@@ -37,6 +37,8 @@ func main() {
 	topologyFile := flag.String("initial-topology-file", "", "Initial topology")
 	flag.Parse()
 
+	fmt.Println(common.BuildInfo())
+
 	if endpointsStr == nil {
 		log.Errorf("No etcd endpoints specified")
 		os.Exit(1)

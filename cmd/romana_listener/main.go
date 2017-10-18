@@ -35,6 +35,9 @@ func main() {
 	port := flag.Int("port", 9602, "Port to listen on.")
 	prefix := flag.String("etcd-prefix", client.DefaultEtcdPrefix, "Prefix to use for etcd data.")
 	flag.Parse()
+
+	fmt.Println(common.BuildInfo())
+
 	if endpointsStr == nil {
 		log.Errorf("No etcd endpoints specified")
 		os.Exit(1)
