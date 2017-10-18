@@ -360,6 +360,7 @@ func (c *Client) initIPAM(initialTopologyFile *string) error {
 			return err
 		}
 		c.IPAM.save = c.save
+		c.IPAM.load = c.load
 		c.IPAM.locker = c.ipamLocker
 		c.IPAM.SetPrevKVPair(kv)
 	} else {
@@ -368,6 +369,7 @@ func (c *Client) initIPAM(initialTopologyFile *string) error {
 		log.Infof("No IPAM data found at %s, initializing", c.Store.getKey(ipamDataKey))
 		c.IPAM = &IPAM{locker: c.ipamLocker,
 			save: c.save,
+			load: c.load,
 		}
 
 		if initialTopologyFile != nil && *initialTopologyFile != "" {
@@ -395,6 +397,21 @@ func (c *Client) initIPAM(initialTopologyFile *string) error {
 	return nil
 }
 
+func (c *Client) load(ipam *IPAM, ch <-chan struct{}) error {
+	kv, err := c.Store.Get(ipamDataKey)
+	if err != nil {
+		return err
+	}
+	log.Printf("Client:load(): index %d, data: %v", kv.LastIndex, string(kv.Value))
+	parsedIPAM , err := parseIPAM(string(kv.Value))
+	if err != nil {
+		return err
+	}
+	*ipam = *parsedIPAM
+	ipam.SetPrevKVPair(kv)
+	return nil
+}
+
 // save implements the Saver interface of IPAM.
 func (c *Client) save(ipam *IPAM, ch <-chan struct{}) error {
 	log.Tracef(trace.Inside, "Trying to acquire savingMutex\n")
@@ -418,7 +435,7 @@ func (c *Client) save(ipam *IPAM, ch <-chan struct{}) error {
 		log.Warn(fmt.Sprintf("Lost lock while saving in %d: %p", getGID(), &msg))
 		return nil
 	default:
-		err = c.Store.AtomicPut(ipamDataKey, c.IPAM)
+		err = c.Store.AtomicPut(ipamDataKey, ipam)
 		if err != nil {
 			log.Errorf("Error saving IPAM: %s: %d", err, getGID())
 			return err
@@ -448,7 +465,6 @@ func (c *Client) watchIPAM() error {
 				prevKV := c.IPAM.GetPrevKVPair()
 				if prevKV == nil || kv.LastIndex > prevKV.LastIndex {
 					log.Infof("Received IPAM with revision %d, current last revision %d", kv.LastIndex, prevKV.LastIndex)
-					_, err := c.IPAM.locker.Lock()
 					if err != nil {
 						log.Error(err)
 						// Nothing to do here, but since there is a new version,
@@ -460,14 +476,12 @@ func (c *Client) watchIPAM() error {
 					c.IPAM, err = parseIPAM(string(kv.Value))
 					if err != nil {
 						log.Error(err)
-						c.IPAM.locker.Unlock()
 						c.savingMutex.RUnlock()
 						continue
 					}
 					c.IPAM.save = c.save
-					c.IPAM.locker = c.ipamLocker
+					c.IPAM.load = c.load
 					c.IPAM.SetPrevKVPair(kv)
-					c.IPAM.locker.Unlock()
 					log.Infof("Loaded IPAM with revision %d", kv.LastIndex)
 				}
 				c.savingMutex.RUnlock()

@@ -19,7 +19,6 @@ package listener
 import (
 	"fmt"
 	"os"
-	"sync"
 
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
@@ -45,7 +44,6 @@ const (
 type KubeListener struct {
 	Addr     string
 	client   *client.Client
-	clientMu *sync.Mutex
 
 	segmentLabelName    string
 	tenantLabelName     string
@@ -109,7 +107,6 @@ func (l *KubeListener) Initialize(clientConfig common.Config) error {
 	if err != nil {
 		return err
 	}
-	l.clientMu = &sync.Mutex{}
 	err = l.loadConfig()
 	if err != nil {
 		return err

@@ -908,6 +908,9 @@ func (network *Network) blackedOutBy(ip net.IP) *CIDR {
 	return nil
 }
 
+// Loader is a function for loading IPAM data from a store
+type Loader func(ipam *IPAM, ch <-chan struct{}) error
+
 // Saver defines a function that can save the state of the BlockIPAM
 // to a persistent store. Saver is allowed to assume the BlockIPAM
 // can be successfully marshaled to JSON.
@@ -962,6 +965,7 @@ type IPAM struct {
 
 	// Map of address name to IP
 	AddressNameToIP map[string]net.IP `json:"address_name_to_ip"`
+	load            Loader
 	save            Saver
 	locker          Locker
 
@@ -1045,7 +1049,13 @@ func (ipam *IPAM) AllocateIP(addressName string, host string, tenant string, seg
 	log.Tracef(trace.Inside, "IPAM.AllocateIP: got a lock")
 	defer ipam.locker.Unlock()
 
-	if addr, ok := ipam.AddressNameToIP[addressName]; ok {
+	latestIPAM := &IPAM{}
+	err = ipam.load(latestIPAM, ch)
+	if err != nil {
+		return nil, err
+	}
+
+	if addr, ok := latestIPAM.AddressNameToIP[addressName]; ok {
 		return nil, errors.NewRomanaExistsError(
 			fmt.Sprintf("Address with name %s already allocated: %s", addressName, addr),
 			addressName,
@@ -1056,7 +1066,7 @@ func (ipam *IPAM) AllocateIP(addressName string, host string, tenant string, seg
 	}
 
 	// Find eligible networks for the specified tenant
-	networksForTenant, err := ipam.getNetworksForTenant(tenant)
+	networksForTenant, err := latestIPAM.getNetworksForTenant(tenant)
 	if err != nil {
 		return nil, err
 	}
@@ -1083,10 +1093,10 @@ func (ipam *IPAM) AllocateIP(addressName string, host string, tenant string, seg
 		}
 
 		if ip != nil {
-			ipam.AddressNameToIP[addressName] = ip
-			ipam.AllocationRevision++
-			log.Tracef(trace.Inside, "Updated AllocationRevision to %d", ipam.AllocationRevision)
-			err = ipam.save(ipam, ch)
+			latestIPAM.AddressNameToIP[addressName] = ip
+			latestIPAM.AllocationRevision++
+			log.Tracef(trace.Inside, "Updated AllocationRevision to %d", latestIPAM.AllocationRevision)
+			err = ipam.save(latestIPAM, ch)
 			if err != nil {
 				return nil, err
 			}
@@ -1105,16 +1115,23 @@ func (ipam *IPAM) DeallocateIP(addressName string) error {
 	}
 	defer ipam.locker.Unlock()
 
-	if ip, ok := ipam.AddressNameToIP[addressName]; ok {
+	latestIPAM := &IPAM{}
+	clearIPAM(latestIPAM)
+	err = ipam.load(latestIPAM, ch)
+	if err != nil {
+		return err
+	}
+
+	if ip, ok := latestIPAM.AddressNameToIP[addressName]; ok {
 		log.Tracef(trace.Inside, "IPAM.DeallocateIP: Request to deallocate %s: %s", addressName, ip)
-		for _, network := range ipam.Networks {
+		for _, network := range latestIPAM.Networks {
 			if network.CIDR.IPNet.Contains(ip) {
 				log.Tracef(trace.Inside, "IPAM.DeallocateIP: IP %s belongs to network %s", ip, network.Name)
 				err := network.deallocateIP(ip)
 				if err == nil {
-					delete(ipam.AddressNameToIP, addressName)
-					ipam.AllocationRevision++
-					err = ipam.save(ipam, ch)
+					delete(latestIPAM.AddressNameToIP, addressName)
+					latestIPAM.AllocationRevision++
+					err = ipam.save(latestIPAM, ch)
 					if err != nil {
 						return err
 					}
@@ -1126,18 +1143,18 @@ func (ipam *IPAM) DeallocateIP(addressName string) error {
 	}
 	// find by IPAddress instead of name, so that all
 	// platforms are supported.
-	for name, ip := range ipam.AddressNameToIP {
+	for name, ip := range latestIPAM.AddressNameToIP {
 		if ip.String() == addressName {
-			for _, network := range ipam.Networks {
+			for _, network := range latestIPAM.Networks {
 				if network.CIDR.IPNet.Contains(ip) {
 					log.Tracef(trace.Inside,
 						"IPAM.DeallocateIP: IP %s belongs to network %s",
 						ip, network.Name)
 					err := network.deallocateIP(ip)
 					if err == nil {
-						delete(ipam.AddressNameToIP, name)
-						ipam.AllocationRevision++
-						err = ipam.save(ipam, ch)
+						delete(latestIPAM.AddressNameToIP, name)
+						latestIPAM.AllocationRevision++
+						err = ipam.save(latestIPAM, ch)
 						if err != nil {
 							return err
 						}
@@ -1168,6 +1185,7 @@ func (ipam *IPAM) getNetworksForTenant(tenant string) ([]*Network, error) {
 		}
 	}
 	wildcardNetworkIDs := ipam.TenantToNetwork["*"]
+	log.Printf("getNetworksForTenant: %v %v", ipam.TenantToNetwork["*"], wildcardNetworkIDs)
 	if wildcardNetworkIDs != nil && len(wildcardNetworkIDs) > 0 {
 		for _, id := range wildcardNetworkIDs {
 			networks = append(networks, ipam.Networks[id])
