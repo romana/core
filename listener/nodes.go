@@ -107,8 +107,6 @@ func (l *KubeListener) kubernetesAddNodeEventHandler(n interface{}) {
 			node.Name, err)
 		return
 	}
-
-	log.Infof("Node (%s) successful added to romana cluster.", node.Name)
 }
 
 // kubernetesUpdateNodeEventHandler currently doesn't do anything yet.
@@ -150,7 +148,7 @@ func (l *KubeListener) kubernetesDeleteNodeEventHandler(n interface{}) {
 		return
 	}
 
-	log.Infof("Node (%s) successful removed from romana cluster.", node.Name)
+	log.Infof("Node (%s) successfully removed from romana cluster.", node.Name)
 }
 
 // romanaHostAdd connects to romana API and adds a node to
@@ -171,6 +169,7 @@ func romanaHostAdd(l *KubeListener, node *v1.Node) error {
 	defer l.clientMu.Unlock()
 	err := l.client.IPAM.AddHost(host)
 	if err == nil {
+		log.Infof("Node (%s) successfully added to romana cluster.", node.Name)
 		return nil
 	}
 	if err, ok := err.(romanaErrors.RomanaExistsError); ok {
