@@ -1398,7 +1398,7 @@ func (ipam *IPAM) RemoveHost(host api.Host) error {
 			if curHost.IP.String() == hostToRemove.IP.String() {
 				log.Tracef(trace.Inside, "Net %s: removing host %s (%d) from group %s (%v)\n", net.Name, hostToRemove, i, hostToRemove.group.Name, hostToRemove.group.Hosts)
 				hostToRemove.group.Hosts = deleteElementHost(hostToRemove.group.Hosts, i)
-				log.Tracef(trace.Inside, "Net %s, after removal: %v", net.Name, hostToRemove.group.Hosts)
+				log.Tracef(trace.Inside, "Net %s, group %s, after removal: %v", net.Name, hostToRemove.group.Name, hostToRemove.group.Hosts)
 				removedHost = true
 				break
 			}

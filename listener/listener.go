@@ -18,14 +18,15 @@ package listener
 
 import (
 	"fmt"
+	"net"
 	"os"
 
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
 	"github.com/romana/core/common/client"
-
 	log "github.com/romana/rlog"
 	"k8s.io/client-go/kubernetes"
+	k8sv1 "k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/tools/cache"
 )
 
@@ -110,6 +111,57 @@ func (l *KubeListener) Initialize(clientConfig common.Config) error {
 	err = l.loadConfig()
 	if err != nil {
 		return err
+	}
+	nodeListOpts := k8sv1.ListOptions{}
+	nodeList, err := l.kubeClientSet.CoreV1().Nodes().List(nodeListOpts)
+	if err != nil {
+		return err
+	}
+
+	romanaHostList := l.client.IPAM.ListHosts()
+
+	for _, node := range nodeList.Items {
+		// This is not super-efficient but as we don't have that many hosts for now
+		// to deal with, it can do.
+		nodeInRomana := false
+		for _, romanaHost := range romanaHostList.Hosts {
+			if romanaHost.IP.String() == node.Status.Addresses[0].Address {
+				nodeInRomana = true
+				break
+			}
+		}
+		if !nodeInRomana {
+			host := api.Host{IP: net.ParseIP(node.Status.Addresses[0].Address),
+				Name: node.Name,
+				Tags: node.GetLabels(),
+			}
+			err = l.client.IPAM.AddHost(host)
+			if err == nil {
+				log.Infof("Added host %s to Romana", host)
+			} else {
+				log.Errorf("Error adding host %s to Romana: %s", host, err)
+			}
+		}
+	}
+
+	for _, romanaHost := range romanaHostList.Hosts {
+		hostInK8S := false
+		var node k8sv1.Node
+		for _, node = range nodeList.Items {
+			if romanaHost.IP.String() == node.Status.Addresses[0].Address {
+				hostInK8S = true
+				break
+			}
+		}
+		if !hostInK8S {
+			host := api.Host{IP: net.ParseIP(node.Status.Addresses[0].Address)}
+			err = l.client.IPAM.RemoveHost(host)
+			if err == nil {
+				log.Infof("Removed host %s from Romana", host)
+			} else {
+				log.Errorf("Error removing host %s from Romana: %s", host, err)
+			}
+		}
 	}
 
 	// TODO, find a better place to initialize
