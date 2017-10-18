@@ -23,6 +23,7 @@ import (
 
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
+	"github.com/romana/core/common/api/errors"
 	"github.com/romana/core/common/client"
 	log "github.com/romana/rlog"
 	"k8s.io/client-go/kubernetes"
@@ -139,7 +140,11 @@ func (l *KubeListener) Initialize(clientConfig common.Config) error {
 			if err == nil {
 				log.Infof("Added host %s to Romana", host)
 			} else {
-				log.Errorf("Error adding host %s to Romana: %s", host, err)
+				if err, ok := err.(errors.RomanaExistsError); ok {
+					log.Infof("Host %s already exists, ignoring.", host)
+				} else {
+					log.Errorf("Error adding host %s to Romana: %s", host, err)
+				}
 			}
 		}
 	}

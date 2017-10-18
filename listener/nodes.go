@@ -28,7 +28,7 @@ import (
 	log "github.com/romana/rlog"
 
 	romanaApi "github.com/romana/core/common/api"
-
+	romanaErrors "github.com/romana/core/common/api/errors"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/pkg/api"
 	"k8s.io/client-go/pkg/api/v1"
@@ -167,7 +167,18 @@ func romanaHostAdd(l *KubeListener, node *v1.Node) error {
 		Name: hostname,
 		Tags: node.GetLabels(),
 	}
-	return l.client.IPAM.AddHost(host)
+	l.clientMu.Lock()
+	defer l.clientMu.Unlock()
+	err := l.client.IPAM.AddHost(host)
+	if err == nil {
+		return nil
+	}
+	if err, ok := err.(romanaErrors.RomanaExistsError); ok {
+		log.Infof("Host %s already exists, ignoring.", host)
+		return nil
+	} else {
+		return err
+	}
 }
 
 // romanaHostRemove connects to romana API and removes a node from
