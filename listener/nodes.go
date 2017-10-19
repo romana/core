@@ -165,8 +165,6 @@ func romanaHostAdd(l *KubeListener, node *v1.Node) error {
 		Name: hostname,
 		Tags: node.GetLabels(),
 	}
-	l.clientMu.Lock()
-	defer l.clientMu.Unlock()
 	err := l.client.IPAM.AddHost(host)
 	if err == nil {
 		log.Infof("Node (%s) successfully added to romana cluster.", node.Name)
