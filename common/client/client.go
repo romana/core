@@ -403,7 +403,7 @@ func (c *Client) load(ipam *IPAM, ch <-chan struct{}) error {
 		return err
 	}
 	log.Printf("Client:load(): index %d, data: %v", kv.LastIndex, string(kv.Value))
-	parsedIPAM , err := parseIPAM(string(kv.Value))
+	parsedIPAM, err := parseIPAM(string(kv.Value))
 	if err != nil {
 		return err
 	}

@@ -88,7 +88,7 @@ func (s *TestSaver) save(ipam *IPAM, ch <-chan struct{}) error {
 }
 
 func (s *TestSaver) load(ipam *IPAM, ch <-chan struct{}) error {
-	parsedIPAM , err := parseIPAM(s.lastJson)
+	parsedIPAM, err := parseIPAM(s.lastJson)
 	if err != nil {
 		return err
 	}
