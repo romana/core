@@ -42,8 +42,8 @@ const (
 // 2. policyNotificationPathPrefix + <namespace name> + policyNotificationPathPostfix
 //    for policy additions/deletions.
 type KubeListener struct {
-	Addr   string
-	client *client.Client
+	Addr     string
+	client   *client.Client
 
 	segmentLabelName    string
 	tenantLabelName     string

@@ -52,6 +52,7 @@ func initIpam(t *testing.T, conf string) *IPAM {
 	if err != nil {
 		t.Fatalf("Error initializing ipam: %v", err)
 	}
+	ipam.load = testSaver.load
 	topoReq := api.TopologyUpdateRequest{}
 	err = json.Unmarshal([]byte(conf), &topoReq)
 	if err != nil {
@@ -61,6 +62,7 @@ func initIpam(t *testing.T, conf string) *IPAM {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ipam.save(ipam, nil)
 	return ipam
 }
 
@@ -81,6 +83,18 @@ func (s *TestSaver) save(ipam *IPAM, ch <-chan struct{}) error {
 		return err
 	}
 	s.lastJson = string(b)
+
+	return nil
+}
+
+func (s *TestSaver) load(ipam *IPAM, ch <-chan struct{}) error {
+	parsedIPAM , err := parseIPAM(s.lastJson)
+	if err != nil {
+		return err
+	}
+	parsedIPAM.save = ipam.save
+	parsedIPAM.load = ipam.load
+	*ipam = *parsedIPAM
 
 	return nil
 }
@@ -159,6 +173,7 @@ func TestBlackout(t *testing.T) {
 	if err.Error() != msgNoAvailableIP {
 		t.Fatalf("Expected error \"%s\", got %s", msgNoAvailableIP, err)
 	}
+	ipam.load(ipam, nil)
 
 	// 6. Try to black out already allocated chunk, should get error.
 	err = ipam.BlackOut("10.0.0.2/31")
@@ -376,6 +391,7 @@ func TestBlockReuseMask30(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		ipam.load(ipam, nil)
 		t.Logf("TestBlockReuse: Allocated %s: %s for ten1:seg1", addr, ip)
 		expectIP := fmt.Sprintf("10.0.0.%d", i)
 		if ip.String() != expectIP {
@@ -435,6 +451,7 @@ func TestBlockReuseMask30(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		ipam.load(ipam, nil)
 		t.Logf("TestBlockReuse: Allocated %s for ten1:seg1", ip)
 		expectIP := fmt.Sprintf("10.0.0.%d", i)
 		if ip.String() != expectIP {
@@ -452,6 +469,7 @@ func TestBlockReuseMask30(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		ipam.load(ipam, nil)
 		t.Logf("Deallocated %s", addr)
 	}
 	// We should now have 2 blocks still - but one is reusable
@@ -482,6 +500,7 @@ func TestBlockReuseMask30(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ipam.load(ipam, nil)
 	expectIP = "10.0.0.1"
 	if ip.String() != expectIP {
 		t.Fatalf("Expected %s, got %s", expectIP, ip)
@@ -674,6 +693,7 @@ func TestUpdateTopology(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ipam.load(ipam, nil)
 
 	topo := loadTestData(t)
 	topoReq := api.TopologyUpdateRequest{}
@@ -702,6 +722,7 @@ func TestUpdateTopology(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ipam.load(ipam, nil)
 	t.Logf("Updating topology to %v", topoReq)
 	err = ipam.UpdateTopology(topoReq, false)
 	if err != nil {
@@ -730,6 +751,7 @@ func TestListBlocks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	ipam.load(ipam, nil)
 	br := ipam.ListAllBlocks()
 	if len(br.Blocks) != 2 {
 		t.Errorf("Expected 2 blocks, got %d", len(br.Blocks))
@@ -974,6 +996,7 @@ func TestHostAdditionSimple(t *testing.T) {
 	// Test that it saves, loads and we can still remove a host
 	ipam, err = parseIPAM(testSaver.lastJson)
 	ipam.save = testSaver.save
+	ipam.load = testSaver.load
 	if err != nil {
 		t.Fatal(err)
 	}

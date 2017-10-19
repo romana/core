@@ -46,8 +46,45 @@ func TestInvert(t *testing.T) {
 
 }
 
-// TestIDRing tests IDRing functionality.
-func TestIDRingAllocation(t *testing.T) {
+func TestClear(t *testing.T) {
+	var err error
+	var id uint64
+	idRing := NewIDRing(1, math.MaxUint64, &sync.Mutex{})
+	// First ID given out should be 1
+	id, err = idRing.GetID()
+	if err != nil {
+		t.Fatalf("Unexpected error %s", err)
+	}
+	if id != 1 {
+		t.Fatalf("Expected 1, got %d", id)
+	}
+	id, err = idRing.GetID()
+	if err != nil {
+		t.Fatalf("Unexpected error %s", err)
+	}
+	if id != 2 {
+		t.Fatalf("Expected 2, got %d", id)
+	}
+	idRing.Clear()
+
+	id, err = idRing.GetID()
+	if err != nil {
+		t.Fatalf("Unexpected error %s", err)
+	}
+	//Now we should get one again
+	if id != 1 {
+		t.Fatalf("Expected 1, got %d", id)
+	}
+	id, err = idRing.GetID()
+	if err != nil {
+		t.Fatalf("Unexpected error %s", err)
+	}
+	if id != 2 {
+		t.Fatalf("Expected 2, got %d", id)
+	}
+}
+
+func TestAllocation(t *testing.T) {
 	var err error
 	var id uint64
 	idRing := NewIDRing(1, math.MaxUint64, &sync.Mutex{})

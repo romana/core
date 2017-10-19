@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Pani Networks Inc
+// Copyright (c) 2016-2017 Pani Networks Inc
 // All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -162,7 +162,7 @@ func romanaHostAdd(l *KubeListener, node *v1.Node) error {
 	}
 	hostname := node.Name
 	hostIP := net.ParseIP(node.Status.Addresses[0].Address)
-	log.Infof("KubeListener: Adding host IP: %s, Name: %s", hostIP, hostname)
+	log.Infof("KubeListener: Adding host IP: %s, Name: %s, Labels: %v\n", hostIP, hostname, node.GetLabels())
 	host := romanaApi.Host{IP: hostIP,
 		Name: hostname,
 		Tags: node.GetLabels(),
@@ -173,7 +173,7 @@ func romanaHostAdd(l *KubeListener, node *v1.Node) error {
 // romanaHostRemove connects to romana API and removes a node from
 // the romana cluster.
 func romanaHostRemove(l *KubeListener, node string) error {
-	log.Infof("KubeListener: Removing host %s", node)
+	log.Infof("KubeListener: Removing host %s\n", node)
 	if node == "" {
 		log.Errorf("Error: received invalid node name (%s)", node)
 		return errors.New("Error: received invalid node name.")
