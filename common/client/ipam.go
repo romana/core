@@ -1185,7 +1185,6 @@ func (ipam *IPAM) getNetworksForTenant(tenant string) ([]*Network, error) {
 		}
 	}
 	wildcardNetworkIDs := ipam.TenantToNetwork["*"]
-	log.Printf("getNetworksForTenant: %v %v", ipam.TenantToNetwork["*"], wildcardNetworkIDs)
 	if wildcardNetworkIDs != nil && len(wildcardNetworkIDs) > 0 {
 		for _, id := range wildcardNetworkIDs {
 			networks = append(networks, ipam.Networks[id])
