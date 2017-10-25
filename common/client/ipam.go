@@ -167,6 +167,7 @@ type Host struct {
 	IP        net.IP            `json:"ip"`
 	AgentPort uint              `json:"agent_port"`
 	Tags      map[string]string `json:"tags"`
+	K8SInfo   map[string]string `json:"k8s_info"`
 	group     *Group
 }
 

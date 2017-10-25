@@ -105,12 +105,16 @@ type Host struct {
 	// TODO this is a placeholder for now so that agent builds
 	RomanaIp string            `json:"romana_ip"`
 	Tags     map[string]string `json:"tags"`
+	K8SInfo  map[string]string `json:"k8s_info"`
 }
 
 func (h Host) String() string {
 	val := fmt.Sprintf("%s (IP: %s, Romana IP: %s)", h.Name, h.IP, h.RomanaIp)
-	if h.Tags != nil {
+	if h.Tags != nil && len(h.Tags) > 0 {
 		val += fmt.Sprintf(" Tags: %s", h.Tags)
+	}
+	if h.K8SInfo != nil && len(h.K8SInfo) > 0 {
+		val += fmt.Sprintf(" Kubernetes info: %s", h.K8SInfo)
 	}
 	return val
 }

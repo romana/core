@@ -58,6 +58,82 @@ func (l *KubeListener) kubeClientInit() error {
 	return nil
 }
 
+// syncNodes checks what nodes are defined in K8S cluster vs
+// hosts defined in Romana and synchronizes them.
+func (l *KubeListener) syncNodes() {
+	var err error
+	l.syncNodesMutex.Lock()
+	if l.syncNodesRunning {
+		log.Infof("syncNodes() already running, will exit.")
+		l.syncNodesMutex.Unlock()
+		return
+	}
+	l.syncNodesRunning = true
+	l.syncNodesMutex.Unlock()
+
+	nodesIfc := l.nodeStore.List()
+	var node v1.Node
+
+	romanaHostList := l.client.IPAM.ListHosts()
+	for _, nodeIfc := range nodesIfc {
+		// This is not super-efficient but as we don't have that many hosts for now
+		// to deal with, it can do.
+		node = nodeIfc.(v1.Node)
+		nodeInRomana := false
+		for _, romanaHost := range romanaHostList.Hosts {
+			if romanaHost.IP.String() == node.Status.Addresses[0].Address {
+				nodeInRomana = true
+				break
+			}
+		}
+		if !nodeInRomana {
+			host := romanaApi.Host{IP: net.ParseIP(node.Status.Addresses[0].Address),
+				Name: node.Name,
+				Tags: node.GetLabels(),
+			}
+			err = l.client.IPAM.AddHost(host)
+			if err == nil {
+				log.Infof("Added host %s to Romana", host)
+			} else {
+				if err, ok := err.(romanaErrors.RomanaExistsError); ok {
+					log.Infof("Host %s already exists, ignoring addition.", host)
+				} else {
+					log.Errorf("Error adding host %s to Romana: %s", host, err)
+				}
+			}
+		}
+	}
+
+	for _, romanaHost := range romanaHostList.Hosts {
+		hostInK8S := false
+		var node v1.Node
+		for _, nodeIfc := range nodesIfc {
+			node = nodeIfc.(v1.Node)
+			if romanaHost.IP.String() == node.Status.Addresses[0].Address {
+				hostInK8S = true
+				break
+			}
+		}
+		if !hostInK8S {
+			host := romanaApi.Host{IP: net.ParseIP(node.Status.Addresses[0].Address)}
+			err = l.client.IPAM.RemoveHost(host)
+			if err == nil {
+				log.Infof("Removed host %s from Romana", host)
+			} else {
+				if err, ok := err.(romanaErrors.RomanaNotFoundError); ok {
+					log.Infof("Host %s not found exists, ignoring removal.", host)
+				} else {
+					log.Errorf("Error removing host %s from Romana: %s", host, err)
+				}
+			}
+		}
+	}
+	l.syncNodesMutex.Lock()
+	l.syncNodesRunning = false
+	l.syncNodesMutex.Unlock()
+
+}
+
 // ProcessNodeEvents processes kubernetes node events, there by
 // adding/deleting nodes to/from romana cluster automatically
 // when they are added/removed to/from kubernetes cluster.
@@ -72,8 +148,9 @@ func (l *KubeListener) ProcessNodeEvents(done <-chan struct{}) {
 		api.NamespaceAll,
 		fields.Everything())
 
+	var nodeInformer *cache.Controller
 	// Setup a notifications for specific events using NewInformer.
-	_, nodeInformer := cache.NewInformer(
+	l.nodeStore, nodeInformer = cache.NewInformer(
 		nodeWatcher,
 		&v1.Node{},
 		time.Minute,
@@ -86,6 +163,7 @@ func (l *KubeListener) ProcessNodeEvents(done <-chan struct{}) {
 
 	log.Infof("Starting receving node events.")
 	go nodeInformer.Run(done)
+	l.syncNodes()
 }
 
 // kubernetesAddNodeEventHandler is called when Kubernetes reports an
@@ -95,7 +173,8 @@ func (l *KubeListener) kubernetesAddNodeEventHandler(n interface{}) {
 	log.Debug("In kubernetesAddNodeEventHandler()")
 	node, ok := n.(*v1.Node)
 	if !ok {
-		log.Errorf("Error processing Add Event received for node(%s) ", n)
+		log.Errorf("Error processing Add Event received for node(%s)", n)
+		l.syncNodes()
 		return
 	}
 
@@ -105,6 +184,7 @@ func (l *KubeListener) kubernetesAddNodeEventHandler(n interface{}) {
 	if err := romanaHostAdd(l, node); err != nil {
 		log.Errorf("Error processing Add Event received for node(%s): %s",
 			node.Name, err)
+		l.syncNodes()
 		return
 	}
 }
@@ -119,6 +199,7 @@ func (l *KubeListener) kubernetesUpdateNodeEventHandler(o, n interface{}) {
 	_, ok := n.(*v1.Node)
 	if !ok {
 		log.Errorf("Error processing Update Event received for node(%s) ", n)
+		l.syncNodes()
 		return
 	}
 
@@ -136,6 +217,7 @@ func (l *KubeListener) kubernetesDeleteNodeEventHandler(n interface{}) {
 	node, ok := n.(*v1.Node)
 	if !ok {
 		log.Errorf("Error processing Delete Event received for node(%s) ", n)
+		l.syncNodes()
 		return
 	}
 
@@ -145,6 +227,7 @@ func (l *KubeListener) kubernetesDeleteNodeEventHandler(n interface{}) {
 	if err := romanaHostRemove(l, node.Name); err != nil {
 		log.Errorf("Error processing Delete Event received for node(%s): %v",
 			node.Name, err)
+		l.syncNodes()
 		return
 	}
 
@@ -171,7 +254,7 @@ func romanaHostAdd(l *KubeListener, node *v1.Node) error {
 		return nil
 	}
 	if err, ok := err.(romanaErrors.RomanaExistsError); ok {
-		log.Infof("Host %s already exists, ignoring.", host)
+		log.Infof("Host %s already exists, ignoring addition.", host)
 		return nil
 	} else {
 		return err
@@ -186,5 +269,12 @@ func romanaHostRemove(l *KubeListener, node string) error {
 		log.Errorf("Error: received invalid node name (%s)", node)
 		return errors.New("Error: received invalid node name.")
 	}
-	return l.client.IPAM.RemoveHost(romanaApi.Host{Name: node})
+	host := romanaApi.Host{Name: node}
+	err := l.client.IPAM.RemoveHost(host)
+	if err, ok := err.(romanaErrors.RomanaNotFoundError); ok {
+		log.Infof("Host %s is not found, ignoring removal.", host)
+		return nil
+	} else {
+		return err
+	}
 }
