@@ -22,10 +22,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/romana/core/agent/router/bird"
-	"github.com/romana/core/agent/router/publisher"
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/client"
+	"github.com/romana/core/routepublisher/bird"
+	"github.com/romana/core/routepublisher/publisher"
+
 	log "github.com/romana/rlog"
 )
 

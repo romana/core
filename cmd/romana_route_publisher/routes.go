@@ -18,8 +18,9 @@ package main
 import (
 	"net"
 
-	"github.com/romana/core/agent/router/publisher"
 	"github.com/romana/core/common/api"
+	"github.com/romana/core/routepublisher/publisher"
+
 	log "github.com/romana/rlog"
 )
 
