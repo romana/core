@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Pani Networks
+// Copyright (c) 2017 Pani Networks
 // All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -13,5 +13,20 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Package provides wrapper aound os module for purpose of testing
-package os
+package agent
+
+import (
+	"github.com/romana/core/common/api"
+)
+
+// IpamHosts is a collection of hosts with Get method.
+type IpamHosts []api.Host
+
+func (hosts IpamHosts) GetHost(hostname string) *api.Host {
+	for hid, h := range hosts {
+		if h.Name == hostname {
+			return &hosts[hid]
+		}
+	}
+	return nil
+}

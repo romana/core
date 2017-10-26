@@ -13,178 +13,87 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// package agent's this file contains all the necessary functions
-// to bring up romana gateway, update necessary kernel parameters
-// and then finally update routes needed by romana to successfully
-// communicate between nodes in romana cluster.
 package agent
 
 import (
-	"io/ioutil"
+	"fmt"
 	"net"
-	"syscall"
-	"time"
 
-	"github.com/romana/core/common/log/trace"
+	"github.com/pkg/errors"
+	"github.com/romana/core/common/api"
 	log "github.com/romana/rlog"
-
 	"github.com/vishvananda/netlink"
 )
 
-var (
-	kernelDefaults = []string{
-		"/proc/sys/net/ipv4/conf/default/proxy_arp",
-		"/proc/sys/net/ipv4/conf/all/proxy_arp",
-		"/proc/sys/net/ipv4/ip_forward",
-	}
-)
-
-// createRomanaGW creates Romana Gateway and brings up the necessary
-// configuration for it, for example: assign IP Address to it, etc.
-func (a Agent) createRomanaGW() error {
-	log.Trace(trace.Private, "In Agent createRomanaGW()")
-
-	// Check below for more details about not using flags here.
-	//rgw := &netlink.Dummy{
-	//	LinkAttrs: netlink.LinkAttrs{
-	//		Name:   "romana-gw",
-	//		TxQLen: 1000,
-	//		Flags:  net.FlagUp,
-	//	},
-	//}
-	rgw := &netlink.Dummy{LinkAttrs: netlink.LinkAttrs{Name: "romana-gw", TxQLen: 1000}}
-	if err := netlink.LinkAdd(rgw); err != nil {
-		if err == syscall.EEXIST {
-			log.Warn("Romana gateway already exists.")
-		} else {
-			log.Info("Error adding Romana gateway to node:", err)
-			return err
+// CreateRouteToBlocks loops over list of blocks and creates routes when needed.
+func CreateRouteToBlocks(blocks []api.IPAMBlockResponse,
+	hosts IpamHosts,
+	romanaRouteTableId int,
+	hostname string,
+	multihop bool,
+	nlHandle nlHandleRoute) {
+	for _, block := range blocks {
+		if block.Host == hostname {
+			log.Errorf("Block %v is local and does not require a route on that host", block)
+			continue
 		}
-	} else {
-		log.Info("Successfully added romana gateway to node.")
-	}
 
-	a.networkConfig.Lock()
-	oldIP := &netlink.Addr{
-		IPNet: &net.IPNet{
-			IP:   a.networkConfig.oldRomanaGW,
-			Mask: a.networkConfig.oldRomanaGWMask,
-		},
-	}
-	if err := netlink.AddrDel(rgw, oldIP); err != nil {
-		// Log error and continue as usual, since its ok if we can't delete
-		// the old IPAddress, since we may have lost it due to multiple reasons.
-		log.Warn("Error while removing old IPAddress from romana gateway:", err)
-	}
+		host := hosts.GetHost(block.Host)
+		if host == nil {
+			log.Errorf("Block %v belongs to unknown host %s, ignoring", block, block.Host)
+			continue
+		}
 
-	ip := &netlink.Addr{
-		IPNet: &net.IPNet{
-			IP:   a.networkConfig.romanaGW,
-			Mask: a.networkConfig.romanaGWMask,
-		},
+		if err := createRouteToBlock(block, host, romanaRouteTableId, multihop, nlHandle); err != nil {
+			_, ok := err.(RouteAdjacencyError)
+			if ok {
+				// Lower severity for expected error
+				log.Tracef(4, "%s", err)
+				continue
+			}
+
+			log.Errorf("%s", err)
+		}
 	}
-	err := netlink.AddrAdd(rgw, ip)
-	a.networkConfig.Unlock()
+}
+
+type nlHandleRoute interface {
+	RouteGet(net.IP) ([]netlink.Route, error)
+	RouteAdd(*netlink.Route) error
+}
+
+// createRouteToBlock creates ip route for given block->host pair in Romana routing table,
+// the function will fail if requested block is not directly adjacent and multihop false.
+func createRouteToBlock(block api.IPAMBlockResponse, host *api.Host, romanaRouteTableId int, multihop bool, nlHandle nlHandleRoute) error {
+	testRoutes, err := nlHandle.RouteGet(host.IP)
 	if err != nil {
-		if err == syscall.EEXIST {
-			log.Info("romana gateway already has the following IPAddress:", ip)
-		} else {
-			log.Error("Error while assigning IPAddress to romana gateway:", err)
-			return err
-		}
-	} else {
-		log.Info("Successfully assigned IPAddress to romana gateway:", ip)
+		return errors.Wrapf(err, "couldn't test host %s adjacency", host.IP)
 	}
 
-	// don't use Flags: net.FlagUp in &netlink.Dummy{netlink.LinkAttrs{}}
-	// above, since romana gateway may already be present and will not come
-	// up until LinkSetUp is called on it explicitly.
-	if err := netlink.LinkSetUp(rgw); err != nil {
-		log.Error("Error while brining up romana gateway:", err)
-		return err
+	if len(testRoutes) > 1 {
+		return errors.New(fmt.Sprintf("more then one path available for host %s, multipath not currently supported", host.IP))
 	}
-	log.Info("Successfully brought up romana gateway.")
-	return nil
+
+	if len(testRoutes) == 0 {
+		return errors.New(fmt.Sprintf("no way to reach %s, no default gateway?", host.IP))
+	}
+
+	if testRoutes[0].Gw != nil && multihop == false {
+		return RouteAdjacencyError{}
+	}
+
+	route := netlink.Route{
+		Dst:   &block.CIDR.IPNet,
+		Gw:    host.IP,
+		Table: romanaRouteTableId,
+	}
+
+	log.Debugf("About to create route %v", route)
+	return nlHandle.RouteAdd(&route)
 }
 
-// enableRomanaKernelDefaults enables default kernel settings needed by
-// romana, for example: ip forward, proxy arp, etc
-func (a Agent) enableRomanaKernelDefaults() error {
-	log.Trace(trace.Private, "In Agent enableRomanaKernelDefaults()")
+type RouteAdjacencyError struct{}
 
-	for i, path := range kernelDefaults {
-		if err := ioutil.WriteFile(path, []byte("1"), 0644); err != nil {
-			log.Errorf("Error changing kernel parameter(%s): %s", path, err)
-			return err
-		}
-		log.Debugf("%d: Succesfully enabled kernel parameter: %s", i, path)
-	}
-
-	log.Info("Successfully enabled kernel parameters for romana.")
-	return nil
-}
-
-// routeUpdater polls romana topology service for route changes and
-// updates routes accordingly.
-func (a Agent) routeUpdater(stopRouteUpdater <-chan struct{}, routeRefreshSeconds int) error {
-	log.Trace(trace.Private, "In Agent routeUpdater()")
-
-	go a.routePopulate(stopRouteUpdater, routeRefreshSeconds)
-	go a.routeSet(stopRouteUpdater, routeRefreshSeconds)
-
-	return nil
-}
-
-// routePopulate populates a.networkConfig.otherHosts periodically after every
-// routeRefreshSeconds after query topology service for changes in node list.
-// TODO: Currently routePopulate polls topology service, convert this
-// to kvstore watch on /romana/nodes once kvstore backend is ready.
-func (a Agent) routePopulate(stop <-chan struct{}, routeRefreshSeconds int) {
-	log.Trace(trace.Private, "In Agent routePopulate()")
-
-	refreshTicker := time.NewTicker(time.Duration(routeRefreshSeconds) * time.Second)
-
-	for {
-		select {
-		case <-refreshTicker.C:
-			log.Trace(trace.Inside, "Populating routes from topology service now: ", time.Now())
-			if err := a.updateRoutes(); err != nil {
-				log.Error("Agent routePopulate: ", err)
-			}
-			log.Debug("Agent routeSet updated routes successfully.")
-
-		case <-stop:
-			log.Info("Stopping Agent routePopulate() mechanism")
-			refreshTicker.Stop()
-			return
-		}
-	}
-}
-
-// routeSet updates the routes/romana-gw and other network configs
-// depending on the updates received to it form routePopulate above.
-func (a Agent) routeSet(stop <-chan struct{}, routeRefreshSeconds int) {
-	log.Trace(trace.Private, "In Agent routeSet()")
-
-	// Delay routeSet() by few seconds till routePopulate() updates
-	// routes from topology service.
-	time.Sleep(time.Duration(routeRefreshSeconds/2) * time.Second)
-
-	refreshTicker := time.NewTicker(time.Duration(routeRefreshSeconds) * time.Second)
-
-	for {
-		select {
-		case <-refreshTicker.C:
-			log.Trace(trace.Inside, "Refreshing routes on the node now: ", time.Now())
-			if err := a.Helper.ensureInterHostRoutes(); err != nil {
-				log.Error("Agent routeSet: ", err)
-			}
-			log.Debug("Agent routeSet updated routes successfully.")
-
-		case <-stop:
-			log.Info("Stopping Agent routeSet() mechanism")
-			refreshTicker.Stop()
-			return
-		}
-	}
+func (RouteAdjacencyError) Error() string {
+	return "no directly adjacent route and multihop is prohibited"
 }

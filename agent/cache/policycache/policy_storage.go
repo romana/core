@@ -1,7 +1,7 @@
 package policycache
 
 import (
-	"github.com/romana/core/agent/internal/cache"
+	"github.com/romana/core/agent/cache"
 	"github.com/romana/core/common/api"
 )
 

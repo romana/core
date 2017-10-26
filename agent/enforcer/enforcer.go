@@ -23,8 +23,8 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/romana/core/agent/cache/policycache"
 	utilexec "github.com/romana/core/agent/exec"
-	"github.com/romana/core/agent/internal/cache/policycache"
 	"github.com/romana/core/agent/iptsave"
 	"github.com/romana/core/common/api"
 	"github.com/romana/core/common/log/trace"
