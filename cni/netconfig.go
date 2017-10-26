@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Pani Networks
+// Copyright (c) 2017 Pani Networks
 // All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -13,15 +13,13 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-package agent
+package cni
 
 import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
 	"net"
-
-	"github.com/romana/core/common"
 )
 
 // NetworkRequest specifies messages sent to the
@@ -51,6 +49,49 @@ func (n NetIf) MarshalJSON() ([]byte, error) {
 	return json.Marshal(m)
 }
 
+// GetName implements firewall.FirewallEndpoint
+func (n NetIf) GetName() string {
+	return n.Name
+}
+
+// GetMac implements firewall.FirewallEndpoint
+func (n NetIf) GetMac() string {
+	return n.Mac
+}
+
+// GetIP implements firewall.FirewallEndpoint
+func (n NetIf) GetIP() net.IP {
+	return n.IP.IP
+}
+
+// SetIP parses and sets the IP address of the interface.
+func (n *NetIf) SetIP(ip string) error {
+	n.IP.IP = net.ParseIP(ip)
+	if n.IP.IP == nil && ip != "" {
+		return fmt.Errorf("failed to parse Netif, bad IP: %s", ip)
+	}
+
+	return nil
+}
+
+// UnmarshalJSON results in having NetIf implement Unmarshaler
+// interface from encoding/json. This is needed because we use
+// a type like net.IP here, not a simple type, and so a call to
+// net.ParseIP is required to unmarshal this properly.
+func (n *NetIf) UnmarshalJSON(data []byte) error {
+	m := make(map[string]string)
+	json.Unmarshal(data, &m)
+	ip := m["ip_address"]
+	n.IP.IP = net.ParseIP(ip)
+	if n.IP.IP == nil && ip != "" {
+		return fmt.Errorf("failed to parse Netif, bad IP: %s", ip)
+	}
+
+	n.Name = m["interface_name"]
+	n.Mac = m["mac_address"]
+	return nil
+}
+
 // IP structure is basically net.IP, but we redefine it so we
 // can implement Valuer and Scanner interfaces on it for storage.
 type IP struct {
@@ -62,18 +103,13 @@ func (i IP) Value() (driver.Value, error) {
 	return driver.Value(i.String()), nil
 }
 
-// NewNetIf is a simple constructor for NetIf
-func NewNetIf(ifname string, mac string, ip string) NetIf {
-	return NetIf{Name: ifname, Mac: mac, IP: IP{net.ParseIP(ip)}}
-}
-
 // Scan implements driver.Scanner interface on IP
 func (i *IP) Scan(src interface{}) error {
 	switch src := src.(type) {
 	case string:
 		ip := net.ParseIP(src)
 		if ip == nil {
-			return common.NewError("Cannot parse IP %s", src)
+			return fmt.Errorf("cannot parse IP %s", src)
 		}
 		i.IP = ip
 		return nil
@@ -81,49 +117,6 @@ func (i *IP) Scan(src interface{}) error {
 		i.IP = net.ParseIP(string(src))
 		return nil
 	default:
-		return common.NewError("Incompatible type for IP")
+		return fmt.Errorf("incompatible type for IP %s", src)
 	}
-}
-
-// GetName implements firewall.FirewallEndpoint
-func (i NetIf) GetName() string {
-	return i.Name
-}
-
-// GetMac implements firewall.FirewallEndpoint
-func (i NetIf) GetMac() string {
-	return i.Mac
-}
-
-// GetIP implements firewall.FirewallEndpoint
-func (i NetIf) GetIP() net.IP {
-	return i.IP.IP
-}
-
-// SetIP parses and sets the IP address of the interface.
-func (netif *NetIf) SetIP(ip string) error {
-	netif.IP.IP = net.ParseIP(ip)
-	if netif.IP.IP == nil && ip != "" {
-		return failedToParseNetif(fmt.Sprintf("Bad IP: %s", ip))
-	}
-
-	return nil
-}
-
-// UnmarshalJSON results in having NetIf implement Unmarshaler
-// interface from encoding/json. This is needed because we use
-// a type like net.IP here, not a simple type, and so a call to
-// net.ParseIP is required to unmarshal this properly.
-func (netif *NetIf) UnmarshalJSON(data []byte) error {
-	m := make(map[string]string)
-	json.Unmarshal(data, &m)
-	ip := m["ip_address"]
-	netif.IP.IP = net.ParseIP(ip)
-	if netif.IP.IP == nil && ip != "" {
-		return failedToParseNetif(fmt.Sprintf("Bad IP: %s", ip))
-	}
-
-	netif.Name = m["interface_name"]
-	netif.Mac = m["mac_address"]
-	return nil
 }

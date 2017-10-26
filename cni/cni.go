@@ -19,13 +19,13 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/containernetworking/cni/pkg/types"
-	"github.com/go-resty/resty"
-	"github.com/romana/core/agent"
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/api/errors"
 	"github.com/romana/core/common/client"
 	"github.com/romana/core/listener"
+
+	"github.com/containernetworking/cni/pkg/types"
+	"github.com/go-resty/resty"
 	log "github.com/romana/rlog"
 	"github.com/vishvananda/netlink"
 )
@@ -153,21 +153,21 @@ const (
 
 // NotifyAgent notifies Romana agent that Pod is added or deleted.
 func NotifyAgent(ip *net.IPNet, iface string, op string) (err error) {
-	var address agent.IP
+	var address IP
 	if ip != nil {
-		address = agent.IP{IP: ip.IP}
+		address = IP{IP: ip.IP}
 	} else {
-		address = agent.IP{IP: net.ParseIP("127.0.0.1")}
+		address = IP{IP: net.ParseIP("127.0.0.1")}
 	}
 	log.Infof("Notify romana agent about %s with ip %v, on interface %s", op, address, iface)
 
-	netif := agent.NetIf{Name: iface, IP: address}
+	netif := NetIf{Name: iface, IP: address}
 	switch op {
 	case NotifyPodUp:
-		_, err := resty.R().SetBody(agent.NetworkRequest{NetIf: netif}).Post(AgentUrl)
+		_, err := resty.R().SetBody(NetworkRequest{NetIf: netif}).Post(AgentUrl)
 		return err
 	case NotifyPodDown:
-		_, err := resty.R().SetBody(agent.NetworkRequest{NetIf: netif}).Delete(AgentUrl)
+		_, err := resty.R().SetBody(NetworkRequest{NetIf: netif}).Delete(AgentUrl)
 		return err
 	default:
 	}
