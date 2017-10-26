@@ -58,7 +58,7 @@ func SetRomanaGwIP(romanaIp string) error {
 		return err
 	}
 
-	addrs, err := netlink.AddrList(link, netlink.FAMILY_V4)
+	addrs, err := netlink.AddrList(link, syscall.AF_INET)
 	if err != nil {
 		return err
 	}

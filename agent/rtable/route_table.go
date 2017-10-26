@@ -24,6 +24,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/romana/rlog"
 	"github.com/vishvananda/netlink"
+	"syscall"
 )
 
 const (
@@ -81,7 +82,7 @@ type nlRuleHandle interface {
 
 // EnsureRomanaRouteRule verifies that rule for romana routing table installed.
 func EnsureRomanaRouteRule(romanaRouteTableId int, nl nlRuleHandle) error {
-	rules, err := nl.RuleList(netlink.FAMILY_V4)
+	rules, err := nl.RuleList(syscall.AF_INET)
 	if err != nil {
 		return err
 	}
