@@ -22,7 +22,7 @@
    relies on a method `Less()` of the receiver type for the sort criteria.
 */
 
-package hasher
+package policyhasher
 
 import (
 	"fmt"

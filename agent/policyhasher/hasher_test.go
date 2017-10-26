@@ -15,7 +15,7 @@
 
 // +build ignore
 
-package hasher
+package policyhasher
 
 import (
 	"testing"
