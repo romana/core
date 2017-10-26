@@ -23,14 +23,14 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/romana/core/agent/cache/policycache"
 	utilexec "github.com/romana/core/agent/exec"
 	"github.com/romana/core/agent/iptsave"
+	"github.com/romana/core/agent/policycache"
 	"github.com/romana/core/common/api"
 	"github.com/romana/core/common/log/trace"
 	"github.com/romana/core/pkg/policytools"
-	"github.com/romana/ipset"
 
+	"github.com/romana/ipset"
 	log "github.com/romana/rlog"
 )
 

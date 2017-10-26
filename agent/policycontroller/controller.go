@@ -7,7 +7,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/romana/core/agent/cache/policycache"
+	"github.com/romana/core/agent/policycache"
 	"github.com/romana/core/common/api"
 	"github.com/romana/core/common/client"
 

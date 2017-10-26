@@ -24,9 +24,9 @@ import (
 	"time"
 
 	"github.com/romana/core/agent"
-	"github.com/romana/core/agent/cache/policycache"
 	"github.com/romana/core/agent/enforcer"
 	utilexec "github.com/romana/core/agent/exec"
+	"github.com/romana/core/agent/policycache"
 	"github.com/romana/core/agent/policycontroller"
 	"github.com/romana/core/agent/rtable"
 	"github.com/romana/core/agent/sysctl"
