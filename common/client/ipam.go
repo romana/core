@@ -1298,10 +1298,16 @@ func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest, lockAndSave bool
 		}
 	}
 
+	processedNetworks := make(map[string]bool)
 	log.Tracef(trace.Inside, "Tenants to network mapping: %v", ipam.TenantToNetwork)
+	var ok bool
+	var network *Network
 	for _, topoDef := range req.Topologies {
 		for _, netName := range topoDef.Networks {
-			if network, ok := ipam.Networks[netName]; ok {
+			if _, ok = processedNetworks[netName]; ok {
+				return common.NewError("Network %s appears more than once.", netName)
+			}
+			if network, ok = ipam.Networks[netName]; ok {
 				hg := &Group{}
 
 				err = hg.parseMap(topoDef.Map, network.CIDR, network)
@@ -1313,6 +1319,7 @@ func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest, lockAndSave bool
 			} else {
 				return common.NewError("Network with name %s not defined", netName)
 			}
+			processedNetworks[netName] = true
 		}
 	}
 	ipam.TopologyRevision++

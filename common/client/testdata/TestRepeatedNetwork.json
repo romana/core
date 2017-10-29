@@ -1,0 +1,15 @@
+{ "networks" : [ 
+{ "name" : "net1", "cidr" : "100.11.0.0/20", "block_mask" : 30 },
+{ "name" : "net2", "cidr" : "100.22.0.0/20", "block_mask" : 30 }
+],
+"topologies" : [
+{
+"networks" : ["net1","net2"],
+"map" : [ { "groups" : [] } ]
+},
+{
+"networks" : ["net1","net2"],
+"map" : [ { "groups" : [] } ]
+}
+]
+}

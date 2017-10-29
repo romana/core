@@ -1152,3 +1152,25 @@ func TestPanic(t *testing.T) {
 	}
 
 }
+
+func TestRepeatedNetwork(t *testing.T) {
+	b := loadTestData(t)
+	conf := string(b)
+
+	ipam, err := NewIPAM(testSaver.save, nil)
+	if err != nil {
+		t.Fatalf("Error initializing ipam: %v", err)
+	}
+	ipam.load = testSaver.load
+	topoReq := api.TopologyUpdateRequest{}
+	err = json.Unmarshal([]byte(conf), &topoReq)
+	if err != nil {
+		t.Fatalf("Cannot parse %s: %v", conf, err)
+	}
+	err = ipam.UpdateTopology(topoReq, false)
+	if err == nil {
+		t.Fatal("Expected an error on updating topology")
+	}
+	t.Logf("Got error: %s", err)
+	ipam.save(ipam, nil)
+}
