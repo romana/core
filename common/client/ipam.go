@@ -1418,6 +1418,9 @@ func (ipam *IPAM) AddHost(host api.Host) error {
 	for _, net := range ipam.Networks {
 		myHost := &Host{IP: host.IP, Name: host.Name, Tags: host.Tags}
 		log.Tracef(trace.Inside, "Attempting to add host %s (%s) to network %s\n", host.Name, host.IP, net.Name)
+		if net.Group == nil {
+			continue
+		}
 		ok, err := net.Group.addHost(myHost)
 		if err != nil {
 			return err

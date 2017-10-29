@@ -1139,5 +1139,16 @@ func TestOverlappingCIDRs(t *testing.T) {
 	}
 	t.Logf("Got error: %s", err)
 	ipam.save(ipam, nil)
+}
+
+func TestPanic(t *testing.T) {
+	ipam := initIpam(t, "")
+	host := api.Host{Name: "another-host-2",
+		IP: net.ParseIP("100.22.0.4"),
+	}
+	err := ipam.AddHost(host)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 }
