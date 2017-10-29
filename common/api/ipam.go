@@ -92,6 +92,10 @@ type GroupOrHost struct {
 	// therefore the above elements MUST NOT be specified.
 	Name string `json:"name"`
 	IP   net.IP `json:"ip,omitempty"`
+
+	// A dummy group is one used for padding to power of 2; it is not to
+	// be assigned hosts to
+	Dummy bool `json:"dummy"`
 }
 
 type Host struct {

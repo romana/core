@@ -194,6 +194,8 @@ type Group struct {
 	Assignment     map[string]string `json:"assignment"`
 	Routing        string            `json:"routing"`
 	network        *Network
+
+	Dummy bool `json:"dummy"`
 }
 
 func (hg *Group) String() string {
@@ -216,6 +218,9 @@ func (hg *Group) String() string {
 // isHostEligible checks if the host can be added to this group.
 func (hg *Group) isHostEligible(host *Host) bool {
 	log.Tracef(trace.Inside, "Checking eligibility of %s in group %s", host, hg.Name)
+	if hg.Dummy {
+		return false
+	}
 	// Check assignment
 	if hg.Assignment != nil {
 		for k, v := range hg.Assignment {
@@ -551,6 +556,9 @@ func (hg *Group) padGroupToPow2Size(groupOrHosts []api.GroupOrHost) []api.GroupO
 	if rem != 0 {
 		// Let's allocate a few more empty slots to complete the power of 2
 		remArr := make([]api.GroupOrHost, rem)
+		for _, g := range remArr {
+			g.Dummy = true
+		}
 		groupOrHosts = append(groupOrHosts, remArr...)
 	}
 	return groupOrHosts
@@ -608,6 +616,7 @@ func (hg *Group) parseMap(groupOrHosts []api.GroupOrHost, cidr CIDR, network *Ne
 		hg.Name = groupOrHosts[0].Name
 		hg.Assignment = groupOrHosts[0].Assignment
 		hg.Routing = groupOrHosts[0].Routing
+		hg.Dummy = groupOrHosts[0].Dummy
 		err = hg.parse(groupOrHosts[0].Groups, cidr, network)
 		if err != nil {
 			return err
@@ -630,6 +639,7 @@ func (hg *Group) parseMap(groupOrHosts []api.GroupOrHost, cidr CIDR, network *Ne
 		hg.Groups[i].Name = elt.Name
 		hg.Groups[i].Assignment = elt.Assignment
 		hg.Groups[i].Routing = elt.Routing
+		hg.Groups[i].Dummy = elt.Dummy
 		//		log.Tracef(trace.Inside, "Calling parse() on %v with %v", hg.Groups[i], elt.Groups)
 		err = hg.Groups[i].parse(elt.Groups, elementCIDR, network)
 		if err != nil {
