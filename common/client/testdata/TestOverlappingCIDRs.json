@@ -1,0 +1,22 @@
+{
+    "networks": [
+        {
+            "name": "rnet-1",
+            "cidr": "100.11.0.0/20",
+            "block_mask": 30
+        },
+        {
+            "name": "rnet-2",
+            "cidr": "100.11.0.0/20",
+            "block_mask": 30
+        }
+    ],
+    "topologies": [
+        {
+            "networks": [ "rnet-1", "rnet-2" ],
+            "map": [
+                { "groups": [ ] }
+            ]
+        }
+    ]
+}

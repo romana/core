@@ -1211,6 +1211,7 @@ func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest, lockAndSave bool
 		defer ipam.locker.Unlock()
 	}
 	allocatedBlocks := false
+
 	for _, netDef := range ipam.Networks {
 		// Blocks that have IPs assigned -- if they didn't, they would be
 		// in ReusableBlocks but not here
@@ -1225,7 +1226,9 @@ func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest, lockAndSave bool
 	}
 	clearIPAM(ipam)
 
-	for _, netDef := range req.Networks {
+	var netDef api.NetworkDefinition
+	for _, netDef = range req.Networks {
+		log.Infof("Parsing network %s", netDef.Name)
 		if _, ok := ipam.Networks[netDef.Name]; ok {
 			return common.NewError("Network with name %s already defined", netDef.Name)
 		}
@@ -1239,14 +1242,6 @@ func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest, lockAndSave bool
 		if err != nil {
 			return err
 		}
-		//		for _, network := range ipam.Networks {
-		//			if network.CIDR.Contains(netDefCIDR) {
-		//				return common.NewError("CIDR %s already is contained in CIDR %s of network %s", netDefCIDR, network.CIDR, network.Name)
-		//			}
-		//			if netDefCIDR.Contains(network.CIDR) {
-		//				return common.NewError("CIDR %s  contains already existing CIDR %s of network %s", netDefCIDR, network.CIDR, network.Name)
-		//			}
-		//
 
 		// If empty, all tenants are allowed.
 		if netDef.Tenants == nil || len(netDef.Tenants) == 0 {
@@ -1268,8 +1263,31 @@ func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest, lockAndSave bool
 		}
 		network := newNetwork(netDef.Name, netDefCIDR, netDef.BlockMask)
 		network.ipam = ipam
+		log.Infof("Adding network %s: %v", netDef.Name, network)
 		ipam.Networks[netDef.Name] = network
 	}
+
+	// Now check if we got any overlapping CIDRs...
+	// Doing it here for simplicity because we at this point have already parsed CIDR
+	// strings into CIDR objects.
+	// n^2 nested loop is ok - there will not be a lot of networks.
+	var net1 *Network
+	var net2 *Network
+	for _, net1 = range ipam.Networks {
+		for _, net2 = range ipam.Networks {
+			if net1 == net2 {
+				continue
+			}
+			log.Printf("Checking %s %v vs %s %v", net1.Name, net1, net2.Name, net2)
+			if net2.CIDR.Contains(net1.CIDR) {
+				return common.NewError("CIDR %s of network %s already is contained in CIDR %s of network %s", net1.CIDR, net1.Name, net2.CIDR, net2.Name)
+			}
+			if net1.CIDR.Contains(net2.CIDR) {
+				return common.NewError("CIDR %s of network %s already is contained in CIDR %s of network %s", net2.CIDR, net2.Name, net1.CIDR, net1.Name)
+			}
+		}
+	}
+
 	log.Tracef(trace.Inside, "Tenants to network mapping: %v", ipam.TenantToNetwork)
 	for _, topoDef := range req.Topologies {
 		for _, netName := range topoDef.Networks {

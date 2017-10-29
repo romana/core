@@ -60,7 +60,7 @@ func initIpam(t *testing.T, conf string) *IPAM {
 	}
 	err = ipam.UpdateTopology(topoReq, false)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Error updating topology: %s", err)
 	}
 	ipam.save(ipam, nil)
 	return ipam
@@ -88,7 +88,7 @@ func (s *TestSaver) save(ipam *IPAM, ch <-chan struct{}) error {
 }
 
 func (s *TestSaver) load(ipam *IPAM, ch <-chan struct{}) error {
-	parsedIPAM , err := parseIPAM(s.lastJson)
+	parsedIPAM, err := parseIPAM(s.lastJson)
 	if err != nil {
 		return err
 	}
@@ -1117,4 +1117,27 @@ func TestTenantsBug701(t *testing.T) {
 		}
 		t.Log("Host ", host, "  Addr ", i, ": ", ip.String())
 	}
+}
+
+func TestOverlappingCIDRs(t *testing.T) {
+	b := loadTestData(t)
+	conf := string(b)
+
+	ipam, err := NewIPAM(testSaver.save, nil)
+	if err != nil {
+		t.Fatalf("Error initializing ipam: %v", err)
+	}
+	ipam.load = testSaver.load
+	topoReq := api.TopologyUpdateRequest{}
+	err = json.Unmarshal([]byte(conf), &topoReq)
+	if err != nil {
+		t.Fatalf("Cannot parse %s: %v", conf, err)
+	}
+	err = ipam.UpdateTopology(topoReq, false)
+	if err == nil {
+		t.Fatal("Expected an error on updating topology")
+	}
+	t.Logf("Got error: %s", err)
+	ipam.save(ipam, nil)
+
 }
