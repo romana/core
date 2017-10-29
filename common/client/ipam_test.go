@@ -1174,3 +1174,38 @@ func TestRepeatedNetwork(t *testing.T) {
 	t.Logf("Got error: %s", err)
 	ipam.save(ipam, nil)
 }
+
+func TestNodeAssignment(t *testing.T) {
+	t.Logf("TestFoo")
+
+	ipam = initIpam(t, "")
+
+	for i := 0; i < 4; i++ {
+		ip := net.ParseIP(fmt.Sprintf("192.168.1.%d", i+1))
+		tags := make(map[string]string)
+		tags["rack"] = fmt.Sprintf("rack-%d", i+1)
+		name := fmt.Sprintf("host%d", i)
+		host := api.Host{
+			Name: name,
+			IP:   ip,
+			Tags: tags,
+		}
+		t.Logf("Adding host %s (%s) %s", host.Name, host.IP, tags)
+		err := ipam.AddHost(host)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(ipam.Networks["rnet-1"].Group.Hosts) != 1 {
+		t.Fatalf("Expected 1 host in rnet-1, got %v", ipam.Networks["rnet-1"].Group.Hosts)
+	}
+	if len(ipam.Networks["rnet-2"].Group.Groups[0].Hosts) != 1 {
+		t.Fatalf("Expected 1 host in rnet-1, got %v", ipam.Networks["rnet-1"].Group.Hosts)
+	}
+	if len(ipam.Networks["rnet-2"].Group.Groups[1].Hosts) != 1 {
+		t.Fatalf("Expected 1 host in rnet-1, got %v", ipam.Networks["rnet-1"].Group.Hosts)
+	}
+	if len(ipam.Networks["rnet-2"].Group.Groups[2].Hosts) != 1 {
+		t.Fatalf("Expected 1 host in rnet-1, got %v", ipam.Networks["rnet-1"].Group.Hosts)
+	}
+}

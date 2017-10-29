@@ -305,8 +305,12 @@ func (hg *Group) addHost(host *Host) (bool, error) {
 		return smallest.addHost(host)
 	}
 
+	if !hg.isHostEligible(host) {
+		return false, nil
+	}
 	hg.Hosts = append(hg.Hosts, host)
 	host.group = hg
+	log.Infof("Added host %s with tags %s to group %s", host, host.Tags, hg.Name)
 	return true, nil
 }
 
@@ -615,6 +619,7 @@ func (hg *Group) parseMap(groupOrHosts []api.GroupOrHost, cidr CIDR, network *Ne
 		log.Tracef(trace.Inside, "parseMap of size 1")
 		hg.Name = groupOrHosts[0].Name
 		hg.Assignment = groupOrHosts[0].Assignment
+		log.Tracef(trace.Inside, "Assignment for group %s: %s", hg.Name, hg.Assignment)
 		hg.Routing = groupOrHosts[0].Routing
 		hg.Dummy = groupOrHosts[0].Dummy
 		err = hg.parse(groupOrHosts[0].Groups, cidr, network)
@@ -639,6 +644,8 @@ func (hg *Group) parseMap(groupOrHosts []api.GroupOrHost, cidr CIDR, network *Ne
 		hg.Groups[i].Name = elt.Name
 		hg.Groups[i].Assignment = elt.Assignment
 		hg.Groups[i].Routing = elt.Routing
+		log.Tracef(trace.Inside, "Assignment for group %s: %s", hg.Groups[i].Name, hg.Groups[i].Assignment)
+
 		hg.Groups[i].Dummy = elt.Dummy
 		//		log.Tracef(trace.Inside, "Calling parse() on %v with %v", hg.Groups[i], elt.Groups)
 		err = hg.Groups[i].parse(elt.Groups, elementCIDR, network)
