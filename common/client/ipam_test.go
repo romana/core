@@ -1200,12 +1200,12 @@ func TestNodeAssignment(t *testing.T) {
 		t.Fatalf("Expected 1 host in rnet-1, got %v", ipam.Networks["rnet-1"].Group.Hosts)
 	}
 	if len(ipam.Networks["rnet-2"].Group.Groups[0].Hosts) != 1 {
-		t.Fatalf("Expected 1 host in rnet-1, got %v", ipam.Networks["rnet-1"].Group.Hosts)
+		t.Fatalf("Expected 1 host in rnet-2 group %s, got %v", ipam.Networks["rnet-2"].Group.Groups[0].Name, ipam.Networks["rnet-2"].Group.Hosts)
 	}
 	if len(ipam.Networks["rnet-2"].Group.Groups[1].Hosts) != 1 {
-		t.Fatalf("Expected 1 host in rnet-1, got %v", ipam.Networks["rnet-1"].Group.Hosts)
+		t.Fatalf("Expected 1 host in rnet-2 group %s, got %v", ipam.Networks["rnet-2"].Group.Groups[1].Name, ipam.Networks["rnet-2"].Group.Hosts)
 	}
 	if len(ipam.Networks["rnet-2"].Group.Groups[2].Hosts) != 1 {
-		t.Fatalf("Expected 1 host in rnet-1, got %v", ipam.Networks["rnet-1"].Group.Hosts)
+		t.Fatalf("Expected 1 host in rnet-2 group %s, got %v", ipam.Networks["rnet-2"].Group.Groups[2].Name, ipam.Networks["rnet-2"].Group.Hosts)
 	}
 }
