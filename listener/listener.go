@@ -19,6 +19,7 @@ package listener
 import (
 	"fmt"
 	"os"
+	"sync"
 
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
@@ -53,6 +54,15 @@ type KubeListener struct {
 
 	kubeClientSet *kubernetes.Clientset
 	Watchers      map[string]cache.ListerWatcher
+
+	nodeStore cache.Store
+
+	// This is intended to lock for the purposes of changing
+	// syncNodesRunning flag. In case syncNodes() is called multiple
+	// times, it would lock here, check the status of syncNodesRunning flag
+	// and bail out if there is another instance of syncNodes() running.
+	syncNodesMutex   sync.Locker
+	syncNodesRunning bool
 }
 
 // Routes returns various routes used in the service.
@@ -111,7 +121,6 @@ func (l *KubeListener) Initialize(clientConfig common.Config) error {
 	if err != nil {
 		return err
 	}
-
 	// TODO, find a better place to initialize
 	// the translator. Stas.
 	PTranslator.Init(l.client, l.segmentLabelName, l.tenantLabelName)
@@ -143,6 +152,11 @@ func (l *KubeListener) Initialize(clientConfig common.Config) error {
 
 	l.startRomanaIPSync(done)
 
+	l.syncNodesMutex = &sync.Mutex{}
+
+	// Actually do this after all the watches started; since addition and deletion
+	// of hosts are idempotent, this will allow us to definitely not lose anything.
+	//	l.syncNodes()
 	log.Info("All routines started")
 	return nil
 }

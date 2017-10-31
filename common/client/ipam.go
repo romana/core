@@ -167,6 +167,7 @@ type Host struct {
 	IP        net.IP            `json:"ip"`
 	AgentPort uint              `json:"agent_port"`
 	Tags      map[string]string `json:"tags"`
+	K8SInfo   map[string]string `json:"k8s_info"`
 	group     *Group
 }
 
@@ -516,6 +517,9 @@ func (hg *Group) GetBlocks() []api.IPAMBlockResponse {
 }
 
 func (hg *Group) findHostByIP(ip string) *Host {
+	if ip == "" {
+		return nil
+	}
 	for _, h := range hg.Hosts {
 		if h.IP.String() == ip {
 			return h
@@ -528,6 +532,9 @@ func (hg *Group) findHostByIP(ip string) *Host {
 }
 
 func (hg *Group) findHostByName(name string) *Host {
+	if name == "" {
+		return nil
+	}
 	if hg.Hosts != nil {
 		for _, h := range hg.Hosts {
 			if h.Name == name {
@@ -1398,7 +1405,7 @@ func (ipam *IPAM) RemoveHost(host api.Host) error {
 			if curHost.IP.String() == hostToRemove.IP.String() {
 				log.Tracef(trace.Inside, "Net %s: removing host %s (%d) from group %s (%v)\n", net.Name, hostToRemove, i, hostToRemove.group.Name, hostToRemove.group.Hosts)
 				hostToRemove.group.Hosts = deleteElementHost(hostToRemove.group.Hosts, i)
-				log.Tracef(trace.Inside, "Net %s, after removal: %v", net.Name, hostToRemove.group.Hosts)
+				log.Tracef(trace.Inside, "Net %s, group %s, after removal: %v", net.Name, hostToRemove.group.Name, hostToRemove.group.Hosts)
 				removedHost = true
 				break
 			}
