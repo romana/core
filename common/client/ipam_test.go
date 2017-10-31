@@ -60,7 +60,7 @@ func initIpam(t *testing.T, conf string) *IPAM {
 	}
 	err = ipam.UpdateTopology(topoReq, false)
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("Error updating topology: %s", err)
 	}
 	ipam.save(ipam, nil)
 	return ipam
@@ -88,7 +88,7 @@ func (s *TestSaver) save(ipam *IPAM, ch <-chan struct{}) error {
 }
 
 func (s *TestSaver) load(ipam *IPAM, ch <-chan struct{}) error {
-	parsedIPAM , err := parseIPAM(s.lastJson)
+	parsedIPAM, err := parseIPAM(s.lastJson)
 	if err != nil {
 		return err
 	}
@@ -1116,5 +1116,96 @@ func TestTenantsBug701(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Log("Host ", host, "  Addr ", i, ": ", ip.String())
+	}
+}
+
+func TestOverlappingCIDRs(t *testing.T) {
+	b := loadTestData(t)
+	conf := string(b)
+
+	ipam, err := NewIPAM(testSaver.save, nil)
+	if err != nil {
+		t.Fatalf("Error initializing ipam: %v", err)
+	}
+	ipam.load = testSaver.load
+	topoReq := api.TopologyUpdateRequest{}
+	err = json.Unmarshal([]byte(conf), &topoReq)
+	if err != nil {
+		t.Fatalf("Cannot parse %s: %v", conf, err)
+	}
+	err = ipam.UpdateTopology(topoReq, false)
+	if err == nil {
+		t.Fatal("Expected an error on updating topology")
+	}
+	t.Logf("Got error: %s", err)
+	ipam.save(ipam, nil)
+}
+
+func TestPanic(t *testing.T) {
+	ipam := initIpam(t, "")
+	host := api.Host{Name: "another-host-2",
+		IP: net.ParseIP("100.22.0.4"),
+	}
+	err := ipam.AddHost(host)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+}
+
+func TestRepeatedNetwork(t *testing.T) {
+	b := loadTestData(t)
+	conf := string(b)
+
+	ipam, err := NewIPAM(testSaver.save, nil)
+	if err != nil {
+		t.Fatalf("Error initializing ipam: %v", err)
+	}
+	ipam.load = testSaver.load
+	topoReq := api.TopologyUpdateRequest{}
+	err = json.Unmarshal([]byte(conf), &topoReq)
+	if err != nil {
+		t.Fatalf("Cannot parse %s: %v", conf, err)
+	}
+	err = ipam.UpdateTopology(topoReq, false)
+	if err == nil {
+		t.Fatal("Expected an error on updating topology")
+	}
+	t.Logf("Got error: %s", err)
+	ipam.save(ipam, nil)
+}
+
+func TestNodeAssignment(t *testing.T) {
+	t.Logf("TestFoo")
+
+	ipam = initIpam(t, "")
+
+	for i := 0; i < 4; i++ {
+		ip := net.ParseIP(fmt.Sprintf("192.168.1.%d", i+1))
+		tags := make(map[string]string)
+		tags["rack"] = fmt.Sprintf("rack-%d", i+1)
+		name := fmt.Sprintf("host%d", i)
+		host := api.Host{
+			Name: name,
+			IP:   ip,
+			Tags: tags,
+		}
+		t.Logf("Adding host %s (%s) %s", host.Name, host.IP, tags)
+		err := ipam.AddHost(host)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	if len(ipam.Networks["rnet-1"].Group.Hosts) != 1 {
+		t.Fatalf("Expected 1 host in rnet-1, got %v", ipam.Networks["rnet-1"].Group.Hosts)
+	}
+	if len(ipam.Networks["rnet-2"].Group.Groups[0].Hosts) != 1 {
+		t.Fatalf("Expected 1 host in rnet-2 group %s, got %v", ipam.Networks["rnet-2"].Group.Groups[0].Name, ipam.Networks["rnet-2"].Group.Hosts)
+	}
+	if len(ipam.Networks["rnet-2"].Group.Groups[1].Hosts) != 1 {
+		t.Fatalf("Expected 1 host in rnet-2 group %s, got %v", ipam.Networks["rnet-2"].Group.Groups[1].Name, ipam.Networks["rnet-2"].Group.Hosts)
+	}
+	if len(ipam.Networks["rnet-2"].Group.Groups[2].Hosts) != 1 {
+		t.Fatalf("Expected 1 host in rnet-2 group %s, got %v", ipam.Networks["rnet-2"].Group.Groups[2].Name, ipam.Networks["rnet-2"].Group.Hosts)
 	}
 }

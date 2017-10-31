@@ -194,6 +194,8 @@ type Group struct {
 	Assignment     map[string]string `json:"assignment"`
 	Routing        string            `json:"routing"`
 	network        *Network
+
+	Dummy bool `json:"dummy"`
 }
 
 func (hg *Group) String() string {
@@ -216,6 +218,9 @@ func (hg *Group) String() string {
 // isHostEligible checks if the host can be added to this group.
 func (hg *Group) isHostEligible(host *Host) bool {
 	log.Tracef(trace.Inside, "Checking eligibility of %s in group %s", host, hg.Name)
+	if hg.Dummy {
+		return false
+	}
 	// Check assignment
 	if hg.Assignment != nil {
 		for k, v := range hg.Assignment {
@@ -300,8 +305,12 @@ func (hg *Group) addHost(host *Host) (bool, error) {
 		return smallest.addHost(host)
 	}
 
+	if !hg.isHostEligible(host) {
+		return false, nil
+	}
 	hg.Hosts = append(hg.Hosts, host)
 	host.group = hg
+	log.Infof("Added host %s with tags %s to group %s", host, host.Tags, hg.Name)
 	return true, nil
 }
 
@@ -551,6 +560,9 @@ func (hg *Group) padGroupToPow2Size(groupOrHosts []api.GroupOrHost) []api.GroupO
 	if rem != 0 {
 		// Let's allocate a few more empty slots to complete the power of 2
 		remArr := make([]api.GroupOrHost, rem)
+		for _, g := range remArr {
+			g.Dummy = true
+		}
 		groupOrHosts = append(groupOrHosts, remArr...)
 	}
 	return groupOrHosts
@@ -607,7 +619,9 @@ func (hg *Group) parseMap(groupOrHosts []api.GroupOrHost, cidr CIDR, network *Ne
 		log.Tracef(trace.Inside, "parseMap of size 1")
 		hg.Name = groupOrHosts[0].Name
 		hg.Assignment = groupOrHosts[0].Assignment
+		log.Tracef(trace.Inside, "Assignment for group %s: %s", hg.Name, hg.Assignment)
 		hg.Routing = groupOrHosts[0].Routing
+		hg.Dummy = groupOrHosts[0].Dummy
 		err = hg.parse(groupOrHosts[0].Groups, cidr, network)
 		if err != nil {
 			return err
@@ -630,6 +644,9 @@ func (hg *Group) parseMap(groupOrHosts []api.GroupOrHost, cidr CIDR, network *Ne
 		hg.Groups[i].Name = elt.Name
 		hg.Groups[i].Assignment = elt.Assignment
 		hg.Groups[i].Routing = elt.Routing
+		log.Tracef(trace.Inside, "Assignment for group %s: %s", hg.Groups[i].Name, hg.Groups[i].Assignment)
+
+		hg.Groups[i].Dummy = elt.Dummy
 		//		log.Tracef(trace.Inside, "Calling parse() on %v with %v", hg.Groups[i], elt.Groups)
 		err = hg.Groups[i].parse(elt.Groups, elementCIDR, network)
 		if err != nil {
@@ -1211,6 +1228,7 @@ func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest, lockAndSave bool
 		defer ipam.locker.Unlock()
 	}
 	allocatedBlocks := false
+
 	for _, netDef := range ipam.Networks {
 		// Blocks that have IPs assigned -- if they didn't, they would be
 		// in ReusableBlocks but not here
@@ -1225,7 +1243,9 @@ func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest, lockAndSave bool
 	}
 	clearIPAM(ipam)
 
-	for _, netDef := range req.Networks {
+	var netDef api.NetworkDefinition
+	for _, netDef = range req.Networks {
+		log.Infof("Parsing network %s", netDef.Name)
 		if _, ok := ipam.Networks[netDef.Name]; ok {
 			return common.NewError("Network with name %s already defined", netDef.Name)
 		}
@@ -1239,14 +1259,6 @@ func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest, lockAndSave bool
 		if err != nil {
 			return err
 		}
-		//		for _, network := range ipam.Networks {
-		//			if network.CIDR.Contains(netDefCIDR) {
-		//				return common.NewError("CIDR %s already is contained in CIDR %s of network %s", netDefCIDR, network.CIDR, network.Name)
-		//			}
-		//			if netDefCIDR.Contains(network.CIDR) {
-		//				return common.NewError("CIDR %s  contains already existing CIDR %s of network %s", netDefCIDR, network.CIDR, network.Name)
-		//			}
-		//
 
 		// If empty, all tenants are allowed.
 		if netDef.Tenants == nil || len(netDef.Tenants) == 0 {
@@ -1268,12 +1280,41 @@ func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest, lockAndSave bool
 		}
 		network := newNetwork(netDef.Name, netDefCIDR, netDef.BlockMask)
 		network.ipam = ipam
+		log.Infof("Adding network %s: %v", netDef.Name, network)
 		ipam.Networks[netDef.Name] = network
 	}
+
+	// Now check if we got any overlapping CIDRs...
+	// Doing it here for simplicity because we at this point have already parsed CIDR
+	// strings into CIDR objects.
+	// n^2 nested loop is ok - there will not be a lot of networks.
+	var net1 *Network
+	var net2 *Network
+	for _, net1 = range ipam.Networks {
+		for _, net2 = range ipam.Networks {
+			if net1 == net2 {
+				continue
+			}
+			log.Printf("Checking %s %v vs %s %v", net1.Name, net1, net2.Name, net2)
+			if net2.CIDR.Contains(net1.CIDR) {
+				return common.NewError("CIDR %s of network %s already is contained in CIDR %s of network %s", net1.CIDR, net1.Name, net2.CIDR, net2.Name)
+			}
+			if net1.CIDR.Contains(net2.CIDR) {
+				return common.NewError("CIDR %s of network %s already is contained in CIDR %s of network %s", net2.CIDR, net2.Name, net1.CIDR, net1.Name)
+			}
+		}
+	}
+
+	processedNetworks := make(map[string]bool)
 	log.Tracef(trace.Inside, "Tenants to network mapping: %v", ipam.TenantToNetwork)
+	var ok bool
+	var network *Network
 	for _, topoDef := range req.Topologies {
 		for _, netName := range topoDef.Networks {
-			if network, ok := ipam.Networks[netName]; ok {
+			if _, ok = processedNetworks[netName]; ok {
+				return common.NewError("Network %s appears more than once.", netName)
+			}
+			if network, ok = ipam.Networks[netName]; ok {
 				hg := &Group{}
 
 				err = hg.parseMap(topoDef.Map, network.CIDR, network)
@@ -1285,6 +1326,7 @@ func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest, lockAndSave bool
 			} else {
 				return common.NewError("Network with name %s not defined", netName)
 			}
+			processedNetworks[netName] = true
 		}
 	}
 	ipam.TopologyRevision++
@@ -1400,6 +1442,9 @@ func (ipam *IPAM) AddHost(host api.Host) error {
 	for _, net := range ipam.Networks {
 		myHost := &Host{IP: host.IP, Name: host.Name, Tags: host.Tags}
 		log.Tracef(trace.Inside, "Attempting to add host %s (%s) to network %s\n", host.Name, host.IP, net.Name)
+		if net.Group == nil {
+			continue
+		}
 		ok, err := net.Group.addHost(myHost)
 		if err != nil {
 			return err
