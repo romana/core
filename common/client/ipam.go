@@ -517,6 +517,9 @@ func (hg *Group) GetBlocks() []api.IPAMBlockResponse {
 }
 
 func (hg *Group) findHostByIP(ip string) *Host {
+	if ip == "" {
+		return nil
+	}
 	for _, h := range hg.Hosts {
 		if h.IP.String() == ip {
 			return h
@@ -529,6 +532,9 @@ func (hg *Group) findHostByIP(ip string) *Host {
 }
 
 func (hg *Group) findHostByName(name string) *Host {
+	if name == "" {
+		return nil
+	}
 	if hg.Hosts != nil {
 		for _, h := range hg.Hosts {
 			if h.Name == name {

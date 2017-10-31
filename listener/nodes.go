@@ -27,8 +27,10 @@ import (
 
 	log "github.com/romana/rlog"
 
+	"github.com/romana/core/common"
 	romanaApi "github.com/romana/core/common/api"
 	romanaErrors "github.com/romana/core/common/api/errors"
+	"github.com/romana/core/common/log/trace"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/pkg/api"
 	"k8s.io/client-go/pkg/api/v1"
@@ -73,12 +75,22 @@ func (l *KubeListener) syncNodes() {
 
 	nodesIfc := l.nodeStore.List()
 	var node v1.Node
+	var ok bool
 
 	romanaHostList := l.client.IPAM.ListHosts()
 	for _, nodeIfc := range nodesIfc {
 		// This is not super-efficient but as we don't have that many hosts for now
 		// to deal with, it can do.
-		node = nodeIfc.(v1.Node)
+		node, ok = nodeIfc.(v1.Node)
+		if !ok {
+			log.Tracef(trace.Inside, "Expeced Node object, got %T", nodeIfc)
+			continue
+		}
+		if node.Name == "" || node.Status.Addresses == nil || len(node.Status.Addresses) == 0 {
+			log.Errorf("Received invalid node name or IP Address: (%v)", node)
+			continue
+		}
+
 		nodeInRomana := false
 		for _, romanaHost := range romanaHostList.Hosts {
 			if romanaHost.IP.String() == node.Status.Addresses[0].Address {
@@ -87,7 +99,12 @@ func (l *KubeListener) syncNodes() {
 			}
 		}
 		if !nodeInRomana {
-			host := romanaApi.Host{IP: net.ParseIP(node.Status.Addresses[0].Address),
+			ip := net.ParseIP(node.Status.Addresses[0].Address)
+			if ip == nil {
+				log.Errorf("Cannot parse node IP: %s", node.Status.Addresses[0].Address)
+				continue
+			}
+			host := romanaApi.Host{IP: ip,
 				Name: node.Name,
 				Tags: node.GetLabels(),
 			}
@@ -115,7 +132,8 @@ func (l *KubeListener) syncNodes() {
 			}
 		}
 		if !hostInK8S {
-			host := romanaApi.Host{IP: net.ParseIP(node.Status.Addresses[0].Address)}
+			host := romanaApi.Host{IP: net.ParseIP(node.Status.Addresses[0].Address),
+				Name: node.Name}
 			err = l.client.IPAM.RemoveHost(host)
 			if err == nil {
 				log.Infof("Removed host %s from Romana", host)
@@ -216,7 +234,7 @@ func (l *KubeListener) kubernetesDeleteNodeEventHandler(n interface{}) {
 	log.Debug("In kubernetesDeleteNodeEventHandler()")
 	node, ok := n.(*v1.Node)
 	if !ok {
-		log.Errorf("Error processing Delete Event received for node(%s) ", n)
+		log.Errorf("Expected Node object, received %T", n)
 		l.syncNodes()
 		return
 	}
@@ -237,9 +255,12 @@ func (l *KubeListener) kubernetesDeleteNodeEventHandler(n interface{}) {
 // romanaHostAdd connects to romana API and adds a node to
 // the romana cluster.
 func romanaHostAdd(l *KubeListener, node *v1.Node) error {
-	if node.Name == "" || len(node.Status.Addresses) < 1 {
-		log.Errorf("Error: received invalid host name or IP Address: (%s)", node)
-		return errors.New("Error: received invalid host name or IP Address.")
+	var err error
+	var ok bool
+	if node.Name == "" || node.Status.Addresses == nil || len(node.Status.Addresses) == 0 {
+		err = common.NewError("Received invalid host name or IP Address: (%s)", node)
+		log.Error(err)
+		return err
 	}
 	hostname := node.Name
 	hostIP := net.ParseIP(node.Status.Addresses[0].Address)
@@ -248,12 +269,12 @@ func romanaHostAdd(l *KubeListener, node *v1.Node) error {
 		Name: hostname,
 		Tags: node.GetLabels(),
 	}
-	err := l.client.IPAM.AddHost(host)
+	err = l.client.IPAM.AddHost(host)
 	if err == nil {
 		log.Infof("Node (%s) successfully added to romana cluster.", node.Name)
 		return nil
 	}
-	if err, ok := err.(romanaErrors.RomanaExistsError); ok {
+	if err, ok = err.(romanaErrors.RomanaExistsError); ok {
 		log.Infof("Host %s already exists, ignoring addition.", host)
 		return nil
 	} else {

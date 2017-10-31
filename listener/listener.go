@@ -55,7 +55,12 @@ type KubeListener struct {
 	kubeClientSet *kubernetes.Clientset
 	Watchers      map[string]cache.ListerWatcher
 
-	nodeStore        cache.Store
+	nodeStore cache.Store
+
+	// This is intended to lock for the purposes of changing
+	// syncNodesRunning flag. In case syncNodes() is called multiple
+	// times, it would lock here, check the status of syncNodesRunning flag
+	// and bail out if there is another instance of syncNodes() running.
 	syncNodesMutex   sync.Locker
 	syncNodesRunning bool
 }
