@@ -13,7 +13,8 @@ import (
 // and also pollutes with sets which never deleted.
 // Need cleaner implementation
 func updateIpsets(ctx context.Context, sets *ipset.Ipset) error {
-	_, err := ipset.Flush(nil)
+
+	err := attemptIpsetCleanup(ctx, sets)
 	if err != nil {
 		return err
 	}
@@ -52,4 +53,18 @@ func updateIpsets(ctx context.Context, sets *ipset.Ipset) error {
 
 	return nil
 
+}
+
+// attemptIpsetCleanup attempts to destroy every set.
+// TODO make it less nuclear.
+func attemptIpsetCleanup(ctx context.Context, sets *ipset.Ipset) error {
+	iset, _ := ipset.Load(context.Background())
+	for _, set := range iset.Sets {
+		_, _ = ipset.Destroy(set)
+	}
+
+	// flush everything that survived mass destroy.
+	_, err := ipset.Flush(nil)
+
+	return err
 }

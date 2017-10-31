@@ -16,6 +16,9 @@
 package client
 
 import (
+	"bytes"
+	"encoding/json"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -34,6 +37,7 @@ import (
 type Store struct {
 	prefix string
 	libkvStore.Store
+	//	etcdCli *clientv3.Client
 }
 
 func NewStore(etcdEndpoints []string, prefix string) (*Store, error) {
@@ -46,9 +50,19 @@ func NewStore(etcdEndpoints []string, prefix string) (*Store, error) {
 		etcdEndpoints,
 		&libkvStore.Config{},
 	)
+
 	if err != nil {
 		return nil, err
 	}
+
+	// BEGIN EXPERIMENT...
+	//	myStore.etcdCli, err := clientv3.New(clientv3.Config{
+	//		Endpoints: etcdEndpoints,
+	//	})
+	//	if err != nil {
+	//		return nil, err
+	//	}
+	// END EXPERIMENT
 
 	// Test connection
 	_, err = myStore.Exists("test")
@@ -72,7 +86,7 @@ func normalize(key string) string {
 	}
 	normalizedKey := strings.Join(normalizedElts, "/")
 	normalizedKey = "/" + normalizedKey
-	log.Tracef(trace.Inside, "Normalized key %s to %s", key, normalizedKey)
+	//	log.Tracef(trace.Inside, "Normalized key %s to %s", key, normalizedKey)
 	return normalizedKey
 }
 
@@ -97,6 +111,36 @@ func (s *Store) PutObject(key string, value []byte) error {
 	key = s.getKey(key)
 	log.Tracef(trace.Inside, "Saving object under key %s: %s", key, string(value))
 	return s.Store.Put(key, value, nil)
+}
+
+// Atomizable defines an interface on which it is possible to execute
+// Atomic operations from the point of view of KVStore.
+type Atomizable interface {
+	GetPrevKVPair() *libkvStore.KVPair
+	SetPrevKVPair(*libkvStore.KVPair)
+}
+
+func (s *Store) AtomicPut(key string, value Atomizable) error {
+	key = s.getKey(key)
+	b, err := json.Marshal(value)
+	if err != nil {
+		return err
+	}
+	prevVal := value.GetPrevKVPair()
+	ok, kvp, err := s.Store.AtomicPut(key, b, prevVal, nil)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return common.NewError("Could not store value under %s", key)
+	}
+	value.SetPrevKVPair(kvp)
+	prevIdx := uint64(0)
+	if prevVal != nil {
+		prevIdx = prevVal.LastIndex
+	}
+	log.Tracef(trace.Inside, "%d: AtomicPut(): At key %s, went from %d to %d", getGID(), key, prevIdx, kvp.LastIndex)
+	return nil
 }
 
 func (s *Store) Get(key string) (*libkvStore.KVPair, error) {
@@ -176,8 +220,8 @@ func (s *Store) Delete(key string) (bool, error) {
 
 // ReconnectingWatch wraps libkv Watch method, but attempts to re-establish
 // the watch if it drop.
-func (s *Store) ReconnectingWatch(key string, stopCh <-chan struct{}) (<-chan []byte, error) {
-	outCh := make(chan []byte)
+func (s *Store) ReconnectingWatch(key string, stopCh <-chan struct{}) (<-chan *libkvStore.KVPair, error) {
+	outCh := make(chan *libkvStore.KVPair)
 	inCh, err := s.Watch(s.getKey(key), stopCh)
 	if err != nil {
 		return nil, err
@@ -186,20 +230,20 @@ func (s *Store) ReconnectingWatch(key string, stopCh <-chan struct{}) (<-chan []
 	return outCh, nil
 }
 
-func (s *Store) reconnectingWatcher(key string, stopCh <-chan struct{}, inCh <-chan *libkvStore.KVPair, outCh chan []byte) {
+func (s *Store) reconnectingWatcher(key string, stopCh <-chan struct{}, inCh <-chan *libkvStore.KVPair, outCh chan *libkvStore.KVPair) {
 	var err error
-	log.Trace(trace.Private, "Entering ReconnectingWatch goroutine.")
+	log.Tracef(trace.Private, "Entering ReconnectingWatch goroutine: %d", getGID())
 	channelClosed := false
 	retryDelay := 1 * time.Millisecond
 	for {
 		select {
 		case <-stopCh:
-			log.Tracef(trace.Inside, "Stop message received for WatchHosts")
+			log.Info("Stop message received for WatchHosts")
 			return
 		case kv, ok := <-inCh:
 			if ok {
 				channelClosed = false
-				outCh <- kv.Value
+				outCh <- kv
 				break
 			}
 			// Not ok - channel continues to be closed
@@ -227,14 +271,76 @@ func (s *Store) reconnectingWatcher(key string, stopCh <-chan struct{}, inCh <-c
 	}
 }
 
-// StoreLocker implements sync.Locker interface using the
+// Locker implements an interface for locking and unlocking.
+// sync.Locker was not good for our purpose it does not allow
+// for returning an error on lock. libkv's Locker is too libkv-specific
+// and we do not need a stop channel really; and since the use case
+// is to defer Unlock(), no need for it to return an error
+type Locker interface {
+	Lock() (<-chan struct{}, error)
+	Unlock()
+	GetOwner() uint64
+}
+
+// storeLocker implements Locker interface using the
 // lock form the backend store.
 type storeLocker struct {
-	key string
+	key   string
+	owner uint64
 	libkvStore.Locker
 }
 
-func (store *Store) NewLocker(name string) (sync.Locker, error) {
+// See https://blog.sgmansfield.com/2015/12/goroutine-ids/
+func getGID() uint64 {
+	b := make([]byte, 64)
+	b = b[:runtime.Stack(b, false)]
+	b = bytes.TrimPrefix(b, []byte("goroutine "))
+	b = b[:bytes.IndexByte(b, ' ')]
+	n, _ := strconv.ParseUint(string(b), 10, 64)
+	return n
+}
+
+func (sl *storeLocker) GetOwner() uint64 {
+	return sl.owner
+}
+
+// Lock implements Lock method of Locker interface.
+func (sl *storeLocker) Lock() (<-chan struct{}, error) {
+	stopChan := make(chan struct{})
+	ch, err := sl.Locker.Lock(stopChan)
+	if err == nil {
+		sl.owner = getGID()
+		log.Tracef(trace.Inside, "%d: Got lock for %s (owned by %d)", getGID(), sl.key, sl.owner)
+	} else {
+		log.Tracef(trace.Inside, "%d: Error getting lock for %s: %s", getGID(), sl.key, err)
+	}
+	return ch, err
+}
+
+// Unlock implements Unlock method of Locker interface.
+func (sl *storeLocker) Unlock() {
+	prevOwner := sl.owner
+	sl.owner = 0
+	err := sl.Locker.Unlock()
+	if err != nil {
+		sl.owner = prevOwner
+		//		switch err := err.(type) {
+		//		case etcd.Error:
+		//			if err.Code == etcd.ErrorCodeKeyNotFound {
+		//				// If key is not found, then we did not hold the lock to begin with,
+		//				// and unlock was called by a defer...
+		//			}
+		//		default:
+		//			log.Errorf("%d: Error unlocking %s: %s (%T)", sl.key, err, err)
+		//		}
+		log.Errorf("%d: Error unlocking %s: %s (%T)", getGID(), sl.key, err, err)
+
+	} else {
+		log.Tracef(trace.Inside, "%d: Unlocked lock %s (owned by %d)", getGID(), sl.key, prevOwner)
+	}
+}
+
+func (store *Store) NewLocker(name string) (Locker, error) {
 	key := store.getKey("/lock/" + name)
 	l, err := store.Store.NewLock(key, nil)
 	if err != nil {
@@ -243,32 +349,35 @@ func (store *Store) NewLocker(name string) (sync.Locker, error) {
 	return &storeLocker{key: key, Locker: l}, nil
 }
 
-// Lock implements Lock method of sync.Locker interface.
-// TODO this can block forever -- but there is nothing to
-// do when we fail to lock other than not proceed in the caller,
-// so while retries can be implemented later, that's about it.
-func (sl *storeLocker) Lock() {
-	// TODO do we need these channels?
-	stopChan := make(chan struct{})
-	var err error
-	for {
-		_, err = sl.Locker.Lock(stopChan)
-		if err == nil {
-			return
-		}
-		log.Errorf("Error attempting to acquire lock for %s: %s", sl.key, err)
-		time.Sleep(100 * time.Millisecond)
-	}
+// mutexLocker implements Locker interface with a sync.Mutex
+type mutexLocker struct {
+	mutex *sync.Mutex
+	owner uint64
 }
 
-// Unlock implements Unlock method of sync.Locker interface.
-func (sl *storeLocker) Unlock() {
-	err := sl.Locker.Unlock()
-	if err != nil {
-		// There is nothing, really, to do if we get an error,
-		// and if not handled here, all this would do is not allow callers to defer.
-		log.Errorf("Error unlocking %s: %s", sl.key, err)
+func (ml *mutexLocker) GetOwner() uint64 {
+	return ml.owner
+}
+
+// Lock implements Lock method of Locker interface.
+func (ml *mutexLocker) Lock() (<-chan struct{}, error) {
+	ch := make(<-chan struct{})
+	if ml.mutex == nil {
+		ml.mutex = &sync.Mutex{}
 	}
+	ml.mutex.Lock()
+	ml.owner = getGID()
+	return ch, nil
+}
+
+// Unlock implements Unlock method of Locker interface.
+func (ml *mutexLocker) Unlock() {
+	ml.owner = 0
+	ml.mutex.Unlock()
+}
+
+func newMutexLocker() *mutexLocker {
+	return &mutexLocker{mutex: &sync.Mutex{}}
 }
 
 func init() {

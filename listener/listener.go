@@ -45,13 +45,9 @@ type KubeListener struct {
 	Addr   string
 	client *client.Client
 
-	kubeURL                       string
-	namespaceNotificationPath     string
-	policyNotificationPathPrefix  string
-	policyNotificationPathPostfix string
-	segmentLabelName              string
-	tenantLabelName               string
-	namespaceBufferSize           uint64
+	segmentLabelName    string
+	tenantLabelName     string
+	namespaceBufferSize uint64
 
 	lastEventPerNamespace map[string]uint64
 

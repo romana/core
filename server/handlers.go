@@ -16,12 +16,8 @@
 package server
 
 import (
-	"fmt"
-	"log"
-	"strconv"
 	"strings"
 
-	"github.com/go-resty/resty"
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
 	"github.com/romana/core/common/api/errors"
@@ -39,6 +35,12 @@ func (r *Romanad) deallocateIP(input interface{}, ctx common.RestContext) (inter
 
 func (r *Romanad) allocateIP(input interface{}, ctx common.RestContext) (interface{}, error) {
 	req := input.(*api.IPAMAddressRequest)
+	if req.Name == "" {
+		return nil, common.NewError400("Name required")
+	}
+	if req.Host == "" {
+		return nil, common.NewError400("Host required")
+	}
 	retval, err := r.client.IPAM.AllocateIP(req.Name, req.Host, req.Tenant, req.Segment)
 	return retval, errors.RomanaErrorToHTTPError(err)
 }
@@ -57,27 +59,6 @@ func (r *Romanad) listAllBlocks(input interface{}, ctx common.RestContext) (inte
 	return r.client.IPAM.ListAllBlocks(), nil
 }
 
-func (r *Romanad) listAddresses(input interface{}, ctx common.RestContext) (interface{}, error) {
-	netName := ctx.PathVariables["network"]
-	blockID, err := strconv.Atoi(ctx.PathVariables["block"])
-	addresses := make([]string, 0)
-	if err != nil {
-		return nil, err
-	}
-	if network, ok := r.client.IPAM.Networks[netName]; ok {
-		blocks := network.Group.ListBlocks()
-
-		for i, block := range blocks {
-			if i == blockID {
-				blockAddresses := block.ListAllocatedAddresses()
-				addresses = append(addresses, blockAddresses...)
-			}
-		}
-		return addresses, nil
-	}
-	return nil, common.NewError404("network", netName)
-}
-
 func (r *Romanad) listNetworks(input interface{}, ctx common.RestContext) (interface{}, error) {
 	resp := make([]api.IPAMNetworkResponse, 0)
 	for _, network := range r.client.IPAM.Networks {
@@ -94,49 +75,14 @@ func (r *Romanad) listNetworks(input interface{}, ctx common.RestContext) (inter
 // updateTopology serves to update topology information in the Romana service
 func (r *Romanad) updateTopology(input interface{}, ctx common.RestContext) (interface{}, error) {
 	topoReq := input.(*api.TopologyUpdateRequest)
-	return nil, r.client.IPAM.UpdateTopology(*topoReq)
-}
-
-// normalizePolicy
-func (r *Romanad) normalizePolicy(policyDoc *api.Policy) error {
-	for j, _ := range policyDoc.Ingress {
-		for i, _ := range policyDoc.Ingress[j].Rules {
-			rule := &policyDoc.Ingress[j].Rules[i]
-			rule.Protocol = strings.ToUpper(rule.Protocol)
-		}
-	}
-	return nil
-}
-
-// distributePolicy distributes policy to all agents.
-// TODO how should error handling work here really?
-func (r *Romanad) distributePolicy(policy *api.Policy) error {
-	hosts := r.client.IPAM.ListHosts()
-	var errStr string
-	for _, host := range hosts.Hosts {
-		url := fmt.Sprintf("http://%s:%d/policies", host.IP, host.AgentPort)
-		log.Printf("Sending policy %s to agent at %s", policy.ID, url)
-		result := make(map[string]interface{})
-		_, err := resty.R().SetResult(&result).SetBody(policy).Post(url)
-		log.Printf("Agent at %s returned %v", host.IP, result)
-		if err != nil {
-			if len(errStr) > 0 {
-				errStr += "; "
-			}
-			errStr += fmt.Sprintf("Error applying policy %s to host %s: %v. ", policy.ID, host.IP, err)
-		}
-	}
-	if len(errStr) > 0 {
-		return common.NewError500(errStr)
-	}
-	return nil
+	return nil, r.client.IPAM.UpdateTopology(*topoReq, true)
 }
 
 // getPolicy is a handler for the /policy/{name} URL that
 // returns the policy.
 func (r *Romanad) getPolicy(input interface{}, ctx common.RestContext) (interface{}, error) {
 	policyName := ctx.PathVariables["policy"]
-	policy, err := r.client.GetPolicy(client.PoliciesPrefix+policyName)
+	policy, err := r.client.GetPolicy(client.PoliciesPrefix + policyName)
 	if err != nil {
 		return nil, err
 	}

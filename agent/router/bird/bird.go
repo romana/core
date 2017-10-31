@@ -73,7 +73,7 @@ type BirdRoutePublisher struct {
 
 func New(config router.Config) (router.Interface, error) {
 	var ok bool
-	publisher := BirdRoutePublisher{Mutex: &sync.Mutex{}}
+	publisher := &BirdRoutePublisher{Mutex: &sync.Mutex{}}
 	if publisher.templateFileName, ok = config["templateFileName"]; !ok {
 		return nil, fmt.Errorf("Missing field templateFileName")
 	}
@@ -97,7 +97,7 @@ func New(config router.Config) (router.Interface, error) {
 
 // Update implements router.Interface by rendering new config file
 // for the bird.
-func (q BirdRoutePublisher) Update(networks []net.IPNet, args map[string]interface{}) error {
+func (q *BirdRoutePublisher) Update(networks []net.IPNet, args map[string]interface{}) error {
 	q.Lock()
 	defer q.Unlock()
 	log.Printf("Starting bgp update at %s -> %s:%s with %d networks", q.LocalAS, q.NeighborIP, q.NeighborAS, len(networks))
@@ -134,8 +134,7 @@ func (q BirdRoutePublisher) Update(networks []net.IPNet, args map[string]interfa
 			return fmt.Errorf("Failed to find process with pid %d, err=(%s)", pid, err)
 		}
 
-		sighup := syscall.Signal(syscall.SIGHUP)
-		err = process.Signal(sighup)
+		err = process.Signal(syscall.SIGHUP)
 		if err != nil {
 			return fmt.Errorf("Failed to send SIGHUP to %d, err=(%s)", pid, err)
 		}
@@ -145,7 +144,7 @@ func (q BirdRoutePublisher) Update(networks []net.IPNet, args map[string]interfa
 	return nil
 }
 
-func (q BirdRoutePublisher) pidFromFile() (int, error) {
+func (q *BirdRoutePublisher) pidFromFile() (int, error) {
 	file, err := os.Open(q.pidFile)
 	if err != nil {
 		return 0, err

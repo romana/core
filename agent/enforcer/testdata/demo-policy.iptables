@@ -1,0 +1,10 @@
+*filter
+:ROMANA-FORWARD-IN - 
+:ROMANA-P-aca884e8b43cc0e7 - 
+:ROMANA-P-aca884e8b43cc0e7_X - 
+:ROMANA-P-aca884e8b43cc0e7_R - 
+-A ROMANA-FORWARD-IN  -j ROMANA-P-aca884e8b43cc0e7
+-A ROMANA-P-aca884e8b43cc0e7 -m set --match-set ROMANA-446f0022c0a89d93 dst -j ROMANA-P-aca884e8b43cc0e7_X
+-A ROMANA-P-aca884e8b43cc0e7_X -m set --match-set ROMANA-78c82e6c585c36a6 src -j ROMANA-P-aca884e8b43cc0e7_R
+-A ROMANA-P-aca884e8b43cc0e7_R -p tcp --dport 80 -j ACCEPT
+COMMIT

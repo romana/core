@@ -110,6 +110,20 @@ func (ir IDRing) String() string {
 	return s
 }
 
+// Clear clears out the ring (reverts it to what it was when originally constructed)
+func (ir *IDRing) Clear() {
+	if ir.locker != nil {
+		ir.locker.Lock()
+		defer ir.locker.Unlock()
+	}
+
+	r := Range{Min: ir.OrigMin,
+		Max: ir.OrigMax,
+	}
+	ir.Ranges = []Range{r}
+	log.Tracef(trace.Inside, "After clear, have %s\n", ir)
+}
+
 // Invert() returns an IDRing that is the inverse of this IDRing
 // (that is, containing Ranges that are ranges not of available, but
 // of taken IDs).
@@ -118,7 +132,7 @@ func (ir IDRing) Invert() *IDRing {
 		ir.locker.Lock()
 		defer ir.locker.Unlock()
 	}
-	log.Tracef(trace.Inside, "Attempting to invert %s", ir)
+	//	log.Tracef(trace.Inside, "Attempting to invert %s", ir)
 	if len(ir.Ranges) == 0 {
 		// All filled up.
 		r := Range{Min: ir.OrigMin, Max: ir.OrigMax}
@@ -128,7 +142,7 @@ func (ir IDRing) Invert() *IDRing {
 			Ranges:  ranges,
 			locker:  ir.locker,
 		}
-		log.Tracef(trace.Private, "Inversion of %s is %s", ir, retval)
+		//		log.Tracef(trace.Private, "Inversion of %s is %s", ir, retval)
 		return &retval
 	}
 	ranges := make([]Range, 0)
@@ -175,13 +189,13 @@ func (ir IDRing) IsEmpty() bool {
 // GetID returns the first available ID, starting with OrigMin.
 // It will return an IDRingOverflowError if no more IDs can be returned.
 func (ir *IDRing) GetID() (uint64, error) {
-	log.Tracef(trace.Inside, "GetID: Trying to get ID from %s", ir.String())
+	//	log.Tracef(trace.Inside, "GetID: Trying to get ID from %s", ir.String())
 	if ir.locker != nil {
 		ir.locker.Lock()
 		defer ir.locker.Unlock()
 	}
 	if ir.Ranges == nil || len(ir.Ranges) == 0 {
-		log.Tracef(trace.Inside, "GetID: Returning error, remaining %s", ir.String())
+		//		log.Tracef(trace.Inside, "GetID: Returning error, remaining %s", ir.String())
 		return 0, IDRingOverflowError
 	}
 	retval := ir.Ranges[0].Min
@@ -195,7 +209,7 @@ func (ir *IDRing) GetID() (uint64, error) {
 	} else {
 		ir.Ranges[0].Min += 1
 	}
-	log.Tracef(trace.Inside, "GetID: Returning %d, remaining %s", retval, ir.String())
+	//	log.Tracef(trace.Inside, "GetID: Returning %d, remaining %s", retval, ir.String())
 	return retval, nil
 }
 
@@ -230,7 +244,7 @@ func (ir *IDRing) ReclaimIDs(ids []uint64) (error, []uint64) {
 func (idRing *IDRing) ReclaimIDNoLock(id uint64) error {
 	if idRing.Ranges == nil || len(idRing.Ranges) == 0 {
 		idRing.Ranges = []Range{Range{Min: id, Max: id}}
-		log.Tracef(trace.Inside, "ReclaimID: Reclaimed ID %d to get %s", id, *idRing)
+		//		log.Tracef(trace.Inside, "ReclaimID: Reclaimed ID %d to get %s", id, *idRing)
 		return nil
 	}
 	if id < idRing.OrigMin || id > idRing.OrigMax {
@@ -248,7 +262,7 @@ func (idRing *IDRing) ReclaimIDNoLock(id uint64) error {
 		if i+1 < len(idRing.Ranges) {
 			follRanges = idRing.Ranges[i : i+1]
 		}
-		log.Tracef(trace.Inside, "ReclaimID: prevRanges %s, curRange %s, follRanges %s", prevRanges, curRange, follRanges)
+		//		log.Tracef(trace.Inside, "ReclaimID: prevRanges %s, curRange %s, follRanges %s", prevRanges, curRange, follRanges)
 		if id < curRange.Min {
 			// If id is smaller than the lowest bound of the first range, create an
 			// range of its own for it, and insert it prior to this current range.
@@ -271,7 +285,7 @@ func (idRing *IDRing) ReclaimIDNoLock(id uint64) error {
 	}
 	// Now we need to merge the ranges
 	idRing.mergeRanges()
-	log.Tracef(trace.Inside, "ReclaimID: After reclaiming %d, have %s", id, *idRing)
+	//	log.Tracef(trace.Inside, "ReclaimID: After reclaiming %d, have %s", id, *idRing)
 	return nil
 }
 

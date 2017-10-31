@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net"
 	"os"
 	"runtime"
@@ -75,14 +76,13 @@ func CmdAdd(args *skel.CmdArgs) error {
 	}
 
 	var podAddress *net.IPNet
-	romanaClient, locker, err := MakeRomanaClient(netConf)
+	romanaClient, err := MakeRomanaClient(netConf)
 	if err != nil {
 		return err
 	}
 	startTime := time.Now()
 	log.Tracef(4, "Process %d started IPAM transaction at %s", os.Getpid(), startTime)
 	defer func() {
-		locker.Unlock()
 		stopTime := time.Now()
 		log.Tracef(4, "Process %d commited IPAM transaction at %s after %s, allocated %s", os.Getpid(), stopTime, stopTime.Sub(startTime), podAddress)
 	}()
@@ -196,6 +196,13 @@ func CmdAdd(args *skel.CmdArgs) error {
 		return fmt.Errorf("Failed to create veth interfaces in namespace %v, err=(%s)", netns, err)
 	}
 
+	// set proxy_delay to zero
+	err = ioutil.WriteFile(fmt.Sprintf("/proc/sys/net/ipv4/neigh/%s/proxy_delay", hostIface.Name), []byte("0"), 0)
+	if err != nil {
+		// this is an optimization, so errors are logged, but don't result in failure
+		log.Infof("Failed to set proxy_delay for %s, err=(%s)", hostIface.Name, err)
+	}
+
 	// Return route.
 	err = AddEndpointRoute(hostIface.Name, podAddress, nil)
 	if err != nil {
@@ -253,17 +260,11 @@ func CmdDel(args *skel.CmdArgs) error {
 		return nil
 	}
 
-	romanaClient, locker, err := MakeRomanaClient(netConf)
+	romanaClient, err := MakeRomanaClient(netConf)
 	if err != nil {
 		log.Errorf("Pod %s deletion failed, can't make romana client, %s", k8sargs.MakePodName(), err)
 		return nil
 	}
-	startTime := time.Now()
-	defer func() {
-		locker.Unlock()
-		stopTime := time.Now()
-		log.Tracef(4, "Process %d commited IPAM transaction at %s after %s", os.Getpid(), stopTime, stopTime.Sub(startTime))
-	}()
 
 	deallocator, err := NewRomanaAddressManager(DefaultProvider)
 	if err != nil {
@@ -273,7 +274,7 @@ func CmdDel(args *skel.CmdArgs) error {
 
 	err = deallocator.Deallocate(*netConf, romanaClient, k8sargs.MakePodName())
 	if err != nil {
-		return fmt.Errorf("Failed to tear down pod network for %s, err=(%s)", k8sargs.MakePodName(), err)
+		log.Errorf("Failed to tear down pod network for %s, err=(%s)", k8sargs.MakePodName(), err)
 		return nil
 	}
 

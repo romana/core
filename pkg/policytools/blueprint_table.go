@@ -23,7 +23,7 @@ import (
 )
 
 var Blueprints = map[string]RuleBlueprint{
-                                   
+
 	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemePolicyOnTop,
@@ -43,7 +43,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "ACCEPT",
 	},
-                  
+
 	MakeBlueprintKey(
 		api.PolicyDirectionEgress,
 		SchemePolicyOnTop,
@@ -63,7 +63,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "DROP",
 	},
-                  
+
 	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemeTargetOnTop,
@@ -83,7 +83,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "ACCEPT",
 	},
-                  
+
 	MakeBlueprintKey(
 		api.PolicyDirectionEgress,
 		SchemeTargetOnTop,
@@ -103,7 +103,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "DROP",
 	},
-                  
+
 	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemePolicyOnTop,
@@ -123,7 +123,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "ACCEPT",
 	},
-                  
+
 	MakeBlueprintKey(
 		api.PolicyDirectionEgress,
 		SchemePolicyOnTop,
@@ -143,7 +143,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "DROP",
 	},
-                  
+
 	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemeTargetOnTop,
@@ -163,7 +163,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "ACCEPT",
 	},
-                  
+
 	MakeBlueprintKey(
 		api.PolicyDirectionEgress,
 		SchemeTargetOnTop,
@@ -183,7 +183,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "DROP",
 	},
-                  
+
 	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemePolicyOnTop,
@@ -203,7 +203,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "ACCEPT",
 	},
-                  
+
 	MakeBlueprintKey(
 		api.PolicyDirectionEgress,
 		SchemePolicyOnTop,
@@ -223,7 +223,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "DROP",
 	},
-                  
+
 	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemeTargetOnTop,
@@ -243,7 +243,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "ACCEPT",
 	},
-                  
+
 	MakeBlueprintKey(
 		api.PolicyDirectionEgress,
 		SchemeTargetOnTop,
@@ -263,7 +263,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "DROP",
 	},
-                  
+
 	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemePolicyOnTop,
@@ -283,7 +283,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "ACCEPT",
 	},
-                  
+
 	MakeBlueprintKey(
 		api.PolicyDirectionEgress,
 		SchemePolicyOnTop,
@@ -303,7 +303,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "DROP",
 	},
-                  
+
 	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemeTargetOnTop,
@@ -323,7 +323,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "ACCEPT",
 	},
-                  
+
 	MakeBlueprintKey(
 		api.PolicyDirectionEgress,
 		SchemeTargetOnTop,
@@ -343,7 +343,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "DROP",
 	},
-                  
+
 	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemePolicyOnTop,
@@ -363,7 +363,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "ACCEPT",
 	},
-                  
+
 	MakeBlueprintKey(
 		api.PolicyDirectionEgress,
 		SchemePolicyOnTop,
@@ -383,7 +383,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "DROP",
 	},
-                  
+
 	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemeTargetOnTop,
@@ -403,7 +403,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "ACCEPT",
 	},
-                  
+
 	MakeBlueprintKey(
 		api.PolicyDirectionEgress,
 		SchemeTargetOnTop,
@@ -423,7 +423,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "DROP",
 	},
-                  
+
 	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemePolicyOnTop,
@@ -443,7 +443,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "ACCEPT",
 	},
-                  
+
 	MakeBlueprintKey(
 		api.PolicyDirectionEgress,
 		SchemePolicyOnTop,
@@ -463,7 +463,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "DROP",
 	},
-                  
+
 	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemeTargetOnTop,
@@ -483,7 +483,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "ACCEPT",
 	},
-                  
+
 	MakeBlueprintKey(
 		api.PolicyDirectionEgress,
 		SchemeTargetOnTop,
@@ -503,7 +503,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "DROP",
 	},
-                  
+
 	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemePolicyOnTop,
@@ -523,7 +523,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "ACCEPT",
 	},
-                  
+
 	MakeBlueprintKey(
 		api.PolicyDirectionEgress,
 		SchemePolicyOnTop,
@@ -543,7 +543,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "DROP",
 	},
-                  
+
 	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemeTargetOnTop,
@@ -563,7 +563,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "ACCEPT",
 	},
-                  
+
 	MakeBlueprintKey(
 		api.PolicyDirectionEgress,
 		SchemeTargetOnTop,
@@ -583,7 +583,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "DROP",
 	},
-                  
+
 	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemePolicyOnTop,
@@ -603,7 +603,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "ACCEPT",
 	},
-                  
+
 	MakeBlueprintKey(
 		api.PolicyDirectionEgress,
 		SchemePolicyOnTop,
@@ -623,7 +623,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "DROP",
 	},
-                  
+
 	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemeTargetOnTop,
@@ -643,7 +643,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "ACCEPT",
 	},
-                  
+
 	MakeBlueprintKey(
 		api.PolicyDirectionEgress,
 		SchemeTargetOnTop,
@@ -663,7 +663,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "DROP",
 	},
-                  
+
 	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemePolicyOnTop,
@@ -683,7 +683,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "ACCEPT",
 	},
-                                    
+
 	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemeTargetOnTop,
@@ -703,7 +703,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "ACCEPT",
 	},
-                                    
+
 	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemePolicyOnTop,
@@ -723,7 +723,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "ACCEPT",
 	},
-                                    
+
 	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemeTargetOnTop,
@@ -743,7 +743,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "ACCEPT",
 	},
-                                    
+
 	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemePolicyOnTop,
@@ -763,7 +763,7 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "ACCEPT",
 	},
-                                    
+
 	MakeBlueprintKey(
 		api.PolicyDirectionIngress,
 		SchemeTargetOnTop,
@@ -783,5 +783,4 @@ var Blueprints = map[string]RuleBlueprint{
 		FourthRuleMatch:  MakePolicyRuleWithAction,
 		FourthRuleAction: "ACCEPT",
 	},
-                                                                                           
 }

@@ -32,9 +32,7 @@ import (
 
 	utilexec "github.com/romana/core/agent/exec"
 	utilos "github.com/romana/core/agent/os"
-	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
-	"github.com/romana/core/common/client"
 )
 
 // TODO There is a tradeoff, either use global variable for provider
@@ -87,11 +85,6 @@ func mockAgent() (*Agent, error) {
 
 	agent.Helper = helper
 
-	clientConfig := common.Config{Mock: true}
-	agent.client, err = client.NewClient(&clientConfig)
-	if err != nil {
-		return nil, err
-	}
 	agent.localDBFile = "/tmp/agent.db"
 	agent.store, err = NewStore(agent)
 	if err != nil {

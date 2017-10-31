@@ -1,0 +1,30 @@
+{
+    "networks": [
+        {
+            "name": "rnet-1",
+            "cidr": "100.11.0.0/20",
+            "block_mask": 30
+        },
+        {
+            "name": "rnet-2",
+            "cidr": "100.22.0.0/20",
+            "block_mask": 30
+        }
+    ],
+    "topologies": [
+        {
+            "networks": [ "rnet-1" ],
+            "map": [
+                { "name" : "g1", "assignment" : { "rack" : "rack-1" }, "groups": [ ] }
+            ]
+        },
+        {
+            "networks": [ "rnet-2" ],
+            "map": [
+                { "name" : "g2", "assignment" : { "rack" : "rack-2" }, "groups": [ ] },
+                { "name" : "g3", "assignment" : { "rack" : "rack-3" }, "groups": [ ] },
+                { "name" : "g4", "assignment" : { "rack" : "rack-4" }, "groups": [ ] }
+            ]
+        }
+    ]
+}

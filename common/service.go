@@ -213,7 +213,7 @@ func ListenAndServe(svr *http.Server) (*RestServiceInfo, error) {
 	}
 	go func() {
 		channel <- Starting
-		l.Printf("ListenAndServe(%p): listening on %s (asked for %s) with configuration %v, handler %v\n", svr, realAddr, svr.Addr, svr, svr.Handler)
+		l.Printf("ListenAndServe(%p): listening on %s (asked for %s)\n", svr, realAddr, svr.Addr)
 		err := svr.Serve(tcpKeepAliveListener{ln.(*net.TCPListener)})
 		if err != nil {
 			log.Criticalf("RestService: Fatal error %v", err)

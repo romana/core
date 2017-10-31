@@ -22,7 +22,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
 	"github.com/romana/core/common/client"
 	"github.com/romana/core/common/log/trace"
@@ -44,9 +43,7 @@ type PolicyTranslator interface {
 }
 
 type Translator struct {
-	listener         *KubeListener
 	client           *client.Client
-	tenantsCache     []TenantCacheEntry
 	cacheMu          *sync.Mutex
 	segmentLabelName string
 	tenantLabelName  string
@@ -174,7 +171,7 @@ func (tg *TranslateGroup) translateTarget(translator *Translator) error {
 		return nil
 	}
 
-	// If PodSelector is not empty then segment label must be defined.
+	// If PodSelector not specified assume tenant wide policy.
 	kubeSegmentID, ok := tg.kubePolicy.Spec.PodSelector.MatchLabels[translator.segmentLabelName]
 	if !ok || kubeSegmentID == "" {
 		tg.romanaPolicy.AppliedTo = []api.Endpoint{targetEndpoint}
@@ -201,8 +198,9 @@ func (tg *TranslateGroup) makeNextIngressPeer(translator *Translator) error {
 		if fromEntry.NamespaceSelector != nil {
 			tenantID := GetTenantIDFromNamespaceName(fromEntry.NamespaceSelector.MatchLabels[translator.tenantLabelName])
 			if tenantID == "" {
-				log.Errorf("Expected tenant name to be specified in NamespaceSelector field with a key %s", translator.tenantLabelName)
-				return common.NewError("Expected tenant name to be specified in NamespaceSelector field with a key %s", translator.tenantLabelName)
+				// Use the namespace from objectmeta
+				log.Infof("No label found for %s, using %s for tenant identifier", translator.tenantLabelName, tg.kubePolicy.ObjectMeta.Namespace)
+				tenantID = tg.kubePolicy.ObjectMeta.Namespace
 			}
 
 			// Found a source tenant, let's register it as romana Peer.

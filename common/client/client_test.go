@@ -13,6 +13,8 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
+// +build ignore
+
 package client
 
 import (
@@ -75,7 +77,7 @@ func initClient(t *testing.T, topoConf string) *Client {
 		if err != nil {
 			t.Fatalf("Cannot parse %s: %v", topoConf, err)
 		}
-		err = client.IPAM.UpdateTopology(topoReq)
+		err = client.IPAM.UpdateTopology(topoReq, false)
 		if err != nil {
 			t.Fatal(err)
 		}
