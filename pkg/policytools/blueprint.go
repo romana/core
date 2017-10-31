@@ -22,7 +22,7 @@ import (
 	"strings"
 
 	"github.com/romana/core/agent/iptsave"
-	"github.com/romana/core/agent/policy/hasher"
+	"github.com/romana/core/agent/policyhasher"
 	"github.com/romana/core/common/api"
 	"github.com/romana/rlog"
 )
@@ -156,7 +156,7 @@ func DetectPolicyTargetType(target api.Endpoint) PolicyTargetType {
 // MakeRomanaPolicyName returns the name of iptables chain that hosts
 // policy related rules.
 func MakeRomanaPolicyName(policy api.Policy) string {
-	hash := hasher.HashRomanaPolicy(policy)
+	hash := policyhasher.HashRomanaPolicy(policy)
 	return fmt.Sprintf("ROMANA-P-%s", hash[:16])
 }
 
@@ -302,7 +302,7 @@ func MakeTenantSetName(tenant, segment string) string {
 	if segment != "" {
 		setName += fmt.Sprintf("_segment_%s", segment)
 	}
-	hash := hasher.HashListOfStrings([]string{setName})
+	hash := policyhasher.HashListOfStrings([]string{setName})
 
 	rlog.Debugf("In makeTenantSetName(%s, %s) out with %s",
 		tenant, segment, "ROMANA-"+hash[:16])

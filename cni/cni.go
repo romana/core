@@ -19,23 +19,17 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/containernetworking/cni/pkg/types"
-	"github.com/go-resty/resty"
-	"github.com/romana/core/agent"
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/api/errors"
 	"github.com/romana/core/common/client"
 	"github.com/romana/core/listener"
+
+	"github.com/containernetworking/cni/pkg/types"
 	log "github.com/romana/rlog"
 	"github.com/vishvananda/netlink"
 )
 
 const DefaultSegmentID = "default"
-
-// AgentUrl is a constant since CNI plugin should always live on the same node
-// as the agent and port should probably stay the same. This might require attention
-// in future.
-const AgentUrl = "http://localhost:9604/pod"
 
 // RomanaAddressManager describes functions that allow allocating and deallocating
 // IP addresses from Romana.
@@ -141,36 +135,4 @@ func MakeRomanaClient(config *NetConf) (*client.Client, error) {
 		return nil, err
 	}
 	return client, nil
-}
-
-const (
-	// Parameter for NotifyAgent, notifies Romana agent that pod is added.
-	NotifyPodUp = "pod added"
-
-	// Parameter for NotifyAgent, notifies Romana agent that pod is deleted.
-	NotifyPodDown = "pod deleted"
-)
-
-// NotifyAgent notifies Romana agent that Pod is added or deleted.
-func NotifyAgent(ip *net.IPNet, iface string, op string) (err error) {
-	var address agent.IP
-	if ip != nil {
-		address = agent.IP{IP: ip.IP}
-	} else {
-		address = agent.IP{IP: net.ParseIP("127.0.0.1")}
-	}
-	log.Infof("Notify romana agent about %s with ip %v, on interface %s", op, address, iface)
-
-	netif := agent.NetIf{Name: iface, IP: address}
-	switch op {
-	case NotifyPodUp:
-		_, err := resty.R().SetBody(agent.NetworkRequest{NetIf: netif}).Post(AgentUrl)
-		return err
-	case NotifyPodDown:
-		_, err := resty.R().SetBody(agent.NetworkRequest{NetIf: netif}).Delete(AgentUrl)
-		return err
-	default:
-	}
-
-	return nil
 }

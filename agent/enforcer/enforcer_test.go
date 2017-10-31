@@ -25,10 +25,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/romana/core/agent/internal/cache/policycache"
 	"github.com/romana/core/agent/iptsave"
+	"github.com/romana/core/agent/policycache"
 	"github.com/romana/core/common/api"
 	"github.com/romana/core/pkg/policytools"
+
 	"github.com/romana/ipset"
 )
 

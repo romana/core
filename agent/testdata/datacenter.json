@@ -1,9 +1,0 @@
-{
-        "ip_version": 4,
-        "cidr" : "10.0.0.0/8"
-        "host_bits" : 8,
-        "tenant_bits" : 4,
-        "segment_bits" : 4,
-        "endpoint_space_bits" : 0,
-        "endpoint_bits : 8
- }

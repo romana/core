@@ -13,32 +13,20 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-package main
+package agent
 
 import (
-	"net"
-
 	"github.com/romana/core/common/api"
-	"github.com/romana/core/routepublisher/publisher"
-
-	log "github.com/romana/rlog"
 )
 
-// createRouteToBlocks loops over list of blocks and creates routes when needed.
-func createRouteToBlocks(blocks []api.IPAMBlockResponse, hostname string, bird publisher.Interface) {
-	var networks []net.IPNet
+// IpamHosts is a collection of hosts with Get method.
+type IpamHosts []api.Host
 
-	for _, block := range blocks {
-		if block.Host != hostname {
-			log.Tracef(4, "Block %v is remote and should not be advertised", block)
-			continue
+func (hosts IpamHosts) GetHost(hostname string) *api.Host {
+	for hid, h := range hosts {
+		if h.Name == hostname {
+			return &hosts[hid]
 		}
-
-		networks = append(networks, block.CIDR.IPNet)
 	}
-
-	err := bird.Update(networks, nil)
-	if err != nil {
-		log.Error(err)
-	}
+	return nil
 }

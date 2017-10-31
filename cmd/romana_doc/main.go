@@ -21,7 +21,6 @@ import (
 	"log"
 	"os"
 
-	"github.com/romana/core/agent"
 	"github.com/romana/core/common"
 	"github.com/romana/core/doc/tools"
 	"github.com/romana/core/server"
@@ -42,7 +41,7 @@ func main() {
 	//	implementors := a.FindImplementors(serviceInterfaceName)
 	//	log.Printf("The following implement the %s interface: %+v", serviceInterfaceName, implementors)
 
-	services := []common.Service{&server.Romanad{}, &agent.Agent{}}
+	services := []common.Service{&server.Romanad{}}
 	for _, service := range services {
 		rd := tools.NewSwaggerer(a, service)
 		json, err := rd.Process()

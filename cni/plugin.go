@@ -290,26 +290,6 @@ func CmdDel(args *skel.CmdArgs) error {
 	return nil
 }
 
-// GetRomanaGwAddr detects ip address assigned to romana-gw interface.
-func GetRomanaGwAddr() (*net.IPNet, error) {
-	const gwIface = "romana-gw"
-	romanaGw, err := netlink.LinkByName(gwIface)
-	if err != nil {
-		return nil, err
-	}
-
-	addr, err := netlink.AddrList(romanaGw, syscall.AF_INET)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(addr) != 1 {
-		return nil, fmt.Errorf("Expected exactly 1 ipv4 address on romana-gw interface, found %d", len(addr))
-	}
-
-	return addr[0].IPNet, nil
-}
-
 type nlRouteHandle interface {
 	LinkByName(name string) (netlink.Link, error)
 	RouteAdd(*netlink.Route) error
