@@ -1,5 +1,5 @@
 {{/* 
-	This is a tempalte to that can be rendered by  
+	This is a template to that can be rendered by
 	Romana route publisher into bird.conf
 
 	It will export list of CIDRs (blocks) which
