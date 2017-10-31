@@ -16,10 +16,13 @@ UPX_VERSION := $(shell upx --version 2>/dev/null)
 
 all: fmt vet install
 
+buildbranch := $(shell git describe --all --abbrev=7 --always)
+buildcommit := $(shell git log --pretty=format:"%h" | head -n 1)
+buildinfo := ${buildbranch}-${buildcommit}
 install:
 	go list -f '{{.ImportPath}}' "./..." | \
 		grep -v /vendor/ | xargs go install -race -ldflags \
-		"-X github.com/romana/core/common.buildInfo=`git describe --always` \
+		"-X github.com/romana/core/common.buildInfo=$(buildinfo) \
 		-X github.com/romana/core/common.buildTimeStamp=`date -u '+%Y-%m-%d_%I:%M:%S%p'`"
 
 test:

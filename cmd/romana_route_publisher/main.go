@@ -17,6 +17,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -40,6 +41,8 @@ func main() {
 	flagDebug := flag.String("debug", "", "set to yes or true to enable debug output")
 	flagLocalAS := flag.String("as", "65534", "local as number")
 	flag.Parse()
+
+	fmt.Println(common.BuildInfo())
 
 	config := make(map[string]string)
 	config["templateFileName"] = *flagTemplateFile

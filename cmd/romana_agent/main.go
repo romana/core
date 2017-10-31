@@ -37,6 +37,8 @@ func main() {
 	prefix := flag.String("etcd-prefix", client.DefaultEtcdPrefix, "Prefix to use for etcd data.")
 	flag.Parse()
 
+	fmt.Println(common.BuildInfo())
+
 	endpoints := strings.Split(*endpointsStr, ",")
 
 	a := &agent.Agent{Addr: fmt.Sprintf("%s:%d", *host, *port)}
