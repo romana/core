@@ -69,7 +69,7 @@ func main() {
 
 	fmt.Println(common.BuildInfo())
 
-	MetricStart(*metricsPort)
+	agent.MetricStart(*metricsPort)
 
 	romanaConfig := common.Config{
 		EtcdEndpoints: strings.Split(*etcdEndpoints, ","),
