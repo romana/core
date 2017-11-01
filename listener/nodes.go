@@ -132,8 +132,10 @@ func (l *KubeListener) syncNodes() {
 			}
 		}
 		if !hostInK8S {
-			host := romanaApi.Host{IP: net.ParseIP(node.Status.Addresses[0].Address),
-				Name: node.Name}
+			host := romanaApi.Host{
+				IP: romanaHost.IP,
+				Name: node.Name,
+			}
 			err = l.client.IPAM.RemoveHost(host)
 			if err == nil {
 				log.Infof("Removed host %s from Romana", host)
