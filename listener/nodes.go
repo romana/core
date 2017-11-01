@@ -183,7 +183,6 @@ func (l *KubeListener) ProcessNodeEvents(done <-chan struct{}) {
 
 	log.Infof("Starting receving node events.")
 	go nodeInformer.Run(done)
-	l.syncNodes()
 }
 
 // kubernetesAddNodeEventHandler is called when Kubernetes reports an
