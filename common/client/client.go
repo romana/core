@@ -325,7 +325,7 @@ func (c *Client) initIPAM(initialTopologyFile *string) error {
 			log.Errorf("Error while fetching ipam data: %s", err)
 			return err
 		}
-		log.Infof("IPAM data: %s", ipamData)
+		log.Debugf("IPAM data: %s", ipamData)
 		if ipamData == "" {
 			log.Trace(trace.Inside, "Setting ipamExists to false because ipamData = \"\"")
 			ipamExists = false
