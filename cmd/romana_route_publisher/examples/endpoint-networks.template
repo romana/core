@@ -1,0 +1,19 @@
+{{/* 
+	This is a template to that can be rendered by
+	Romana route publisher into bird.conf
+
+	It will export list of CIDRs (blocks) which
+	are served by the current host.
+*/}}
+protocol static static_bgp {
+	{{range .Networks}}
+	route {{.}} reject;
+	{{end}}
+}
+
+protocol bgp bgp_def {
+	export where proto = "static_bgp";
+        direct;
+	local as {{.LocalAS}};
+	neighbor 192.168.99.1 as {{.LocalAS}};
+}

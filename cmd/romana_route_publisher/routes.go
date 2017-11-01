@@ -25,7 +25,7 @@ import (
 )
 
 // createRouteToBlocks loops over list of blocks and creates routes when needed.
-func createRouteToBlocks(blocks []api.IPAMBlockResponse, hostname string, bird publisher.Interface) {
+func createRouteToBlocks(blocks []api.IPAMBlockResponse, args map[string]interface{}, hostname string, bird publisher.Interface) {
 	var networks []net.IPNet
 
 	for _, block := range blocks {
@@ -37,7 +37,7 @@ func createRouteToBlocks(blocks []api.IPAMBlockResponse, hostname string, bird p
 		networks = append(networks, block.CIDR.IPNet)
 	}
 
-	err := bird.Update(networks, nil)
+	err := bird.Update(networks, args)
 	if err != nil {
 		log.Error(err)
 	}
