@@ -293,10 +293,9 @@ func romanaHostRemove(l *KubeListener, node string) error {
 	}
 	host := romanaApi.Host{Name: node}
 	err := l.client.IPAM.RemoveHost(host)
-	if err, ok := err.(romanaErrors.RomanaNotFoundError); ok {
+	if _, ok := err.(romanaErrors.RomanaNotFoundError); ok {
 		log.Infof("Host %s is not found, ignoring removal.", host)
 		return nil
-	} else {
-		return err
 	}
+	return err
 }
