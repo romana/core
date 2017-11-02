@@ -112,6 +112,7 @@ func (l *KubeListener) addNetworkPolicy(policy api.Policy) error {
 }
 
 func (l *KubeListener) Initialize(clientConfig common.Config) error {
+	l.syncNodesMutex = &sync.Mutex{}
 	var err error
 	l.client, err = client.NewClient(&clientConfig)
 	if err != nil {
@@ -151,8 +152,6 @@ func (l *KubeListener) Initialize(clientConfig common.Config) error {
 	ProduceNewPolicyEvents(eventc, done, l)
 
 	l.startRomanaIPSync(done)
-
-	l.syncNodesMutex = &sync.Mutex{}
 
 	// Actually do this after all the watches started; since addition and deletion
 	// of hosts are idempotent, this will allow us to definitely not lose anything.
