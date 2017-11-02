@@ -74,14 +74,14 @@ func (l *KubeListener) syncNodes() {
 	l.syncNodesMutex.Unlock()
 
 	nodesIfc := l.nodeStore.List()
-	var node v1.Node
+	var node *v1.Node
 	var ok bool
 
 	romanaHostList := l.client.IPAM.ListHosts()
 	for _, nodeIfc := range nodesIfc {
 		// This is not super-efficient but as we don't have that many hosts for now
 		// to deal with, it can do.
-		node, ok = nodeIfc.(v1.Node)
+		node, ok = nodeIfc.(*v1.Node)
 		if !ok {
 			log.Tracef(trace.Inside, "Expeced Node object, got %T", nodeIfc)
 			continue
@@ -123,17 +123,19 @@ func (l *KubeListener) syncNodes() {
 
 	for _, romanaHost := range romanaHostList.Hosts {
 		hostInK8S := false
-		var node v1.Node
+		var node *v1.Node
 		for _, nodeIfc := range nodesIfc {
-			node = nodeIfc.(v1.Node)
+			node = nodeIfc.(*v1.Node)
 			if romanaHost.IP.String() == node.Status.Addresses[0].Address {
 				hostInK8S = true
 				break
 			}
 		}
 		if !hostInK8S {
-			host := romanaApi.Host{IP: net.ParseIP(node.Status.Addresses[0].Address),
-				Name: node.Name}
+			host := romanaApi.Host{
+				IP: romanaHost.IP,
+				Name: node.Name,
+			}
 			err = l.client.IPAM.RemoveHost(host)
 			if err == nil {
 				log.Infof("Removed host %s from Romana", host)
@@ -181,7 +183,6 @@ func (l *KubeListener) ProcessNodeEvents(done <-chan struct{}) {
 
 	log.Infof("Starting receving node events.")
 	go nodeInformer.Run(done)
-	l.syncNodes()
 }
 
 // kubernetesAddNodeEventHandler is called when Kubernetes reports an
@@ -292,10 +293,9 @@ func romanaHostRemove(l *KubeListener, node string) error {
 	}
 	host := romanaApi.Host{Name: node}
 	err := l.client.IPAM.RemoveHost(host)
-	if err, ok := err.(romanaErrors.RomanaNotFoundError); ok {
+	if _, ok := err.(romanaErrors.RomanaNotFoundError); ok {
 		log.Infof("Host %s is not found, ignoring removal.", host)
 		return nil
-	} else {
-		return err
 	}
+	return err
 }
