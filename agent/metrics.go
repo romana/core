@@ -21,36 +21,41 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/romana/core/agent/enforcer"
 	log "github.com/romana/rlog"
 )
 
 var (
 	NumManagedRoutes = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "num_managed_routes",
+			Name: "romana_managed_routes_total",
 			Help: "Number of routes managed by Romana agent on the host.",
 		},
 	)
 )
 
-func init() {
-	for _, counter := range []prometheus.Counter{
-		NumManagedRoutes,
-	} {
-		err := prometheus.Register(counter)
-		if err != nil {
-			log.Error("Failed to register metric", err)
-		}
-	}
-}
-
-func MetricStart(port int) {
+func MetricStart(port int) error {
 	if port <= 0 {
-		return
+		return nil
 	}
+
+	registry := prometheus.NewRegistry()
+	err := enforcer.MetricsRegister(registry)
+	if err != nil {
+		return err
+	}
+
+	err = registry.Register(NumManagedRoutes)
+	if err != nil {
+		return err
+	}
+
+	handler := promhttp.HandlerFor(registry, promhttp.HandlerOpts{ErrorHandling: promhttp.HTTPErrorOnError})
 
 	go func() {
-		http.Handle("/", promhttp.Handler())
+		http.Handle("/", handler)
 		log.Errorf("Metrics publishing stopped due to %s", http.ListenAndServe(fmt.Sprintf(":%d", port), nil))
 	}()
+
+	return nil
 }

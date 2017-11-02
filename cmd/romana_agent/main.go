@@ -69,7 +69,10 @@ func main() {
 
 	fmt.Println(common.BuildInfo())
 
-	agent.MetricStart(*metricsPort)
+	if err := agent.MetricStart(*metricsPort); err != nil {
+		log.Errorf("Failed to start metrics collector")
+		os.Exit(2)
+	}
 
 	romanaConfig := common.Config{
 		EtcdEndpoints: strings.Split(*etcdEndpoints, ","),

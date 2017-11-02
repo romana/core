@@ -16,68 +16,75 @@
 package enforcer
 
 import (
+	"fmt"
+
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/romana/rlog"
 )
 
 var (
 	ErrMakeSets = prometheus.NewCounter(
 		prometheus.CounterOpts{
-			Name: "err_make_sets",
+			Name: "romana_err_make_sets_total",
 			Help: "Number of errors attempting to build ipset Sets.",
 		},
 	)
 	ErrApplySets = prometheus.NewCounter(
 		prometheus.CounterOpts{
-			Name: "err_apply_sets",
+			Name: "romana_err_apply_sets_total",
 			Help: "Number of errors attempting to apply ipset Sets.",
 		},
 	)
 	ErrValidateIptables = prometheus.NewCounter(
 		prometheus.CounterOpts{
-			Name: "err_validate_iptables",
+			Name: "romana_err_validate_iptables_total",
 			Help: "Number of errors when validating iptables.",
 		},
 	)
 	ErrApplyIptables = prometheus.NewCounter(
 		prometheus.CounterOpts{
-			Name: "err_apply_iptables",
+			Name: "romana_err_apply_iptables_total",
 			Help: "Number of errors attempting to apply iptables.",
 		},
 	)
 	NumPolicyUpdates = prometheus.NewCounter(
 		prometheus.CounterOpts{
-			Name: "num_policy_updates",
+			Name: "romana_policy_updates_total",
 			Help: "Number of policy updates processed.",
 		},
 	)
 	NumBlockUpdates = prometheus.NewCounter(
 		prometheus.CounterOpts{
-			Name: "num_block_updates",
+			Name: "romana__block_updates_total",
 			Help: "Number of block updates processed.",
 		},
 	)
 	NumEnforcerTick = prometheus.NewCounter(
 		prometheus.CounterOpts{
-			Name: "num_enforcer_ticks",
+			Name: "romana_enforcer_ticks_total",
 			Help: "Number of enforcer ticks since start.",
 		},
 	)
 	NumManagedSets = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "num_managed_sets",
+			Name: "romana_managed_sets",
 			Help: "Number ipset sets managed by Romana policy.",
 		},
 	)
 	NumPolicyRules = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "num_policy_rules",
+			Name: "romana_policy_rules",
 			Help: "Number of Romana policy rules applied to the host.",
 		},
 	)
 )
 
-func init() {
+// MetricsRegister registers package global metrics into registry provided,
+// for later exposure.
+func MetricsRegister(registry *prometheus.Registry) error {
+	if registry == nil {
+		return fmt.Errorf("registry must not be nil")
+	}
+
 	for _, counter := range []prometheus.Counter{
 		ErrMakeSets,
 		ErrApplySets,
@@ -89,9 +96,11 @@ func init() {
 		NumManagedSets,
 		NumPolicyRules,
 	} {
-		err := prometheus.Register(counter)
+		err := registry.Register(counter)
 		if err != nil {
-			rlog.Error("Failed to register metric", err)
+			return err
 		}
 	}
+
+	return nil
 }
