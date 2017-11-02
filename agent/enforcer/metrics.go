@@ -54,7 +54,7 @@ var (
 	)
 	NumBlockUpdates = prometheus.NewCounter(
 		prometheus.CounterOpts{
-			Name: "romana__block_updates_total",
+			Name: "romana_block_updates_total",
 			Help: "Number of block updates processed.",
 		},
 	)
