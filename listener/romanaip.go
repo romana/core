@@ -162,17 +162,9 @@ func (l *KubeListener) updateRomanaIP(service *v1.Service) error {
 			return errors.New("Error: romanaIP is not valid.")
 		}
 
-		updatedService := *service
-		updatedService.Spec.ExternalIPs = []string{romanaIP.IP}
-		_, err = l.kubeClientSet.CoreV1Client.Services(updatedService.GetNamespace()).Update(&updatedService)
-		if err != nil {
-			return fmt.Errorf("Error: externalIP couldn't be updated for service (%s): %s",
-				serviceName, err)
-		}
-
-		pods, err := l.kubeClientSet.CoreV1Client.Endpoints(updatedService.GetNamespace()).List(
+		pods, err := l.kubeClientSet.CoreV1Client.Endpoints(service.GetNamespace()).List(
 			v1.ListOptions{
-				LabelSelector: labels.FormatLabels(updatedService.GetLabels()),
+				LabelSelector: labels.FormatLabels(service.GetLabels()),
 			})
 		if len(pods.Items) < 1 {
 			return fmt.Errorf("Error: pod not found for service (%s)",
@@ -199,6 +191,14 @@ func (l *KubeListener) updateRomanaIP(service *v1.Service) error {
 		if len(node.Status.Addresses) < 1 {
 			return fmt.Errorf("Error: node address not found for node (%s)",
 				node.Name)
+		}
+
+		updatedService := *service
+		updatedService.Spec.ExternalIPs = []string{romanaIP.IP}
+		_, err = l.kubeClientSet.CoreV1Client.Services(updatedService.GetNamespace()).Update(&updatedService)
+		if err != nil {
+			return fmt.Errorf("Error: externalIP couldn't be updated for service (%s): %s",
+				serviceName, err)
 		}
 
 		exposedIPSpec := ExposedIPSpec{
