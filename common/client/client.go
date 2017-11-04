@@ -19,6 +19,7 @@ const (
 	ipamKey              = "/ipam"
 	ipamDataKey          = ipamKey + "/data"
 	PoliciesPrefix       = "/policies"
+	RomanaIPPrefix       = "/romanaip"
 )
 
 type Client struct {
@@ -489,4 +490,19 @@ func (c *Client) watchIPAM() error {
 		}
 	}()
 	return nil
+}
+
+// AddRomanaIP adds romanaIP to store.
+func (c *Client) AddRomanaIP(e api.ExposedIPSpec) error {
+	b, err := json.Marshal(e)
+	if err != nil {
+		return err
+	}
+	return c.Store.PutObject(RomanaIPPrefix+"/"+e.RomanaIP.IP, b)
+}
+
+// DeleteRomanaIP deletes romanaIP from store.
+func (c *Client) DeleteRomanaIP(romanaIP string) error {
+	_, err := c.Store.Delete(RomanaIPPrefix + "/" + romanaIP)
+	return err
 }
