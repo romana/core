@@ -33,7 +33,7 @@ func CreateRouteToBlocks(blocks []api.IPAMBlockResponse,
 	multihop bool,
 	nlHandle nlHandleRoute) {
 
-	NumManagedRoutes.Set(float64(0))
+	var managedRoutes int
 	for _, block := range blocks {
 		if block.Host == hostname {
 			log.Errorf("Block %v is local and does not require a route on that host", block)
@@ -57,8 +57,10 @@ func CreateRouteToBlocks(blocks []api.IPAMBlockResponse,
 			log.Errorf("%s", err)
 			continue
 		}
-		NumManagedRoutes.Inc()
+		managedRoutes += 1
 	}
+
+	NumManagedRoutes.Set(float64(managedRoutes))
 }
 
 type nlHandleRoute interface {
