@@ -147,6 +147,10 @@ func (l *KubeListener) updateRomanaIP(service *v1.Service) error {
 			return fmt.Errorf("romana annotation error: %s", err)
 		}
 
+		// TODO: implement auto cidr mode for romanaIPs
+		if romanaIP.Auto {
+			return errors.New("romanaIP auto cidr mode not supported in this release")
+		}
 		if net.ParseIP(romanaIP.IP) == nil {
 			return errors.New("romanaIP is not valid")
 		}
@@ -184,7 +188,11 @@ func (l *KubeListener) updateRomanaIP(service *v1.Service) error {
 
 		updatedService := *service
 		updatedService.Spec.ExternalIPs = []string{romanaIP.IP}
-		_, err = l.kubeClientSet.CoreV1Client.Services(updatedService.GetNamespace()).Update(&updatedService)
+		namespace := updatedService.GetNamespace()
+		if namespace == "" {
+			namespace = "default"
+		}
+		_, err = l.kubeClientSet.CoreV1Client.Services(namespace).Update(&updatedService)
 		if err != nil {
 			return fmt.Errorf("externalIP couldn't be updated for service (%s): %s",
 				serviceName, err)
@@ -194,6 +202,7 @@ func (l *KubeListener) updateRomanaIP(service *v1.Service) error {
 			RomanaIP:      romanaIP,
 			NodeIPAddress: node.Status.Addresses[0].Address,
 			Activated:     true,
+			Namespace:     namespace,
 		}
 
 		if err := l.client.AddRomanaIP(exposedIPSpec); err != nil {

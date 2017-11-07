@@ -24,4 +24,5 @@ type ExposedIPSpec struct {
 	RomanaIP      RomanaIP
 	NodeIPAddress string
 	Activated     bool
+	Namespace     string
 }
