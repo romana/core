@@ -28,7 +28,7 @@ import (
 var (
 	NumManagedRoutes = prometheus.NewGauge(
 		prometheus.GaugeOpts{
-			Name: "romana_managed_routes_total",
+			Name: "romana_managed_routes",
 			Help: "Number of routes managed by Romana agent on the host.",
 		},
 	)
