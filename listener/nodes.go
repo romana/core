@@ -112,7 +112,7 @@ func (l *KubeListener) syncNodes() {
 			if err == nil {
 				log.Infof("Added host %s to Romana", host)
 			} else {
-				if err, ok := err.(romanaErrors.RomanaExistsError); ok {
+				if _, ok := err.(romanaErrors.RomanaExistsError); ok {
 					log.Infof("Host %s already exists, ignoring addition.", host)
 				} else {
 					log.Errorf("Error adding host %s to Romana: %s", host, err)
@@ -140,7 +140,7 @@ func (l *KubeListener) syncNodes() {
 			if err == nil {
 				log.Infof("Removed host %s from Romana", host)
 			} else {
-				if err, ok := err.(romanaErrors.RomanaNotFoundError); ok {
+				if _, ok := err.(romanaErrors.RomanaNotFoundError); ok {
 					log.Infof("Host %s not found exists, ignoring removal.", host)
 				} else {
 					log.Errorf("Error removing host %s from Romana: %s", host, err)
@@ -256,10 +256,8 @@ func (l *KubeListener) kubernetesDeleteNodeEventHandler(n interface{}) {
 // romanaHostAdd connects to romana API and adds a node to
 // the romana cluster.
 func romanaHostAdd(l *KubeListener, node *v1.Node) error {
-	var err error
-	var ok bool
 	if node.Name == "" || node.Status.Addresses == nil || len(node.Status.Addresses) == 0 {
-		err = common.NewError("Received invalid host name or IP Address: (%s)", node)
+		err := common.NewError("Received invalid host name or IP Address: (%s)", node)
 		log.Error(err)
 		return err
 	}
@@ -270,17 +268,17 @@ func romanaHostAdd(l *KubeListener, node *v1.Node) error {
 		Name: hostname,
 		Tags: node.GetLabels(),
 	}
-	err = l.client.IPAM.AddHost(host)
-	if err == nil {
-		log.Infof("Node (%s) successfully added to romana cluster.", node.Name)
-		return nil
-	}
-	if err, ok = err.(romanaErrors.RomanaExistsError); ok {
-		log.Infof("Host %s already exists, ignoring addition.", host)
-		return nil
-	} else {
+	err := l.client.IPAM.AddHost(host)
+	if err != nil {
+		if _, ok := err.(romanaErrors.RomanaExistsError); ok {
+			log.Infof("Host %s already exists, ignoring addition.", host)
+			return nil
+		}
 		return err
 	}
+
+	log.Infof("Node (%s) successfully added to romana cluster.", node.Name)
+	return nil
 }
 
 // romanaHostRemove connects to romana API and removes a node from
@@ -293,9 +291,14 @@ func romanaHostRemove(l *KubeListener, node string) error {
 	}
 	host := romanaApi.Host{Name: node}
 	err := l.client.IPAM.RemoveHost(host)
-	if _, ok := err.(romanaErrors.RomanaNotFoundError); ok {
-		log.Infof("Host %s is not found, ignoring removal.", host)
-		return nil
+	if err != nil {
+		if _, ok := err.(romanaErrors.RomanaNotFoundError); ok {
+			log.Infof("Host %s is not found, ignoring removal.", host)
+			return nil
+		}
+		return err
 	}
-	return err
+
+	log.Infof("Node (%s) successfully removed from romana cluster.", node)
+	return nil
 }
