@@ -52,6 +52,12 @@ func GetDefaultLink() (netlink.Link, error) {
 		}
 	}
 
+	// if default route is not found above, then we have
+	// LinkIndex as zero, but LinkIndex start from one, so
+	// this will error out, which should be the case, since
+	// anyways we couldn't find default link, and other
+	// links maybe lo, etc which can't be used and thus
+	// error out and return below.
 	link, err := netlink.LinkByIndex(defaultR.LinkIndex)
 	if err != nil {
 		return nil, err
