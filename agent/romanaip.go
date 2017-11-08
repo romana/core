@@ -63,13 +63,14 @@ func GetDefaultLink() (netlink.Link, error) {
 	return link, nil
 }
 
-func GetIPs(defaultLink netlink.Link) ([]string, error) {
+// GetIPs returns all the IPv4 Address attached to link.
+func GetIPs(link netlink.Link) ([]string, error) {
 	var addresses []string
 
-	addrList, err := netlink.AddrList(defaultLink, syscall.AF_INET)
+	addrList, err := netlink.AddrList(link, syscall.AF_INET)
 	if err != nil {
 		return nil, fmt.Errorf("error finding IP adrress for link (%s): %s",
-			defaultLink.Attrs().Name, err)
+			link.Attrs().Name, err)
 	}
 
 	for _, addr := range addrList {
@@ -78,7 +79,7 @@ func GetIPs(defaultLink netlink.Link) ([]string, error) {
 
 	if len(addresses) < 1 {
 		return nil, fmt.Errorf("error finding IP adrress for link (%s)",
-			defaultLink.Attrs().Name)
+			link.Attrs().Name)
 	}
 
 	return addresses, nil
