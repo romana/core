@@ -152,7 +152,7 @@ func main() {
 		log.Errorf("failed to get default link: %s\n", err)
 		os.Exit(3)
 	}
-	err = agent.StartRomanaIPSync(romanaClient.Store, ctx, defaultLink)
+	err = agent.StartRomanaIPSync(ctx, romanaClient.Store, defaultLink)
 	if err != nil {
 		log.Errorf("failed to start romanaIP syncing mechanism: %s\n", err)
 		os.Exit(4)

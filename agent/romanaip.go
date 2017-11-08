@@ -135,7 +135,7 @@ func linkAddDeleteIP(kvpair *store.KVPairExt, toAdd bool,
 	return netlink.AddrDel(defaultLink, ipAddress)
 }
 
-func StartRomanaIPSync(store *client.Store, ctx context.Context,
+func StartRomanaIPSync(ctx context.Context, store *client.Store,
 	defaultLink netlink.Link) error {
 	var err error
 
@@ -151,12 +151,12 @@ func StartRomanaIPSync(store *client.Store, ctx context.Context,
 		return fmt.Errorf("failed to get default link's IP address")
 	}
 
-	go romanaIPWatcher(store, ctx, defaultLink, defaultLinkAddressList)
+	go romanaIPWatcher(ctx, store, defaultLink, defaultLinkAddressList)
 
 	return nil
 }
 
-func romanaIPWatcher(store *client.Store, ctx context.Context,
+func romanaIPWatcher(ctx context.Context, store *client.Store,
 	defaultLink netlink.Link, defaultLinkAddressList []string) {
 
 	// TODO: event stream could be broken it store connection is
