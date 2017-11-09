@@ -147,6 +147,17 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
+	defaultLink, err := agent.GetDefaultLink()
+	if err != nil {
+		log.Errorf("failed to get default link: %s\n", err)
+		os.Exit(3)
+	}
+	err = agent.StartRomanaIPSync(ctx, romanaClient.Store, defaultLink)
+	if err != nil {
+		log.Errorf("failed to start romanaIP syncing mechanism: %s\n", err)
+		os.Exit(4)
+	}
+
 	blocksChannel, err := romanaClient.WatchBlocks(ctx.Done())
 	if err != nil {
 		log.Errorf("Failed to subscribe to Romana blocks updates, %s", err)

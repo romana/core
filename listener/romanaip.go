@@ -23,39 +23,24 @@ import (
 	"sync"
 	"time"
 
-	"github.com/go-resty/resty"
+	"github.com/romana/core/common/api"
 	"github.com/romana/core/common/log/trace"
-	log "github.com/romana/rlog"
 
-	"k8s.io/client-go/pkg/api"
+	log "github.com/romana/rlog"
+	k8sapi "k8s.io/client-go/pkg/api"
 	"k8s.io/client-go/pkg/api/v1"
 	"k8s.io/client-go/pkg/fields"
 	"k8s.io/client-go/pkg/labels"
 	"k8s.io/client-go/tools/cache"
 )
 
-type RomanaIP struct {
-	Auto bool   `json:"auto"`
-	IP   string `json:"ip"`
-}
-
-type ExternalIP struct {
-	IP string `json:"ip" form:"ip"`
-}
-
-type ExposedIPSpec struct {
-	RomanaIP      RomanaIP
-	NodeIPAddress string
-	Activated     bool
-}
-
 type ExposedIPSpecMap struct {
 	sync.Mutex
-	IPForService map[string]ExposedIPSpec
+	IPForService map[string]api.ExposedIPSpec
 }
 
 var (
-	RomanaExposedIPSpecMap = ExposedIPSpecMap{IPForService: make(map[string]ExposedIPSpec)}
+	RomanaExposedIPSpecMap = ExposedIPSpecMap{IPForService: make(map[string]api.ExposedIPSpec)}
 )
 
 func (l *KubeListener) startRomanaIPSync(stop <-chan struct{}) {
@@ -64,7 +49,7 @@ func (l *KubeListener) startRomanaIPSync(stop <-chan struct{}) {
 	serviceWatcher := cache.NewListWatchFromClient(
 		l.kubeClientSet.CoreV1Client.RESTClient(),
 		"services",
-		api.NamespaceAll,
+		k8sapi.NamespaceAll,
 		fields.Everything())
 
 	// Setup a notifications for specific events using NewInformer.
@@ -79,7 +64,7 @@ func (l *KubeListener) startRomanaIPSync(stop <-chan struct{}) {
 		},
 	)
 
-	log.Println("Starting receving service events.")
+	log.Println("Started receiving service events.")
 	go serviceInformer.Run(stop)
 }
 
@@ -152,39 +137,35 @@ func (l *KubeListener) updateRomanaIP(service *v1.Service) error {
 			return nil
 		}
 
-		var romanaIP RomanaIP
+		var romanaIP api.RomanaIP
 		err := json.Unmarshal([]byte(romanaAnnotation), &romanaIP)
 		if err != nil {
-			return fmt.Errorf("Error: romana annotation error: %s", err)
+			return fmt.Errorf("romana annotation error: %s", err)
 		}
 
+		// TODO: implement auto cidr mode for romanaIPs
+		if romanaIP.Auto {
+			return errors.New("romanaIP auto cidr mode not supported in this release")
+		}
 		if net.ParseIP(romanaIP.IP) == nil {
-			return errors.New("Error: romanaIP is not valid.")
+			return errors.New("romanaIP is not valid")
 		}
 
-		updatedService := *service
-		updatedService.Spec.ExternalIPs = []string{romanaIP.IP}
-		_, err = l.kubeClientSet.CoreV1Client.Services(updatedService.GetNamespace()).Update(&updatedService)
-		if err != nil {
-			return fmt.Errorf("Error: externalIP couldn't be updated for service (%s): %s",
-				serviceName, err)
-		}
-
-		pods, err := l.kubeClientSet.CoreV1Client.Endpoints(updatedService.GetNamespace()).List(
+		pods, err := l.kubeClientSet.CoreV1Client.Endpoints(service.GetNamespace()).List(
 			v1.ListOptions{
-				LabelSelector: labels.FormatLabels(updatedService.GetLabels()),
+				LabelSelector: labels.FormatLabels(service.GetLabels()),
 			})
 		if len(pods.Items) < 1 {
-			return fmt.Errorf("Error: pod not found for service (%s)",
+			return fmt.Errorf("pod not found for service (%s)",
 				serviceName)
 		}
 		if err != nil {
-			return fmt.Errorf("Error: pod error for service (%s): %s",
+			return fmt.Errorf("pod error for service (%s): %s",
 				serviceName, err)
 		}
 		if !(len(pods.Items[0].Subsets) > 0 &&
 			len(pods.Items[0].Subsets[0].Addresses) > 0) {
-			return fmt.Errorf("Error: node address not found for service (%s)",
+			return fmt.Errorf("node address not found for service (%s)",
 				serviceName)
 		}
 
@@ -192,22 +173,39 @@ func (l *KubeListener) updateRomanaIP(service *v1.Service) error {
 		// for romanaIP allocations.
 		node, err := l.kubeClientSet.CoreV1Client.Nodes().Get(*pods.Items[0].Subsets[0].Addresses[0].NodeName)
 		if err != nil {
-			return fmt.Errorf("Error: node not found for pod for service (%s): %s",
+			return fmt.Errorf("node not found for pod for service (%s): %s",
 				serviceName, err)
 		}
 
 		if len(node.Status.Addresses) < 1 {
-			return fmt.Errorf("Error: node address not found for node (%s)",
+			return fmt.Errorf("node address not found for node (%s)",
 				node.Name)
 		}
 
-		exposedIPSpec := ExposedIPSpec{
+		updatedService := *service
+		updatedService.Spec.ExternalIPs = []string{romanaIP.IP}
+		namespace := updatedService.GetNamespace()
+		if namespace == "" {
+			namespace = "default"
+		}
+		_, err = l.kubeClientSet.CoreV1Client.Services(namespace).Update(&updatedService)
+		if err != nil {
+			return fmt.Errorf("externalIP couldn't be updated for service (%s): %s",
+				serviceName, err)
+		}
+
+		exposedIPSpec := api.ExposedIPSpec{
 			RomanaIP:      romanaIP,
 			NodeIPAddress: node.Status.Addresses[0].Address,
 			Activated:     true,
+			Namespace:     namespace,
 		}
 
-		l.agentAddRomanaIP(exposedIPSpec)
+		if err := l.client.AddRomanaIP(exposedIPSpec); err != nil {
+			return fmt.Errorf("error adding romanaIP (%s) to romana kvstore",
+				exposedIPSpec.RomanaIP.IP)
+		}
+
 		RomanaExposedIPSpecMap.IPForService[serviceName] = exposedIPSpec
 
 		log.Tracef(trace.Private, "RomanaExposedIPSpecMap.IPForService: %v\n",
@@ -224,35 +222,18 @@ func (l *KubeListener) deleteRomanaIP(service *v1.Service) {
 
 	exposedIPSpec, ok := RomanaExposedIPSpecMap.IPForService[service.GetName()]
 	if !ok {
-		log.Printf("Error service not found in the list: %s", service.GetName())
+		log.Printf("error, service not found in the list: %s", service.GetName())
 		return
 	}
 
-	l.agentDeleteRomanaIP(exposedIPSpec)
+	if err := l.client.DeleteRomanaIP(exposedIPSpec.RomanaIP.IP); err != nil {
+		log.Errorf("error deleting romanaIP (%s) from romana kvstore",
+			exposedIPSpec.RomanaIP.IP)
+		return
+	}
+
 	delete(RomanaExposedIPSpecMap.IPForService, service.GetName())
 
 	log.Tracef(trace.Private, "RomanaExposedIPSpecMap.IPForService: %v\n",
 		RomanaExposedIPSpecMap.IPForService)
-}
-
-func (l *KubeListener) agentDeleteRomanaIP(e ExposedIPSpec) {
-	ip := ExternalIP{IP: e.RomanaIP.IP}
-	agentURL := fmt.Sprintf("http://%s:9604/romanaip", e.NodeIPAddress)
-	_, err := resty.R().SetBody(ip).Delete(agentURL)
-	if err != nil {
-		log.Errorf("Error in sending agent, externalIP (%s) deletion information",
-			ip.IP)
-	}
-}
-
-func (l *KubeListener) agentAddRomanaIP(e ExposedIPSpec) {
-	ip := ExternalIP{IP: e.RomanaIP.IP}
-	// TODO not use hardcoded port number for /romanaip.
-	//
-	agentURL := fmt.Sprintf("http://%s:9604/romanaip", e.NodeIPAddress)
-	_, err := resty.R().SetBody(ip).Post(agentURL)
-	if err != nil {
-		log.Errorf("Error in sending agent, externalIP (%s) addition information",
-			ip.IP)
-	}
 }
