@@ -30,10 +30,6 @@ import (
 	"github.com/vishvananda/netlink"
 )
 
-type ExternalIP struct {
-	IP string `json:"ip" form:"ip"`
-}
-
 func GetDefaultLink() (netlink.Link, error) {
 	defaultR := netlink.Route{}
 

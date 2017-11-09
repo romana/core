@@ -34,10 +34,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-type ExternalIP struct {
-	IP string `json:"ip" form:"ip"`
-}
-
 type ExposedIPSpecMap struct {
 	sync.Mutex
 	IPForService map[string]api.ExposedIPSpec
