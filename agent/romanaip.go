@@ -127,7 +127,7 @@ func linkAddDeleteIP(kvpair *store.KVPairExt, toAdd bool,
 	}
 
 	if !IPAddressOnThisNode {
-		fmt.Printf("romanaIP not for this node, skipping processing it")
+		log.Info("romanaIP not for this node, skipping processing it")
 		return nil
 	}
 
@@ -171,7 +171,7 @@ func romanaIPWatcher(ctx context.Context, store *client.Store,
 	events, err := store.WatchTreeExt(client.DefaultEtcdPrefix+client.RomanaIPPrefix,
 		ctx.Done())
 	if err != nil {
-		log.Println("Error watching kvstore romanaIP keys.")
+		log.Error("Error watching kvstore romanaIP keys.")
 		return
 	}
 
@@ -180,7 +180,7 @@ func romanaIPWatcher(ctx context.Context, store *client.Store,
 		case pair := <-events:
 			switch pair.Action {
 			case "create", "set", "update", "compareAndSwap":
-				fmt.Printf("creating/updating romanaIP: %#v\n", pair)
+				log.Debugf("creating/updating romanaIP: %#v\n", pair)
 				err := linkAddDeleteIP(pair, true, defaultLink, defaultLinkAddressList)
 				if err != nil {
 					log.Errorf("error adding romanaIP to the link: %s", err)
@@ -188,10 +188,14 @@ func romanaIPWatcher(ctx context.Context, store *client.Store,
 				}
 			case "delete":
 				if pair.Dir {
-					// TODO: handle deleting all romanaIPs here.
-					log.Printf("deleting ALL romanaIPs: %#v\n", pair)
+					// TODO: currently if the whole "/romana/romanaip" kvstore
+					// directory is deleted, then we need to delete all romanaIPs,
+					// but currently we do nothing here and handle only single
+					// romanaIP deletion event below.
+					log.Infof("should be deleting ALL romanaIPs(%#v) here, ignoring currently",
+						pair)
 				} else {
-					log.Printf("deleting romanaIP: %#v\n", pair)
+					log.Debugf("deleting romanaIP: %#v\n", pair)
 					err := linkAddDeleteIP(pair, false, defaultLink, defaultLinkAddressList)
 					if err != nil {
 						log.Errorf("error deleting romanaIP from the link: %s", err)
@@ -199,9 +203,10 @@ func romanaIPWatcher(ctx context.Context, store *client.Store,
 					}
 				}
 			default:
+				log.Infof("missed romanaIP event type: %s", pair.Action)
 			}
 		case <-ctx.Done():
-			fmt.Print("\nStopping romanaIP watcher module.\n")
+			log.Printf("\nStopping romanaIP watcher module.\n")
 			return
 		}
 	}
