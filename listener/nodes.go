@@ -22,6 +22,7 @@ package listener
 import (
 	"fmt"
 	"net"
+	"os"
 	"time"
 
 	log "github.com/romana/rlog"
@@ -63,6 +64,11 @@ func (l *KubeListener) kubeClientInit() error {
 func (l *KubeListener) syncNodes() {
 	var err error
 	l.syncNodesMutex.Lock()
+	if !l.nodeStoreSyncronized {
+		log.Debug("waiting for synchronization to complete")
+		l.syncNodesMutex.Unlock()
+		return
+	}
 	if l.syncNodesRunning {
 		log.Infof("syncNodes() already running, will exit.")
 		l.syncNodesMutex.Unlock()
@@ -121,27 +127,22 @@ func (l *KubeListener) syncNodes() {
 
 	for _, romanaHost := range romanaHostList.Hosts {
 		hostInK8S := false
-		var node *v1.Node
 		for _, nodeIfc := range nodesIfc {
-			node = nodeIfc.(*v1.Node)
+			node := nodeIfc.(*v1.Node)
 			if romanaHost.IP.String() == node.Status.Addresses[0].Address {
 				hostInK8S = true
 				break
 			}
 		}
 		if !hostInK8S {
-			host := romanaApi.Host{
-				IP:   romanaHost.IP,
-				Name: node.Name,
-			}
-			err = l.client.IPAM.RemoveHost(host)
+			err = l.client.IPAM.RemoveHost(romanaHost)
 			if err == nil {
-				log.Infof("Removed host %s from Romana", host)
+				log.Infof("Removed host %s from Romana", romanaHost)
 			} else {
 				if _, ok := err.(romanaErrors.RomanaNotFoundError); ok {
-					log.Infof("Host %s not found exists, ignoring removal.", host)
+					log.Infof("Host %s not found exists, ignoring removal.", romanaHost)
 				} else {
-					log.Errorf("Error removing host %s from Romana: %s", host, err)
+					log.Errorf("Error removing host %s from Romana: %s", romanaHost, err)
 				}
 			}
 		}
@@ -180,7 +181,33 @@ func (l *KubeListener) ProcessNodeEvents(done <-chan struct{}) {
 	)
 
 	log.Infof("Starting receving node events.")
+
 	go nodeInformer.Run(done)
+
+	// Wait for the list of nodes to synchronize
+	duration := 60 * time.Second
+	timeout := time.After(duration)
+
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
+
+	log.Info("Waiting for node list to synchronize")
+	for {
+		select {
+		case <-timeout:
+			log.Errorf("timeout after %s while synchronizing nodes", duration)
+			os.Exit(1)
+		case <-ticker.C:
+			if nodeInformer.HasSynced() {
+				log.Info("node synchronization completed")
+				l.syncNodesMutex.Lock()
+				l.nodeStoreSyncronized = true
+				l.syncNodesMutex.Unlock()
+				l.syncNodes()
+				return
+			}
+		}
+	}
 }
 
 // kubernetesNodeEventHandler is called when Kubernetes reports an

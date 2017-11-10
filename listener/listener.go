@@ -55,7 +55,8 @@ type KubeListener struct {
 	kubeClientSet *kubernetes.Clientset
 	Watchers      map[string]cache.ListerWatcher
 
-	nodeStore cache.Store
+	nodeStore            cache.Store
+	nodeStoreSyncronized bool
 
 	// This is intended to lock for the purposes of changing
 	// syncNodesRunning flag. In case syncNodes() is called multiple
