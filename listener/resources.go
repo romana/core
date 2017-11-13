@@ -430,8 +430,8 @@ func (l *KubeListener) syncNetworkPolicies(kubePolicies []v1beta1.NetworkPolicy)
 		}
 
 		if !accountedRomanaPolicies[k] {
-			log.Infof("Sync policies detected that romana policy %d is obsolete - scheduling for deletion", policies[k].ID)
-			log.Tracef(trace.Inside, "Sync policies detected that romana policy %d is obsolete - scheduling for deletion", policies[k].ID)
+			log.Infof("Sync policies detected that romana policy %s is obsolete - scheduling for deletion", policies[k].ID)
+			log.Tracef(trace.Inside, "Sync policies detected that romana policy %s is obsolete - scheduling for deletion", policies[k].ID)
 			romanaPolicies = append(romanaPolicies, policies[k])
 		}
 	}
