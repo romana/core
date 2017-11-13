@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -304,7 +305,6 @@ func (l *KubeListener) nsWatch(done <-chan struct{}) (chan Event, error) {
 // ProduceNewPolicyEvents produces kubernetes network policy events that arent applied
 // in romana policy service yet.
 func ProduceNewPolicyEvents(out chan Event, done <-chan struct{}, KubeListener *KubeListener) {
-	var sleepTime time.Duration = 1
 	log.Infof("Listening for kubernetes network policies")
 
 	// watcher watches all network policy.
@@ -321,18 +321,33 @@ func ProduceNewPolicyEvents(out chan Event, done <-chan struct{}, KubeListener *
 		0,
 		cache.ResourceEventHandlerFuncs{
 			AddFunc: func(obj interface{}) {
+				KubeListener.RLock()
+				defer KubeListener.RUnlock()
+				if !KubeListener.policiesSynced {
+					return
+				}
 				out <- Event{
 					Type:   KubeEventAdded,
 					Object: obj,
 				}
 			},
 			UpdateFunc: func(old, obj interface{}) {
+				KubeListener.RLock()
+				defer KubeListener.RUnlock()
+				if !KubeListener.policiesSynced {
+					return
+				}
 				out <- Event{
 					Type:   KubeEventModified,
 					Object: obj,
 				}
 			},
 			DeleteFunc: func(obj interface{}) {
+				KubeListener.RLock()
+				defer KubeListener.RUnlock()
+				if !KubeListener.policiesSynced {
+					return
+				}
 				out <- Event{
 					Type:   KubeEventDeleted,
 					Object: obj,
@@ -341,11 +356,34 @@ func ProduceNewPolicyEvents(out chan Event, done <-chan struct{}, KubeListener *
 		})
 
 	go controller.Run(done)
-	time.Sleep(sleepTime)
 
-	var kubePolicyList []v1beta1.NetworkPolicy
+	duration := 60 * time.Second
+	timeout := time.After(duration)
+
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
+
+	log.Info("Waiting for networkpolicy list to synchronize")
+	synchronizationLoop:
+	for {
+		select {
+		case <-timeout:
+			log.Errorf("timeout after %s while synchronizing networkpolicy", duration)
+			os.Exit(1)
+		case <-ticker.C:
+			if controller.HasSynced() {
+				log.Info("networkpolicy synchronization completed")
+				KubeListener.Lock()
+				KubeListener.policiesSynced = true
+				KubeListener.Unlock()
+				break synchronizationLoop
+			}
+		}
+	}
+
+	var kubePolicyList []*v1beta1.NetworkPolicy
 	for _, kp := range store.List() {
-		kubePolicyList = append(kubePolicyList, kp.(v1beta1.NetworkPolicy))
+		kubePolicyList = append(kubePolicyList, kp.(*v1beta1.NetworkPolicy))
 	}
 
 	newEvents, oldPolicies, err := KubeListener.syncNetworkPolicies(kubePolicyList)
@@ -382,8 +420,8 @@ var getAllPoliciesFunc = getAllPolicies
 // syncNetworkPolicies compares a list of kubernetes network policies with romana network policies,
 // it returns a list of kubernetes policies that don't have corresponding kubernetes network policy for them,
 // and a list of romana policies that used to represent kubernetes policy but corresponding kubernetes policy is gone.
-func (l *KubeListener) syncNetworkPolicies(kubePolicies []v1beta1.NetworkPolicy) (kubernetesEvents []Event, romanaPolicies []romanaApi.Policy, err error) {
-	log.Infof("In syncNetworkPolicies with %v", kubePolicies)
+func (l *KubeListener) syncNetworkPolicies(kubePolicies []*v1beta1.NetworkPolicy) (kubernetesEvents []Event, romanaPolicies []romanaApi.Policy, err error) {
+	log.Infof("In syncNetworkPolicies with %d policies", len(kubePolicies))
 
 	policies, err := getAllPoliciesFunc(l.client)
 	if err != nil {
@@ -392,24 +430,19 @@ func (l *KubeListener) syncNetworkPolicies(kubePolicies []v1beta1.NetworkPolicy)
 
 	log.Infof("In syncNetworkPolicies fetched %d romana policies", len(policies))
 
-	// Compare kubernetes policies and all romana policies by name.
-	// TODO Coparing by name is fragile should be `external_id == UID`. Stas.
+	// Compare kubernetes policies and all romana policies by an identifier including namespace, name and uid
 
 	// Prepare a list of kubernetes policies that don't have corresponding
 	// romana policy.
 	var found bool
-	accountedRomanaPolicies := make(map[int]bool)
+	accountedRomanaPolicies := make(map[string]bool)
 
 	for kn, kubePolicy := range kubePolicies {
-		// TODO this seems like a bug - that's not how default policy is named elsewhere - GG
-		// kube.default is only referenced in test. This should be a const anyway.
-		namespacePolicyIDPrefix := "kube.default."
 		found = false
-		for pn, policy := range policies {
-			fullPolicyID := fmt.Sprintf("%s%s", namespacePolicyIDPrefix, kubePolicy.GetName())
-			if fullPolicyID == policy.ID {
+		for _, policy := range policies {
+			if getPolicyID(*kubePolicy) == policy.ID {
 				found = true
-				accountedRomanaPolicies[pn] = true
+				accountedRomanaPolicies[policy.ID] = true
 				break
 			}
 		}
@@ -420,19 +453,18 @@ func (l *KubeListener) syncNetworkPolicies(kubePolicies []v1beta1.NetworkPolicy)
 		}
 	}
 
-	// Delete romana policies that don't have corresponding
-	// kubernetes policy.
+	// Delete romana policies that don't have corresponding kubernetes policy.
 	// Ignore policies that don't have "kube." prefix in the name.
-	for k, _ := range policies {
-		if !strings.HasPrefix(policies[k].ID, "kube.") {
-			log.Tracef(trace.Inside, "Sync policies skipping policy %s since it doesn't match the prefix `kube.`", policies[k].ID)
+	for _, policy := range policies {
+		if !strings.HasPrefix(policy.ID, "kube.") {
+			log.Tracef(trace.Inside, "Sync policies skipping policy %s since it doesn't match the prefix `kube.`", policy.ID)
 			continue
 		}
 
-		if !accountedRomanaPolicies[k] {
-			log.Infof("Sync policies detected that romana policy %s is obsolete - scheduling for deletion", policies[k].ID)
-			log.Tracef(trace.Inside, "Sync policies detected that romana policy %s is obsolete - scheduling for deletion", policies[k].ID)
-			romanaPolicies = append(romanaPolicies, policies[k])
+		if !accountedRomanaPolicies[policy.ID] {
+			log.Infof("Sync policies detected that romana policy %s is obsolete - scheduling for deletion", policy.ID)
+			log.Tracef(trace.Inside, "Sync policies detected that romana policy %s is obsolete - scheduling for deletion", policy.ID)
+			romanaPolicies = append(romanaPolicies, policy)
 		}
 	}
 

@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
@@ -50,20 +51,16 @@ type KubeListener struct {
 	tenantLabelName     string
 	namespaceBufferSize uint64
 
-	lastEventPerNamespace map[string]uint64
-
 	kubeClientSet *kubernetes.Clientset
-	Watchers      map[string]cache.ListerWatcher
 
-	nodeStore            cache.Store
-	nodeStoreSyncronized bool
-
-	// This is intended to lock for the purposes of changing
-	// syncNodesRunning flag. In case syncNodes() is called multiple
-	// times, it would lock here, check the status of syncNodesRunning flag
-	// and bail out if there is another instance of syncNodes() running.
-	syncNodesMutex   sync.Locker
-	syncNodesRunning bool
+	// Maintains state about what things have been synchronized.
+	// A mutex is required because of watchers emitting events in
+	// separate goroutines
+	sync.RWMutex
+	nodeStore       cache.Store
+	nodeStoreSynced bool
+	syncNodesAfter  time.Time
+	policiesSynced  bool
 }
 
 // Routes returns various routes used in the service.
@@ -113,7 +110,6 @@ func (l *KubeListener) addNetworkPolicy(policy api.Policy) error {
 }
 
 func (l *KubeListener) Initialize(clientConfig common.Config) error {
-	l.syncNodesMutex = &sync.Mutex{}
 	var err error
 	l.client, err = client.NewClient(&clientConfig)
 	if err != nil {
@@ -140,7 +136,6 @@ func (l *KubeListener) Initialize(clientConfig common.Config) error {
 	// based on these events.
 	l.ProcessNodeEvents(done)
 
-	l.lastEventPerNamespace = make(map[string]uint64)
 	log.Infof("%s: Starting server", l.Name())
 	eventc, err := l.nsWatch(done)
 	if err != nil {

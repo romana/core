@@ -63,19 +63,18 @@ func (l *KubeListener) kubeClientInit() error {
 // hosts defined in Romana and synchronizes them.
 func (l *KubeListener) syncNodes() {
 	var err error
-	l.syncNodesMutex.Lock()
-	if !l.nodeStoreSyncronized {
+	l.Lock()
+	defer l.Unlock()
+
+	if !l.nodeStoreSynced {
 		log.Debug("waiting for synchronization to complete")
-		l.syncNodesMutex.Unlock()
 		return
 	}
-	if l.syncNodesRunning {
-		log.Infof("syncNodes() already running, will exit.")
-		l.syncNodesMutex.Unlock()
+	if time.Now().Before(l.syncNodesAfter) {
+		log.Debugf("waiting until %v to execute sync", l.syncNodesAfter)
 		return
 	}
-	l.syncNodesRunning = true
-	l.syncNodesMutex.Unlock()
+	l.syncNodesAfter = l.syncNodesAfter.Add(time.Minute)
 
 	nodesIfc := l.nodeStore.List()
 	var node *v1.Node
@@ -147,10 +146,6 @@ func (l *KubeListener) syncNodes() {
 			}
 		}
 	}
-	l.syncNodesMutex.Lock()
-	l.syncNodesRunning = false
-	l.syncNodesMutex.Unlock()
-
 }
 
 // ProcessNodeEvents processes kubernetes node events, there by
@@ -200,9 +195,10 @@ func (l *KubeListener) ProcessNodeEvents(done <-chan struct{}) {
 		case <-ticker.C:
 			if nodeInformer.HasSynced() {
 				log.Info("node synchronization completed")
-				l.syncNodesMutex.Lock()
-				l.nodeStoreSyncronized = true
-				l.syncNodesMutex.Unlock()
+				l.Lock()
+				l.nodeStoreSynced = true
+				l.syncNodesAfter = time.Now()
+				l.Unlock()
 				l.syncNodes()
 				return
 			}
@@ -221,6 +217,13 @@ func (l *KubeListener) kubernetesNodeEventHandler(n interface{}) {
 		return
 	}
 
+	l.RLock()
+	ready := l.nodeStoreSynced
+	l.RUnlock()
+	if !ready {
+		return
+	}
+
 	l.syncNodes()
 }
 
@@ -233,6 +236,13 @@ func (l *KubeListener) kubernetesUpdateNodeEventHandler(o, n interface{}) {
 	_, ok := n.(*v1.Node)
 	if !ok {
 		log.Errorf("Error processing Update Event received for node(%s) ", n)
+		return
+	}
+
+	l.RLock()
+	ready := l.nodeStoreSynced
+	l.RUnlock()
+	if !ready {
 		return
 	}
 
