@@ -69,7 +69,7 @@ func (t Translator) Kube2Romana(kubePolicy v1beta1.NetworkPolicy) (api.Policy, e
 // romana representation, returns a list of translated policies and a list
 // of policies that can't be translated in original format.
 func (t Translator) Kube2RomanaBulk(kubePolicies []v1beta1.NetworkPolicy) ([]api.Policy, []v1beta1.NetworkPolicy, error) {
-	log.Info("In Kube2RomanaBulk")
+	log.Debug("In Kube2RomanaBulk")
 	var returnRomanaPolicy []api.Policy
 	var returnKubePolicy []v1beta1.NetworkPolicy
 

@@ -74,14 +74,14 @@ func (l *KubeListener) startRomanaIPSync(stop <-chan struct{}) {
 func (l *KubeListener) kubernetesAddServiceEventHandler(n interface{}) {
 	service, ok := n.(*v1.Service)
 	if !ok {
-		log.Printf("Error processing add event for service (%s) ", n)
+		log.Errorf("Error processing add event for service (%s) ", n)
 		return
 	}
 
-	log.Printf("Add event received for service (%s) ", service.GetName())
+	log.Infof("Add event received for service (%s) ", service.GetName())
 
 	if err := l.updateRomanaIP(service); err != nil {
-		log.Printf("Error updating romanaIP for service (%s): %s",
+		log.Errorf("Error updating romanaIP for service (%s): %s",
 			service.Name, err)
 		return
 	}
@@ -93,14 +93,14 @@ func (l *KubeListener) kubernetesAddServiceEventHandler(n interface{}) {
 func (l *KubeListener) kubernetesUpdateServiceEventHandler(o, n interface{}) {
 	service, ok := n.(*v1.Service)
 	if !ok {
-		log.Printf("Error processing update event for service (%s) ", n)
+		log.Errorf("Error processing update event for service (%s) ", n)
 		return
 	}
 
-	log.Printf("Update Event received for service (%s) ", service.GetName())
+	log.Debugf("Update Event received for service (%s) ", service.GetName())
 
 	if err := l.updateRomanaIP(service); err != nil {
-		log.Printf("Error updating romanaIP for service (%s): %s",
+		log.Errorf("Error updating romanaIP for service (%s): %s",
 			service.Name, err)
 		return
 	}
@@ -112,11 +112,11 @@ func (l *KubeListener) kubernetesUpdateServiceEventHandler(o, n interface{}) {
 func (l *KubeListener) kubernetesDeleteServiceEventHandler(n interface{}) {
 	service, ok := n.(*v1.Service)
 	if !ok {
-		log.Printf("Error processing Delete Event received for service (%s) ", n)
+		log.Errorf("Error processing Delete Event received for service (%s) ", n)
 		return
 	}
 
-	log.Printf("Delete event received for service (%s) ", service.GetName())
+	log.Infof("Delete event received for service (%s) ", service.GetName())
 
 	l.deleteRomanaIP(service)
 }
@@ -132,7 +132,7 @@ func (l *KubeListener) updateRomanaIP(service *v1.Service) error {
 	if ok {
 		_, foundService := RomanaExposedIPSpecMap.IPForService[serviceName]
 		if foundService {
-			fmt.Printf("Service (%s) already has romanaIP associated with it.",
+			log.Debugf("Service (%s) already has romanaIP associated with it.",
 				serviceName)
 			return nil
 		}
@@ -222,7 +222,7 @@ func (l *KubeListener) deleteRomanaIP(service *v1.Service) {
 
 	exposedIPSpec, ok := RomanaExposedIPSpecMap.IPForService[service.GetName()]
 	if !ok {
-		log.Printf("error, service not found in the list: %s", service.GetName())
+		log.Errorf("error, service not found in the list: %s", service.GetName())
 		return
 	}
 

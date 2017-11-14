@@ -38,7 +38,7 @@ const (
 //    ii. on a timer event, send the events to handleNetworkPolicyEvents and empty the queue
 // 2. On receiving a done event, exit the goroutine
 func (l *KubeListener) process(in <-chan Event, done chan struct{}) {
-	log.Infof("KubeListener: process(): Entered with in %v, done %v", in, done)
+	log.Debugf("KubeListener: process(): Entered with in %v, done %v", in, done)
 
 	timer := time.NewTicker(processorTickTime * time.Second)
 	var networkPolicyEvents []Event
@@ -53,7 +53,7 @@ func (l *KubeListener) process(in <-chan Event, done chan struct{}) {
 					networkPolicyEvents = nil
 				}
 			case e := <-in:
-				log.Infof("KubeListener: process(): Got %v", e)
+				log.Debugf("KubeListener: process(): Got %v", e)
 				switch obj := e.Object.(type) {
 				case *v1beta1.NetworkPolicy:
 					log.Tracef(trace.Inside, "Scheduing network policy action, now scheduled %d actions", len(networkPolicyEvents))
@@ -65,7 +65,7 @@ func (l *KubeListener) process(in <-chan Event, done chan struct{}) {
 					log.Errorf("Processor received an event of unkonwn type %s, ignoring object %s", reflect.TypeOf(obj), obj)
 				}
 			case <-done:
-				log.Infof("KubeListener: process(): Got done")
+				log.Debugf("KubeListener: process(): Got done")
 				timer.Stop()
 				return
 			}

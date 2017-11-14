@@ -22,6 +22,7 @@ package listener
 import (
 	"fmt"
 	"net"
+	"os"
 	"time"
 
 	log "github.com/romana/rlog"
@@ -62,14 +63,18 @@ func (l *KubeListener) kubeClientInit() error {
 // hosts defined in Romana and synchronizes them.
 func (l *KubeListener) syncNodes() {
 	var err error
-	l.syncNodesMutex.Lock()
-	if l.syncNodesRunning {
-		log.Infof("syncNodes() already running, will exit.")
-		l.syncNodesMutex.Unlock()
+	l.Lock()
+	defer l.Unlock()
+
+	if !l.nodeStoreSynced {
+		log.Debug("waiting for synchronization to complete")
 		return
 	}
-	l.syncNodesRunning = true
-	l.syncNodesMutex.Unlock()
+	if time.Now().Before(l.syncNodesAfter) {
+		log.Debugf("waiting until %v to execute sync", l.syncNodesAfter)
+		return
+	}
+	l.syncNodesAfter = l.syncNodesAfter.Add(time.Minute)
 
 	nodesIfc := l.nodeStore.List()
 	var node *v1.Node
@@ -108,7 +113,7 @@ func (l *KubeListener) syncNodes() {
 			}
 			err = l.client.IPAM.AddHost(host)
 			if err == nil {
-				log.Infof("Added host %s to Romana", host)
+				log.Debugf("Added host %s to Romana", host)
 			} else {
 				if _, ok := err.(romanaErrors.RomanaExistsError); ok {
 					log.Infof("Host %s already exists, ignoring addition.", host)
@@ -121,35 +126,26 @@ func (l *KubeListener) syncNodes() {
 
 	for _, romanaHost := range romanaHostList.Hosts {
 		hostInK8S := false
-		var node *v1.Node
 		for _, nodeIfc := range nodesIfc {
-			node = nodeIfc.(*v1.Node)
+			node := nodeIfc.(*v1.Node)
 			if romanaHost.IP.String() == node.Status.Addresses[0].Address {
 				hostInK8S = true
 				break
 			}
 		}
 		if !hostInK8S {
-			host := romanaApi.Host{
-				IP:   romanaHost.IP,
-				Name: node.Name,
-			}
-			err = l.client.IPAM.RemoveHost(host)
+			err = l.client.IPAM.RemoveHost(romanaHost)
 			if err == nil {
-				log.Infof("Removed host %s from Romana", host)
+				log.Infof("Removed host %s from Romana", romanaHost)
 			} else {
 				if _, ok := err.(romanaErrors.RomanaNotFoundError); ok {
-					log.Infof("Host %s not found exists, ignoring removal.", host)
+					log.Infof("Host %s not found exists, ignoring removal.", romanaHost)
 				} else {
-					log.Errorf("Error removing host %s from Romana: %s", host, err)
+					log.Errorf("Error removing host %s from Romana: %s", romanaHost, err)
 				}
 			}
 		}
 	}
-	l.syncNodesMutex.Lock()
-	l.syncNodesRunning = false
-	l.syncNodesMutex.Unlock()
-
 }
 
 // ProcessNodeEvents processes kubernetes node events, there by
@@ -180,7 +176,34 @@ func (l *KubeListener) ProcessNodeEvents(done <-chan struct{}) {
 	)
 
 	log.Infof("Starting receving node events.")
+
 	go nodeInformer.Run(done)
+
+	// Wait for the list of nodes to synchronize
+	duration := 60 * time.Second
+	timeout := time.After(duration)
+
+	ticker := time.NewTicker(250 * time.Millisecond)
+	defer ticker.Stop()
+
+	log.Info("Waiting for node list to synchronize")
+	for {
+		select {
+		case <-timeout:
+			log.Errorf("timeout after %s while synchronizing nodes", duration)
+			os.Exit(1)
+		case <-ticker.C:
+			if nodeInformer.HasSynced() {
+				log.Info("node synchronization completed")
+				l.Lock()
+				l.nodeStoreSynced = true
+				l.syncNodesAfter = time.Now()
+				l.Unlock()
+				l.syncNodes()
+				return
+			}
+		}
+	}
 }
 
 // kubernetesNodeEventHandler is called when Kubernetes reports an
@@ -191,6 +214,13 @@ func (l *KubeListener) kubernetesNodeEventHandler(n interface{}) {
 	_, ok := n.(*v1.Node)
 	if !ok {
 		log.Errorf("error processing node event received for node(%v)", n)
+		return
+	}
+
+	l.RLock()
+	ready := l.nodeStoreSynced
+	l.RUnlock()
+	if !ready {
 		return
 	}
 
@@ -206,6 +236,13 @@ func (l *KubeListener) kubernetesUpdateNodeEventHandler(o, n interface{}) {
 	_, ok := n.(*v1.Node)
 	if !ok {
 		log.Errorf("Error processing Update Event received for node(%s) ", n)
+		return
+	}
+
+	l.RLock()
+	ready := l.nodeStoreSynced
+	l.RUnlock()
+	if !ready {
 		return
 	}
 

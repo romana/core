@@ -36,13 +36,13 @@ func CreateRouteToBlocks(blocks []api.IPAMBlockResponse,
 	var managedRoutes int
 	for _, block := range blocks {
 		if block.Host == hostname {
-			log.Errorf("Block %v is local and does not require a route on that host", block)
+			log.Debugf("Block %v is local and does not require a route on that host", block)
 			continue
 		}
 
 		host := hosts.GetHost(block.Host)
 		if host == nil {
-			log.Errorf("Block %v belongs to unknown host %s, ignoring", block, block.Host)
+			log.Debugf("Block %v belongs to unknown host %s, ignoring", block, block.Host)
 			continue
 		}
 

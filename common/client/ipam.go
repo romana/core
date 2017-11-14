@@ -526,7 +526,9 @@ func (hg *Group) findHostByIP(ip string) *Host {
 		}
 	}
 	for _, group := range hg.Groups {
-		return group.findHostByIP(ip)
+		if host := group.findHostByIP(ip); host != nil {
+			return host
+		}
 	}
 	return nil
 }
@@ -1382,21 +1384,21 @@ func (ipam *IPAM) RemoveHost(host api.Host) error {
 	removedHost := false
 	var hostToRemove *Host
 	for _, net := range ipam.Networks {
-		log.Tracef(trace.Inside, "Looking for host %v (%s) to remove from net %s\n", host.IP, host.Name, net.Name)
+		log.Tracef(trace.Inside, "Looking for host %v (%s) to remove from net %s", host.IP, host.Name, net.Name)
 		hostToRemove = nil
 		if host.IP == nil {
 			hostToRemove = net.Group.findHostByName(host.Name)
 		} else {
 			hostToRemove = net.Group.findHostByIP(host.IP.String())
-			if host.Name != "" {
-				if hostToRemove.Name != host.Name {
-					return common.NewError("Found host with IP %s but it has name %s, not %s", host.IP, hostToRemove.Name, host.Name)
-				}
-			}
 		}
 		if hostToRemove == nil {
 			log.Tracef(trace.Inside, "Host %v (%s) not found in net %s\n", host.IP, host.Name, net.Name)
 			continue
+		}
+		if host.Name != "" {
+			if hostToRemove.Name != host.Name {
+				return common.NewError("Found host with IP %s but it has name %s, not %s", host.IP, hostToRemove.Name, host.Name)
+			}
 		}
 		var i int
 		var curHost *Host
