@@ -198,7 +198,10 @@ func main() {
 		os.Exit(2)
 	}
 
-	hosts := agent.IpamHosts{}
+	// wait for the first list of hosts to be received
+	initialHosts := <-hostsChannel
+	hosts := agent.IpamHosts(initialHosts.Hosts)
+
 	for {
 		select {
 		case blocks := <-blocksChannel:
