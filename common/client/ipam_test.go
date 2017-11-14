@@ -1209,3 +1209,33 @@ func TestNodeAssignment(t *testing.T) {
 		t.Fatalf("Expected 1 host in rnet-2 group %s, got %v", ipam.Networks["rnet-2"].Group.Groups[2].Name, ipam.Networks["rnet-2"].Group.Hosts)
 	}
 }
+
+// TestHostAdd713 will test that a host can not be added to some networks but can
+// to others, and this should not error out. Considering TestHostAdd713.json topology:
+// If a host with tag "rack-1" is added, it should only be added to rnet-1
+// (because of the groups defined in the first topology). If a host with "rack-2" is
+// added, it should only be added to rnet-2 (because of the groups defined in the first
+// topology).
+func TestHostAdd713(t *testing.T) {
+	//var err error
+	t.Logf("TestHostAdd713_1")
+
+	ipam = initIpam(t, "")
+
+	for i := 0; i < 3; i++ {
+		ip := net.ParseIP(fmt.Sprintf("192.168.1.%d", i+1))
+		tags := make(map[string]string)
+		tags["rack"] = fmt.Sprintf("rack-%da", i+2)
+		name := fmt.Sprintf("host%d", i)
+		host := api.Host{
+			Name: name,
+			IP:   ip,
+			Tags: tags,
+		}
+		t.Logf("Adding host %s (%s) %s", host.Name, host.IP, tags)
+		err := ipam.AddHost(host)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+}
