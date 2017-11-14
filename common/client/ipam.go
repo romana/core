@@ -719,7 +719,7 @@ func (hg *Group) parse(arr []api.GroupOrHost, cidr CIDR, network *Network) error
 	for i, elt := range arr {
 		if isHostList {
 			if elt.IP != nil && elt.Name == "" {
-				return common.NewError("Both name and IP are required for hosts: %v", elt)
+				return common.NewError("Both name and IP are required for hosts: %+v (%T)", elt, elt)
 			}
 			// This is host, we inherit the CIDR
 			host := &Host{Name: elt.Name, IP: elt.IP}

@@ -93,9 +93,12 @@ type GroupOrHost struct {
 	Name string `json:"name"`
 	IP   net.IP `json:"ip,omitempty"`
 
+	// This is ignored on import.
+	CIDR string `json:"cidr,omitempty"`
+
 	// A dummy group is one used for padding to power of 2; it is not to
 	// be assigned hosts to
-	Dummy bool `json:"dummy"`
+	Dummy bool `json:"dummy,omitempty"`
 }
 
 type Host struct {

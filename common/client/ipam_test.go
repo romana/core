@@ -1239,3 +1239,8 @@ func TestHostAdd713(t *testing.T) {
 		}
 	}
 }
+
+func TestPredefinedHosts(t *testing.T) {
+	initIpam(t, "")
+	t.Log(testSaver.lastJson)
+}
