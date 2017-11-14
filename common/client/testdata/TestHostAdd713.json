@@ -1,0 +1,190 @@
+{
+  "networks": [
+    {
+      "name": "k8-rack-2a",
+      "cidr": "10.28.0.0/19",
+      "block_mask": 24
+    },
+    {
+      "name": "k8-rack-2b",
+      "cidr": "10.28.32.0/19",
+      "block_mask": 24
+    },
+    {
+      "name": "k8-rack-3a",
+      "cidr": "10.28.64.0/19",
+      "block_mask": 24
+    },
+    {
+      "name": "k8-rack-3b",
+      "cidr": "10.28.96.0/19",
+      "block_mask": 24
+    },
+    {
+      "name": "k8-rack-4a",
+      "cidr": "10.28.128.0/19",
+      "block_mask": 24
+    },
+    {
+      "name": "k8-rack-4b",
+      "cidr": "10.28.160.0/19",
+      "block_mask": 24
+    },
+    {
+      "name": "k8-rack-5a",
+      "cidr": "10.28.192.0/19",
+      "block_mask": 24
+    },
+    {
+      "name": "k8-rack-5b",
+      "cidr": "10.28.224.0/19",
+      "block_mask": 24
+    }
+  ],
+  "topologies": [
+    {
+      "networks": [
+        "k8-rack-2a"
+      ],
+      "map": [
+        {
+          "groups": [
+            {
+              "name": "rack-2a",
+              "groups": [],
+              "assignment": {
+                "rack": "rack-2a"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "networks": [
+        "k8-rack-2b"
+      ],
+      "map": [
+        {
+          "groups": [
+            {
+              "name": "rack-2b",
+              "groups": [],
+              "assignment": {
+                "rack": "rack-2b"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "networks": [
+        "k8-rack-3a"
+      ],
+      "map": [
+        {
+          "groups": [
+            {
+              "name": "rack-3a",
+              "groups": [],
+              "assignment": {
+                "rack": "rack-3a"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "networks": [
+        "k8-rack-3b"
+      ],
+      "map": [
+        {
+          "groups": [
+            {
+              "name": "rack-3b",
+              "groups": [],
+              "assignment": {
+                "rack": "rack-3b"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "networks": [
+        "k8-rack-4a"
+      ],
+      "map": [
+        {
+          "groups": [
+            {
+              "name": "rack-4a",
+              "groups": [],
+              "assignment": {
+                "rack": "rack-4a"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "networks": [
+        "k8-rack-4b"
+      ],
+      "map": [
+        {
+          "groups": [
+            {
+              "name": "rack-4b",
+              "groups": [],
+              "assignment": {
+                "rack": "rack-4b"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "networks": [
+        "k8-rack-5a"
+      ],
+      "map": [
+        {
+          "groups": [
+            {
+              "name": "rack-5a",
+              "groups": [],
+              "assignment": {
+                "rack": "rack-5a"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "networks": [
+        "k8-rack-5b"
+      ],
+      "map": [
+        {
+          "groups": [
+            {
+              "name": "rack-5b",
+              "groups": [],
+              "assignment": {
+                "rack": "rack-5b"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -301,7 +301,7 @@ func (hg *Group) addHost(host *Host) (bool, error) {
 		// Try to add to one of the subgroups.
 		smallest := hg.findSmallestEligibleGroup(host)
 		if smallest == nil {
-			return false, common.NewError("Cannot add host: no groups available.")
+			return false, nil
 		}
 		return smallest.addHost(host)
 	}

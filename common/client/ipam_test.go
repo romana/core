@@ -1209,3 +1209,27 @@ func TestNodeAssignment(t *testing.T) {
 		t.Fatalf("Expected 1 host in rnet-2 group %s, got %v", ipam.Networks["rnet-2"].Group.Groups[2].Name, ipam.Networks["rnet-2"].Group.Hosts)
 	}
 }
+
+func TestHostAdd713(t *testing.T) {
+	//var err error
+	t.Logf("TestHostAdd713_1")
+
+	ipam = initIpam(t, "")
+
+	for i := 0; i < 3; i++ {
+		ip := net.ParseIP(fmt.Sprintf("192.168.1.%d", i+1))
+		tags := make(map[string]string)
+		tags["rack"] = fmt.Sprintf("rack-%da", i+2)
+		name := fmt.Sprintf("host%d", i)
+		host := api.Host{
+			Name: name,
+			IP:   ip,
+			Tags: tags,
+		}
+		t.Logf("Adding host %s (%s) %s", host.Name, host.IP, tags)
+		err := ipam.AddHost(host)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+}
