@@ -113,7 +113,7 @@ func (l *KubeListener) syncNodes() {
 			}
 			err = l.client.IPAM.AddHost(host)
 			if err == nil {
-				log.Infof("Added host %s to Romana", host)
+				log.Debugf("Added host %s to Romana", host)
 			} else {
 				if _, ok := err.(romanaErrors.RomanaExistsError); ok {
 					log.Infof("Host %s already exists, ignoring addition.", host)

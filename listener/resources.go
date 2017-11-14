@@ -128,7 +128,7 @@ func handleNamespaceEvent(e Event, l *KubeListener) {
 		panic("Failed to cast namespace in handleNamespaceEvent")
 	}
 
-	log.Infof("KubeEvent: Processing namespace event == %v and phase %v", e.Type, namespace.Status)
+	log.Debugf("KubeEvent: Processing namespace event == %v and phase %v", e.Type, namespace.Status)
 
 	if e.Type == KubeEventAdded {
 		// Noop for now, as we do not need to create tenants explicitly now
@@ -183,7 +183,7 @@ func HandleDefaultPolicy(o *v1.Namespace, l *KubeListener) {
 		log.Debugf("Decoded to policy: %v", isolationPolicy)
 		defaultDeny = isolationPolicy.Ingress.Isolation == "DefaultDeny"
 	} else {
-		log.Infof("Handling default policy on a namespace, no annotation detected assuming non isolated namespace\n")
+		log.Debugf("Handling default policy on a namespace, no annotation detected assuming non isolated namespace")
 		defaultDeny = false
 	}
 	if defaultDeny {
