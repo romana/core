@@ -17,9 +17,7 @@ package exec
 
 import (
 	"io"
-	"log"
 	"os/exec"
-	"strings"
 )
 
 // Interfaces in this file are designed to provide
@@ -45,7 +43,6 @@ type DefaultExecutor struct{}
 
 // Exec implements Executable interface by proxiyng all requests to exec.Command().
 func (DefaultExecutor) Exec(cmd string, args []string) ([]byte, error) {
-	log.Printf("Helper.Executor: executing command: %s %s", cmd, strings.Join(args, " "))
 	cmdObj := exec.Command(cmd, args...)
 	out, err := cmdObj.CombinedOutput()
 	return out, err

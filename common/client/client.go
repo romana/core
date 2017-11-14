@@ -480,7 +480,7 @@ func (c *Client) watchIPAM() error {
 				c.savingMutex.RLock()
 				prevKV := c.IPAM.GetPrevKVPair()
 				if prevKV == nil || kv.LastIndex > prevKV.LastIndex {
-					log.Infof("Received IPAM with revision %d, current last revision %d", kv.LastIndex, prevKV.LastIndex)
+					log.Debugf("Received IPAM with revision %d, current last revision %d", kv.LastIndex, prevKV.LastIndex)
 					if err != nil {
 						log.Error(err)
 						// Nothing to do here, but since there is a new version,
@@ -498,7 +498,7 @@ func (c *Client) watchIPAM() error {
 					c.IPAM.save = c.save
 					c.IPAM.load = c.load
 					c.IPAM.SetPrevKVPair(kv)
-					log.Infof("Loaded IPAM with revision %d", kv.LastIndex)
+					log.Debugf("Loaded IPAM with revision %d", kv.LastIndex)
 				}
 				c.savingMutex.RUnlock()
 			}
