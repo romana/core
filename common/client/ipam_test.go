@@ -1210,6 +1210,12 @@ func TestNodeAssignment(t *testing.T) {
 	}
 }
 
+// TestHostAdd713 will test that a host can not be added to some networks but can
+// to others, and this should not error out. Considering TestHostAdd713.json topology:
+// If a host with tag "rack-1" is added, it should only be added to rnet-1
+// (because of the groups defined in the first topology). If a host with "rack-2" is
+// added, it should only be added to rnet-2 (because of the groups defined in the first
+// topology).
 func TestHostAdd713(t *testing.T) {
 	//var err error
 	t.Logf("TestHostAdd713_1")
