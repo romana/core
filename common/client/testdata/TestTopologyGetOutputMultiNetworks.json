@@ -1,0 +1,120 @@
+{
+  "networks": [
+    {
+      "name": "production-network",
+      "cidr": "10.115.0.0/20",
+      "block_mask": 29,
+      "tenants": [
+        "35847ea4489e47e0aa7a9a7ea3d9241b"
+      ]
+    },
+    {
+      "name": "test-network",
+      "cidr": "10.125.0.0/20",
+      "block_mask": 29,
+      "tenants": [
+        "a7e734cd05c94bbeb0b456fe4773a5e5"
+      ]
+    }
+  ],
+  "topologies": [
+    {
+      "networks": [
+        "production-network"
+      ],
+      "map": [
+        {
+          "name": "zone-1",
+          "groups": [
+            {
+              "name": "zone-1-rack-1",
+              "groups": [],
+              "assignment": {
+                "zone": "zone-1",
+                "rack": "rack-1"
+              }
+            },
+            {
+              "name": "zone-1-rack-2",
+              "groups": [],
+              "assignment": {
+                "zone": "zone-1",
+                "rack": "rack-2"
+              }
+            }
+          ]
+        },
+        {
+          "name": "zone-2",
+          "groups": [
+            {
+              "name": "zone-2-rack-1",
+              "groups": [],
+              "assignment": {
+                "zone": "zone-2",
+                "rack": "rack-1"
+              }
+            },
+            {
+              "name": "zone-2-rack-2",
+              "groups": [],
+              "assignment": {
+                "zone": "zone-2",
+                "rack": "rack-2"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "networks": [
+        "test-network"
+      ],
+      "map": [
+        {
+          "name": "zone-1",
+          "groups": [
+            {
+              "name": "zone-1-rack-1",
+              "groups": [],
+              "assignment": {
+                "zone": "zone-1",
+                "rack": "rack-1"
+              }
+            },
+            {
+              "name": "zone-1-rack-2",
+              "groups": [],
+              "assignment": {
+                "zone": "zone-1",
+                "rack": "rack-2"
+              }
+            }
+          ]
+        },
+        {
+          "name": "zone-2",
+          "groups": [
+            {
+              "name": "zone-2-rack-1",
+              "groups": [],
+              "assignment": {
+                "zone": "zone-2",
+                "rack": "rack-1"
+              }
+            },
+            {
+              "name": "zone-2-rack-2",
+              "groups": [],
+              "assignment": {
+                "zone": "zone-2",
+                "rack": "rack-2"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

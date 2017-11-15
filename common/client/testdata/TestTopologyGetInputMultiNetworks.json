@@ -1,0 +1,538 @@
+{
+  "networks": {
+    "production-network": {
+      "name": "production-network",
+      "cidr": "10.115.0.0/20",
+      "block_mask": 29,
+      "blacked_out": [],
+      "host_groups": {
+        "name": "/",
+        "hosts": null,
+        "groups": [
+          {
+            "name": "zone-1",
+            "hosts": null,
+            "groups": [
+              {
+                "name": "zone-1-rack-1",
+                "hosts": [
+                  {
+                    "name": "ip-192-168-0-10",
+                    "ip": "192.168.0.10",
+                    "agent_port": 9604,
+                    "tags": {
+                      "beta.kubernetes.io/arch": "amd64",
+                      "beta.kubernetes.io/os": "linux",
+                      "kubernetes.io/hostname": "ip-192-168-0-10",
+                      "node-role.kubernetes.io/master": "",
+                      "rack": "rack-1",
+                      "zone": "zone-1"
+                    }
+                  },
+                  {
+                    "name": "ip-192-168-0-12",
+                    "ip": "192.168.0.12",
+                    "agent_port": 9604,
+                    "tags": {
+                      "beta.kubernetes.io/arch": "amd64",
+                      "beta.kubernetes.io/os": "linux",
+                      "kubernetes.io/hostname": "ip-192-168-0-12",
+                      "rack": "rack-1",
+                      "zone": "zone-1"
+                    }
+                  },
+                  {
+                    "name": "ip-192-168-0-11",
+                    "ip": "192.168.0.11",
+                    "agent_port": 9604,
+                    "tags": {
+                      "beta.kubernetes.io/arch": "amd64",
+                      "beta.kubernetes.io/os": "linux",
+                      "kubernetes.io/hostname": "ip-192-168-0-11",
+                      "rack": "rack-1",
+                      "zone": "zone-1"
+                    }
+                  }
+                ],
+                "groups": null,
+                "cidr": "10.115.0.0/22",
+                "block_to_owner": {
+                  "0": "35847ea4489e47e0aa7a9a7ea3d9241b:default",
+                  "1": "35847ea4489e47e0aa7a9a7ea3d9241b:default"
+                },
+                "owner_to_block": {
+                  "35847ea4489e47e0aa7a9a7ea3d9241b:default": [
+                    1,
+                    0
+                  ]
+                },
+                "block_to_host": {
+                  "0": "ip-192-168-0-12",
+                  "1": "ip-192-168-0-11"
+                },
+                "blocks": [
+                  {
+                    "cidr": "10.115.0.0/29",
+                    "pool": {
+                      "Ranges": [
+                        {
+                          "Min": 175308801,
+                          "Max": 175308807
+                        }
+                      ],
+                      "OrigMin": 175308800,
+                      "OrigMax": 175308807
+                    },
+                    "revision": 15
+                  },
+                  {
+                    "cidr": "10.115.0.8/29",
+                    "pool": {
+                      "Ranges": [
+                        {
+                          "Min": 175308810,
+                          "Max": 175308815
+                        }
+                      ],
+                      "OrigMin": 175308808,
+                      "OrigMax": 175308815
+                    },
+                    "revision": 6
+                  }
+                ],
+                "reusable_blocks": [],
+                "assignment": {
+                  "rack": "rack-1",
+                  "zone": "zone-1"
+                },
+                "routing": ""
+              },
+              {
+                "name": "zone-1-rack-2",
+                "hosts": [],
+                "groups": null,
+                "cidr": "10.115.4.0/22",
+                "block_to_owner": {},
+                "owner_to_block": {},
+                "block_to_host": {},
+                "blocks": [],
+                "reusable_blocks": [],
+                "assignment": {
+                  "rack": "rack-2",
+                  "zone": "zone-1"
+                },
+                "routing": ""
+              }
+            ],
+            "cidr": "10.115.0.0/21",
+            "block_to_owner": {},
+            "owner_to_block": {},
+            "block_to_host": {},
+            "blocks": [],
+            "reusable_blocks": [],
+            "assignment": null,
+            "routing": ""
+          },
+          {
+            "name": "zone-2",
+            "hosts": null,
+            "groups": [
+              {
+                "name": "zone-2-rack-1",
+                "hosts": [
+                  {
+                    "name": "ip-192-168-64-12",
+                    "ip": "192.168.64.12",
+                    "agent_port": 9604,
+                    "tags": {
+                      "beta.kubernetes.io/arch": "amd64",
+                      "beta.kubernetes.io/os": "linux",
+                      "kubernetes.io/hostname": "ip-192-168-64-12",
+                      "rack": "rack-1",
+                      "zone": "zone-2"
+                    }
+                  },
+                  {
+                    "name": "ip-192-168-64-11",
+                    "ip": "192.168.64.11",
+                    "agent_port": 9604,
+                    "tags": {
+                      "beta.kubernetes.io/arch": "amd64",
+                      "beta.kubernetes.io/os": "linux",
+                      "kubernetes.io/hostname": "ip-192-168-64-11",
+                      "rack": "rack-1",
+                      "zone": "zone-2"
+                    }
+                  }
+                ],
+                "groups": null,
+                "cidr": "10.115.8.0/22",
+                "block_to_owner": {
+                  "0": "35847ea4489e47e0aa7a9a7ea3d9241b:default",
+                  "1": "35847ea4489e47e0aa7a9a7ea3d9241b:default"
+                },
+                "owner_to_block": {
+                  "35847ea4489e47e0aa7a9a7ea3d9241b:default": [
+                    1,
+                    0
+                  ]
+                },
+                "block_to_host": {
+                  "0": "ip-192-168-64-11",
+                  "1": "ip-192-168-64-12"
+                },
+                "blocks": [
+                  {
+                    "cidr": "10.115.8.0/29",
+                    "pool": {
+                      "Ranges": [
+                        {
+                          "Min": 175310849,
+                          "Max": 175310855
+                        }
+                      ],
+                      "OrigMin": 175310848,
+                      "OrigMax": 175310855
+                    },
+                    "revision": 27
+                  },
+                  {
+                    "cidr": "10.115.8.8/29",
+                    "pool": {
+                      "Ranges": [
+                        {
+                          "Min": 175310857,
+                          "Max": 175310863
+                        }
+                      ],
+                      "OrigMin": 175310856,
+                      "OrigMax": 175310863
+                    },
+                    "revision": 17
+                  }
+                ],
+                "reusable_blocks": [],
+                "assignment": {
+                  "rack": "rack-1",
+                  "zone": "zone-2"
+                },
+                "routing": ""
+              },
+              {
+                "name": "zone-2-rack-2",
+                "hosts": [],
+                "groups": null,
+                "cidr": "10.115.12.0/22",
+                "block_to_owner": {},
+                "owner_to_block": {},
+                "block_to_host": {},
+                "blocks": [],
+                "reusable_blocks": [],
+                "assignment": {
+                  "rack": "rack-2",
+                  "zone": "zone-2"
+                },
+                "routing": ""
+              }
+            ],
+            "cidr": "10.115.8.0/21",
+            "block_to_owner": {},
+            "owner_to_block": {},
+            "block_to_host": {},
+            "blocks": [],
+            "reusable_blocks": [],
+            "assignment": null,
+            "routing": ""
+          }
+        ],
+        "cidr": "",
+        "block_to_owner": null,
+        "owner_to_block": null,
+        "block_to_host": null,
+        "blocks": null,
+        "reusable_blocks": null,
+        "assignment": null,
+        "routing": ""
+      },
+      "revision": 65
+    },
+    "test-network": {
+      "name": "test-network",
+      "cidr": "10.125.0.0/20",
+      "block_mask": 29,
+      "blacked_out": [],
+      "host_groups": {
+        "name": "/",
+        "hosts": null,
+        "groups": [
+          {
+            "name": "zone-1",
+            "hosts": null,
+            "groups": [
+              {
+                "name": "zone-1-rack-1",
+                "hosts": [
+                  {
+                    "name": "ip-192-168-0-10",
+                    "ip": "192.168.0.10",
+                    "agent_port": 9604,
+                    "tags": {
+                      "beta.kubernetes.io/arch": "amd64",
+                      "beta.kubernetes.io/os": "linux",
+                      "kubernetes.io/hostname": "ip-192-168-0-10",
+                      "node-role.kubernetes.io/master": "",
+                      "rack": "rack-1",
+                      "zone": "zone-1"
+                    }
+                  },
+                  {
+                    "name": "ip-192-168-0-12",
+                    "ip": "192.168.0.12",
+                    "agent_port": 9604,
+                    "tags": {
+                      "beta.kubernetes.io/arch": "amd64",
+                      "beta.kubernetes.io/os": "linux",
+                      "kubernetes.io/hostname": "ip-192-168-0-12",
+                      "rack": "rack-1",
+                      "zone": "zone-1"
+                    }
+                  },
+                  {
+                    "name": "ip-192-168-0-11",
+                    "ip": "192.168.0.11",
+                    "agent_port": 9604,
+                    "tags": {
+                      "beta.kubernetes.io/arch": "amd64",
+                      "beta.kubernetes.io/os": "linux",
+                      "kubernetes.io/hostname": "ip-192-168-0-11",
+                      "rack": "rack-1",
+                      "zone": "zone-1"
+                    }
+                  }
+                ],
+                "groups": null,
+                "cidr": "10.125.0.0/22",
+                "block_to_owner": {
+                  "0": "a7e734cd05c94bbeb0b456fe4773a5e5:default",
+                  "1": "a7e734cd05c94bbeb0b456fe4773a5e5:default"
+                },
+                "owner_to_block": {
+                  "a7e734cd05c94bbeb0b456fe4773a5e5:default": [
+                    0,
+                    1
+                  ]
+                },
+                "block_to_host": {
+                  "0": "ip-192-168-0-11",
+                  "1": "ip-192-168-0-12"
+                },
+                "blocks": [
+                  {
+                    "cidr": "10.125.0.0/29",
+                    "pool": {
+                      "Ranges": [
+                        {
+                          "Min": 175964162,
+                          "Max": 175964167
+                        }
+                      ],
+                      "OrigMin": 175964160,
+                      "OrigMax": 175964167
+                    },
+                    "revision": 24
+                  },
+                  {
+                    "cidr": "10.125.0.8/29",
+                    "pool": {
+                      "Ranges": [
+                        {
+                          "Min": 175964169,
+                          "Max": 175964175
+                        }
+                      ],
+                      "OrigMin": 175964168,
+                      "OrigMax": 175964175
+                    },
+                    "revision": 15
+                  }
+                ],
+                "reusable_blocks": [],
+                "assignment": {
+                  "rack": "rack-1",
+                  "zone": "zone-1"
+                },
+                "routing": ""
+              },
+              {
+                "name": "zone-1-rack-2",
+                "hosts": [],
+                "groups": null,
+                "cidr": "10.125.4.0/22",
+                "block_to_owner": {},
+                "owner_to_block": {},
+                "block_to_host": {},
+                "blocks": [],
+                "reusable_blocks": [],
+                "assignment": {
+                  "rack": "rack-2",
+                  "zone": "zone-1"
+                },
+                "routing": ""
+              }
+            ],
+            "cidr": "10.125.0.0/21",
+            "block_to_owner": {},
+            "owner_to_block": {},
+            "block_to_host": {},
+            "blocks": [],
+            "reusable_blocks": [],
+            "assignment": null,
+            "routing": ""
+          },
+          {
+            "name": "zone-2",
+            "hosts": null,
+            "groups": [
+              {
+                "name": "zone-2-rack-1",
+                "hosts": [
+                  {
+                    "name": "ip-192-168-64-12",
+                    "ip": "192.168.64.12",
+                    "agent_port": 9604,
+                    "tags": {
+                      "beta.kubernetes.io/arch": "amd64",
+                      "beta.kubernetes.io/os": "linux",
+                      "kubernetes.io/hostname": "ip-192-168-64-12",
+                      "rack": "rack-1",
+                      "zone": "zone-2"
+                    }
+                  },
+                  {
+                    "name": "ip-192-168-64-11",
+                    "ip": "192.168.64.11",
+                    "agent_port": 9604,
+                    "tags": {
+                      "beta.kubernetes.io/arch": "amd64",
+                      "beta.kubernetes.io/os": "linux",
+                      "kubernetes.io/hostname": "ip-192-168-64-11",
+                      "rack": "rack-1",
+                      "zone": "zone-2"
+                    }
+                  }
+                ],
+                "groups": null,
+                "cidr": "10.125.8.0/22",
+                "block_to_owner": {
+                  "0": "a7e734cd05c94bbeb0b456fe4773a5e5:default",
+                  "1": "a7e734cd05c94bbeb0b456fe4773a5e5:default"
+                },
+                "owner_to_block": {
+                  "a7e734cd05c94bbeb0b456fe4773a5e5:default": [
+                    0,
+                    1
+                  ]
+                },
+                "block_to_host": {
+                  "0": "ip-192-168-64-12",
+                  "1": "ip-192-168-64-11"
+                },
+                "blocks": [
+                  {
+                    "cidr": "10.125.8.0/29",
+                    "pool": {
+                      "Ranges": [
+                        {
+                          "Min": 175966209,
+                          "Max": 175966215
+                        }
+                      ],
+                      "OrigMin": 175966208,
+                      "OrigMax": 175966215
+                    },
+                    "revision": 25
+                  },
+                  {
+                    "cidr": "10.125.8.8/29",
+                    "pool": {
+                      "Ranges": [
+                        {
+                          "Min": 175966217,
+                          "Max": 175966223
+                        }
+                      ],
+                      "OrigMin": 175966216,
+                      "OrigMax": 175966223
+                    },
+                    "revision": 21
+                  }
+                ],
+                "reusable_blocks": [],
+                "assignment": {
+                  "rack": "rack-1",
+                  "zone": "zone-2"
+                },
+                "routing": ""
+              },
+              {
+                "name": "zone-2-rack-2",
+                "hosts": [],
+                "groups": null,
+                "cidr": "10.125.12.0/22",
+                "block_to_owner": {},
+                "owner_to_block": {},
+                "block_to_host": {},
+                "blocks": [],
+                "reusable_blocks": [],
+                "assignment": {
+                  "rack": "rack-2",
+                  "zone": "zone-2"
+                },
+                "routing": ""
+              }
+            ],
+            "cidr": "10.125.8.0/21",
+            "block_to_owner": {},
+            "owner_to_block": {},
+            "block_to_host": {},
+            "blocks": [],
+            "reusable_blocks": [],
+            "assignment": null,
+            "routing": ""
+          }
+        ],
+        "cidr": "",
+        "block_to_owner": null,
+        "owner_to_block": null,
+        "block_to_host": null,
+        "blocks": null,
+        "reusable_blocks": null,
+        "assignment": null,
+        "routing": ""
+      },
+      "revision": 85
+    }
+  },
+  "AllocationRevision": 150,
+  "TopologyRevision": 6,
+  "address_name_to_ip": {
+    "093c0e24-1729-431e-8588-373a8d895a01": "10.125.0.0",
+    "13cc546b-db7b-49ba-8585-b87760768f42": "10.115.8.8",
+    "4971f9b2-e71a-4ee2-8ea4-c36ff2e3251a": "10.115.0.8",
+    "5d6e1dbe-4dbb-420c-aa9c-08f22e517be1": "10.125.0.8",
+    "5debbf62-4fca-4bb3-a44b-e50480f42861": "10.115.0.0",
+    "7b0b6cc0-5499-40f6-ab9a-5cbcffa80be8": "10.115.8.0",
+    "9bd17c85-33e5-424b-ac5f-5d1058286cce": "10.115.0.9",
+    "b2c49bc0-fdb9-44a2-9b77-dbc0e2f16e32": "10.125.8.8",
+    "c0c38292-231e-4149-839a-8c821b1e6e02": "10.125.0.1",
+    "cb824144-46de-4d74-8152-7c2bed135bdb": "10.125.8.0"
+  },
+  "tenant_to_network": {
+    "35847ea4489e47e0aa7a9a7ea3d9241b": [
+      "production-network"
+    ],
+    "a7e734cd05c94bbeb0b456fe4773a5e5": [
+      "test-network"
+    ]
+  }
+}
