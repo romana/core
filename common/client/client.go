@@ -16,15 +16,15 @@
 package client
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"sync"
 
-	"encoding/json"
-
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
 	"github.com/romana/core/common/log/trace"
+
 	log "github.com/romana/rlog"
 )
 
@@ -519,4 +519,100 @@ func (c *Client) AddRomanaIP(e api.ExposedIPSpec) error {
 func (c *Client) DeleteRomanaIP(romanaIP string) error {
 	_, err := c.Store.Delete(RomanaIPPrefix + "/" + romanaIP)
 	return err
+}
+
+// GetTopology returns the representation of latest topology in store.
+func (c *Client) GetTopology() (interface{}, error) {
+	ch, err := c.ipamLocker.Lock()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get ipam lock: %s", err)
+	}
+	defer c.ipamLocker.Unlock()
+
+	kv, err := c.Store.Get(ipamDataKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch ipam information: %s", err)
+	}
+
+	select {
+	case lockError := <-ch:
+		return nil, fmt.Errorf("failed to hold on to ipam lock: %s", lockError)
+	default:
+	}
+
+	ipamState := &IPAM{}
+	err = json.Unmarshal(kv.Value, ipamState)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal ipam information: %s", err)
+	}
+
+	select {
+	case lockError := <-ch:
+		return nil, fmt.Errorf("failed to hold on to ipam lock: %s", lockError)
+	default:
+	}
+
+	return getTopologyFromIPAMState(ipamState), nil
+}
+
+func getTopologyFromIPAMState(ipamState *IPAM) interface{} {
+	if ipamState == nil {
+		return nil
+	}
+
+	topology := api.TopologyUpdateRequest{}
+
+	for _, network := range ipamState.Networks {
+		var tenants []string
+		var networks []string
+
+		for t, n := range ipamState.TenantToNetwork {
+			for i := range n {
+				if n[i] == network.Name {
+					tenants = append(tenants, t)
+					networks = append(networks, n[i])
+				}
+			}
+		}
+
+		topology.Networks = append(topology.Networks, api.NetworkDefinition{
+			Name:      network.Name,
+			CIDR:      network.CIDR.String(),
+			BlockMask: network.BlockMask,
+			Tenants:   tenants,
+		})
+
+		var maps []api.GroupOrHost
+		if network.Group != nil && (len(network.Group.Groups) > 0) {
+			for i := range network.Group.Groups {
+				var subgroups []api.GroupOrHost
+
+				if network.Group.Groups[i].Groups != nil &&
+					(len(network.Group.Groups[i].Groups) > 0) {
+					for j := range network.Group.Groups[i].Groups {
+						subgroups = append(subgroups, api.GroupOrHost{
+							Assignment: network.Group.Groups[i].Groups[j].Assignment,
+							Routing:    network.Group.Groups[i].Groups[j].Routing,
+							Name:       network.Group.Groups[i].Groups[j].Name,
+							Groups:     []api.GroupOrHost{},
+						})
+					}
+				}
+
+				maps = append(maps, api.GroupOrHost{
+					Assignment: network.Group.Groups[i].Assignment,
+					Routing:    network.Group.Groups[i].Routing,
+					Name:       network.Group.Groups[i].Name,
+					Groups:     subgroups,
+				})
+			}
+		}
+
+		topology.Topologies = append(topology.Topologies, api.TopologyDefinition{
+			Networks: networks,
+			Map:      maps,
+		})
+	}
+
+	return &topology
 }

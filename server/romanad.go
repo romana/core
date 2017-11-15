@@ -107,7 +107,11 @@ func (r *Romanad) Routes() common.Routes {
 			Pattern: "/networks",
 			Handler: r.listNetworks,
 		},
-
+		common.Route{
+			Method:  "GET",
+			Pattern: "/topology",
+			Handler: r.getTopology,
+		},
 		common.Route{
 			Method:      "POST",
 			Pattern:     "/topology",
