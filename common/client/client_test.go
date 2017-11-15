@@ -17,6 +17,7 @@ package client
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"reflect"
 	"testing"
@@ -24,45 +25,62 @@ import (
 	"github.com/romana/core/common/api"
 )
 
-func Test_getTopologyFromIPAMState(t *testing.T) {
-	type args struct {
-		ipamState *IPAM
-	}
+type testcase struct {
+	name string
+	ipam *IPAM
+	want interface{}
+}
 
-	input, err := ioutil.ReadFile("testdata/TestTopologyGetInputMultiNetworks.json")
+func loadTestFiles(name string, inFile string, outFile string) (testcase, error) {
+	input, err := ioutil.ReadFile(inFile)
 	if err != nil {
-		t.Fatalf("getTopology(): error reading test input file: %s", err)
+		return testcase{}, fmt.Errorf("error reading test input file: %s", err)
 	}
-	output, err := ioutil.ReadFile("testdata/TestTopologyGetOutputMultiNetworks.json")
+	output, err := ioutil.ReadFile(outFile)
 	if err != nil {
-		t.Fatalf("getTopology(): error reading test output file: %s", err)
+		return testcase{}, fmt.Errorf("error reading test output file: %s", err)
 	}
 
 	ipamState := &IPAM{}
 	err = json.Unmarshal(input, ipamState)
 	if err != nil {
-		t.Fatalf("failed to unmarshal ipam information: %s", err)
+		return testcase{}, fmt.Errorf("failed to unmarshal ipam information: %s", err)
 	}
 	topologyState := &api.TopologyUpdateRequest{}
 	err = json.Unmarshal(output, topologyState)
 	if err != nil {
-		t.Fatalf("failed to unmarshal topology information: %s", err)
+		return testcase{}, fmt.Errorf("failed to unmarshal topology information: %s", err)
 	}
 
-	tests := []struct {
-		name string
-		args args
-		want interface{}
-	}{
-		{
-			"TopologyMultiNetwork",
-			args{ipamState},
-			topologyState,
+	return testcase{name, ipamState, topologyState}, nil
+}
+
+func Test_getTopologyFromIPAMState(t *testing.T) {
+	var testcases []testcase
+
+	testfiles := map[string][]string{
+		"multinetwork": {
+			"testdata/TestTopologyGetInputMultiNetworks.json",
+			"testdata/TestTopologyGetOutputMultiNetworks.json",
+		},
+		"kubeadm": {
+			"testdata/TestTopologyGetInputKubeadm.json",
+			"testdata/TestTopologyGetOutputKubeadm.json",
 		},
 	}
-	for _, tt := range tests {
+
+	for name, file := range testfiles {
+		tc, err := loadTestFiles(name, file[0], file[1])
+		if err != nil {
+			t.Errorf("error loading test files: %s", err)
+			continue
+		}
+		testcases = append(testcases, tc)
+	}
+
+	for _, tt := range testcases {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := getTopologyFromIPAMState(tt.args.ipamState); !reflect.DeepEqual(got, tt.want) {
+			if got := getTopologyFromIPAMState(tt.ipam); !reflect.DeepEqual(got, tt.want) {
 				bodyGot, errGot := json.MarshalIndent(got, "", "\t")
 				bodyWant, errWant := json.MarshalIndent(tt.want, "", "\t")
 				if errGot == nil && errWant == nil {

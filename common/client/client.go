@@ -585,7 +585,7 @@ func getTopologyFromIPAMState(ipamState *IPAM) interface{} {
 		var maps []api.GroupOrHost
 		if network.Group != nil && (len(network.Group.Groups) > 0) {
 			for i := range network.Group.Groups {
-				var subgroups []api.GroupOrHost
+				subgroups := []api.GroupOrHost{}
 
 				if network.Group.Groups[i].Groups != nil &&
 					(len(network.Group.Groups[i].Groups) > 0) {
