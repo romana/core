@@ -25,10 +25,12 @@
       "map": [
         {
           "name": "zone-1",
+          "cidr": "10.115.0.0/21",
           "groups": [
             {
               "name": "zone-1-rack-1",
               "groups": [],
+              "cidr": "10.115.0.0/22",
               "assignment": {
                 "zone": "zone-1",
                 "rack": "rack-1"
@@ -37,6 +39,7 @@
             {
               "name": "zone-1-rack-2",
               "groups": [],
+              "cidr": "10.115.4.0/22",
               "assignment": {
                 "zone": "zone-1",
                 "rack": "rack-2"
@@ -46,10 +49,12 @@
         },
         {
           "name": "zone-2",
+          "cidr": "10.115.8.0/21",
           "groups": [
             {
               "name": "zone-2-rack-1",
               "groups": [],
+              "cidr": "10.115.8.0/22",
               "assignment": {
                 "zone": "zone-2",
                 "rack": "rack-1"
@@ -58,6 +63,7 @@
             {
               "name": "zone-2-rack-2",
               "groups": [],
+              "cidr": "10.115.12.0/22",
               "assignment": {
                 "zone": "zone-2",
                 "rack": "rack-2"
@@ -74,10 +80,12 @@
       "map": [
         {
           "name": "zone-1",
+          "cidr": "10.125.0.0/21",
           "groups": [
             {
               "name": "zone-1-rack-1",
               "groups": [],
+              "cidr": "10.125.0.0/22",
               "assignment": {
                 "zone": "zone-1",
                 "rack": "rack-1"
@@ -86,6 +94,7 @@
             {
               "name": "zone-1-rack-2",
               "groups": [],
+              "cidr": "10.125.4.0/22",
               "assignment": {
                 "zone": "zone-1",
                 "rack": "rack-2"
@@ -95,10 +104,12 @@
         },
         {
           "name": "zone-2",
+          "cidr": "10.125.8.0/21",
           "groups": [
             {
               "name": "zone-2-rack-1",
               "groups": [],
+              "cidr": "10.125.8.0/22",
               "assignment": {
                 "zone": "zone-2",
                 "rack": "rack-1"
@@ -107,6 +118,7 @@
             {
               "name": "zone-2-rack-2",
               "groups": [],
+              "cidr": "10.125.12.0/22",
               "assignment": {
                 "zone": "zone-2",
                 "rack": "rack-2"

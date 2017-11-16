@@ -590,19 +590,32 @@ func getTopologyFromIPAMState(ipamState *IPAM) interface{} {
 				if network.Group.Groups[i].Groups != nil &&
 					(len(network.Group.Groups[i].Groups) > 0) {
 					for j := range network.Group.Groups[i].Groups {
+
+						var cidr string
+						if network.Group.Groups[i].Groups[j].CIDR.IPNet != nil {
+							cidr = network.Group.Groups[i].Groups[j].CIDR.IPNet.String()
+						}
+
 						subgroups = append(subgroups, api.GroupOrHost{
 							Assignment: network.Group.Groups[i].Groups[j].Assignment,
 							Routing:    network.Group.Groups[i].Groups[j].Routing,
 							Name:       network.Group.Groups[i].Groups[j].Name,
+							CIDR:       cidr,
 							Groups:     []api.GroupOrHost{},
 						})
 					}
+				}
+
+				var cidr string
+				if network.Group.Groups[i].CIDR.IPNet != nil {
+					cidr = network.Group.Groups[i].CIDR.IPNet.String()
 				}
 
 				maps = append(maps, api.GroupOrHost{
 					Assignment: network.Group.Groups[i].Assignment,
 					Routing:    network.Group.Groups[i].Routing,
 					Name:       network.Group.Groups[i].Name,
+					CIDR:       cidr,
 					Groups:     subgroups,
 				})
 			}
