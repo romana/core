@@ -37,15 +37,37 @@
               "groups": [
                 {
                   "name": "ip-192-168-0-10",
-                  "ip": "192.168.0.10"
+                  "ip": "192.168.0.10",
+                  "assignment": {
+                    "beta.kubernetes.io/arch": "amd64",
+                    "beta.kubernetes.io/os": "linux",
+                    "kubernetes.io/hostname": "ip-192-168-0-10",
+                    "node-role.kubernetes.io/master": "",
+                    "rack": "rack-1",
+                    "zone": "zone-1"
+                  }
                 },
                 {
                   "name": "ip-192-168-0-12",
-                  "ip": "192.168.0.12"
+                  "ip": "192.168.0.12",
+                  "assignment": {
+                    "beta.kubernetes.io/arch": "amd64",
+                    "beta.kubernetes.io/os": "linux",
+                    "kubernetes.io/hostname": "ip-192-168-0-12",
+                    "rack": "rack-1",
+                    "zone": "zone-1"
+                  }
                 },
                 {
                   "name": "ip-192-168-0-11",
-                  "ip": "192.168.0.11"
+                  "ip": "192.168.0.11",
+                  "assignment": {
+                    "beta.kubernetes.io/arch": "amd64",
+                    "beta.kubernetes.io/os": "linux",
+                    "kubernetes.io/hostname": "ip-192-168-0-11",
+                    "rack": "rack-1",
+                    "zone": "zone-1"
+                  }
                 }
               ]
             },
@@ -73,11 +95,25 @@
               "groups": [
                 {
                   "name": "ip-192-168-64-12",
-                  "ip": "192.168.64.12"
+                  "ip": "192.168.64.12",
+                  "assignment": {
+                    "beta.kubernetes.io/arch": "amd64",
+                    "beta.kubernetes.io/os": "linux",
+                    "kubernetes.io/hostname": "ip-192-168-64-12",
+                    "rack": "rack-1",
+                    "zone": "zone-2"
+                  }
                 },
                 {
                   "name": "ip-192-168-64-11",
-                  "ip": "192.168.64.11"
+                  "ip": "192.168.64.11",
+                  "assignment": {
+                    "beta.kubernetes.io/arch": "amd64",
+                    "beta.kubernetes.io/os": "linux",
+                    "kubernetes.io/hostname": "ip-192-168-64-11",
+                    "rack": "rack-1",
+                    "zone": "zone-2"
+                  }
                 }
               ]
             },
@@ -112,15 +148,37 @@
               "groups": [
                 {
                   "name": "ip-192-168-0-10",
-                  "ip": "192.168.0.10"
+                  "ip": "192.168.0.10",
+                  "assignment": {
+                    "beta.kubernetes.io/arch": "amd64",
+                    "beta.kubernetes.io/os": "linux",
+                    "kubernetes.io/hostname": "ip-192-168-0-10",
+                    "node-role.kubernetes.io/master": "",
+                    "rack": "rack-1",
+                    "zone": "zone-1"
+                  }
                 },
                 {
                   "name": "ip-192-168-0-12",
-                  "ip": "192.168.0.12"
+                  "ip": "192.168.0.12",
+                  "assignment": {
+                    "beta.kubernetes.io/arch": "amd64",
+                    "beta.kubernetes.io/os": "linux",
+                    "kubernetes.io/hostname": "ip-192-168-0-12",
+                    "rack": "rack-1",
+                    "zone": "zone-1"
+                  }
                 },
                 {
                   "name": "ip-192-168-0-11",
-                  "ip": "192.168.0.11"
+                  "ip": "192.168.0.11",
+                  "assignment": {
+                    "beta.kubernetes.io/arch": "amd64",
+                    "beta.kubernetes.io/os": "linux",
+                    "kubernetes.io/hostname": "ip-192-168-0-11",
+                    "rack": "rack-1",
+                    "zone": "zone-1"
+                  }
                 }
               ]
             },
@@ -148,11 +206,25 @@
               "groups": [
                 {
                   "name": "ip-192-168-64-12",
-                  "ip": "192.168.64.12"
+                  "ip": "192.168.64.12",
+                  "assignment": {
+                    "beta.kubernetes.io/arch": "amd64",
+                    "beta.kubernetes.io/os": "linux",
+                    "kubernetes.io/hostname": "ip-192-168-64-12",
+                    "rack": "rack-1",
+                    "zone": "zone-2"
+                  }
                 },
                 {
                   "name": "ip-192-168-64-11",
-                  "ip": "192.168.64.11"
+                  "ip": "192.168.64.11",
+                  "assignment": {
+                    "beta.kubernetes.io/arch": "amd64",
+                    "beta.kubernetes.io/os": "linux",
+                    "kubernetes.io/hostname": "ip-192-168-64-11",
+                    "rack": "rack-1",
+                    "zone": "zone-2"
+                  }
                 }
               ]
             },

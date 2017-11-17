@@ -80,6 +80,9 @@ func Test_getTopologyFromIPAMState(t *testing.T) {
 
 	for _, tt := range testcases {
 		t.Run(tt.name, func(t *testing.T) {
+			// TODO: got and tt.want below are not sorted, so there is a fair chance the
+			// testcases here may fail, in which case this needs to be fixed by sorting
+			// it first.
 			if got := getTopologyFromIPAMState(tt.ipam); !reflect.DeepEqual(got, tt.want) {
 				bodyGot, errGot := json.MarshalIndent(got, "", "\t")
 				bodyWant, errWant := json.MarshalIndent(tt.want, "", "\t")

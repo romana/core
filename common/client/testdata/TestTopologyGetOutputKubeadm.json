@@ -16,6 +16,18 @@
       ],
       "map": [
         {
+          "groups": [
+            {
+              "assignment": {
+                "beta.kubernetes.io/arch": "amd64",
+                "beta.kubernetes.io/os": "linux",
+                "kubernetes.io/hostname": "ip-192-168-99-10",
+                "node-role.kubernetes.io/master": ""
+              },
+              "name": "ip-192-168-99-10",
+              "ip": "192.168.99.10"
+            }
+          ],
           "name": "host-group-01",
           "cidr": "10.112.0.0/15"
         },

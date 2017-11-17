@@ -583,53 +583,16 @@ func getTopologyFromIPAMState(ipamState *IPAM) interface{} {
 		})
 
 		var maps []api.GroupOrHost
-		if network.Group != nil && (len(network.Group.Groups) > 0) {
-			for i := range network.Group.Groups {
-				var subgroups []api.GroupOrHost
-
-				if network.Group.Groups[i].Groups != nil &&
-					(len(network.Group.Groups[i].Groups) > 0) {
-					for j := range network.Group.Groups[i].Groups {
-
-						var cidr string
-						if network.Group.Groups[i].Groups[j].CIDR.IPNet != nil {
-							cidr = network.Group.Groups[i].Groups[j].CIDR.IPNet.String()
-						}
-
-						var hosts []api.GroupOrHost
-						if len(network.Group.Groups[i].Groups[j].Hosts) > 0 {
-							for k := range network.Group.Groups[i].Groups[j].Hosts {
-								if network.Group.Groups[i].Groups[j].Hosts[k] != nil {
-									hosts = append(hosts, api.GroupOrHost{
-										Name: network.Group.Groups[i].Groups[j].Hosts[k].Name,
-										IP:   network.Group.Groups[i].Groups[j].Hosts[k].IP,
-									})
-								}
-							}
-						}
-
-						subgroups = append(subgroups, api.GroupOrHost{
-							Assignment: network.Group.Groups[i].Groups[j].Assignment,
-							Routing:    network.Group.Groups[i].Groups[j].Routing,
-							Name:       network.Group.Groups[i].Groups[j].Name,
-							CIDR:       cidr,
-							Groups:     hosts,
-						})
-					}
+		if network.Group != nil {
+			if network.Group.Hosts != nil && len(network.Group.Hosts) > 0 {
+				for _, host := range addHosts(network.Group.Hosts) {
+					maps = append(maps, host)
 				}
-
-				var cidr string
-				if network.Group.Groups[i].CIDR.IPNet != nil {
-					cidr = network.Group.Groups[i].CIDR.IPNet.String()
+			}
+			if network.Group.Groups != nil && len(network.Group.Groups) > 0 {
+				for _, group := range addGroups(network.Group.Groups, 0) {
+					maps = append(maps, group)
 				}
-
-				maps = append(maps, api.GroupOrHost{
-					Assignment: network.Group.Groups[i].Assignment,
-					Routing:    network.Group.Groups[i].Routing,
-					Name:       network.Group.Groups[i].Name,
-					CIDR:       cidr,
-					Groups:     subgroups,
-				})
 			}
 		}
 
@@ -640,4 +603,67 @@ func getTopologyFromIPAMState(ipamState *IPAM) interface{} {
 	}
 
 	return &topology
+}
+
+// addHosts adds host information to topology map.
+func addHosts(hosts []*Host) []api.GroupOrHost {
+	var rHosts []api.GroupOrHost
+
+	for _, host := range hosts {
+		if host != nil {
+			rHosts = append(rHosts, api.GroupOrHost{
+				Name:       host.Name,
+				IP:         host.IP,
+				Assignment: host.Tags,
+			})
+		}
+	}
+
+	return rHosts
+}
+
+// addGroups recursively adds groups or hosts to topology map.
+func addGroups(groups []*Group, level uint) []api.GroupOrHost {
+	var rGroups []api.GroupOrHost
+
+	// currently addGroups can recursively call itself as many times
+	// as possible but we want prevent it here to about 20 levels to
+	// maintain a balance between giving enough topology information
+	// out to the user and not falling in loops.
+	if level >= 20 {
+		return rGroups
+	}
+
+	for _, group := range groups {
+		if group != nil {
+			var subgroups []api.GroupOrHost
+
+			if group.Hosts != nil && len(group.Hosts) > 0 {
+				for _, host := range addHosts(group.Hosts) {
+					subgroups = append(subgroups, host)
+				}
+			}
+
+			if group.Groups != nil && len(group.Groups) > 0 {
+				for _, group := range addGroups(group.Groups, level+1) {
+					subgroups = append(subgroups, group)
+				}
+			}
+
+			var cidr string
+			if group.CIDR.IPNet != nil {
+				cidr = group.CIDR.IPNet.String()
+			}
+
+			rGroups = append(rGroups, api.GroupOrHost{
+				Name:       group.Name,
+				Routing:    group.Routing,
+				CIDR:       cidr,
+				Assignment: group.Assignment,
+				Groups:     subgroups,
+			})
+		}
+	}
+
+	return rGroups
 }
