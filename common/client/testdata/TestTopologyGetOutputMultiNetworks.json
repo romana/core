@@ -29,16 +29,28 @@
           "groups": [
             {
               "name": "zone-1-rack-1",
-              "groups": [],
               "cidr": "10.115.0.0/22",
               "assignment": {
                 "zone": "zone-1",
                 "rack": "rack-1"
-              }
+              },
+              "groups": [
+                {
+                  "name": "ip-192-168-0-10",
+                  "ip": "192.168.0.10"
+                },
+                {
+                  "name": "ip-192-168-0-12",
+                  "ip": "192.168.0.12"
+                },
+                {
+                  "name": "ip-192-168-0-11",
+                  "ip": "192.168.0.11"
+                }
+              ]
             },
             {
               "name": "zone-1-rack-2",
-              "groups": [],
               "cidr": "10.115.4.0/22",
               "assignment": {
                 "zone": "zone-1",
@@ -53,16 +65,24 @@
           "groups": [
             {
               "name": "zone-2-rack-1",
-              "groups": [],
               "cidr": "10.115.8.0/22",
               "assignment": {
                 "zone": "zone-2",
                 "rack": "rack-1"
-              }
+              },
+              "groups": [
+                {
+                  "name": "ip-192-168-64-12",
+                  "ip": "192.168.64.12"
+                },
+                {
+                  "name": "ip-192-168-64-11",
+                  "ip": "192.168.64.11"
+                }
+              ]
             },
             {
               "name": "zone-2-rack-2",
-              "groups": [],
               "cidr": "10.115.12.0/22",
               "assignment": {
                 "zone": "zone-2",
@@ -84,16 +104,28 @@
           "groups": [
             {
               "name": "zone-1-rack-1",
-              "groups": [],
               "cidr": "10.125.0.0/22",
               "assignment": {
                 "zone": "zone-1",
                 "rack": "rack-1"
-              }
+              },
+              "groups": [
+                {
+                  "name": "ip-192-168-0-10",
+                  "ip": "192.168.0.10"
+                },
+                {
+                  "name": "ip-192-168-0-12",
+                  "ip": "192.168.0.12"
+                },
+                {
+                  "name": "ip-192-168-0-11",
+                  "ip": "192.168.0.11"
+                }
+              ]
             },
             {
               "name": "zone-1-rack-2",
-              "groups": [],
               "cidr": "10.125.4.0/22",
               "assignment": {
                 "zone": "zone-1",
@@ -108,16 +140,24 @@
           "groups": [
             {
               "name": "zone-2-rack-1",
-              "groups": [],
               "cidr": "10.125.8.0/22",
               "assignment": {
                 "zone": "zone-2",
                 "rack": "rack-1"
-              }
+              },
+              "groups": [
+                {
+                  "name": "ip-192-168-64-12",
+                  "ip": "192.168.64.12"
+                },
+                {
+                  "name": "ip-192-168-64-11",
+                  "ip": "192.168.64.11"
+                }
+              ]
             },
             {
               "name": "zone-2-rack-2",
-              "groups": [],
               "cidr": "10.125.12.0/22",
               "assignment": {
                 "zone": "zone-2",
