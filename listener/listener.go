@@ -25,6 +25,7 @@ import (
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
 	"github.com/romana/core/common/client"
+	"github.com/romana/core/common/log/trace"
 
 	log "github.com/romana/rlog"
 	"k8s.io/client-go/kubernetes"
@@ -34,6 +35,7 @@ import (
 const (
 	defaultSegmentLabelName = "romana.io/segment"
 	defaultTenantLabelName  = "namespace"
+	defaultSyncIntervalStr  = "30s"
 )
 
 // KubeListener is a Service that listens to updates
@@ -57,10 +59,16 @@ type KubeListener struct {
 	// A mutex is required because of watchers emitting events in
 	// separate goroutines
 	sync.RWMutex
-	nodeStore       cache.Store
-	nodeStoreSynced bool
-	syncNodesAfter  time.Time
-	policiesSynced  bool
+	policiesSynced bool
+
+	nodeStore cache.Store
+
+	// This is intended to lock for the purposes of changing
+	// syncNodesRunning flag. See documentation for syncNodes() for the rest.
+	syncNodesMutex   sync.Locker
+	syncNodesRunning bool
+	syncTicker       *time.Ticker
+	syncInterval     time.Duration
 }
 
 // Routes returns various routes used in the service.
@@ -92,6 +100,16 @@ func (l *KubeListener) loadConfig() error {
 		return err
 	}
 
+	var syncInterval string
+	syncInterval, err = l.client.Store.GetString(configPrefix+"syncInterval", defaultSyncIntervalStr)
+	if err != nil {
+		return err
+	}
+	l.syncInterval, err = time.ParseDuration(syncInterval)
+	if err != nil {
+		return err
+	}
+
 	if err := l.kubeClientInit(); err != nil {
 		return fmt.Errorf("Error while loading kubernetes client %s", err)
 	}
@@ -111,6 +129,7 @@ func (l *KubeListener) addNetworkPolicy(policy api.Policy) error {
 
 func (l *KubeListener) Initialize(clientConfig common.Config) error {
 	var err error
+	l.syncNodesMutex = &sync.Mutex{}
 	l.client, err = client.NewClient(&clientConfig)
 	if err != nil {
 		return err
@@ -149,9 +168,17 @@ func (l *KubeListener) Initialize(clientConfig common.Config) error {
 
 	l.startRomanaIPSync(done)
 
-	// Actually do this after all the watches started; since addition and deletion
-	// of hosts are idempotent, this will allow us to definitely not lose anything.
-	//	l.syncNodes()
+	log.Infof("Starting sync ticker with %s", l.syncInterval)
+	l.syncTicker = time.NewTicker(l.syncInterval)
+	go func() {
+		for {
+			select {
+			case t := <-l.syncTicker.C:
+				log.Tracef(trace.Inside, "Entering timed syncNodes() at %s\n", t)
+				l.syncNodes()
+			}
+		}
+	}()
 	log.Info("All routines started")
 	return nil
 }

@@ -22,13 +22,14 @@ package listener
 import (
 	"fmt"
 	"net"
-	"os"
+	"reflect"
 	"time"
 
 	log "github.com/romana/rlog"
 
 	romanaApi "github.com/romana/core/common/api"
 	romanaErrors "github.com/romana/core/common/api/errors"
+
 	"github.com/romana/core/common/log/trace"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/pkg/api"
@@ -59,93 +60,118 @@ func (l *KubeListener) kubeClientInit() error {
 	return nil
 }
 
-// syncNodes checks what nodes are defined in K8S cluster vs
-// hosts defined in Romana and synchronizes them.
-func (l *KubeListener) syncNodes() {
-	var err error
-	l.Lock()
-	defer l.Unlock()
-
-	if !l.nodeStoreSynced {
-		log.Debug("waiting for synchronization to complete")
-		return
-	}
-	if time.Now().Before(l.syncNodesAfter) {
-		log.Debugf("waiting until %v to execute sync", l.syncNodesAfter)
-		return
-	}
-	l.syncNodesAfter = l.syncNodesAfter.Add(time.Minute)
-
-	nodesIfc := l.nodeStore.List()
+// nodeToHost converts a K8S node object to Romana host object.
+func (l *KubeListener) nodeToHost(n interface{}) (romanaApi.Host, error) {
 	var node *v1.Node
 	var ok bool
+	host := romanaApi.Host{}
+
+	if node, ok = n.(*v1.Node); !ok {
+		return host, fmt.Errorf("Expected node object, got %s: %T", n, n)
+	}
+	if node.Name == "" || node.Status.Addresses == nil || len(node.Status.Addresses) == 0 {
+		return host, fmt.Errorf("Received invalid node name or IP Address: (%#v)", node)
+	}
+	host.Name = node.Name
+	hostIP := net.ParseIP(node.Status.Addresses[0].Address)
+	if hostIP == nil {
+		return host, fmt.Errorf("Cannot parse address of node %s: %s", node.Name, node.Status.Addresses[0].Address)
+	}
+	host.IP = hostIP
+	host.Tags = node.GetLabels()
+
+	return host, nil
+}
+
+// syncNodes checks what nodes are defined in K8S cluster vs
+// hosts defined in Romana and synchronizes them.
+// In case syncNodes() is called multiple
+// times, it would lock here, check the status of syncNodesRunning flag
+// and bail out if there is another instance of syncNodes() running.
+// Note that that can only happen when the syncNodes() routine was taking
+// so long that the next scheduled one has started, which is unlikely,
+// but it doesn't hurt to ensure that they don't step on each other.
+// Note also that individual handlers (on node add/delete/update) will not
+// synchronize -- in the worst case, they will fail and be picked up by next
+// synchronization.
+func (l *KubeListener) syncNodes() {
+	log.Trace(trace.Inside, "Entering syncNodes()\n")
+
+	var err error
+	l.syncNodesMutex.Lock()
+	if l.syncNodesRunning {
+		// This really can only happen if syncNodes was taking too long
+		// and the next scheduled syncNodes started. Very unlikely, but
+		// doesn'thurt to check.
+		log.Infof("syncNodes() already running, will exit.")
+		l.syncNodesMutex.Unlock()
+		return
+	}
+	l.syncNodesRunning = true
+	l.syncNodesMutex.Unlock()
+
+	k8sNodesList := l.nodeStore.List()
 
 	romanaHostList := l.client.IPAM.ListHosts()
-	for _, nodeIfc := range nodesIfc {
-		// This is not super-efficient but as we don't have that many hosts for now
-		// to deal with, it can do.
-		node, ok = nodeIfc.(*v1.Node)
-		if !ok {
-			log.Tracef(trace.Inside, "expected node object, got %#v", nodeIfc)
-			continue
-		}
-		if node.Name == "" || node.Status.Addresses == nil || len(node.Status.Addresses) == 0 {
-			log.Errorf("Received invalid node name or IP Address: (%#v)", node)
+	log.Debugf("Comparing Romana host list %d vs K8S node list %d", len(k8sNodesList), len(romanaHostList.Hosts))
+
+	var nodeInRomana bool
+	var romanaHost romanaApi.Host
+	var hostToAdd romanaApi.Host
+
+	for _, n := range k8sNodesList {
+		if hostToAdd, err = l.nodeToHost(n); err != nil {
+			log.Error(err)
 			continue
 		}
 
-		nodeInRomana := false
-		for _, romanaHost := range romanaHostList.Hosts {
-			if romanaHost.IP.String() == node.Status.Addresses[0].Address {
+		log.Tracef(trace.Inside, "Checking if node %s is in Romana", hostToAdd)
+
+		nodeInRomana = false
+		// This is not super-efficient but as we don't have that many hosts for now
+		// to deal with, it can do.
+		for _, romanaHost = range romanaHostList.Hosts {
+			if romanaHost.IP.String() == hostToAdd.IP.String() {
 				nodeInRomana = true
 				break
 			}
 		}
 		if !nodeInRomana {
-			ip := net.ParseIP(node.Status.Addresses[0].Address)
-			if ip == nil {
-				log.Errorf("Cannot parse node IP: %s", node.Status.Addresses[0].Address)
-				continue
-			}
-			host := romanaApi.Host{IP: ip,
-				Name: node.Name,
-				Tags: node.GetLabels(),
-			}
-			err = l.client.IPAM.AddHost(host)
-			if err == nil {
-				log.Debugf("Added host %s to Romana", host)
-			} else {
-				if _, ok := err.(romanaErrors.RomanaExistsError); ok {
-					log.Infof("Host %s already exists, ignoring addition.", host)
-				} else {
-					log.Errorf("Error adding host %s to Romana: %s", host, err)
-				}
+			log.Tracef(trace.Inside, "Trying to add host %s to Romana", hostToAdd)
+			if err = l.romanaHostAdd(hostToAdd); err != nil {
+				log.Error(err)
 			}
 		}
 	}
 
-	for _, romanaHost := range romanaHostList.Hosts {
-		hostInK8S := false
-		for _, nodeIfc := range nodesIfc {
-			node := nodeIfc.(*v1.Node)
-			if romanaHost.IP.String() == node.Status.Addresses[0].Address {
+	var hostToRemove romanaApi.Host
+	var hostInK8S bool
+
+	var node *v1.Node
+	for _, romanaHost = range romanaHostList.Hosts {
+		hostInK8S = false
+		for _, n := range k8sNodesList {
+			node = n.(*v1.Node)
+			if hostToRemove, err = l.nodeToHost(node); err != nil {
+				log.Error(err)
+				continue
+			}
+			if hostToRemove.IP.String() == romanaHost.IP.String() {
 				hostInK8S = true
 				break
 			}
 		}
+		log.Tracef(trace.Inside, "Checking if host %s is in K8S: %t", romanaHost, hostInK8S)
+
 		if !hostInK8S {
-			err = l.client.IPAM.RemoveHost(romanaHost)
-			if err == nil {
-				log.Infof("Removed host %s from Romana", romanaHost)
-			} else {
-				if _, ok := err.(romanaErrors.RomanaNotFoundError); ok {
-					log.Infof("Host %s not found exists, ignoring removal.", romanaHost)
-				} else {
-					log.Errorf("Error removing host %s from Romana: %s", romanaHost, err)
-				}
+			if err = l.romanaHostRemove(hostToRemove); err != nil {
+				log.Error(err)
 			}
 		}
 	}
+	l.syncNodesMutex.Lock()
+	l.syncNodesRunning = false
+	l.syncNodesMutex.Unlock()
 }
 
 // ProcessNodeEvents processes kubernetes node events, there by
@@ -167,84 +193,96 @@ func (l *KubeListener) ProcessNodeEvents(done <-chan struct{}) {
 	l.nodeStore, nodeInformer = cache.NewInformer(
 		nodeWatcher,
 		&v1.Node{},
+		// TODO this can also be configurable
 		time.Minute,
 		cache.ResourceEventHandlerFuncs{
-			AddFunc:    l.kubernetesNodeEventHandler,
+			AddFunc:    l.kubernetesAddNodeEventHandler,
 			UpdateFunc: l.kubernetesUpdateNodeEventHandler,
-			DeleteFunc: l.kubernetesNodeEventHandler,
+			DeleteFunc: l.kubernetesDeleteNodeEventHandler,
 		},
 	)
 
 	log.Infof("Starting receving node events.")
 
 	go nodeInformer.Run(done)
+}
 
-	// Wait for the list of nodes to synchronize
-	duration := 60 * time.Second
-	timeout := time.After(duration)
-
-	ticker := time.NewTicker(250 * time.Millisecond)
-	defer ticker.Stop()
-
-	log.Info("Waiting for node list to synchronize")
-	for {
-		select {
-		case <-timeout:
-			log.Errorf("timeout after %s while synchronizing nodes", duration)
-			os.Exit(1)
-		case <-ticker.C:
-			if nodeInformer.HasSynced() {
-				log.Info("node synchronization completed")
-				l.Lock()
-				l.nodeStoreSynced = true
-				l.syncNodesAfter = time.Now()
-				l.Unlock()
-				l.syncNodes()
-				return
-			}
-		}
+// kubernetesAddNodeEventHandler is called when Kubernetes reports an
+// add node event.
+func (l *KubeListener) kubernetesAddNodeEventHandler(n interface{}) {
+	if hostToAdd, err := l.nodeToHost(n); err != nil {
+		log.Errorf("Error handling node add event: %s", err)
+	} else if err = l.romanaHostAdd(hostToAdd); err != nil {
+		log.Errorf("Error handling node add event: %s", err)
 	}
 }
 
-// kubernetesNodeEventHandler is called when Kubernetes reports an
-// add/delete node event. It calls syncNodes to sync romana/kubernetes
-// host list.
-func (l *KubeListener) kubernetesNodeEventHandler(n interface{}) {
-	log.Debug("In kubernetesNodeEventHandler()")
-	_, ok := n.(*v1.Node)
-	if !ok {
-		log.Errorf("error processing node event received for node(%v)", n)
-		return
+// kubernetesDeleteNodeEventHandler is called when Kubernetes reports a
+// delete node event.
+func (l *KubeListener) kubernetesDeleteNodeEventHandler(n interface{}) {
+	if hostToRemove, err := l.nodeToHost(n); err != nil {
+		log.Errorf("Error handling node remove event: %s", err)
+	} else if err = l.romanaHostRemove(hostToRemove); err != nil {
+		log.Errorf("Error handling node remove event: %s", err)
 	}
-
-	l.RLock()
-	ready := l.nodeStoreSynced
-	l.RUnlock()
-	if !ready {
-		return
-	}
-
-	l.syncNodes()
 }
 
 // kubernetesUpdateNodeEventHandler is called when Kubernetes reports an
 // update node event. It calls syncNodes to sync romana/kubernetes
 // host list.
 func (l *KubeListener) kubernetesUpdateNodeEventHandler(o, n interface{}) {
-	log.Debug("In kubernetesUpdateNodeEventHandler()")
-
-	_, ok := n.(*v1.Node)
+	node, ok := n.(*v1.Node)
 	if !ok {
-		log.Errorf("Error processing Update Event received for node(%s) ", n)
+		log.Errorf("Expected Node object, received (%T: %s)", n, n)
+		return
+	}
+	oldNode, ok := o.(*v1.Node)
+	if !ok {
+		log.Errorf("Expected Node object, received (%T: %s)", o, o)
 		return
 	}
 
-	l.RLock()
-	ready := l.nodeStoreSynced
-	l.RUnlock()
-	if !ready {
+	host, err := l.nodeToHost(node)
+	if err != nil {
+		log.Errorf("Cannot update node %s: %s", node.Name, err)
 		return
 	}
 
-	l.syncNodes()
+	// There is only one reason for now to deal with this case: when labels change
+	if !reflect.DeepEqual(oldNode.GetLabels(), node.GetLabels()) {
+		log.Tracef(trace.Inside, "Update Node event received for %s: labels change from %v to %v", node.Name, oldNode.GetLabels(), node.GetLabels())
+		err = l.client.IPAM.UpdateHostLabels(host)
+		if err != nil {
+			log.Errorf("Cannot update node %s: %s", node.Name, err)
+		}
+	}
+}
+
+// romanaHostAdd connects to romana API and adds a node to
+// the romana cluster.
+func (l *KubeListener) romanaHostAdd(host romanaApi.Host) error {
+	var ok bool
+	err := l.client.IPAM.AddHost(host)
+	if err, ok = err.(romanaErrors.RomanaExistsError); ok {
+		log.Infof("Host %s already exists, ignoring addition.", host)
+		return nil
+	} else if err == nil {
+		log.Infof("Host (%s) successfully added to Romana cluster.", host)
+		return nil
+	}
+	return err
+}
+
+// romanaHostRemove connects to romana API and removes a node from
+// the romana cluster.
+func (l *KubeListener) romanaHostRemove(host romanaApi.Host) error {
+	err := l.client.IPAM.RemoveHost(host)
+	if _, ok := err.(romanaErrors.RomanaNotFoundError); ok {
+		log.Infof("Host %s is not found, ignoring removal", host)
+		return nil
+	} else if err == nil {
+		log.Infof("Host %s successfully removed from Romana cluster", host)
+		return nil
+	}
+	return err
 }

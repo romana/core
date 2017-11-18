@@ -21,6 +21,7 @@ import (
 	"math"
 	"math/big"
 	"net"
+	"reflect"
 	"regexp"
 	"strings"
 
@@ -172,7 +173,14 @@ type Host struct {
 }
 
 func (h Host) String() string {
-	return h.IP.String()
+	val := fmt.Sprintf("%s (%s)", h.IP, h.Name)
+	if h.Tags != nil && len(h.Tags) > 0 {
+		val += fmt.Sprintf(" Tags: %s", h.Tags)
+	}
+	if h.K8SInfo != nil && len(h.K8SInfo) > 0 {
+		val += fmt.Sprintf(" Kubernetes info: %s", h.K8SInfo)
+	}
+	return val
 }
 
 // Group holds either a list of hosts at a given level; it cannot
@@ -1367,6 +1375,58 @@ func (ipam *IPAM) ListNetworkBlocks(netName string) *api.IPAMBlocksResponse {
 			Blocks:   network.Group.GetBlocks(),
 		}
 		return resp
+	}
+	return nil
+}
+
+// UpdateHostLabels updates host's labels. Note that this does not check
+// the new labels against label assignment and whether that breaks anything;
+// that is a TODO
+func (ipam *IPAM) UpdateHostLabels(host api.Host) error {
+	// log.Tracef(trace.Inside, "UpdateHostLabels for %s", host)
+	ch, err := ipam.locker.Lock()
+	if err != nil {
+		return err
+	}
+	defer ipam.locker.Unlock()
+
+	if host.IP == nil && host.Name == "" {
+		return common.NewError("At least one of IP, Name must be specified to update a host")
+	}
+	updatedHost := false
+	foundHost := false
+	var hostToUpdate *Host
+	for _, net := range ipam.Networks {
+		hostToUpdate = nil
+		if host.IP == nil {
+			hostToUpdate = net.Group.findHostByName(host.Name)
+		} else {
+			hostToUpdate = net.Group.findHostByIP(host.IP.String())
+			if hostToUpdate != nil && host.Name != "" {
+				if hostToUpdate.Name != host.Name {
+					return fmt.Errorf("Found host with IP %s but it has name %s, not %s", host.IP, hostToUpdate.Name, host.Name)
+				}
+			}
+		}
+		if hostToUpdate == nil {
+			log.Tracef(trace.Inside, "Host %v (%s) not found in net %s\n", host.IP, host.Name, net.Name)
+			continue
+		}
+		foundHost = true
+		if !reflect.DeepEqual(hostToUpdate.Tags, host.Tags) {
+			log.Tracef(trace.Inside, "Updating host %s Tags with %v", hostToUpdate, host.Tags)
+			hostToUpdate.Tags = host.Tags
+			updatedHost = true
+		}
+	}
+	if updatedHost {
+		ipam.TopologyRevision++
+		err = ipam.save(ipam, ch)
+		if err != nil {
+			return err
+		}
+	} else if !foundHost {
+		return fmt.Errorf("No host found with IP %s and/or name %s", host.IP, host.Name)
 	}
 	return nil
 }
