@@ -296,11 +296,12 @@ func (hg *Group) findSmallestEligibleGroup(host *Host) *Group {
 func (hg *Group) addHost(host *Host) (bool, error) {
 	log.Tracef(trace.Inside, "Calling addHost(%s) on group %s", host.Name, hg.Name)
 	if hg.findHostByName(host.Name) != nil {
-		return false, errors.NewRomanaExistsError("", *host, "host", fmt.Sprintf("name=%s", host.Name))
+		return false, errors.NewRomanaExistsError(*host, "host", fmt.Sprintf("name=%s", host.Name))
 	}
 
 	if hg.findHostByIP(host.IP.String()) != nil {
-		return false, errors.NewRomanaExistsError("", *host, "host", fmt.Sprintf("IP=%s", host.IP))
+		err := errors.NewRomanaExistsError(*host, "host", fmt.Sprintf("IP=%s", host.IP))
+		return false, err
 	}
 
 	if host.AgentPort == 0 {
@@ -1092,12 +1093,14 @@ func (ipam *IPAM) AllocateIP(addressName string, host string, tenant string, seg
 	}
 
 	if addr, ok := latestIPAM.AddressNameToIP[addressName]; ok {
-		return nil, errors.NewRomanaExistsError(
+		err := errors.NewRomanaExistsErrorWithMessage(
 			fmt.Sprintf("Address with name %s already allocated: %s", addressName, addr),
-			addressName,
+			fmt.Sprintf("Address: %s", addressName),
 			"IP",
 			fmt.Sprintf("name=%s", addressName),
 			fmt.Sprintf("IP=%s", addr))
+
+		return nil, err
 
 	}
 

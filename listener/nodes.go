@@ -314,7 +314,7 @@ func (l *KubeListener) kubernetesUpdateNodeEventHandler(o, n interface{}) {
 func (l *KubeListener) romanaHostAdd(host romanaApi.Host) error {
 	var ok bool
 	err := l.client.IPAM.AddHost(host)
-	if err, ok = err.(romanaErrors.RomanaExistsError); ok {
+	if _, ok = err.(romanaErrors.RomanaExistsError); ok {
 		log.Infof("Host %s already exists, ignoring addition.", host)
 		return nil
 	} else if err == nil {
