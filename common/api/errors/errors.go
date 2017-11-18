@@ -17,6 +17,7 @@ package errors
 
 import (
 	"fmt"
+	log "github.com/romana/rlog"
 	"strings"
 )
 
