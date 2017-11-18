@@ -635,7 +635,7 @@ func addGroups(groups []*Group, level uint) []api.GroupOrHost {
 	}
 
 	for _, group := range groups {
-		if group != nil {
+		if group != nil && !group.Dummy {
 			var subgroups []api.GroupOrHost
 
 			if group.Hosts != nil && len(group.Hosts) > 0 {
