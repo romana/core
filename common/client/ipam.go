@@ -1417,13 +1417,7 @@ func (ipam *IPAM) UpdateHostLabels(host api.Host) error {
 		foundHost = true
 		log.Tracef(trace.Inside, "UpdateHostLabels: Checking %+v vs %+v", hostToUpdate.Tags, host.Tags)
 		if !reflect.DeepEqual(hostToUpdate.Tags, host.Tags) {
-			log.Tracef(trace.Inside, "UpdateHostLabels: Updating host %s Tags with %+v", hostToUpdate, host.Tags)
 			eligibilityCheckHost := &Host{Tags: host.Tags}
-			log.Tracef(trace.Inside, "UpdateHostLabels: Checking if host %s is eligible for group %s with assignment %s",
-				eligibilityCheckHost,
-				hostToUpdate.group.Name,
-				hostToUpdate.group.Assignment)
-
 			if !hostToUpdate.group.isHostEligible(eligibilityCheckHost) {
 				return fmt.Errorf("New tags for host %s (%+v) will result for host being ineligible for current group %s with assignment %s",
 					hostToUpdate,
