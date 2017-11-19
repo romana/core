@@ -163,3 +163,6 @@
 [submodule "vendor/github.com/prometheus/procfs"]
 	path = vendor/github.com/prometheus/procfs
 	url = https://github.com/prometheus/procfs
+[submodule "vendor/github.com/mohae/deepcopy"]
+	path = vendor/github.com/mohae/deepcopy
+	url = https://github.com/mohae/deepcopy.git
