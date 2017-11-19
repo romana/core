@@ -1244,3 +1244,46 @@ func TestPredefinedHosts(t *testing.T) {
 	initIpam(t, "")
 	t.Log(testSaver.lastJson)
 }
+
+func TestLabelUpdate(t *testing.T) {
+	var err error
+	t.Logf("TestLabelUpdate")
+	ipam = initIpam(t, "")
+
+	ip := net.ParseIP("192.168.1.1")
+	name := "host1"
+	tags := make(map[string]string)
+	tags["rack"] = "rack1"
+
+	host := api.Host{
+		Name: name,
+		IP:   ip,
+		Tags: tags,
+	}
+	t.Logf("Adding host %s", host)
+	err = ipam.AddHost(host)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ipam.Networks["net1"].Group.Hosts) != 1 {
+		t.Fatalf("Expected 1 host in net1, got %v", ipam.Networks["net1"].Group.Hosts)
+	}
+	t.Logf("Added host %s", host)
+
+	// Update tags with some irrelevant stuff
+	host.Tags["foo"] = "bar"
+	t.Logf("Updating host %s", host)
+	err = ipam.UpdateHostLabels(host)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Update tags with incompatible assignment
+	host.Tags["rack"] = "bar"
+	t.Logf("Updating host %s", host)
+	err = ipam.UpdateHostLabels(host)
+	if err == nil {
+		t.Fatal("Expected error")
+	}
+	t.Logf("Got expected error %s", err)
+}
