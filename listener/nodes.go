@@ -20,11 +20,14 @@
 package listener
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
+	"strings"
 	"time"
 
+	"github.com/elgs/gojq"
 	log "github.com/romana/rlog"
 
 	romanaApi "github.com/romana/core/common/api"
@@ -79,7 +82,32 @@ func (l *KubeListener) nodeToHost(n interface{}) (romanaApi.Host, error) {
 	}
 	host.IP = hostIP
 	host.Tags = node.GetLabels()
-
+	if l.nodeAttributes != nil && len(l.nodeAttributes) > 0 {
+		host.K8SInfo = make(map[string]interface{})
+		json, err := json.Marshal(node)
+		if err != nil {
+			return host, err
+		}
+		parser, err := gojq.NewStringQuery(string(json))
+		if err != nil {
+			return host, err
+		}
+		for _, nodeAttr := range l.nodeAttributes {
+			val, err := parser.Query(nodeAttr)
+			if err != nil {
+				if strings.HasSuffix(err.Error(), "does not exist.") {
+					// log.Tracef(trace.Inside, "Cannot find %s in %s", nodeAttr, string(json))
+					continue
+				}
+				log.Tracef(trace.Inside, "Error querying %s: %s (%T)", nodeAttr, err, err)
+				return host, err
+			}
+			host.K8SInfo[nodeAttr] = val
+		}
+		if host.K8SInfo != nil && len(host.K8SInfo) > 0 {
+			log.Tracef(trace.Inside, "Set k8s_info of host %s", host)
+		}
+	}
 	return host, nil
 }
 
@@ -294,6 +322,10 @@ func (l *KubeListener) kubernetesUpdateNodeEventHandler(o, n interface{}) {
 	}
 
 	err = l.client.IPAM.UpdateHostLabels(host)
+	if err != nil {
+		log.Errorf("Cannot update node %s: %s", node.Name, err)
+	}
+	err = l.client.IPAM.UpdateHostK8SInfo(host)
 	if err != nil {
 		log.Errorf("Cannot update node %s: %s", node.Name, err)
 	}

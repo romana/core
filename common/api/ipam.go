@@ -103,9 +103,9 @@ type Host struct {
 	Name      string `json:"name"`
 	AgentPort uint   `json:"agent_port"`
 	// TODO this is a placeholder for now so that agent builds
-	RomanaIp string            `json:"romana_ip"`
-	Tags     map[string]string `json:"tags"`
-	K8SInfo  map[string]string `json:"k8s_info"`
+	RomanaIp string                 `json:"romana_ip"`
+	Tags     map[string]string      `json:"tags"`
+	K8SInfo  map[string]interface{} `json:"k8s_info"`
 }
 
 func (h Host) String() string {

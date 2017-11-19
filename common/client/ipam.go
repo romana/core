@@ -166,11 +166,11 @@ func (cidr *CIDR) UnmarshalText(data []byte) error {
 
 // Host represents a host in Romana topology.
 type Host struct {
-	Name      string            `json:"name"`
-	IP        net.IP            `json:"ip"`
-	AgentPort uint              `json:"agent_port"`
-	Tags      map[string]string `json:"tags"`
-	K8SInfo   map[string]string `json:"k8s_info"`
+	Name      string                 `json:"name"`
+	IP        net.IP                 `json:"ip"`
+	AgentPort uint                   `json:"agent_port"`
+	Tags      map[string]string      `json:"tags"`
+	K8SInfo   map[string]interface{} `json:"k8s_info"`
 	group     *Group
 }
 
@@ -1473,7 +1473,11 @@ func (ipam *IPAM) UpdateHostK8SInfo(host api.Host) error {
 		foundHost = true
 		if !reflect.DeepEqual(hostToUpdate.K8SInfo, host.K8SInfo) {
 			log.Tracef(trace.Inside, "Updating host %s K8S info with %v", hostToUpdate, host.K8SInfo)
-			hostToUpdate.K8SInfo = host.K8SInfo
+			if host.K8SInfo == nil {
+				hostToUpdate.K8SInfo = nil
+			} else {
+				hostToUpdate.K8SInfo = deepcopy.Copy(host.K8SInfo).(map[string]interface{})
+			}
 			updatedHost = true
 		}
 	}
