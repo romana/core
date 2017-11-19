@@ -1440,6 +1440,55 @@ func (ipam *IPAM) UpdateHostLabels(host api.Host) error {
 	return nil
 }
 
+func (ipam *IPAM) UpdateHostK8SInfo(host api.Host) error {
+	// log.Tracef(trace.Inside, "UpdateHostK8SInfo for %s", host)
+	ch, err := ipam.locker.Lock()
+	if err != nil {
+		return err
+	}
+	defer ipam.locker.Unlock()
+
+	if host.IP == nil && host.Name == "" {
+		return common.NewError("At least one of IP, Name must be specified to delete a host")
+	}
+	updatedHost := false
+	foundHost := false
+	var hostToUpdate *Host
+	for _, net := range ipam.Networks {
+		hostToUpdate = nil
+		if host.IP == nil {
+			hostToUpdate = net.Group.findHostByName(host.Name)
+		} else {
+			hostToUpdate = net.Group.findHostByIP(host.IP.String())
+			if hostToUpdate != nil && host.Name != "" {
+				if hostToUpdate.Name != host.Name {
+					return fmt.Errorf("Found host with IP %s but it has name %s, not %s", host.IP, hostToUpdate.Name, host.Name)
+				}
+			}
+		}
+		if hostToUpdate == nil {
+			log.Tracef(trace.Inside, "Host %v (%s) not found in net %s\n", host.IP, host.Name, net.Name)
+			continue
+		}
+		foundHost = true
+		if !reflect.DeepEqual(hostToUpdate.K8SInfo, host.K8SInfo) {
+			log.Tracef(trace.Inside, "Updating host %s K8S info with %v", hostToUpdate, host.K8SInfo)
+			hostToUpdate.K8SInfo = host.K8SInfo
+			updatedHost = true
+		}
+	}
+	if updatedHost {
+		ipam.TopologyRevision++
+		err = ipam.save(ipam, ch)
+		if err != nil {
+			return err
+		}
+	} else if !foundHost {
+		return fmt.Errorf("No host found with IP %s and/or name %s", host.IP, host.Name)
+	}
+	return nil
+}
+
 func (ipam *IPAM) RemoveHost(host api.Host) error {
 	ch, err := ipam.locker.Lock()
 	if err != nil {

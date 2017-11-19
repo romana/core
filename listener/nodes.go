@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"net"
 	"os"
-	"reflect"
 	"time"
 
 	log "github.com/romana/rlog"
@@ -287,11 +286,6 @@ func (l *KubeListener) kubernetesUpdateNodeEventHandler(o, n interface{}) {
 		log.Errorf("Expected Node object, received (%T: %s)", n, n)
 		return
 	}
-	oldNode, ok := o.(*v1.Node)
-	if !ok {
-		log.Errorf("Expected Node object, received (%T: %s)", o, o)
-		return
-	}
 
 	host, err := l.nodeToHost(node)
 	if err != nil {
@@ -299,13 +293,9 @@ func (l *KubeListener) kubernetesUpdateNodeEventHandler(o, n interface{}) {
 		return
 	}
 
-	// There is only one reason for now to deal with this case: when labels change
-	if !reflect.DeepEqual(oldNode.GetLabels(), node.GetLabels()) {
-		log.Tracef(trace.Inside, "Update Node event received for %s: labels change from %v to %v", node.Name, oldNode.GetLabels(), node.GetLabels())
-		err = l.client.IPAM.UpdateHostLabels(host)
-		if err != nil {
-			log.Errorf("Cannot update node %s: %s", node.Name, err)
-		}
+	err = l.client.IPAM.UpdateHostLabels(host)
+	if err != nil {
+		log.Errorf("Cannot update node %s: %s", node.Name, err)
 	}
 }
 

@@ -19,6 +19,7 @@ package listener
 import (
 	"fmt"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -37,6 +38,7 @@ const (
 	defaultSyncIntervalStr  = "30s"
 	initialSyncDuration     = 60 * time.Second
 	initialSyncInterval     = 10 * time.Millisecond
+	defaultNodeAttributes   = "spec.unschedulable"
 )
 
 // KubeListener is a Service that listens to updates
@@ -72,6 +74,7 @@ type KubeListener struct {
 	syncNodesTicker      *time.Ticker
 	syncNodesInterval    time.Duration
 	initialNodesSyncDone bool
+	nodeAttributes       []string
 }
 
 // Routes returns various routes used in the service.
@@ -112,6 +115,13 @@ func (l *KubeListener) loadConfig() error {
 	if err != nil {
 		return err
 	}
+
+	var nodeAttrStr string
+	nodeAttrStr, err = l.client.Store.GetString(configPrefix+"nodeAttributes", defaultNodeAttributes)
+	if err != nil {
+		return err
+	}
+	l.nodeAttributes = strings.Split(nodeAttrStr, ",")
 
 	if err := l.kubeClientInit(); err != nil {
 		return fmt.Errorf("Error while loading kubernetes client %s", err)
