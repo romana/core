@@ -32,6 +32,8 @@ import (
 	"github.com/romana/core/common/client/idring"
 	"github.com/romana/core/common/log/trace"
 
+	"github.com/mohae/deepcopy"
+
 	log "github.com/romana/rlog"
 )
 
@@ -1415,7 +1417,7 @@ func (ipam *IPAM) UpdateHostLabels(host api.Host) error {
 		foundHost = true
 		if !reflect.DeepEqual(hostToUpdate.Tags, host.Tags) {
 			log.Tracef(trace.Inside, "Updating host %s Tags with %v", hostToUpdate, host.Tags)
-			hostToUpdate.Tags = host.Tags
+			hostToUpdate.Tags = deepcopy.Copy(host.Tags).(map[string]string)
 			updatedHost = true
 		}
 	}
@@ -1509,7 +1511,10 @@ func (ipam *IPAM) AddHost(host api.Host) error {
 	log.Tracef(trace.Inside, "Entering AddHost with %d networks\n", len(ipam.Networks))
 	addedHost := false
 	for _, net := range ipam.Networks {
-		myHost := &Host{IP: host.IP, Name: host.Name, Tags: host.Tags}
+		myHost := &Host{IP: host.IP,
+			Name: host.Name,
+			Tags: deepcopy.Copy(host.Tags).(map[string]string),
+		}
 		log.Tracef(trace.Inside, "Attempting to add host %s (%s) to network %s\n", host.Name, host.IP, net.Name)
 		if net.Group == nil {
 			continue
