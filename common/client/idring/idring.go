@@ -186,6 +186,43 @@ func (ir IDRing) IsEmpty() bool {
 	return r.Min == ir.OrigMin && r.Max == ir.OrigMax
 }
 
+// GetSpecificID attempts to return a specific ID from the ring.
+// Returns error if impossible.
+func (ir *IDRing) GetSpecificID(id uint64) error {
+	if ir.locker != nil {
+		ir.locker.Lock()
+		defer ir.locker.Unlock()
+	}
+	if ir.Ranges == nil || len(ir.Ranges) == 0 {
+		//		log.Tracef(trace.Inside, "GetID: Returning error, remaining %s", ir.String())
+		return IDRingOverflowError
+	}
+	newRanges := make([]Range, 0)
+	found := false
+	for _, r := range ir.Ranges {
+		if r.Min > id || r.Max < id {
+			newRanges = append(newRanges, r)
+		} else {
+			found = true
+			if r.Min < id {
+				r1 := Range{Min: r.Min, Max: id - 1}
+				newRanges = append(newRanges, r1)
+			}
+			if r.Max > id {
+				r2 := Range{Min: id + 1, Max: r.Max}
+				newRanges = append(newRanges, r2)
+			}
+		}
+	}
+
+	if !found {
+		return fmt.Errorf("Cannot allocate %d: already allocated", id)
+	}
+	ir.Ranges = newRanges
+	ir.mergeRanges()
+	return nil
+}
+
 // GetID returns the first available ID, starting with OrigMin.
 // It will return an IDRingOverflowError if no more IDs can be returned.
 func (ir *IDRing) GetID() (uint64, error) {

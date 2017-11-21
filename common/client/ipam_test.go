@@ -689,12 +689,13 @@ func TestUpdateTopology(t *testing.T) {
 	ipam = initIpam(t, "")
 	// t.Log(testSaver.lastJson)
 
-	_, err := ipam.AllocateIP("x1", "ip-192-168-99-10", "tenant1", "")
+	ip0, err := ipam.AllocateIP("x1", "h1", "tenant1", "")
 	if err != nil {
 		t.Fatal(err)
 	}
 	ipam.load(ipam, nil)
 
+	// Load the topology data again, we'll modify the object
 	topo := loadTestData(t)
 	topoReq := api.TopologyUpdateRequest{}
 	err = json.Unmarshal(topo, &topoReq)
@@ -707,36 +708,14 @@ func TestUpdateTopology(t *testing.T) {
 
 	t.Logf("Updating topology to %v", topoReq)
 	err = ipam.UpdateTopology(topoReq, false)
-	if err == nil {
-		t.Fatal("Expected error on updating topology with allocated IPs, did not get it.")
-	}
-	expectedError := "Updating topology after IPs have been allocated currently not implemented."
-	if err.Error() == expectedError {
-		t.Logf("Got expected error: %s", err)
-	} else {
-		t.Fatalf("Expected %s, got %v", expectedError, err)
-	}
-
-	// Deallocate IP
-	err = ipam.DeallocateIP("x1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	ipam.load(ipam, nil)
-	t.Logf("Updating topology to %v", topoReq)
-	err = ipam.UpdateTopology(topoReq, false)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// Check that we updated.
-	if ipam.Networks["net2"] == nil {
-		t.Fatal("Expected net2 to be in IPAM, got nil")
-	}
-	if ipam.Networks["net1"] != nil {
-		t.Fatalf("Expected net1 not to be in IPAM, got %v", ipam.Networks["net1"])
-	}
+	ip1 := ipam.AddressNameToIP["x1"]
 
-	// t.Logf("Saved state: %s", testSaver.lastJson)
+	if ip1.String() != ip0.String() {
+		t.Fatalf("Expected new IP %s to be same as old IP %s", ip1, ip0)
+	}
 }
 
 func TestListBlocks(t *testing.T) {
