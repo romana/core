@@ -20,11 +20,11 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"syscall"
 
 	"github.com/pkg/errors"
 	"github.com/romana/rlog"
 	"github.com/vishvananda/netlink"
-	"syscall"
 )
 
 const (

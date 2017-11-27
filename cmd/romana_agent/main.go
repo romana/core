@@ -20,6 +20,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"strings"
 	"time"
 
@@ -165,6 +166,14 @@ func main() {
 	}
 
 	if *policyEnforcer {
+		// ipset is needed by enforcer below, so fail here
+		// instead of later during run time.
+		_, err := exec.LookPath("ipset")
+		if err != nil {
+			log.Errorf("failed to find ipset, %s", err)
+			os.Exit(2)
+		}
+
 		ctx := context.Background()
 		policyCache := policycache.New()
 		var policyEtcdKey = "/romana/policies"
