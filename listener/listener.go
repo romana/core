@@ -25,7 +25,6 @@ import (
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
 	"github.com/romana/core/common/client"
-	"github.com/romana/core/common/log/trace"
 
 	log "github.com/romana/rlog"
 	"k8s.io/client-go/kubernetes"
@@ -36,6 +35,8 @@ const (
 	defaultSegmentLabelName = "romana.io/segment"
 	defaultTenantLabelName  = "namespace"
 	defaultSyncIntervalStr  = "30s"
+	initialSyncDuration     = 60 * time.Second
+	initialSyncInterval     = 10 * time.Millisecond
 )
 
 // KubeListener is a Service that listens to updates
@@ -61,14 +62,16 @@ type KubeListener struct {
 	sync.RWMutex
 	policiesSynced bool
 
-	nodeStore cache.Store
+	nodeStore    cache.Store
+	nodeInformer *cache.Controller
 
 	// This is intended to lock for the purposes of changing
 	// syncNodesRunning flag. See documentation for syncNodes() for the rest.
-	syncNodesMutex   sync.Locker
-	syncNodesRunning bool
-	syncTicker       *time.Ticker
-	syncInterval     time.Duration
+	syncNodesMutex       sync.Locker
+	syncNodesRunning     bool
+	syncNodesTicker      *time.Ticker
+	syncNodesInterval    time.Duration
+	initialNodesSyncDone bool
 }
 
 // Routes returns various routes used in the service.
@@ -105,7 +108,7 @@ func (l *KubeListener) loadConfig() error {
 	if err != nil {
 		return err
 	}
-	l.syncInterval, err = time.ParseDuration(syncInterval)
+	l.syncNodesInterval, err = time.ParseDuration(syncInterval)
 	if err != nil {
 		return err
 	}
@@ -115,7 +118,6 @@ func (l *KubeListener) loadConfig() error {
 	}
 
 	return nil
-
 }
 
 // TODO there should be a better way to introduce translator
@@ -168,17 +170,6 @@ func (l *KubeListener) Initialize(clientConfig common.Config) error {
 
 	l.startRomanaIPSync(done)
 
-	log.Infof("Starting sync ticker with %s", l.syncInterval)
-	l.syncTicker = time.NewTicker(l.syncInterval)
-	go func() {
-		for {
-			select {
-			case t := <-l.syncTicker.C:
-				log.Tracef(trace.Inside, "Entering timed syncNodes() at %s\n", t)
-				l.syncNodes()
-			}
-		}
-	}()
 	log.Info("All routines started")
 	return nil
 }

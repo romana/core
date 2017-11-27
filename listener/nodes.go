@@ -22,6 +22,7 @@ package listener
 import (
 	"fmt"
 	"net"
+	"os"
 	"reflect"
 	"time"
 
@@ -188,9 +189,8 @@ func (l *KubeListener) ProcessNodeEvents(done <-chan struct{}) {
 		api.NamespaceAll,
 		fields.Everything())
 
-	var nodeInformer *cache.Controller
 	// Setup a notifications for specific events using NewInformer.
-	l.nodeStore, nodeInformer = cache.NewInformer(
+	l.nodeStore, l.nodeInformer = cache.NewInformer(
 		nodeWatcher,
 		&v1.Node{},
 		// TODO this can also be configurable
@@ -203,13 +203,56 @@ func (l *KubeListener) ProcessNodeEvents(done <-chan struct{}) {
 	)
 
 	log.Infof("Starting receving node events.")
+	go l.nodeInformer.Run(done)
 
-	go nodeInformer.Run(done)
+	log.Infof("Starting sync ticker with %s", l.syncNodesInterval)
+	l.syncNodesTicker = time.NewTicker(l.syncNodesInterval)
+
+	log.Infof("Starting initial sync ticker with %s", initialSyncInterval)
+	initialSyncTicker := time.NewTicker(initialSyncInterval)
+	log.Infof("Setting timeout for initial sync ticker to %s from now", initialSyncDuration)
+	initialSyncTimeout := time.After(initialSyncDuration)
+
+INITIAL_SYNC:
+	for {
+		select {
+		case <-initialSyncTicker.C:
+			if l.nodeInformer.HasSynced() {
+				log.Info("Initial synchronization completed\n")
+				l.initialNodesSyncDone = true
+				initialSyncTicker.Stop()
+				l.syncNodes()
+				break INITIAL_SYNC
+			}
+		case <-initialSyncTimeout:
+			log.Errorf("Timeout after %s while synchronizing nodes\n", initialSyncDuration)
+			os.Exit(1)
+
+		}
+	}
+
+	go func() {
+		for {
+			select {
+			case t := <-l.syncNodesTicker.C:
+				if !l.initialNodesSyncDone {
+					continue
+				}
+				log.Tracef(trace.Inside, "Entering timed syncNodes() at %s\n", t)
+				l.syncNodes()
+			}
+		}
+	}()
+
 }
 
 // kubernetesAddNodeEventHandler is called when Kubernetes reports an
 // add node event.
 func (l *KubeListener) kubernetesAddNodeEventHandler(n interface{}) {
+	if !l.initialNodesSyncDone {
+		log.Debug("Initial synchronization not completed, ignoring add event")
+		return
+	}
 	if hostToAdd, err := l.nodeToHost(n); err != nil {
 		log.Errorf("Error handling node add event: %s", err)
 	} else if err = l.romanaHostAdd(hostToAdd); err != nil {
@@ -220,6 +263,10 @@ func (l *KubeListener) kubernetesAddNodeEventHandler(n interface{}) {
 // kubernetesDeleteNodeEventHandler is called when Kubernetes reports a
 // delete node event.
 func (l *KubeListener) kubernetesDeleteNodeEventHandler(n interface{}) {
+	if !l.initialNodesSyncDone {
+		log.Debug("Initial synchronization not completed, ignoring delete event")
+		return
+	}
 	if hostToRemove, err := l.nodeToHost(n); err != nil {
 		log.Errorf("Error handling node remove event: %s", err)
 	} else if err = l.romanaHostRemove(hostToRemove); err != nil {
@@ -231,6 +278,10 @@ func (l *KubeListener) kubernetesDeleteNodeEventHandler(n interface{}) {
 // update node event. It calls syncNodes to sync romana/kubernetes
 // host list.
 func (l *KubeListener) kubernetesUpdateNodeEventHandler(o, n interface{}) {
+	if !l.initialNodesSyncDone {
+		log.Debug("Initial synchronization not completed, ignoring update	 event")
+		return
+	}
 	node, ok := n.(*v1.Node)
 	if !ok {
 		log.Errorf("Expected Node object, received (%T: %s)", n, n)

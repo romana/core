@@ -1417,7 +1417,11 @@ func (ipam *IPAM) UpdateHostLabels(host api.Host) error {
 		foundHost = true
 		if !reflect.DeepEqual(hostToUpdate.Tags, host.Tags) {
 			log.Tracef(trace.Inside, "Updating host %s Tags with %v", hostToUpdate, host.Tags)
-			hostToUpdate.Tags = deepcopy.Copy(host.Tags).(map[string]string)
+			if host.Tags == nil {
+				hostToUpdate.Tags = nil
+			} else {
+				hostToUpdate.Tags = deepcopy.Copy(host.Tags).(map[string]string)
+			}
 			updatedHost = true
 		}
 	}
