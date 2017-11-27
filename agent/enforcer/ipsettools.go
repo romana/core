@@ -58,7 +58,7 @@ func updateIpsets(ctx context.Context, sets *ipset.Ipset) error {
 // attemptIpsetCleanup attempts to destroy every set.
 // TODO make it less nuclear.
 func attemptIpsetCleanup(ctx context.Context, sets *ipset.Ipset) error {
-	iset, _ := ipset.Load(context.Background())
+	iset, _ := ipset.Load(ctx)
 	for _, set := range iset.Sets {
 		_, _ = ipset.Destroy(set)
 	}
