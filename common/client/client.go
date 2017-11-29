@@ -29,12 +29,13 @@ import (
 )
 
 const (
-	DefaultEtcdPrefix    = "/romana"
-	DefaultEtcdEndpoints = "localhost:2379"
-	ipamKey              = "/ipam"
-	ipamDataKey          = ipamKey + "/data"
-	PoliciesPrefix       = "/policies"
-	RomanaIPPrefix       = "/romanaip"
+	DefaultEtcdPrefix     = "/romana"
+	DefaultEtcdEndpoints  = "localhost:2379"
+	ipamKey               = "/ipam"
+	ipamDataKey           = ipamKey + "/data"
+	PoliciesPrefix        = "/policies"
+	RomanaIPPrefix        = "/romanaip"
+	defaultTopologyLevels = 20
 )
 
 type Client struct {
@@ -630,7 +631,7 @@ func addGroups(groups []*Group, level uint) []api.GroupOrHost {
 	// as possible but we want prevent it here to about 20 levels to
 	// maintain a balance between giving enough topology information
 	// out to the user and not falling in loops.
-	if level >= 20 {
+	if level >= defaultTopologyLevels {
 		return rGroups
 	}
 
