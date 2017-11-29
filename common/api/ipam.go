@@ -92,7 +92,6 @@ type GroupOrHost struct {
 	// therefore the above elements MUST NOT be specified.
 	Name string `json:"name"`
 	IP   net.IP `json:"ip,omitempty"`
-	CIDR string `json:"cidr,omitempty"`
 
 	// This is ignored on import.
 	CIDR string `json:"cidr,omitempty"`
