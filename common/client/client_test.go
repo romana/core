@@ -28,6 +28,7 @@ import (
 	"github.com/romana/core/common/api"
 )
 
+/*
 var (
 	client *Client
 	// Keep track of state of some tests
