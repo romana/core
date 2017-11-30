@@ -1514,10 +1514,14 @@ func (ipam *IPAM) AddHost(host api.Host) error {
 	}
 	log.Tracef(trace.Inside, "Entering AddHost with %d networks\n", len(ipam.Networks))
 	addedHost := false
+	var myTags map[string]string
+	if host.Tags != nil {
+		myTags = deepcopy.Copy(host.Tags).(map[string]string)
+	}
 	for _, net := range ipam.Networks {
 		myHost := &Host{IP: host.IP,
 			Name: host.Name,
-			Tags: deepcopy.Copy(host.Tags).(map[string]string),
+			Tags: myTags,
 		}
 		log.Tracef(trace.Inside, "Attempting to add host %s (%s) to network %s\n", host.Name, host.IP, net.Name)
 		if net.Group == nil {

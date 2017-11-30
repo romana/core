@@ -213,6 +213,10 @@ func (l *KubeListener) ProcessNodeEvents(done <-chan struct{}) {
 	log.Infof("Setting timeout for initial sync ticker to %s from now", initialSyncDuration)
 	initialSyncTimeout := time.After(initialSyncDuration)
 
+	// The label to break out of the loop must be placed before the loop, per
+	// https://golang.org/ref/spec#Break_statements
+	// "If there is a label, it must be that of an enclosing "for", "switch", or
+	// "select" statement, and that is the one whose execution terminates.
 INITIAL_SYNC:
 	for {
 		select {
@@ -222,6 +226,7 @@ INITIAL_SYNC:
 				l.initialNodesSyncDone = true
 				initialSyncTicker.Stop()
 				l.syncNodes()
+				// This actually causes the loop to exit.
 				break INITIAL_SYNC
 			}
 		case <-initialSyncTimeout:
