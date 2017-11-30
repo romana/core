@@ -364,7 +364,7 @@ func ProduceNewPolicyEvents(out chan Event, done <-chan struct{}, KubeListener *
 	defer ticker.Stop()
 
 	log.Info("Waiting for networkpolicy list to synchronize")
-	synchronizationLoop:
+synchronizationLoop:
 	for {
 		select {
 		case <-timeout:

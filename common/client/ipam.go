@@ -21,6 +21,7 @@ import (
 	"math"
 	"math/big"
 	"net"
+	"reflect"
 	"regexp"
 	"strings"
 
@@ -30,6 +31,8 @@ import (
 	"github.com/romana/core/common/api/errors"
 	"github.com/romana/core/common/client/idring"
 	"github.com/romana/core/common/log/trace"
+
+	"github.com/mohae/deepcopy"
 
 	log "github.com/romana/rlog"
 )
@@ -172,7 +175,14 @@ type Host struct {
 }
 
 func (h Host) String() string {
-	return h.IP.String()
+	val := fmt.Sprintf("%s (%s)", h.IP, h.Name)
+	if h.Tags != nil && len(h.Tags) > 0 {
+		val += fmt.Sprintf(" Tags: %s", h.Tags)
+	}
+	if h.K8SInfo != nil && len(h.K8SInfo) > 0 {
+		val += fmt.Sprintf(" Kubernetes info: %s", h.K8SInfo)
+	}
+	return val
 }
 
 // Group holds either a list of hosts at a given level; it cannot
@@ -1371,6 +1381,62 @@ func (ipam *IPAM) ListNetworkBlocks(netName string) *api.IPAMBlocksResponse {
 	return nil
 }
 
+// UpdateHostLabels updates host's labels. Note that this does not check
+// the new labels against label assignment and whether that breaks anything;
+// that is a TODO
+func (ipam *IPAM) UpdateHostLabels(host api.Host) error {
+	// log.Tracef(trace.Inside, "UpdateHostLabels for %s", host)
+	ch, err := ipam.locker.Lock()
+	if err != nil {
+		return err
+	}
+	defer ipam.locker.Unlock()
+
+	if host.IP == nil && host.Name == "" {
+		return common.NewError("At least one of IP, Name must be specified to update a host")
+	}
+	updatedHost := false
+	foundHost := false
+	var hostToUpdate *Host
+	for _, net := range ipam.Networks {
+		hostToUpdate = nil
+		if host.IP == nil {
+			hostToUpdate = net.Group.findHostByName(host.Name)
+		} else {
+			hostToUpdate = net.Group.findHostByIP(host.IP.String())
+			if hostToUpdate != nil && host.Name != "" {
+				if hostToUpdate.Name != host.Name {
+					return fmt.Errorf("Found host with IP %s but it has name %s, not %s", host.IP, hostToUpdate.Name, host.Name)
+				}
+			}
+		}
+		if hostToUpdate == nil {
+			log.Tracef(trace.Inside, "Host %v (%s) not found in net %s\n", host.IP, host.Name, net.Name)
+			continue
+		}
+		foundHost = true
+		if !reflect.DeepEqual(hostToUpdate.Tags, host.Tags) {
+			log.Tracef(trace.Inside, "Updating host %s Tags with %v", hostToUpdate, host.Tags)
+			if host.Tags == nil {
+				hostToUpdate.Tags = nil
+			} else {
+				hostToUpdate.Tags = deepcopy.Copy(host.Tags).(map[string]string)
+			}
+			updatedHost = true
+		}
+	}
+	if updatedHost {
+		ipam.TopologyRevision++
+		err = ipam.save(ipam, ch)
+		if err != nil {
+			return err
+		}
+	} else if !foundHost {
+		return fmt.Errorf("No host found with IP %s and/or name %s", host.IP, host.Name)
+	}
+	return nil
+}
+
 func (ipam *IPAM) RemoveHost(host api.Host) error {
 	ch, err := ipam.locker.Lock()
 	if err != nil {
@@ -1448,8 +1514,15 @@ func (ipam *IPAM) AddHost(host api.Host) error {
 	}
 	log.Tracef(trace.Inside, "Entering AddHost with %d networks\n", len(ipam.Networks))
 	addedHost := false
+	var myTags map[string]string
+	if host.Tags != nil {
+		myTags = deepcopy.Copy(host.Tags).(map[string]string)
+	}
 	for _, net := range ipam.Networks {
-		myHost := &Host{IP: host.IP, Name: host.Name, Tags: host.Tags}
+		myHost := &Host{IP: host.IP,
+			Name: host.Name,
+			Tags: myTags,
+		}
 		log.Tracef(trace.Inside, "Attempting to add host %s (%s) to network %s\n", host.Name, host.IP, net.Name)
 		if net.Group == nil {
 			continue

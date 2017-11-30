@@ -112,7 +112,7 @@ type Host struct {
 }
 
 func (h Host) String() string {
-	val := fmt.Sprintf("%s (IP: %s)", h.Name, h.IP)
+	val := fmt.Sprintf("%s (%s)", h.IP, h.Name)
 	if h.Tags != nil && len(h.Tags) > 0 {
 		val += fmt.Sprintf(" Tags: %s", h.Tags)
 	}

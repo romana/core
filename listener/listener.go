@@ -34,6 +34,9 @@ import (
 const (
 	defaultSegmentLabelName = "romana.io/segment"
 	defaultTenantLabelName  = "namespace"
+	defaultSyncIntervalStr  = "30s"
+	initialSyncDuration     = 60 * time.Second
+	initialSyncInterval     = 10 * time.Millisecond
 )
 
 // KubeListener is a Service that listens to updates
@@ -57,10 +60,18 @@ type KubeListener struct {
 	// A mutex is required because of watchers emitting events in
 	// separate goroutines
 	sync.RWMutex
-	nodeStore       cache.Store
-	nodeStoreSynced bool
-	syncNodesAfter  time.Time
-	policiesSynced  bool
+	policiesSynced bool
+
+	nodeStore    cache.Store
+	nodeInformer *cache.Controller
+
+	// This is intended to lock for the purposes of changing
+	// syncNodesRunning flag. See documentation for syncNodes() for the rest.
+	syncNodesMutex       sync.Locker
+	syncNodesRunning     bool
+	syncNodesTicker      *time.Ticker
+	syncNodesInterval    time.Duration
+	initialNodesSyncDone bool
 }
 
 // Routes returns various routes used in the service.
@@ -92,12 +103,21 @@ func (l *KubeListener) loadConfig() error {
 		return err
 	}
 
+	var syncInterval string
+	syncInterval, err = l.client.Store.GetString(configPrefix+"syncInterval", defaultSyncIntervalStr)
+	if err != nil {
+		return err
+	}
+	l.syncNodesInterval, err = time.ParseDuration(syncInterval)
+	if err != nil {
+		return err
+	}
+
 	if err := l.kubeClientInit(); err != nil {
 		return fmt.Errorf("Error while loading kubernetes client %s", err)
 	}
 
 	return nil
-
 }
 
 // TODO there should be a better way to introduce translator
@@ -111,6 +131,7 @@ func (l *KubeListener) addNetworkPolicy(policy api.Policy) error {
 
 func (l *KubeListener) Initialize(clientConfig common.Config) error {
 	var err error
+	l.syncNodesMutex = &sync.Mutex{}
 	l.client, err = client.NewClient(&clientConfig)
 	if err != nil {
 		return err
@@ -149,9 +170,6 @@ func (l *KubeListener) Initialize(clientConfig common.Config) error {
 
 	l.startRomanaIPSync(done)
 
-	// Actually do this after all the watches started; since addition and deletion
-	// of hosts are idempotent, this will allow us to definitely not lose anything.
-	//	l.syncNodes()
 	log.Info("All routines started")
 	return nil
 }

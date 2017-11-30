@@ -310,7 +310,6 @@ func (sl *storeLocker) Lock() (<-chan struct{}, error) {
 	ch, err := sl.Locker.Lock(stopChan)
 	if err == nil {
 		sl.owner = getGID()
-		log.Tracef(trace.Inside, "%d: Got lock for %s (owned by %d)", getGID(), sl.key, sl.owner)
 	} else {
 		log.Tracef(trace.Inside, "%d: Error getting lock for %s: %s", getGID(), sl.key, err)
 	}
