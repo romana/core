@@ -86,7 +86,7 @@ type GroupOrHost struct {
 	// of a new host to use to assign it into a group.
 	Assignment map[string]string `json:"assignment,omitempty"`
 	Routing    string            `json:"routing,omitempty"`
-	Groups     []GroupOrHost     `json:"groups"`
+	Groups     []GroupOrHost     `json:"groups,omitempty"`
 
 	// If the below are specified, this GroupSpec really represents a host,
 	// therefore the above elements MUST NOT be specified.

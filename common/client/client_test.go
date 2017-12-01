@@ -13,40 +13,24 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// +build ignore
-
 package client
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
-	"math/rand"
-	"runtime"
-	"strconv"
+	"io/ioutil"
+	"reflect"
 	"testing"
-	"time"
 
-	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
 )
 
+/*
 var (
 	client *Client
 	// Keep track of state of some tests
 	state int
 )
-
-type testLocker struct {
-}
-
-func (tl testLocker) Lock() {
-
-}
-
-func (tl testLocker) Unlock() {
-
-}
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
@@ -84,6 +68,7 @@ func initClient(t *testing.T, topoConf string) *Client {
 	}
 	return client
 }
+*/
 
 // TestWatchHostsWithCallback tests WatchHostsWithCallback -- and since it
 // uses WatchHosts internally, implicitly also WatchHosts
@@ -303,15 +288,6 @@ func TestWatchBlocksWithCallback(t *testing.T) {
 }
 */
 
-func getGID() uint64 {
-	b := make([]byte, 64)
-	b = b[:runtime.Stack(b, false)]
-	b = bytes.TrimPrefix(b, []byte("goroutine "))
-	b = b[:bytes.IndexByte(b, ' ')]
-	n, _ := strconv.ParseUint(string(b), 10, 64)
-	return n
-}
-
 /*
 func TestConcurrency(t *testing.T) {
 	//	defer tearDown(t)
@@ -357,3 +333,75 @@ WAIT_FOR_FINISH:
 	}
 }
 */
+
+type testcase struct {
+	name string
+	ipam *IPAM
+	want interface{}
+}
+
+func loadTestFiles(name string, inFile string, outFile string) (testcase, error) {
+	input, err := ioutil.ReadFile(inFile)
+	if err != nil {
+		return testcase{}, fmt.Errorf("error reading test input file: %s", err)
+	}
+	output, err := ioutil.ReadFile(outFile)
+	if err != nil {
+		return testcase{}, fmt.Errorf("error reading test output file: %s", err)
+	}
+
+	ipamState := &IPAM{}
+	err = json.Unmarshal(input, ipamState)
+	if err != nil {
+		return testcase{}, fmt.Errorf("failed to unmarshal ipam information: %s", err)
+	}
+	topologyState := &api.TopologyUpdateRequest{}
+	err = json.Unmarshal(output, topologyState)
+	if err != nil {
+		return testcase{}, fmt.Errorf("failed to unmarshal topology information: %s", err)
+	}
+
+	return testcase{name, ipamState, topologyState}, nil
+}
+
+func Test_getTopologyFromIPAMState(t *testing.T) {
+	var testcases []testcase
+
+	testfiles := map[string][]string{
+		"multinetwork": {
+			"testdata/TestTopologyGetInputMultiNetworks.json",
+			"testdata/TestTopologyGetOutputMultiNetworks.json",
+		},
+		"kubeadm": {
+			"testdata/TestTopologyGetInputKubeadm.json",
+			"testdata/TestTopologyGetOutputKubeadm.json",
+		},
+	}
+
+	for name, file := range testfiles {
+		tc, err := loadTestFiles(name, file[0], file[1])
+		if err != nil {
+			t.Errorf("error loading test files: %s", err)
+			continue
+		}
+		testcases = append(testcases, tc)
+	}
+
+	for _, tt := range testcases {
+		t.Run(tt.name, func(t *testing.T) {
+			// TODO: got and tt.want below are not sorted, so there is a fair chance the
+			// testcases here may fail, in which case this needs to be fixed by sorting
+			// it first.
+			if got := getTopologyFromIPAMState(tt.ipam); !reflect.DeepEqual(got, tt.want) {
+				bodyGot, errGot := json.MarshalIndent(got, "", "\t")
+				bodyWant, errWant := json.MarshalIndent(tt.want, "", "\t")
+				if errGot == nil && errWant == nil {
+					t.Errorf("getTopology() = \ngot(%s)\nwant(%s)",
+						string(bodyGot), string(bodyWant))
+				} else {
+					t.Errorf("getTopology() = \ngot(%#v)\nwant(%#v)", got, tt.want)
+				}
+			}
+		})
+	}
+}

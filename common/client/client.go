@@ -16,25 +16,26 @@
 package client
 
 import (
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"sync"
 
-	"encoding/json"
-
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
 	"github.com/romana/core/common/log/trace"
+
 	log "github.com/romana/rlog"
 )
 
 const (
-	DefaultEtcdPrefix    = "/romana"
-	DefaultEtcdEndpoints = "localhost:2379"
-	ipamKey              = "/ipam"
-	ipamDataKey          = ipamKey + "/data"
-	PoliciesPrefix       = "/policies"
-	RomanaIPPrefix       = "/romanaip"
+	DefaultEtcdPrefix     = "/romana"
+	DefaultEtcdEndpoints  = "localhost:2379"
+	ipamKey               = "/ipam"
+	ipamDataKey           = ipamKey + "/data"
+	PoliciesPrefix        = "/policies"
+	RomanaIPPrefix        = "/romanaip"
+	defaultTopologyLevels = 20
 )
 
 type Client struct {
@@ -519,4 +520,151 @@ func (c *Client) AddRomanaIP(e api.ExposedIPSpec) error {
 func (c *Client) DeleteRomanaIP(romanaIP string) error {
 	_, err := c.Store.Delete(RomanaIPPrefix + "/" + romanaIP)
 	return err
+}
+
+// GetTopology returns the representation of latest topology in store.
+func (c *Client) GetTopology() (interface{}, error) {
+	ch, err := c.ipamLocker.Lock()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get ipam lock: %s", err)
+	}
+	defer c.ipamLocker.Unlock()
+
+	kv, err := c.Store.Get(ipamDataKey)
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch ipam information: %s", err)
+	}
+
+	select {
+	case lockError := <-ch:
+		return nil, fmt.Errorf("failed to hold on to ipam lock: %s", lockError)
+	default:
+	}
+
+	ipamState := &IPAM{}
+	err = json.Unmarshal(kv.Value, ipamState)
+	if err != nil {
+		return nil, fmt.Errorf("failed to unmarshal ipam information: %s", err)
+	}
+
+	select {
+	case lockError := <-ch:
+		return nil, fmt.Errorf("failed to hold on to ipam lock: %s", lockError)
+	default:
+	}
+
+	return getTopologyFromIPAMState(ipamState), nil
+}
+
+func getTopologyFromIPAMState(ipamState *IPAM) interface{} {
+	if ipamState == nil {
+		return nil
+	}
+
+	topology := api.TopologyUpdateRequest{}
+
+	for _, network := range ipamState.Networks {
+		var tenants []string
+		var networks []string
+
+		for t, n := range ipamState.TenantToNetwork {
+			for i := range n {
+				if n[i] == network.Name {
+					tenants = append(tenants, t)
+					networks = append(networks, n[i])
+				}
+			}
+		}
+
+		topology.Networks = append(topology.Networks, api.NetworkDefinition{
+			Name:      network.Name,
+			CIDR:      network.CIDR.String(),
+			BlockMask: network.BlockMask,
+			Tenants:   tenants,
+		})
+
+		var maps []api.GroupOrHost
+		if network.Group != nil {
+			if network.Group.Hosts != nil && len(network.Group.Hosts) > 0 {
+				for _, host := range addHosts(network.Group.Hosts) {
+					maps = append(maps, host)
+				}
+			}
+			if network.Group.Groups != nil && len(network.Group.Groups) > 0 {
+				for _, group := range addGroups(network.Group.Groups, 0) {
+					maps = append(maps, group)
+				}
+			}
+		}
+
+		topology.Topologies = append(topology.Topologies, api.TopologyDefinition{
+			Networks: networks,
+			Map:      maps,
+		})
+	}
+
+	return &topology
+}
+
+// addHosts adds host information to topology map.
+func addHosts(hosts []*Host) []api.GroupOrHost {
+	var rHosts []api.GroupOrHost
+
+	for _, host := range hosts {
+		if host != nil {
+			rHosts = append(rHosts, api.GroupOrHost{
+				Name:       host.Name,
+				IP:         host.IP,
+				Assignment: host.Tags,
+			})
+		}
+	}
+
+	return rHosts
+}
+
+// addGroups recursively adds groups or hosts to topology map.
+func addGroups(groups []*Group, level uint) []api.GroupOrHost {
+	var rGroups []api.GroupOrHost
+
+	// currently addGroups can recursively call itself as many times
+	// as possible but we want prevent it here to about 20 levels to
+	// maintain a balance between giving enough topology information
+	// out to the user and not falling in loops.
+	if level >= defaultTopologyLevels {
+		return rGroups
+	}
+
+	for _, group := range groups {
+		if group != nil && !group.Dummy {
+			var subgroups []api.GroupOrHost
+
+			if group.Hosts != nil && len(group.Hosts) > 0 {
+				for _, host := range addHosts(group.Hosts) {
+					subgroups = append(subgroups, host)
+				}
+			}
+
+			if group.Groups != nil && len(group.Groups) > 0 {
+				for _, group := range addGroups(group.Groups, level+1) {
+					subgroups = append(subgroups, group)
+				}
+			}
+
+			var cidr string
+			if group.CIDR.IPNet != nil {
+				cidr = group.CIDR.IPNet.String()
+			}
+
+			rGroups = append(rGroups, api.GroupOrHost{
+				Name:       group.Name,
+				Routing:    group.Routing,
+				CIDR:       cidr,
+				Assignment: group.Assignment,
+				Groups:     subgroups,
+			})
+		}
+	}
+
+	return rGroups
 }

@@ -72,6 +72,11 @@ func (r *Romanad) listNetworks(input interface{}, ctx common.RestContext) (inter
 	return resp, nil
 }
 
+// getTopology returns the latest Romana Topology in kvstore (etcd).
+func (r *Romanad) getTopology(input interface{}, ctx common.RestContext) (interface{}, error) {
+	return r.client.GetTopology()
+}
+
 // updateTopology serves to update topology information in the Romana service
 func (r *Romanad) updateTopology(input interface{}, ctx common.RestContext) (interface{}, error) {
 	topoReq := input.(*api.TopologyUpdateRequest)

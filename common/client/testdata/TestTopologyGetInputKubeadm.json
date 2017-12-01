@@ -1,0 +1,204 @@
+{
+  "networks": {
+    "romana-network": {
+      "name": "romana-network",
+      "cidr": "10.112.0.0/12",
+      "block_mask": 29,
+      "blacked_out": [],
+      "host_groups": {
+        "name": "/",
+        "hosts": null,
+        "groups": [
+          {
+            "name": "host-group-01",
+            "hosts": [
+              {
+                "name": "ip-192-168-99-10",
+                "ip": "192.168.99.10",
+                "agent_port": 9604,
+                "tags": {
+                  "beta.kubernetes.io/arch": "amd64",
+                  "beta.kubernetes.io/os": "linux",
+                  "kubernetes.io/hostname": "ip-192-168-99-10",
+                  "node-role.kubernetes.io/master": ""
+                },
+                "k8s_info": null
+              }
+            ],
+            "groups": null,
+            "cidr": "10.112.0.0/15",
+            "block_to_owner": {
+              "0": "kube-system:default",
+              "1": "default:default"
+            },
+            "owner_to_block": {
+              "default:default": [
+                1
+              ],
+              "kube-system:default": [
+                0
+              ]
+            },
+            "block_to_host": {
+              "0": "ip-192-168-99-10",
+              "1": "ip-192-168-99-10"
+            },
+            "blocks": [
+              {
+                "cidr": "10.112.0.0/29",
+                "pool": {
+                  "Ranges": [
+                    {
+                      "Min": 175112193,
+                      "Max": 175112199
+                    }
+                  ],
+                  "OrigMin": 175112192,
+                  "OrigMax": 175112199
+                },
+                "revision": 15
+              },
+              {
+                "cidr": "10.112.0.8/29",
+                "pool": {
+                  "Ranges": [
+                    {
+                      "Min": 175112201,
+                      "Max": 175112207
+                    }
+                  ],
+                  "OrigMin": 175112200,
+                  "OrigMax": 175112207
+                },
+                "revision": 1
+              }
+            ],
+            "reusable_blocks": [],
+            "assignment": null,
+            "routing": "",
+            "dummy": false
+          },
+          {
+            "name": "host-group-02",
+            "hosts": [],
+            "groups": null,
+            "cidr": "10.114.0.0/15",
+            "block_to_owner": {},
+            "owner_to_block": {},
+            "block_to_host": {},
+            "blocks": [],
+            "reusable_blocks": [],
+            "assignment": null,
+            "routing": "",
+            "dummy": false
+          },
+          {
+            "name": "host-group-03",
+            "hosts": [],
+            "groups": null,
+            "cidr": "10.116.0.0/15",
+            "block_to_owner": {},
+            "owner_to_block": {},
+            "block_to_host": {},
+            "blocks": [],
+            "reusable_blocks": [],
+            "assignment": null,
+            "routing": "",
+            "dummy": false
+          },
+          {
+            "name": "host-group-04",
+            "hosts": [],
+            "groups": null,
+            "cidr": "10.118.0.0/15",
+            "block_to_owner": {},
+            "owner_to_block": {},
+            "block_to_host": {},
+            "blocks": [],
+            "reusable_blocks": [],
+            "assignment": null,
+            "routing": "",
+            "dummy": false
+          },
+          {
+            "name": "host-group-05",
+            "hosts": [],
+            "groups": null,
+            "cidr": "10.120.0.0/15",
+            "block_to_owner": {},
+            "owner_to_block": {},
+            "block_to_host": {},
+            "blocks": [],
+            "reusable_blocks": [],
+            "assignment": null,
+            "routing": "",
+            "dummy": false
+          },
+          {
+            "name": "host-group-06",
+            "hosts": [],
+            "groups": null,
+            "cidr": "10.122.0.0/15",
+            "block_to_owner": {},
+            "owner_to_block": {},
+            "block_to_host": {},
+            "blocks": [],
+            "reusable_blocks": [],
+            "assignment": null,
+            "routing": "",
+            "dummy": false
+          },
+          {
+            "name": "host-group-07",
+            "hosts": [],
+            "groups": null,
+            "cidr": "10.124.0.0/15",
+            "block_to_owner": {},
+            "owner_to_block": {},
+            "block_to_host": {},
+            "blocks": [],
+            "reusable_blocks": [],
+            "assignment": null,
+            "routing": "",
+            "dummy": false
+          },
+          {
+            "name": "host-group-08",
+            "hosts": [],
+            "groups": null,
+            "cidr": "10.126.0.0/15",
+            "block_to_owner": {},
+            "owner_to_block": {},
+            "block_to_host": {},
+            "blocks": [],
+            "reusable_blocks": [],
+            "assignment": null,
+            "routing": "",
+            "dummy": false
+          }
+        ],
+        "cidr": "",
+        "block_to_owner": null,
+        "owner_to_block": null,
+        "block_to_host": null,
+        "blocks": null,
+        "reusable_blocks": null,
+        "assignment": null,
+        "routing": "",
+        "dummy": false
+      },
+      "revision": 16
+    }
+  },
+  "AllocationRevision": 16,
+  "TopologyRevision": 2,
+  "address_name_to_ip": {
+    "kube-dns-545bc4bfd4-lszl2.kube-system.d9e4bf27": "10.112.0.0",
+    "nginx-7zr5w.default.4a5a22e8": "10.112.0.8"
+  },
+  "tenant_to_network": {
+    "*": [
+      "romana-network"
+    ]
+  }
+}
