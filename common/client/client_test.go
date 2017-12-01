@@ -68,6 +68,7 @@ func initClient(t *testing.T, topoConf string) *Client {
 	}
 	return client
 }
+*/
 
 // TestWatchHostsWithCallback tests WatchHostsWithCallback -- and since it
 // uses WatchHosts internally, implicitly also WatchHosts
