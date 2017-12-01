@@ -19,12 +19,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"math/rand"
 	"reflect"
 	"testing"
-	"time"
 
-	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
 )
 
