@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"time"
 
 	"github.com/romana/core/agent/policycache"
@@ -13,6 +12,7 @@ import (
 
 	"github.com/docker/libkv/store"
 	"github.com/pkg/errors"
+	log "github.com/romana/rlog"
 )
 
 func Run(ctx context.Context, key string, client *client.Client, storage policycache.Interface) (<-chan api.Policy, error) {
@@ -52,6 +52,7 @@ func Run(ctx context.Context, key string, client *client.Client, storage policyc
 		var err error
 		for {
 			if err != nil {
+				log.Debugf("policy watcher store error: %s", err)
 				respCh, err = client.Store.WatchExt(
 					key,
 					store.WatcherOptions{Recursive: true,
@@ -61,17 +62,23 @@ func Run(ctx context.Context, key string, client *client.Client, storage policyc
 					ctx.Done())
 			}
 			if err != nil {
-				log.Printf("failed to reconnect policy watcher %s", err)
-				time.Sleep(1 * time.Second)
+				// if we can't connect to the kvstore, wait for
+				// few seconds and try reconnecting.
+				log.Printf("error while connecting to kvstore for policy watcher: %s",
+					err)
+				time.Sleep(5 * time.Second)
 				continue
 			}
 
 			select {
 			case <-ctx.Done():
+				log.Printf("\nStopping policy watcher module.\n")
 				return
+
 			case resp, ok := <-respCh:
 				if !ok {
-					err = fmt.Errorf("channel closed")
+					err = fmt.Errorf("kvstore policy events channel closed")
+					continue
 				}
 
 				LastIndex = resp.LastIndex

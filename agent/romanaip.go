@@ -21,11 +21,12 @@ import (
 	"errors"
 	"fmt"
 	"syscall"
+	"time"
 
 	"github.com/romana/core/common/api"
 	"github.com/romana/core/common/client"
 
-	"github.com/docker/libkv/store"
+	kvstore "github.com/docker/libkv/store"
 	log "github.com/romana/rlog"
 	"github.com/vishvananda/netlink"
 )
@@ -87,7 +88,7 @@ func GetIPs(link netlink.Link) ([]string, error) {
 	return addresses, nil
 }
 
-func linkAddDeleteIP(kvpair *store.KVPairExt, toAdd bool,
+func linkAddDeleteIP(kvpair *kvstore.KVPairExt, toAdd bool,
 	defaultLink netlink.Link, defaultLinkAddressList []string) error {
 	var value string
 	var IPAddressOnThisNode bool
@@ -161,19 +162,33 @@ func StartRomanaIPSync(ctx context.Context, store *client.Store,
 
 func romanaIPWatcher(ctx context.Context, store *client.Store,
 	defaultLink netlink.Link, defaultLinkAddressList []string) {
-
-	// TODO: event stream could be broken it store connection is
-	// broken so add support for re-watching the events stream here.
-	events, err := store.WatchTreeExt(client.DefaultEtcdPrefix+client.RomanaIPPrefix,
-		ctx.Done())
-	if err != nil {
-		log.Error("Error watching kvstore romanaIP keys.")
-		return
-	}
+	var storeError error
+	var events <-chan *kvstore.KVPairExt
 
 	for {
+		if storeError != nil {
+			log.Debugf("romanaIP watcher store error: %s", storeError)
+			events, storeError = store.WatchTreeExt(
+				client.DefaultEtcdPrefix+client.RomanaIPPrefix,
+				ctx.Done())
+		}
+
+		if storeError != nil {
+			// if we can't connect to the kvstore, wait for
+			// few seconds and try reconnecting.
+			log.Infof("error while connecting to kvstore for romanaIP watcher: %s",
+				storeError)
+			time.Sleep(5 * time.Second)
+			continue
+		}
+
 		select {
-		case pair := <-events:
+		case pair, ok := <-events:
+			if !ok {
+				storeError = fmt.Errorf("kvstore romana IP events channel closed")
+				continue
+			}
+
 			switch pair.Action {
 			case "create", "set", "update", "compareAndSwap":
 				log.Debugf("creating/updating romanaIP: %#v\n", pair)
@@ -201,6 +216,7 @@ func romanaIPWatcher(ctx context.Context, store *client.Store,
 			default:
 				log.Infof("missed romanaIP event type: %s", pair.Action)
 			}
+
 		case <-ctx.Done():
 			log.Printf("\nStopping romanaIP watcher module.\n")
 			return
