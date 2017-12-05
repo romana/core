@@ -165,27 +165,24 @@ func romanaIPWatcher(ctx context.Context, store *client.Store,
 	var storeError error
 	var events <-chan *kvstore.KVPairExt
 
+	// Initial kvstore connection, ignore error since it is always nil.
+	events, _ = store.WatchTreeExt(client.DefaultEtcdPrefix+client.RomanaIPPrefix, ctx.Done())
+
 	for {
 		if storeError != nil {
 			log.Debugf("romanaIP watcher store error: %s", storeError)
-			events, storeError = store.WatchTreeExt(
+			// if we can't connect to the kvstore, wait for
+			// few seconds and try reconnecting.
+			time.Sleep(5 * time.Second)
+			events, _ = store.WatchTreeExt(
 				client.DefaultEtcdPrefix+client.RomanaIPPrefix,
 				ctx.Done())
 		}
 
-		if storeError != nil {
-			// if we can't connect to the kvstore, wait for
-			// few seconds and try reconnecting.
-			log.Infof("error while connecting to kvstore for romanaIP watcher: %s",
-				storeError)
-			time.Sleep(5 * time.Second)
-			continue
-		}
-
 		select {
 		case pair, ok := <-events:
-			if !ok {
-				storeError = fmt.Errorf("kvstore romana IP events channel closed")
+			if !ok || pair == nil {
+				storeError = errors.New("kvstore romana IP events channel closed")
 				continue
 			}
 
@@ -218,7 +215,7 @@ func romanaIPWatcher(ctx context.Context, store *client.Store,
 			}
 
 		case <-ctx.Done():
-			log.Printf("\nStopping romanaIP watcher module.\n")
+			log.Printf("Stopping romanaIP watcher module.")
 			return
 		}
 	}

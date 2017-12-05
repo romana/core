@@ -3,7 +3,6 @@ package policycontroller
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"github.com/romana/core/agent/policycache"
@@ -53,7 +52,10 @@ func Run(ctx context.Context, key string, client *client.Client, storage policyc
 		for {
 			if err != nil {
 				log.Debugf("policy watcher store error: %s", err)
-				respCh, err = client.Store.WatchExt(
+				// if we can't connect to the kvstore, wait for
+				// few seconds and try reconnecting.
+				time.Sleep(5 * time.Second)
+				respCh, _ = client.Store.WatchExt(
 					key,
 					store.WatcherOptions{Recursive: true,
 						NoList:     true,
@@ -61,23 +63,15 @@ func Run(ctx context.Context, key string, client *client.Client, storage policyc
 					},
 					ctx.Done())
 			}
-			if err != nil {
-				// if we can't connect to the kvstore, wait for
-				// few seconds and try reconnecting.
-				log.Printf("error while connecting to kvstore for policy watcher: %s",
-					err)
-				time.Sleep(5 * time.Second)
-				continue
-			}
 
 			select {
 			case <-ctx.Done():
-				log.Printf("\nStopping policy watcher module.\n")
+				log.Printf("Stopping policy watcher module.")
 				return
 
 			case resp, ok := <-respCh:
-				if !ok {
-					err = fmt.Errorf("kvstore policy events channel closed")
+				if !ok || resp == nil {
+					err = errors.New("kvstore policy events channel closed")
 					continue
 				}
 
