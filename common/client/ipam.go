@@ -1415,13 +1415,23 @@ func (ipam *IPAM) UpdateHostLabels(host api.Host) error {
 			continue
 		}
 		foundHost = true
+		log.Tracef(trace.Inside, "UpdateHostLabels: Checking %+v vs %+v", hostToUpdate.Tags, host.Tags)
 		if !reflect.DeepEqual(hostToUpdate.Tags, host.Tags) {
+			eligibilityCheckHost := &Host{Tags: host.Tags}
+			if !hostToUpdate.group.isHostEligible(eligibilityCheckHost) {
+				return fmt.Errorf("New tags for host %s (%+v) will result for host being ineligible for current group %s with assignment %s",
+					hostToUpdate,
+					host.Tags,
+					hostToUpdate.group.Name,
+					hostToUpdate.group.Assignment)
+			}
 			log.Tracef(trace.Inside, "Updating host %s Tags with %v", hostToUpdate, host.Tags)
 			if host.Tags == nil {
 				hostToUpdate.Tags = nil
 			} else {
 				hostToUpdate.Tags = deepcopy.Copy(host.Tags).(map[string]string)
 			}
+
 			updatedHost = true
 		}
 	}
