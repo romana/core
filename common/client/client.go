@@ -430,9 +430,7 @@ func (c *Client) load(ipam *IPAM, ch <-chan struct{}) error {
 
 // save implements the Saver interface of IPAM.
 func (c *Client) save(ipam *IPAM, ch <-chan struct{}) error {
-	log.Tracef(trace.Inside, "Trying to acquire savingMutex\n")
 	c.savingMutex.Lock()
-	log.Tracef(trace.Inside, "Acquired savingMutex\n")
 	defer c.savingMutex.Unlock()
 	var err error
 	log.Tracef(trace.Inside, "Entering save() from %d", getGID())
@@ -456,7 +454,7 @@ func (c *Client) save(ipam *IPAM, ch <-chan struct{}) error {
 			log.Errorf("Error saving IPAM: %s: %d", err, getGID())
 			return err
 		}
-		log.Tracef(trace.Inside, "%d: Saved IPAM (Alloc rev: %d, Topo rev: %d): IPAM rev %d", getGID(), ipam.AllocationRevision, ipam.TopologyRevision, c.IPAM.GetPrevKVPair().LastIndex)
+		log.Debugf("%d: Saved IPAM (Alloc rev: %d, Topo rev: %d): IPAM rev %d", getGID(), ipam.AllocationRevision, ipam.TopologyRevision, c.IPAM.GetPrevKVPair().LastIndex)
 		return nil
 	}
 }

@@ -333,9 +333,6 @@ func (sl *storeLocker) Unlock() {
 		//			log.Errorf("%d: Error unlocking %s: %s (%T)", sl.key, err, err)
 		//		}
 		log.Errorf("%d: Error unlocking %s: %s (%T)", getGID(), sl.key, err, err)
-
-	} else {
-		log.Tracef(trace.Inside, "%d: Unlocked lock %s (owned by %d)", getGID(), sl.key, prevOwner)
 	}
 }
 

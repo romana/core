@@ -166,3 +166,7 @@
 [submodule "vendor/github.com/mohae/deepcopy"]
 	path = vendor/github.com/mohae/deepcopy
 	url = https://github.com/mohae/deepcopy.git
+[submodule "vendor/github.com/elgs/gojq"]
+	path = vendor/github.com/elgs/gojq
+	url = https://github.com/elgs/gojq.git
+

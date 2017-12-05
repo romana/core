@@ -20,12 +20,14 @@
 package listener
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
-	"reflect"
+	"strings"
 	"time"
 
+	"github.com/elgs/gojq"
 	log "github.com/romana/rlog"
 
 	romanaApi "github.com/romana/core/common/api"
@@ -80,7 +82,32 @@ func (l *KubeListener) nodeToHost(n interface{}) (romanaApi.Host, error) {
 	}
 	host.IP = hostIP
 	host.Tags = node.GetLabels()
-
+	if l.nodeAttributes != nil && len(l.nodeAttributes) > 0 {
+		host.K8SInfo = make(map[string]interface{})
+		json, err := json.Marshal(node)
+		if err != nil {
+			return host, err
+		}
+		parser, err := gojq.NewStringQuery(string(json))
+		if err != nil {
+			return host, err
+		}
+		for _, nodeAttr := range l.nodeAttributes {
+			val, err := parser.Query(nodeAttr)
+			if err != nil {
+				if strings.HasSuffix(err.Error(), "does not exist.") {
+					// log.Tracef(trace.Inside, "Cannot find %s in %s", nodeAttr, string(json))
+					continue
+				}
+				log.Tracef(trace.Inside, "Error querying %s: %s (%T)", nodeAttr, err, err)
+				return host, err
+			}
+			host.K8SInfo[nodeAttr] = val
+		}
+		if host.K8SInfo != nil && len(host.K8SInfo) > 0 {
+			log.Tracef(trace.Inside, "Set k8s_info of host %s", host)
+		}
+	}
 	return host, nil
 }
 
@@ -292,11 +319,6 @@ func (l *KubeListener) kubernetesUpdateNodeEventHandler(o, n interface{}) {
 		log.Errorf("Expected Node object, received (%T: %s)", n, n)
 		return
 	}
-	oldNode, ok := o.(*v1.Node)
-	if !ok {
-		log.Errorf("Expected Node object, received (%T: %s)", o, o)
-		return
-	}
 
 	host, err := l.nodeToHost(node)
 	if err != nil {
@@ -304,13 +326,13 @@ func (l *KubeListener) kubernetesUpdateNodeEventHandler(o, n interface{}) {
 		return
 	}
 
-	// There is only one reason for now to deal with this case: when labels change
-	if !reflect.DeepEqual(oldNode.GetLabels(), node.GetLabels()) {
-		log.Tracef(trace.Inside, "Update Node event received for %s: labels change from %v to %v", node.Name, oldNode.GetLabels(), node.GetLabels())
-		err = l.client.IPAM.UpdateHostLabels(host)
-		if err != nil {
-			log.Errorf("Cannot update node %s: %s", node.Name, err)
-		}
+	err = l.client.IPAM.UpdateHostLabels(host)
+	if err != nil {
+		log.Errorf("Cannot update node %s: %s", node.Name, err)
+	}
+	err = l.client.IPAM.UpdateHostK8SInfo(host)
+	if err != nil {
+		log.Errorf("Cannot update node %s: %s", node.Name, err)
 	}
 }
 
@@ -319,7 +341,7 @@ func (l *KubeListener) kubernetesUpdateNodeEventHandler(o, n interface{}) {
 func (l *KubeListener) romanaHostAdd(host romanaApi.Host) error {
 	var ok bool
 	err := l.client.IPAM.AddHost(host)
-	if err, ok = err.(romanaErrors.RomanaExistsError); ok {
+	if _, ok = err.(romanaErrors.RomanaExistsError); ok {
 		log.Infof("Host %s already exists, ignoring addition.", host)
 		return nil
 	} else if err == nil {

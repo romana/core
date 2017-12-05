@@ -67,7 +67,7 @@ type RomanaExistsError struct {
 	Message    string
 }
 
-func NewRomanaExistsError(message string, obj interface{}, t string, attrs ...string) RomanaExistsError {
+func NewRomanaExistsError(obj interface{}, t string, attrs ...string) RomanaExistsError {
 	attrMap := make(map[string]string)
 	for _, attr := range attrs {
 		kv := strings.SplitN(attr, "=", 2)
@@ -75,7 +75,7 @@ func NewRomanaExistsError(message string, obj interface{}, t string, attrs ...st
 		v := kv[1]
 		attrMap[k] = v
 	}
-	err := RomanaExistsError{Message: message,
+	err := RomanaExistsError{
 		Type:       t,
 		Object:     obj,
 		Attributes: attrMap,
@@ -83,10 +83,15 @@ func NewRomanaExistsError(message string, obj interface{}, t string, attrs ...st
 	return err
 }
 
+func NewRomanaExistsErrorWithMessage(msg string, obj interface{}, t string, attrs ...string) RomanaExistsError {
+	err := NewRomanaExistsError(obj, t, attrs...)
+	err.Message = msg
+	return err
+}
+
 func (ree RomanaExistsError) Error() string {
 	if ree.Message == "" {
-		return fmt.Sprintf("An %s object identified by %v already exists: %s",
-			ree.Type, ree.Attributes, ree.Object)
+		return fmt.Sprintf("A[n] '%s' object identified by %+v already exists: %s", ree.Type, ree.Attributes, ree.Object)
 	} else {
 		return ree.Message
 	}

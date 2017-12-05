@@ -112,8 +112,7 @@ func hostList(cmd *cli.Command, args []string) error {
 				"Romana CIDR\t")
 			for _, host := range hosts {
 				fmt.Fprintln(w, host.IP, "\t",
-					host.AgentPort, "\t",
-					host.RomanaIp, "\t")
+					host.AgentPort, "\t")
 			}
 		} else {
 			var e Error

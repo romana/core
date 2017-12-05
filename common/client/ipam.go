@@ -166,11 +166,11 @@ func (cidr *CIDR) UnmarshalText(data []byte) error {
 
 // Host represents a host in Romana topology.
 type Host struct {
-	Name      string            `json:"name"`
-	IP        net.IP            `json:"ip"`
-	AgentPort uint              `json:"agent_port"`
-	Tags      map[string]string `json:"tags"`
-	K8SInfo   map[string]string `json:"k8s_info"`
+	Name      string                 `json:"name"`
+	IP        net.IP                 `json:"ip"`
+	AgentPort uint                   `json:"agent_port"`
+	Tags      map[string]string      `json:"tags"`
+	K8SInfo   map[string]interface{} `json:"k8s_info"`
 	group     *Group
 }
 
@@ -296,11 +296,12 @@ func (hg *Group) findSmallestEligibleGroup(host *Host) *Group {
 func (hg *Group) addHost(host *Host) (bool, error) {
 	log.Tracef(trace.Inside, "Calling addHost(%s) on group %s", host.Name, hg.Name)
 	if hg.findHostByName(host.Name) != nil {
-		return false, errors.NewRomanaExistsError("", *host, "host", fmt.Sprintf("name=%s", host.Name))
+		return false, errors.NewRomanaExistsError(*host, "host", fmt.Sprintf("name=%s", host.Name))
 	}
 
 	if hg.findHostByIP(host.IP.String()) != nil {
-		return false, errors.NewRomanaExistsError("", *host, "host", fmt.Sprintf("IP=%s", host.IP))
+		err := errors.NewRomanaExistsError(*host, "host", fmt.Sprintf("IP=%s", host.IP))
+		return false, err
 	}
 
 	if host.AgentPort == 0 {
@@ -1092,12 +1093,14 @@ func (ipam *IPAM) AllocateIP(addressName string, host string, tenant string, seg
 	}
 
 	if addr, ok := latestIPAM.AddressNameToIP[addressName]; ok {
-		return nil, errors.NewRomanaExistsError(
+		err := errors.NewRomanaExistsErrorWithMessage(
 			fmt.Sprintf("Address with name %s already allocated: %s", addressName, addr),
-			addressName,
+			fmt.Sprintf("Address: %s", addressName),
 			"IP",
 			fmt.Sprintf("name=%s", addressName),
 			fmt.Sprintf("IP=%s", addr))
+
+		return nil, err
 
 	}
 
@@ -1432,6 +1435,59 @@ func (ipam *IPAM) UpdateHostLabels(host api.Host) error {
 				hostToUpdate.Tags = deepcopy.Copy(host.Tags).(map[string]string)
 			}
 
+			updatedHost = true
+		}
+	}
+	if updatedHost {
+		ipam.TopologyRevision++
+		err = ipam.save(ipam, ch)
+		if err != nil {
+			return err
+		}
+	} else if !foundHost {
+		return fmt.Errorf("No host found with IP %s and/or name %s", host.IP, host.Name)
+	}
+	return nil
+}
+
+func (ipam *IPAM) UpdateHostK8SInfo(host api.Host) error {
+	// log.Tracef(trace.Inside, "UpdateHostK8SInfo for %s", host)
+	ch, err := ipam.locker.Lock()
+	if err != nil {
+		return err
+	}
+	defer ipam.locker.Unlock()
+
+	if host.IP == nil && host.Name == "" {
+		return common.NewError("At least one of IP, Name must be specified to delete a host")
+	}
+	updatedHost := false
+	foundHost := false
+	var hostToUpdate *Host
+	for _, net := range ipam.Networks {
+		hostToUpdate = nil
+		if host.IP == nil {
+			hostToUpdate = net.Group.findHostByName(host.Name)
+		} else {
+			hostToUpdate = net.Group.findHostByIP(host.IP.String())
+			if hostToUpdate != nil && host.Name != "" {
+				if hostToUpdate.Name != host.Name {
+					return fmt.Errorf("Found host with IP %s but it has name %s, not %s", host.IP, hostToUpdate.Name, host.Name)
+				}
+			}
+		}
+		if hostToUpdate == nil {
+			log.Tracef(trace.Inside, "Host %v (%s) not found in net %s\n", host.IP, host.Name, net.Name)
+			continue
+		}
+		foundHost = true
+		if !reflect.DeepEqual(hostToUpdate.K8SInfo, host.K8SInfo) {
+			log.Tracef(trace.Inside, "Updating host %s K8S info with %v", hostToUpdate, host.K8SInfo)
+			if host.K8SInfo == nil {
+				hostToUpdate.K8SInfo = nil
+			} else {
+				hostToUpdate.K8SInfo = deepcopy.Copy(host.K8SInfo).(map[string]interface{})
+			}
 			updatedHost = true
 		}
 	}
