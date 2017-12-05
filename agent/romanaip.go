@@ -31,6 +31,10 @@ import (
 	"github.com/vishvananda/netlink"
 )
 
+const (
+	defaultWatcherReconnectTime = 5 * time.Second
+)
+
 func GetDefaultLink() (netlink.Link, error) {
 	defaultR := netlink.Route{}
 
@@ -170,10 +174,10 @@ func romanaIPWatcher(ctx context.Context, store *client.Store,
 
 	for {
 		if storeError != nil {
-			log.Debugf("romanaIP watcher store error: %s", storeError)
+			log.Errorf("romanaIP watcher store error: %s", storeError)
 			// if we can't connect to the kvstore, wait for
 			// few seconds and try reconnecting.
-			time.Sleep(5 * time.Second)
+			time.Sleep(defaultWatcherReconnectTime)
 			events, _ = store.WatchTreeExt(
 				client.DefaultEtcdPrefix+client.RomanaIPPrefix,
 				ctx.Done())

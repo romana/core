@@ -14,6 +14,10 @@ import (
 	log "github.com/romana/rlog"
 )
 
+const (
+	defaultWatcherReconnectTime = 5 * time.Second
+)
+
 func Run(ctx context.Context, key string, client *client.Client, storage policycache.Interface) (<-chan api.Policy, error) {
 	policies, err := client.Store.GetExt(key, store.GetOptions{Recursive: true})
 	if err != nil {
@@ -51,10 +55,10 @@ func Run(ctx context.Context, key string, client *client.Client, storage policyc
 		var err error
 		for {
 			if err != nil {
-				log.Debugf("policy watcher store error: %s", err)
+				log.Errorf("policy watcher store error: %s", err)
 				// if we can't connect to the kvstore, wait for
 				// few seconds and try reconnecting.
-				time.Sleep(5 * time.Second)
+				time.Sleep(defaultWatcherReconnectTime)
 				respCh, _ = client.Store.WatchExt(
 					key,
 					store.WatcherOptions{Recursive: true,
