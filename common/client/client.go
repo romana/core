@@ -19,12 +19,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"strings"
 	"sync"
 
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
 	"github.com/romana/core/common/log/trace"
 
+	libkvStore "github.com/docker/libkv/store"
 	log "github.com/romana/rlog"
 )
 
@@ -505,19 +507,49 @@ func (c *Client) watchIPAM() error {
 	return nil
 }
 
-// AddRomanaIP adds romanaIP to store.
-func (c *Client) AddRomanaIP(e api.ExposedIPSpec) error {
+// AddRomanaIP adds romanaIP information for service to the store.
+func (c *Client) AddRomanaIP(serviceName string, e api.ExposedIPSpec) error {
 	b, err := json.Marshal(e)
 	if err != nil {
 		return err
 	}
-	return c.Store.PutObject(RomanaIPPrefix+"/"+e.RomanaIP.IP, b)
+	return c.Store.PutObject(RomanaIPPrefix+"/"+serviceName, b)
 }
 
-// DeleteRomanaIP deletes romanaIP from store.
-func (c *Client) DeleteRomanaIP(romanaIP string) error {
-	_, err := c.Store.Delete(RomanaIPPrefix + "/" + romanaIP)
+// DeleteRomanaIP deletes romanaIP information for service from store.
+func (c *Client) DeleteRomanaIP(serviceName string) error {
+	_, err := c.Store.Delete(RomanaIPPrefix + "/" + serviceName)
 	return err
+}
+
+// ListRomanaIP lists romanaIP information for services in the store.
+func (c *Client) ListRomanaIPs() (map[string]api.ExposedIPSpec, error) {
+	exposedIPs := make(map[string]api.ExposedIPSpec)
+
+	kvpairs, err := c.Store.ListObjects(RomanaIPPrefix)
+	if err != nil {
+		return nil, err
+	}
+	if err == libkvStore.ErrKeyNotFound {
+		return exposedIPs, nil
+	}
+
+	for i := range kvpairs {
+		if kvpairs[i] == nil {
+			continue
+		}
+
+		var eip api.ExposedIPSpec
+		err := json.Unmarshal(kvpairs[i].Value, &eip)
+		if err != nil {
+			continue
+		}
+
+		serviceName := strings.TrimPrefix(kvpairs[i].Key, c.Store.getKey(RomanaIPPrefix+"/"))
+		exposedIPs[serviceName] = eip
+	}
+
+	return exposedIPs, nil
 }
 
 // GetTopology returns the representation of latest topology in store.
