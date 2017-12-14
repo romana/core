@@ -75,10 +75,6 @@ type KubeListener struct {
 	syncNodesInterval    time.Duration
 	initialNodesSyncDone bool
 	nodeAttributes       []string
-
-	// serviceStore is used for fetching service list during
-	// romanaIP syncing.
-	serviceStore cache.Store
 }
 
 // Routes returns various routes used in the service.

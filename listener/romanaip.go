@@ -42,7 +42,7 @@ type ExposedIPSpecMap struct {
 
 var (
 	RomanaExposedIPSpecMap = ExposedIPSpecMap{IPForService: make(map[string]api.ExposedIPSpec)}
-	serviceSyncTimer       = time.Duration(60 * time.Second)
+	serviceSyncTimer       = 60 * time.Second
 )
 
 func (l *KubeListener) startRomanaIPSync(stop <-chan struct{}) {
