@@ -508,17 +508,17 @@ func (c *Client) watchIPAM() error {
 }
 
 // AddRomanaIP adds romanaIP information for service to the store.
-func (c *Client) AddRomanaIP(serviceName string, e api.ExposedIPSpec) error {
+func (c *Client) AddRomanaIP(key string, e api.ExposedIPSpec) error {
 	b, err := json.Marshal(e)
 	if err != nil {
 		return err
 	}
-	return c.Store.PutObject(RomanaIPPrefix+"/"+serviceName, b)
+	return c.Store.PutObject(RomanaIPPrefix+"/"+key, b)
 }
 
 // DeleteRomanaIP deletes romanaIP information for service from store.
-func (c *Client) DeleteRomanaIP(serviceName string) error {
-	_, err := c.Store.Delete(RomanaIPPrefix + "/" + serviceName)
+func (c *Client) DeleteRomanaIP(key string) error {
+	_, err := c.Store.Delete(RomanaIPPrefix + "/" + key)
 	return err
 }
 
@@ -545,8 +545,8 @@ func (c *Client) ListRomanaIPs() (map[string]api.ExposedIPSpec, error) {
 			continue
 		}
 
-		serviceName := strings.TrimPrefix(kvpairs[i].Key, c.Store.getKey(RomanaIPPrefix+"/"))
-		exposedIPs[serviceName] = eip
+		key := strings.TrimPrefix(kvpairs[i].Key, c.Store.getKey(RomanaIPPrefix+"/"))
+		exposedIPs[key] = eip
 	}
 
 	return exposedIPs, nil

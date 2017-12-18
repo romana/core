@@ -120,14 +120,14 @@ func (l *KubeListener) syncRomanaIPs(serviceStore cache.Store) {
 	serviceMap := make(map[string]v1.Service)
 
 	for i := range serviceListAll {
-		service, serviceName, exposedIPSpec, err := l.extractServiceDetails(serviceListAll[i])
+		service, key, exposedIPSpec, err := l.extractServiceDetails(serviceListAll[i])
 		if err != nil {
 			log.Debugf("error fetching service details: %s", err)
 			continue
 		}
 
-		romanaIPMap[serviceName] = *exposedIPSpec
-		serviceMap[serviceName] = *service
+		romanaIPMap[key] = *exposedIPSpec
+		serviceMap[key] = *service
 	}
 
 	// if no service with romanaIP annotation is found, skip
@@ -139,8 +139,8 @@ func (l *KubeListener) syncRomanaIPs(serviceStore cache.Store) {
 	RomanaExposedIPSpecMap.Lock()
 
 	// update/add new services which we see
-	for serviceName, rip := range romanaIPMap {
-		eip, ok := RomanaExposedIPSpecMap.IPForService[serviceName]
+	for key, rip := range romanaIPMap {
+		eip, ok := RomanaExposedIPSpecMap.IPForService[key]
 
 		if ok && eip.RomanaIP.IP == rip.RomanaIP.IP &&
 			eip.NodeIPAddress == rip.NodeIPAddress {
@@ -150,34 +150,30 @@ func (l *KubeListener) syncRomanaIPs(serviceStore cache.Store) {
 		}
 
 		// update service locally for external IP
-		updatedService := serviceMap[serviceName]
+		updatedService := serviceMap[key]
 		updatedService.Spec.ExternalIPs = []string{rip.RomanaIP.IP}
-		namespace := updatedService.GetNamespace()
-		if namespace == "" {
-			namespace = "default"
-		}
-		_, err := l.kubeClientSet.CoreV1Client.Services(namespace).Update(&updatedService)
+		_, err := l.kubeClientSet.CoreV1Client.Services(rip.Namespace).Update(&updatedService)
 		if err != nil {
 			log.Errorf("externalIP couldn't be updated for service (%s): %s",
-				serviceName, err)
+				key, err)
 			continue
 		}
 
 		// everything seems fine and addition/updating romanaIP was
 		// a success and thus add the romanaIP to the exposedIP map here.
-		RomanaExposedIPSpecMap.IPForService[serviceName] = rip
+		RomanaExposedIPSpecMap.IPForService[key] = rip
 	}
 
 	// remove old services not seen anymore in service list.
-	for serviceName := range RomanaExposedIPSpecMap.IPForService {
-		_, ok := romanaIPMap[serviceName]
+	for key := range RomanaExposedIPSpecMap.IPForService {
+		_, ok := romanaIPMap[key]
 		if ok {
 			// service is present, so nothing to be done here.
 			continue
 		}
 
 		// service was removed, so lets remove the details about it here
-		delete(RomanaExposedIPSpecMap.IPForService, serviceName)
+		delete(RomanaExposedIPSpecMap.IPForService, key)
 	}
 
 	RomanaExposedIPSpecMap.Unlock()
@@ -192,8 +188,8 @@ func (l *KubeListener) syncExposedIPs() {
 		return
 	}
 
-	for serviceName, rip := range RomanaExposedIPSpecMap.IPForService {
-		eip, ok := exposedIPMap[serviceName]
+	for key, rip := range RomanaExposedIPSpecMap.IPForService {
+		eip, ok := exposedIPMap[key]
 
 		if ok && eip.RomanaIP.IP == rip.RomanaIP.IP &&
 			eip.NodeIPAddress == rip.NodeIPAddress {
@@ -205,21 +201,21 @@ func (l *KubeListener) syncExposedIPs() {
 		// if this is romanaIP update, then lets remove it first
 		if ok && (eip.RomanaIP.IP != rip.RomanaIP.IP ||
 			eip.NodeIPAddress != rip.NodeIPAddress) {
-			if err := l.client.DeleteRomanaIP(serviceName); err != nil {
+			if err := l.client.DeleteRomanaIP(key); err != nil {
 				// log the error and then do nothing here since
 				// even if deleting fails, it could be that the
 				// service didn't exists,  the addition happens
 				// below. so it should be ok to continue below
 				// here.
 				log.Debugf("error updating romanaIP (%s:%s) for service (%s) on node (%s:%s)",
-					eip.RomanaIP.IP, rip.RomanaIP.IP, serviceName,
+					eip.RomanaIP.IP, rip.RomanaIP.IP, key,
 					eip.NodeIPAddress, rip.NodeIPAddress)
 			}
 		}
 
 		// add to kvstore so that agent adds
 		// appropriate external IP on node
-		if err := l.client.AddRomanaIP(serviceName, rip); err != nil {
+		if err := l.client.AddRomanaIP(key, rip); err != nil {
 			log.Errorf("error adding romanaIP (%s) to romana kvstore",
 				rip.RomanaIP.IP)
 			continue
@@ -227,15 +223,15 @@ func (l *KubeListener) syncExposedIPs() {
 	}
 
 	// remove old services not seen anymore in service list.
-	for serviceName, eip := range exposedIPMap {
-		_, ok := RomanaExposedIPSpecMap.IPForService[serviceName]
+	for key, eip := range exposedIPMap {
+		_, ok := RomanaExposedIPSpecMap.IPForService[key]
 		if ok {
 			// service is present, so nothing to be done here.
 			continue
 		}
 
 		// service was removed, so lets remove the details about it in store
-		if err := l.client.DeleteRomanaIP(serviceName); err != nil {
+		if err := l.client.DeleteRomanaIP(key); err != nil {
 			log.Errorf("error deleting romanaIP (%s) from romana kvstore",
 				eip.RomanaIP.IP)
 			continue
@@ -289,7 +285,14 @@ func (l *KubeListener) extractServiceDetails(svc interface{}) (
 			romanaIP.IP, serviceName)
 	}
 
-	pods, err := l.kubeClientSet.CoreV1Client.Endpoints(service.GetNamespace()).List(
+	namespace := service.GetNamespace()
+	if namespace == "" {
+		namespace = "default"
+	}
+
+	key := namespace + "-" + serviceName
+
+	pods, err := l.kubeClientSet.CoreV1Client.Endpoints(namespace).List(
 		v1.ListOptions{
 			LabelSelector: labels.FormatLabels(service.GetLabels()),
 		})
@@ -319,11 +322,6 @@ func (l *KubeListener) extractServiceDetails(svc interface{}) (
 			node.Name)
 	}
 
-	namespace := service.GetNamespace()
-	if namespace == "" {
-		namespace = "default"
-	}
-
 	exposedIPSpec := api.ExposedIPSpec{
 		RomanaIP:      romanaIP,
 		NodeIPAddress: node.Status.Addresses[0].Address,
@@ -331,7 +329,7 @@ func (l *KubeListener) extractServiceDetails(svc interface{}) (
 		Namespace:     namespace,
 	}
 
-	return service, serviceName, &exposedIPSpec, nil
+	return service, key, &exposedIPSpec, nil
 }
 
 // kubernetesAddServiceEventHandler is called when Kubernetes reports an
@@ -391,37 +389,33 @@ func (l *KubeListener) updateRomanaIP(service *v1.Service) error {
 	RomanaExposedIPSpecMap.Lock()
 	defer RomanaExposedIPSpecMap.Unlock()
 
-	service, serviceName, exposedIPSpec, err := l.extractServiceDetails(service)
+	service, key, exposedIPSpec, err := l.extractServiceDetails(service)
 	if err != nil {
 		log.Debugf("error fetching service details: %s", err)
 		return nil
 	}
 
-	_, foundService := RomanaExposedIPSpecMap.IPForService[serviceName]
+	_, foundService := RomanaExposedIPSpecMap.IPForService[key]
 	if foundService {
 		log.Debugf("Service (%s) already has romanaIP associated with it.",
-			serviceName)
+			key)
 		return nil
 	}
 
 	updatedService := *service
 	updatedService.Spec.ExternalIPs = []string{exposedIPSpec.RomanaIP.IP}
-	namespace := updatedService.GetNamespace()
-	if namespace == "" {
-		namespace = "default"
-	}
-	_, err = l.kubeClientSet.CoreV1Client.Services(namespace).Update(&updatedService)
+	_, err = l.kubeClientSet.CoreV1Client.Services(exposedIPSpec.Namespace).Update(&updatedService)
 	if err != nil {
 		return fmt.Errorf("externalIP couldn't be updated for service (%s): %s",
-			serviceName, err)
+			service.GetName(), err)
 	}
 
-	if err := l.client.AddRomanaIP(serviceName, *exposedIPSpec); err != nil {
+	if err := l.client.AddRomanaIP(key, *exposedIPSpec); err != nil {
 		return fmt.Errorf("error adding romanaIP (%s) to romana kvstore",
 			exposedIPSpec.RomanaIP.IP)
 	}
 
-	RomanaExposedIPSpecMap.IPForService[serviceName] = *exposedIPSpec
+	RomanaExposedIPSpecMap.IPForService[key] = *exposedIPSpec
 
 	log.Tracef(trace.Private, "RomanaExposedIPSpecMap.IPForService: %v\n",
 		RomanaExposedIPSpecMap.IPForService)
@@ -437,20 +431,25 @@ func (l *KubeListener) deleteRomanaIP(service *v1.Service) {
 	if serviceName == "" {
 		return
 	}
+	namespace := service.GetNamespace()
+	if namespace == "" {
+		namespace = "default"
+	}
+	key := namespace + "-" + serviceName
 
-	exposedIPSpec, ok := RomanaExposedIPSpecMap.IPForService[serviceName]
+	exposedIPSpec, ok := RomanaExposedIPSpecMap.IPForService[key]
 	if !ok {
 		log.Debugf("romanaIP for service (%s) not found in the list", serviceName)
 		return
 	}
 
-	if err := l.client.DeleteRomanaIP(serviceName); err != nil {
+	if err := l.client.DeleteRomanaIP(key); err != nil {
 		log.Errorf("error deleting romanaIP (%s) for service (%s) from romana kvstore",
 			exposedIPSpec.RomanaIP.IP, serviceName)
 		return
 	}
 
-	delete(RomanaExposedIPSpecMap.IPForService, serviceName)
+	delete(RomanaExposedIPSpecMap.IPForService, key)
 
 	log.Tracef(trace.Private, "RomanaExposedIPSpecMap.IPForService: %v\n",
 		RomanaExposedIPSpecMap.IPForService)
