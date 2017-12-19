@@ -97,14 +97,21 @@ func (l *KubeListener) startRomanaIPPeriodicSync(stop <-chan struct{}, serviceSt
 	serviceSyncTicker := time.NewTicker(serviceSyncTimer)
 	var romanaIPPeriodicSyncMutex sync.Mutex
 
+	// run syncRomanaIPs and syncExposedIPs once before running
+	// them at the interval of serviceSyncTimer, since ticker
+	// skips the 0th interval and starts from the first
+	// serviceSyncTimer interval.
+	romanaIPPeriodicSyncMutex.Lock()
+	l.syncRomanaIPs(serviceStore)
+	l.syncExposedIPs()
+	romanaIPPeriodicSyncMutex.Unlock()
+
 	for {
 		select {
 		case <-serviceSyncTicker.C:
 			romanaIPPeriodicSyncMutex.Lock()
-
 			l.syncRomanaIPs(serviceStore)
 			l.syncExposedIPs()
-
 			romanaIPPeriodicSyncMutex.Unlock()
 		case <-stop:
 			log.Info("received stop request from listener")
