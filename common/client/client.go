@@ -528,6 +528,9 @@ func (c *Client) ListRomanaIPs() (map[string]api.ExposedIPSpec, error) {
 
 	kvpairs, err := c.Store.ListObjects(RomanaIPPrefix)
 	if err == libkvStore.ErrKeyNotFound {
+		// ErrKeyNotFound shouldn't return error here, since
+		// it means there is nothing is kvstore yet, it is
+		// just empty.
 		return exposedIPs, nil
 	}
 	if err != nil {
@@ -536,13 +539,14 @@ func (c *Client) ListRomanaIPs() (map[string]api.ExposedIPSpec, error) {
 
 	for i := range kvpairs {
 		if kvpairs[i] == nil {
+			log.Errorf("returned nil value from kvstore")
 			continue
 		}
 
 		var eip api.ExposedIPSpec
 		err := json.Unmarshal(kvpairs[i].Value, &eip)
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("error while unmarshalling romana IPs from kvstore: %s", err)
 		}
 
 		key := strings.TrimPrefix(kvpairs[i].Key, c.Store.getKey(RomanaIPPrefix+"/"))
