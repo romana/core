@@ -75,6 +75,9 @@ type KubeListener struct {
 	syncNodesInterval    time.Duration
 	initialNodesSyncDone bool
 	nodeAttributes       []string
+
+	// romanaExposedIPSpecMap stores romanaIP mapping information.
+	romanaExposedIPSpecMap ExposedIPSpecMap
 }
 
 // Routes returns various routes used in the service.
@@ -178,6 +181,7 @@ func (l *KubeListener) Initialize(clientConfig common.Config) error {
 
 	ProduceNewPolicyEvents(eventc, done, l)
 
+	l.romanaExposedIPSpecMap = ExposedIPSpecMap{IPForService: make(map[string]api.ExposedIPSpec)}
 	l.startRomanaIPSync(done)
 
 	log.Info("All routines started")
