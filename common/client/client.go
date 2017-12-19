@@ -19,12 +19,14 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"strings"
 	"sync"
 
 	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
 	"github.com/romana/core/common/log/trace"
 
+	libkvStore "github.com/docker/libkv/store"
 	log "github.com/romana/rlog"
 )
 
@@ -505,19 +507,53 @@ func (c *Client) watchIPAM() error {
 	return nil
 }
 
-// AddRomanaIP adds romanaIP to store.
-func (c *Client) AddRomanaIP(e api.ExposedIPSpec) error {
+// AddRomanaIP adds romanaIP information for service to the store.
+func (c *Client) AddRomanaIP(key string, e api.ExposedIPSpec) error {
 	b, err := json.Marshal(e)
 	if err != nil {
 		return err
 	}
-	return c.Store.PutObject(RomanaIPPrefix+"/"+e.RomanaIP.IP, b)
+	return c.Store.PutObject(RomanaIPPrefix+"/"+key, b)
 }
 
-// DeleteRomanaIP deletes romanaIP from store.
-func (c *Client) DeleteRomanaIP(romanaIP string) error {
-	_, err := c.Store.Delete(RomanaIPPrefix + "/" + romanaIP)
+// DeleteRomanaIP deletes romanaIP information for service from store.
+func (c *Client) DeleteRomanaIP(key string) error {
+	_, err := c.Store.Delete(RomanaIPPrefix + "/" + key)
 	return err
+}
+
+// ListRomanaIP lists romanaIP information for services in the store.
+func (c *Client) ListRomanaIPs() (map[string]api.ExposedIPSpec, error) {
+	exposedIPs := make(map[string]api.ExposedIPSpec)
+
+	kvpairs, err := c.Store.ListObjects(RomanaIPPrefix)
+	if err == libkvStore.ErrKeyNotFound {
+		// ErrKeyNotFound shouldn't return error here, since
+		// it means there is nothing is kvstore yet, it is
+		// just empty.
+		return exposedIPs, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range kvpairs {
+		if kvpairs[i] == nil {
+			log.Errorf("returned nil value from kvstore")
+			continue
+		}
+
+		var eip api.ExposedIPSpec
+		err := json.Unmarshal(kvpairs[i].Value, &eip)
+		if err != nil {
+			return nil, fmt.Errorf("error while unmarshalling romana IPs from kvstore: %s", err)
+		}
+
+		key := strings.TrimPrefix(kvpairs[i].Key, c.Store.getKey(RomanaIPPrefix+"/"))
+		exposedIPs[key] = eip
+	}
+
+	return exposedIPs, nil
 }
 
 // GetTopology returns the representation of latest topology in store.
