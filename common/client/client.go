@@ -527,11 +527,11 @@ func (c *Client) ListRomanaIPs() (map[string]api.ExposedIPSpec, error) {
 	exposedIPs := make(map[string]api.ExposedIPSpec)
 
 	kvpairs, err := c.Store.ListObjects(RomanaIPPrefix)
-	if err != nil {
-		return nil, err
-	}
 	if err == libkvStore.ErrKeyNotFound {
 		return exposedIPs, nil
+	}
+	if err != nil {
+		return nil, err
 	}
 
 	for i := range kvpairs {
