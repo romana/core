@@ -76,7 +76,7 @@ type KubeListener struct {
 	initialNodesSyncDone bool
 	nodeAttributes       []string
 
-	// romanaExposedIPSpecMap stores romanaIP mapping information.
+	// romanaExposedIPSpecMap stores romana VIP mapping information.
 	romanaExposedIPSpecMap ExposedIPSpecMap
 }
 
@@ -182,7 +182,7 @@ func (l *KubeListener) Initialize(clientConfig common.Config) error {
 	ProduceNewPolicyEvents(eventc, done, l)
 
 	l.romanaExposedIPSpecMap = ExposedIPSpecMap{IPForService: make(map[string]api.ExposedIPSpec)}
-	l.startRomanaIPSync(done)
+	l.startRomanaVIPSync(done)
 
 	log.Info("All routines started")
 	return nil

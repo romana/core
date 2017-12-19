@@ -36,7 +36,7 @@ const (
 	ipamKey               = "/ipam"
 	ipamDataKey           = ipamKey + "/data"
 	PoliciesPrefix        = "/policies"
-	RomanaIPPrefix        = "/romanaip"
+	RomanaVIPPrefix       = "/romanavip"
 	defaultTopologyLevels = 20
 )
 
@@ -507,26 +507,26 @@ func (c *Client) watchIPAM() error {
 	return nil
 }
 
-// AddRomanaIP adds romanaIP information for service to the store.
-func (c *Client) AddRomanaIP(key string, e api.ExposedIPSpec) error {
+// AddRomanaVIP adds romana VIP information for service to the store.
+func (c *Client) AddRomanaVIP(key string, e api.ExposedIPSpec) error {
 	b, err := json.Marshal(e)
 	if err != nil {
 		return err
 	}
-	return c.Store.PutObject(RomanaIPPrefix+"/"+key, b)
+	return c.Store.PutObject(RomanaVIPPrefix+"/"+key, b)
 }
 
-// DeleteRomanaIP deletes romanaIP information for service from store.
-func (c *Client) DeleteRomanaIP(key string) error {
-	_, err := c.Store.Delete(RomanaIPPrefix + "/" + key)
+// DeleteRomanaVIP deletes romana VIP information for service from store.
+func (c *Client) DeleteRomanaVIP(key string) error {
+	_, err := c.Store.Delete(RomanaVIPPrefix + "/" + key)
 	return err
 }
 
-// ListRomanaIP lists romanaIP information for services in the store.
-func (c *Client) ListRomanaIPs() (map[string]api.ExposedIPSpec, error) {
+// ListRomanaVIPs lists romana VIP information for services in the store.
+func (c *Client) ListRomanaVIPs() (map[string]api.ExposedIPSpec, error) {
 	exposedIPs := make(map[string]api.ExposedIPSpec)
 
-	kvpairs, err := c.Store.ListObjects(RomanaIPPrefix)
+	kvpairs, err := c.Store.ListObjects(RomanaVIPPrefix)
 	if err == libkvStore.ErrKeyNotFound {
 		// ErrKeyNotFound shouldn't return error here, since
 		// it means there is nothing is kvstore yet, it is
@@ -549,7 +549,7 @@ func (c *Client) ListRomanaIPs() (map[string]api.ExposedIPSpec, error) {
 			return nil, fmt.Errorf("error while unmarshalling romana IPs from kvstore: %s", err)
 		}
 
-		key := strings.TrimPrefix(kvpairs[i].Key, c.Store.getKey(RomanaIPPrefix)+"/")
+		key := strings.TrimPrefix(kvpairs[i].Key, c.Store.getKey(RomanaVIPPrefix)+"/")
 		exposedIPs[key] = eip
 	}
 
