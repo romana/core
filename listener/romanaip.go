@@ -256,7 +256,7 @@ func (l *KubeListener) extractServiceDetails(svc interface{}) (
 	service, ok := svc.(*v1.Service)
 	if !ok {
 		// not a valid service, so ignore it
-		return nil, "", nil, errors.New("error, received no service information")
+		return nil, "", nil, errors.New("error, received service information is not compatible")
 	}
 
 	serviceName := service.GetName()
@@ -296,7 +296,7 @@ func (l *KubeListener) extractServiceDetails(svc interface{}) (
 		namespace = "default"
 	}
 
-	key := namespace + "-" + serviceName
+	key := serviceName + "." + namespace
 
 	pods, err := l.kubeClientSet.CoreV1Client.Endpoints(namespace).List(
 		v1.ListOptions{
@@ -441,7 +441,7 @@ func (l *KubeListener) deleteRomanaIP(service *v1.Service) {
 	if namespace == "" {
 		namespace = "default"
 	}
-	key := namespace + "-" + serviceName
+	key := serviceName + "." + namespace
 
 	exposedIPSpec, ok := l.romanaExposedIPSpecMap.IPForService[key]
 	if !ok {
