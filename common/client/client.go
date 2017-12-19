@@ -549,7 +549,7 @@ func (c *Client) ListRomanaIPs() (map[string]api.ExposedIPSpec, error) {
 			return nil, fmt.Errorf("error while unmarshalling romana IPs from kvstore: %s", err)
 		}
 
-		key := strings.TrimPrefix(kvpairs[i].Key, c.Store.getKey(RomanaIPPrefix+"/"))
+		key := strings.TrimPrefix(kvpairs[i].Key, c.Store.getKey(RomanaIPPrefix)+"/")
 		exposedIPs[key] = eip
 	}
 
