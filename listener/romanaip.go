@@ -95,6 +95,7 @@ func (l *KubeListener) startRomanaIPSync(stop <-chan struct{}) {
 
 func (l *KubeListener) startRomanaIPPeriodicSync(stop <-chan struct{}, serviceStore cache.Store) {
 	serviceSyncTicker := time.NewTicker(serviceSyncTimer)
+	defer serviceSyncTicker.Stop()
 	var romanaIPPeriodicSyncMutex sync.Mutex
 
 	// run syncRomanaIPs and syncExposedIPs once before running
