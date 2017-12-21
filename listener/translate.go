@@ -242,8 +242,21 @@ func (tg *TranslateGroup) makeNextRule(translator *Translator) error {
 	ingress := tg.kubePolicy.Spec.Ingress[tg.ingressIndex]
 
 	for _, toPort := range ingress.Ports {
-		proto := strings.ToLower(string(*toPort.Protocol))
-		ports := []uint{uint(toPort.Port.IntValue())}
+		var proto string
+		var ports []uint
+
+		if toPort.Protocol == nil {
+			proto = "tcp"
+		} else {
+			proto = strings.ToLower(string(*toPort.Protocol))
+		}
+
+		if toPort.Port == nil {
+			ports = []uint{}
+		} else {
+			ports = []uint{uint(toPort.Port.IntValue())}
+		}
+
 		rule := api.Rule{Protocol: proto, Ports: ports}
 		tg.romanaPolicy.Ingress[tg.ingressIndex].Rules = append(tg.romanaPolicy.Ingress[tg.ingressIndex].Rules, rule)
 	}
