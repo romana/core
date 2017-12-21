@@ -139,7 +139,7 @@ func (l *KubeListener) syncRomanaIPs(serviceStore cache.Store) {
 
 	// if no service with romanaIP annotation is found, skip
 	// syncing, since there is nothing to be done here.
-	if len(romanaIPMap) == 0 {
+	if len(romanaIPMap) == 0 && len(l.romanaExposedIPSpecMap.IPForService) == 0 {
 		return
 	}
 
