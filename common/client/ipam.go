@@ -335,6 +335,22 @@ func (hg *Group) addHost(host *Host) (bool, error) {
 	return true, nil
 }
 
+// allocateSpecificIP will attempt to allocate specified IP in the given group.
+// The algorithm is as follows:
+// 1. Go through all blocks owned by owner
+// 2. If the IP belongs in any of these blocks, check the host
+//    - If the block belongs to a host different than specified, return error
+//    - Otherwise allocate the IP in the block
+// 3. If not, sequentially allocate a new block for given host and owner
+//    - If the IP belongs to this block, allocate it
+//    - Otherwise, add the block to reusable list and go to 3
+//
+// While an alternative may be to calculate the block (if any) to contain the IP,
+// going through all possible blocks is not a huge operation, is easy to follow,
+// and results in a list of reusable blocks for later reuse. Given that this operation
+// is only useful (for now) in case of updating topology -- that is, a relatively rare
+// operation -- and that iterating over all blocks is not a hugely expensive proposition,
+// it is good enough for now.
 func (hg *Group) allocateSpecificIP(ip net.IP, network *Network, hostName string, owner string) error {
 	if !hg.CIDR.ContainsIP(ip) {
 		return fmt.Errorf("Cannot allocate IP %s in group %s (%s)", ip, hg.Name, hg.CIDR)
@@ -408,8 +424,9 @@ func (hg *Group) allocateSpecificIP(ip net.IP, network *Network, hostName string
 			}
 			return err
 		} else {
-			// A newly created block may not yet be the one to contain the IP we wish to allocate.
-			// So just add it to the reusable blocks for the group.
+			// A newly created block may not yet be the one to contain the
+			// IP we wish to allocate. So just add it to the reusable blocks
+			// for the group.
 			hg.ReusableBlocks = append(hg.ReusableBlocks, newBlockID)
 		}
 	}
@@ -1558,8 +1575,8 @@ func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest, lockAndSave bool
 
 	var ipFound bool
 	for addressName, ip := range backupIPAM.AddressNameToIP {
-		ipFound = false
 		log.Debugf("UpdateTopology(): Attempting to allocate %s: %s", addressName, ip)
+		ipFound = false
 		for _, network := range backupIPAM.Networks {
 			if network.CIDR.ContainsIP(ip) {
 				log.Debugf("UpdateTopology(): Attempt to allocate %s in %s (%s)", ip, network.Name, network.CIDR)
@@ -1568,9 +1585,10 @@ func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest, lockAndSave bool
 					return fmt.Errorf("Unexpected result when looking up IP %s: host %s, owner %s", ip, hostName, owner)
 				}
 				tenant, segment := parseOwner(owner)
-
 				err = ipam.allocateSpecificIP(addressName, ip, hostName, tenant, segment)
 				if err == nil {
+					ipFound = true
+				} else {
 					return err
 				}
 			}
