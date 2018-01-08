@@ -133,6 +133,15 @@ func (c CIDR) Contains(c2 CIDR) bool {
 	return c.StartIPInt <= c2.StartIPInt && c.EndIPInt >= c2.EndIPInt
 }
 
+func (c CIDR) ContainsIP(ip net.IP) bool {
+	ipInt := common.IPv4ToInt(ip)
+	log.Tracef(trace.Private, "%d<=%d && %d>=%d: %t", c.StartIPInt,
+		ipInt, c.EndIPInt,
+		ipInt,
+		(c.StartIPInt <= ipInt && c.EndIPInt >= ipInt))
+	return c.StartIPInt <= ipInt && c.EndIPInt >= ipInt
+}
+
 func (c CIDR) DebugString() string {
 	if c.IPNet == nil {
 		return ""
@@ -326,6 +335,103 @@ func (hg *Group) addHost(host *Host) (bool, error) {
 	return true, nil
 }
 
+// allocateSpecificIP will attempt to allocate specified IP in the given group.
+// The algorithm is as follows:
+// 1. Go through all blocks owned by owner
+// 2. If the IP belongs in any of these blocks, check the host
+//    - If the block belongs to a host different than specified, return error
+//    - Otherwise allocate the IP in the block
+// 3. If not, sequentially allocate a new block for given host and owner
+//    - If the IP belongs to this block, allocate it
+//    - Otherwise, add the block to reusable list and go to 3
+//
+// While an alternative may be to calculate the block (if any) to contain the IP,
+// going through all possible blocks is not a huge operation, is easy to follow,
+// and results in a list of reusable blocks for later reuse. Given that this operation
+// is only useful (for now) in case of updating topology -- that is, a relatively rare
+// operation -- and that iterating over all blocks is not a hugely expensive proposition,
+// it is good enough for now.
+func (hg *Group) allocateSpecificIP(ip net.IP, network *Network, hostName string, owner string) error {
+	if !hg.CIDR.ContainsIP(ip) {
+		return fmt.Errorf("Cannot allocate IP %s in group %s (%s)", ip, hg.Name, hg.CIDR)
+	}
+	ownedBlockIDs := hg.OwnerToBlocks[owner]
+	if len(ownedBlockIDs) > 0 {
+		for _, blockID := range ownedBlockIDs {
+			block := hg.Blocks[blockID]
+			if block.CIDR.ContainsIP(ip) {
+				hostForCurBlock := hg.BlockToHost[blockID]
+				log.Tracef(trace.Inside, "Host for block %d: %s", blockID, hostForCurBlock)
+				if hostName != hostForCurBlock {
+					return fmt.Errorf("Cannot allocate IP %s on host %s: block belongs to %s", ip, hostName, hostForCurBlock)
+				}
+				return block.allocateSpecificIP(ip, network)
+			}
+		}
+		log.Tracef(trace.Inside, "IP %s not found on any block in network %s for owner %s and host %s", ip, network.Name, owner, hostName)
+	} else {
+		log.Tracef(trace.Inside, "IP %s not found on any block in network %s for owner %s and host %s", ip, network.Name, owner, hostName)
+	}
+	var err error
+	// If we are here then all blocks are exhausted. Need to allocate a new block.
+	// First let's see if there are blocks on this group to be reused.
+	for blockIdx, blockID := range hg.ReusableBlocks {
+		block := hg.Blocks[blockID]
+		if block.CIDR.ContainsIP(ip) {
+			err = block.allocateSpecificIP(ip, network)
+			if err != nil {
+				hg.ReusableBlocks = deleteElementInt(hg.ReusableBlocks, blockIdx)
+				hg.OwnerToBlocks[owner] = append(hg.OwnerToBlocks[owner], blockID)
+				hg.BlockToOwner[blockID] = owner
+				hg.BlockToHost[blockID] = hostName
+			}
+			return err
+		}
+	}
+	log.Tracef(trace.Inside, "Network %s has no blocks to reuse for <%s>, creating new block", network.Name, owner)
+
+	for {
+		var newBlockStartIPInt uint64
+		if len(hg.Blocks) > 0 {
+			lastBlock := hg.Blocks[len(hg.Blocks)-1]
+			newBlockStartIPInt = lastBlock.CIDR.EndIPInt + 1
+		} else {
+			newBlockStartIPInt = hg.CIDR.StartIPInt
+		}
+		if newBlockStartIPInt > hg.CIDR.EndIPInt {
+			return fmt.Errorf("No more blocks can be allocated in %s", network.Name)
+		}
+
+		newBlockEndIPInt := newBlockStartIPInt + (1 << (32 - network.BlockMask)) - 1
+		if newBlockEndIPInt > network.CIDR.EndIPInt {
+			return fmt.Errorf("No more blocks can be allocated in %s", network.Name)
+		}
+
+		newBlockCIDRStr := fmt.Sprintf("%s/%d", common.IntToIPv4(newBlockStartIPInt), network.BlockMask)
+		newBlockCIDR, err := NewCIDR(newBlockCIDRStr)
+		if err != nil {
+			return err
+		}
+		newBlock := newBlock(newBlockCIDR)
+		hg.Blocks = append(hg.Blocks, newBlock)
+		newBlockID := len(hg.Blocks) - 1
+		if newBlock.CIDR.ContainsIP(ip) {
+			err = newBlock.allocateSpecificIP(ip, network)
+			if err == nil {
+				hg.OwnerToBlocks[owner] = append(hg.OwnerToBlocks[owner], newBlockID)
+				hg.BlockToOwner[newBlockID] = owner
+				hg.BlockToHost[newBlockID] = hostName
+			}
+			return err
+		} else {
+			// A newly created block may not yet be the one to contain the
+			// IP we wish to allocate. So just add it to the reusable blocks
+			// for the group.
+			hg.ReusableBlocks = append(hg.ReusableBlocks, newBlockID)
+		}
+	}
+}
+
 func (hg *Group) allocateIP(network *Network, hostName string, owner string) net.IP {
 	ownedBlockIDs := hg.OwnerToBlocks[owner]
 	var ip net.IP
@@ -398,6 +504,7 @@ func (hg *Group) allocateIP(network *Network, hostName string, owner string) net
 		hg.BlockToOwner[newBlockID] = owner
 		hg.BlockToHost[newBlockID] = hostName
 		log.Tracef(trace.Inside, "New block created in %s for owner %s and host %s: %s", hg.CIDR, owner, hostName, newBlockCIDR)
+		log.Tracef(trace.Inside, "Group %s BlockToOwner: %v, BlockToHost: %v", hg.CIDR, hg.BlockToOwner, hg.BlockToHost)
 		ip := newBlock.allocateIP(network)
 		if ip == nil {
 			// This could happen if this is a new block but happens to be completely
@@ -407,6 +514,30 @@ func (hg *Group) allocateIP(network *Network, hostName string, owner string) net
 		}
 		return ip
 	}
+}
+
+func (hg *Group) findIPInfo(ip net.IP) (string, string) {
+	log.Tracef(trace.Inside, "group.findIPInfo(): Looking for %s in %s (%s)", ip, hg.Name, hg.CIDR)
+	if hg.Hosts != nil {
+		log.Tracef(trace.Inside, "group.findIPInfo(): Looking for %s in %d blocks", ip, len(hg.Blocks))
+		var block *Block
+		var blockID int
+		for blockID, block = range hg.Blocks {
+			if block.CIDR.IPNet.Contains(ip) {
+				log.Tracef(trace.Inside, "group.findIPInfo(): Found %s in %s: %d", ip, block.CIDR, blockID)
+				log.Tracef(trace.Inside, "BTW %v %v", hg.BlockToHost[blockID], hg.BlockToOwner[blockID])
+				return hg.BlockToHost[blockID], hg.BlockToOwner[blockID]
+			}
+		}
+		return "", ""
+	} else {
+		for _, group := range hg.Groups {
+			if group.CIDR.IPNet.Contains(ip) {
+				return group.findIPInfo(ip)
+			}
+		}
+	}
+	return "", ""
 }
 
 func (hg *Group) deallocateIP(ip net.IP) error {
@@ -820,6 +951,20 @@ func (b *Block) isEmpty() bool {
 	return b.Pool.IsEmpty()
 }
 
+func (b *Block) allocateSpecificIP(ip net.IP, network *Network) error {
+	var err error
+	blackedOutBy := network.blackedOutBy(ip)
+	if blackedOutBy != nil {
+		return fmt.Errorf("Cannot allocate %s: blacked out by %s", ip, blackedOutBy)
+	}
+	id := common.IPv4ToInt(ip)
+	err = b.Pool.GetSpecificID(id)
+	if err != nil {
+		log.Errorf("Cannot allocate IP %s in block %s: %s", ip, b.CIDR, err)
+	}
+	return err
+}
+
 // allocateIP allocates an IP from the block. Returns nil if
 // exhausted.
 func (b *Block) allocateIP(network *Network) net.IP {
@@ -913,6 +1058,33 @@ func (network *Network) deallocateIP(ip net.IP) error {
 	return err
 }
 
+func (network *Network) findIPInfo(ip net.IP) (hostName string, owner string) {
+
+	log.Tracef(trace.Inside, "network.findIPInfo(): Looking for %s in %s (%s)", ip, network.Name, network.CIDR)
+	if network.Group == nil {
+		log.Tracef(trace.Inside, "network.findIPInfo(): Not found.")
+		return "", ""
+	}
+	return network.Group.findIPInfo(ip)
+}
+
+func (network *Network) allocateSpecificIP(ip net.IP, hostName string, owner string) error {
+	if network.Group == nil {
+		return errors.NewRomanaNotFoundError("No groups found in network",
+			"group",
+			fmt.Sprintf("network=%s", network.Name))
+	}
+
+	host := network.Group.findHostByName(hostName)
+	if host == nil {
+		return errors.NewRomanaNotFoundError(fmt.Sprintf("Host %s not found", hostName),
+			"host",
+			fmt.Sprintf("hostname=%s", hostName))
+	}
+
+	return host.group.allocateSpecificIP(ip, network, hostName, owner)
+}
+
 // allocateIP attempts to allocate an IP from one of the existing blocks for the tenant; and
 // if not, reuse a block that belongs to no tenant. Finally, it will try to allocate a
 // new block.
@@ -968,7 +1140,7 @@ func NewIPAM(saver Saver, locker Locker) (*IPAM, error) {
 		return nil, err
 	}
 	defer ipam.locker.Unlock()
-	clearIPAM(ipam)
+	ipam.clearIPAM()
 
 	log.Tracef(trace.Inside, "NewIPAM(): Set locker to %v", ipam.locker)
 
@@ -1033,7 +1205,7 @@ func (ipam *IPAM) injectParents() {
 }
 
 // clearIPAM clears IPAM.
-func clearIPAM(ipam *IPAM) {
+func (ipam *IPAM) clearIPAM() {
 	ipam.Networks = make(map[string]*Network)
 	ipam.AddressNameToIP = make(map[string]net.IP)
 	ipam.TenantToNetwork = make(map[string][]string)
@@ -1069,6 +1241,32 @@ func (ipam *IPAM) GetGroupsForNetwork(netName string) *Group {
 	}
 }
 
+// allocateSpecificIP tries to allocate a specific IP. If the specific IP cannot be
+// allocated in the given host/tenant/segment combination, an error is returned.
+func (ipam *IPAM) allocateSpecificIP(addressName string, ip net.IP, host string, tenant string, segment string) error {
+	// Find eligible networks for the specified tenant
+	var err error
+	msg := fmt.Sprintf("%s: %s (Host %s, tenant %s, segment %s)", addressName, ip, host, tenant, segment)
+	log.Debugf("Attempting to allocate %s", msg)
+	networksForTenant, err := ipam.getNetworksForTenant(tenant)
+	if err != nil {
+		return err
+	}
+
+	owner := makeOwner(tenant, segment)
+	for _, network := range networksForTenant {
+		if network.CIDR.ContainsIP(ip) {
+			err = network.allocateSpecificIP(ip, host, owner)
+			if err != nil {
+				return err
+			}
+			ipam.AddressNameToIP[addressName] = ip
+			return nil
+		}
+	}
+	return fmt.Errorf("No suitable network found to allocate %s", msg)
+}
+
 // AllocateIP allocates an IP for the provided tenant and segment,
 // and associates the provided name with it. That name can afterwards
 // be used for deallocation.
@@ -1080,10 +1278,10 @@ func (ipam *IPAM) AllocateIP(addressName string, host string, tenant string, seg
 	log.Tracef(trace.Inside, "Entering IPAM.AllocateIP()")
 	ch, err := ipam.locker.Lock()
 	if err != nil {
-		log.Tracef(trace.Inside, "IPAM.AllocateIP: error acquiring a lock")
+		log.Error("IPAM.AllocateIP: error acquiring a lock")
 		return nil, err
 	}
-	log.Tracef(trace.Inside, "IPAM.AllocateIP: got a lock")
+	//	log.Tracef(trace.Inside, "IPAM.AllocateIP: got a lock")
 	defer ipam.locker.Unlock()
 
 	latestIPAM := &IPAM{}
@@ -1155,7 +1353,7 @@ func (ipam *IPAM) DeallocateIP(addressName string) error {
 	defer ipam.locker.Unlock()
 
 	latestIPAM := &IPAM{}
-	clearIPAM(latestIPAM)
+	latestIPAM.clearIPAM()
 	err = ipam.load(latestIPAM, ch)
 	if err != nil {
 		return err
@@ -1237,34 +1435,9 @@ func (ipam *IPAM) getNetworksForTenant(tenant string) ([]*Network, error) {
 	return networks, nil
 }
 
-// updateTopology updates the entire topology, returning an error if it is
-// in conflict with the previous topology.
-func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest, lockAndSave bool) error {
-	var err error
-	var ch <-chan struct{}
-	if lockAndSave {
-		ch, err = ipam.locker.Lock()
-		if err != nil {
-			return err
-		}
-		defer ipam.locker.Unlock()
-	}
-	allocatedBlocks := false
-
-	for _, netDef := range ipam.Networks {
-		// Blocks that have IPs assigned -- if they didn't, they would be
-		// in ReusableBlocks but not here
-		if netDef.Group.BlockToOwner != nil && len(netDef.Group.BlockToOwner) > 0 {
-			allocatedBlocks = true
-			break
-		}
-	}
-
-	if allocatedBlocks {
-		return common.NewError("Updating topology after IPs have been allocated currently not implemented.")
-	}
-	clearIPAM(ipam)
-
+// setTopology clears IPAM and sets existing topology in it.
+func (ipam *IPAM) setTopology(req api.TopologyUpdateRequest) error {
+	ipam.clearIPAM()
 	var netDef api.NetworkDefinition
 	for _, netDef = range req.Networks {
 		log.Infof("Parsing network %s", netDef.Name)
@@ -1331,6 +1504,7 @@ func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest, lockAndSave bool
 	log.Tracef(trace.Inside, "Tenants to network mapping: %v", ipam.TenantToNetwork)
 	var ok bool
 	var network *Network
+	var err error
 	for _, topoDef := range req.Topologies {
 		for _, netName := range topoDef.Networks {
 			if _, ok = processedNetworks[netName]; ok {
@@ -1351,6 +1525,79 @@ func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest, lockAndSave bool
 			processedNetworks[netName] = true
 		}
 	}
+	return nil
+}
+
+// cloneIPAM returns a copy of the current IPAM
+// (except for save and locker which are copied
+// by reference).
+func (ipam *IPAM) cloneIPAM() (*IPAM, error) {
+	b, err := json.Marshal(ipam)
+	if err != nil {
+		return nil, err
+	}
+	newIPAM, err := parseIPAM(string(b))
+	if err != nil {
+		return nil, err
+	}
+	newIPAM.save = ipam.save
+	newIPAM.locker = ipam.locker
+	return newIPAM, nil
+}
+
+// UpdateTopology updates the entire topology, returning an error if the
+// current topology has IPs that cannot be allocated in the new one.
+func (ipam *IPAM) UpdateTopology(req api.TopologyUpdateRequest, lockAndSave bool) error {
+	var err error
+	var ch <-chan struct{}
+	if lockAndSave {
+		ch, err = ipam.locker.Lock()
+		if err != nil {
+			return err
+		}
+		defer ipam.locker.Unlock()
+	}
+
+	// The algorithm is as follows:
+	// - Back up IPAM
+	// - Set current IPAM's topology to the provided
+	// - Attempt to allocate all IPs from backed up IPAM.
+	//   - If any fails, fail
+	backupIPAM, err := ipam.cloneIPAM()
+	backupIPAM.locker = nil
+	if err != nil {
+		return err
+	}
+	err = ipam.setTopology(req)
+	if err != nil {
+		return err
+	}
+
+	var ipFound bool
+	for addressName, ip := range backupIPAM.AddressNameToIP {
+		log.Debugf("UpdateTopology(): Attempting to allocate %s: %s", addressName, ip)
+		ipFound = false
+		for _, network := range backupIPAM.Networks {
+			if network.CIDR.ContainsIP(ip) {
+				log.Debugf("UpdateTopology(): Attempt to allocate %s in %s (%s)", ip, network.Name, network.CIDR)
+				hostName, owner := network.findIPInfo(ip)
+				if hostName == "" || owner == "" {
+					return fmt.Errorf("Unexpected result when looking up IP %s: host %s, owner %s", ip, hostName, owner)
+				}
+				tenant, segment := parseOwner(owner)
+				err = ipam.allocateSpecificIP(addressName, ip, hostName, tenant, segment)
+				if err == nil {
+					ipFound = true
+				} else {
+					return err
+				}
+			}
+		}
+		if !ipFound {
+			return fmt.Errorf("Cannot find network for IP %s", ip)
+		}
+	}
+
 	ipam.TopologyRevision++
 	if lockAndSave {
 		err = ipam.save(ipam, ch)

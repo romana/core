@@ -84,6 +84,37 @@ func TestClear(t *testing.T) {
 	}
 }
 
+func TestSpecificAllocation(t *testing.T) {
+	var err error
+	var id uint64
+	idRing := NewIDRing(1, 10, &sync.Mutex{})
+
+	err = idRing.GetSpecificID(1)
+	if err != nil {
+		t.Fatalf("Unexpected error %s", err)
+	}
+
+	err = idRing.GetSpecificID(2)
+	if err != nil {
+		t.Fatalf("Unexpected error %s", err)
+	}
+
+	id, err = idRing.GetID()
+	if err != nil {
+		t.Fatalf("Unexpected error %s", err)
+	}
+	if id != 3 {
+		t.Fatalf("Expected 3, got %d", id)
+	}
+
+	err = idRing.GetSpecificID(3)
+	if err == nil {
+		t.Fatalf("Expected error allocating 3 again.")
+	}
+	t.Logf("Got expected error %s", err)
+
+}
+
 func TestAllocation(t *testing.T) {
 	var err error
 	var id uint64
