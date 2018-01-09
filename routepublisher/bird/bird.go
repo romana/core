@@ -26,10 +26,10 @@ import (
 	"os"
 	"strconv"
 	"sync"
-	"syscall"
 	"text/template"
 
 	router "github.com/romana/core/routepublisher/publisher"
+	"golang.org/x/sys/unix"
 )
 
 // Default implementation of router.Interface that publishes routes via
@@ -134,7 +134,7 @@ func (q *BirdRoutePublisher) Update(networks []net.IPNet, args map[string]interf
 			return fmt.Errorf("Failed to find process with pid %d, err=(%s)", pid, err)
 		}
 
-		err = process.Signal(syscall.SIGHUP)
+		err = process.Signal(unix.SIGHUP)
 		if err != nil {
 			return fmt.Errorf("Failed to send SIGHUP to %d, err=(%s)", pid, err)
 		}

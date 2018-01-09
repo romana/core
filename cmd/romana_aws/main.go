@@ -22,7 +22,6 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"syscall"
 	"time"
 
 	// aws-sdk-go imports
@@ -37,6 +36,8 @@ import (
 	"k8s.io/client-go/pkg/fields"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/cache"
+
+	"golang.org/x/sys/unix"
 )
 
 func main() {
@@ -90,7 +91,7 @@ func main() {
 
 	// run until killed or interrupted
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, os.Interrupt, syscall.SIGTERM)
+	signal.Notify(sigCh, os.Interrupt, unix.SIGTERM)
 	select {
 	case <-sigCh:
 		close(stopCh)
