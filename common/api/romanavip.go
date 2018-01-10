@@ -15,13 +15,13 @@
 
 package api
 
-type RomanaIP struct {
+type RomanaVIP struct {
 	Auto bool   `json:"auto"`
 	IP   string `json:"ip"`
 }
 
 type ExposedIPSpec struct {
-	RomanaIP      RomanaIP
+	RomanaVIP     RomanaVIP
 	NodeIPAddress string
 	Activated     bool
 	Namespace     string

@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"reflect"
+	"sort"
 	"testing"
 
 	"github.com/romana/core/common/api"
@@ -389,10 +390,34 @@ func Test_getTopologyFromIPAMState(t *testing.T) {
 
 	for _, tt := range testcases {
 		t.Run(tt.name, func(t *testing.T) {
-			// TODO: got and tt.want below are not sorted, so there is a fair chance the
-			// testcases here may fail, in which case this needs to be fixed by sorting
-			// it first.
-			if got := getTopologyFromIPAMState(tt.ipam); !reflect.DeepEqual(got, tt.want) {
+			got := getTopologyFromIPAMState(tt.ipam)
+			gotTUR, ok := got.(*api.TopologyUpdateRequest)
+			if !ok {
+				t.Fatalf("error while fetching topology from IPAM: %v", got)
+			}
+			sortNetworks := func(i, j int) bool {
+				return gotTUR.Networks[i].Name < gotTUR.Networks[j].Name
+			}
+			sortTopologies := func(i, j int) bool {
+				return gotTUR.Topologies[i].Networks[0] < gotTUR.Topologies[j].Networks[0]
+			}
+			sort.SliceStable(gotTUR.Networks, sortNetworks)
+			sort.SliceStable(gotTUR.Topologies, sortTopologies)
+
+			wantTUR, ok := tt.want.(*api.TopologyUpdateRequest)
+			if !ok {
+				t.Fatalf("error while processing IPAM state: %v", tt.want)
+			}
+			sortNetworks = func(i, j int) bool {
+				return wantTUR.Networks[i].Name < wantTUR.Networks[j].Name
+			}
+			sortTopologies = func(i, j int) bool {
+				return wantTUR.Topologies[i].Networks[0] < wantTUR.Topologies[j].Networks[0]
+			}
+			sort.SliceStable(wantTUR.Networks, sortNetworks)
+			sort.SliceStable(wantTUR.Topologies, sortTopologies)
+
+			if !reflect.DeepEqual(gotTUR, wantTUR) {
 				bodyGot, errGot := json.MarshalIndent(got, "", "\t")
 				bodyWant, errWant := json.MarshalIndent(tt.want, "", "\t")
 				if errGot == nil && errWant == nil {

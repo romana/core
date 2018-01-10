@@ -113,11 +113,11 @@ func linkAddDeleteIP(kvpair *kvstore.KVPairExt, toAdd bool,
 	}
 
 	if exposedIP.NodeIPAddress == "" {
-		return fmt.Errorf("error finding node IP Address for romanaIP")
+		return fmt.Errorf("error finding node IP Address for romana VIP")
 	}
 
-	if exposedIP.RomanaIP.IP == "" {
-		return fmt.Errorf("romana IP error or romana IP not found")
+	if exposedIP.RomanaVIP.IP == "" {
+		return fmt.Errorf("romana VIP error or romana VIP not found")
 	}
 
 	for i := range defaultLinkAddressList {
@@ -128,13 +128,13 @@ func linkAddDeleteIP(kvpair *kvstore.KVPairExt, toAdd bool,
 	}
 
 	if !IPAddressOnThisNode {
-		log.Info("romanaIP not for this node, skipping processing it")
+		log.Info("romana VIP not for this node, skipping processing it")
 		return nil
 	}
 
-	ipAddress, err := netlink.ParseAddr(exposedIP.RomanaIP.IP + "/32")
+	ipAddress, err := netlink.ParseAddr(exposedIP.RomanaVIP.IP + "/32")
 	if err != nil {
-		return fmt.Errorf("error parsing romana IP: %s", err)
+		return fmt.Errorf("error parsing romana VIP: %s", err)
 	}
 
 	if toAdd {
@@ -143,7 +143,7 @@ func linkAddDeleteIP(kvpair *kvstore.KVPairExt, toAdd bool,
 	return netlink.AddrDel(defaultLink, ipAddress)
 }
 
-func StartRomanaIPSync(ctx context.Context, store *client.Store,
+func StartRomanaVIPSync(ctx context.Context, store *client.Store,
 	defaultLink netlink.Link) error {
 	var err error
 
@@ -159,67 +159,67 @@ func StartRomanaIPSync(ctx context.Context, store *client.Store,
 		return fmt.Errorf("failed to get default link's IP address")
 	}
 
-	go romanaIPWatcher(ctx, store, defaultLink, defaultLinkAddressList)
+	go romanaVIPWatcher(ctx, store, defaultLink, defaultLinkAddressList)
 
 	return nil
 }
 
-func romanaIPWatcher(ctx context.Context, store *client.Store,
+func romanaVIPWatcher(ctx context.Context, store *client.Store,
 	defaultLink netlink.Link, defaultLinkAddressList []string) {
 	var storeError error
 	var events <-chan *kvstore.KVPairExt
 
 	// Initial kvstore connection, ignore error since it is always nil.
-	events, _ = store.WatchTreeExt(client.DefaultEtcdPrefix+client.RomanaIPPrefix, ctx.Done())
+	events, _ = store.WatchTreeExt(client.DefaultEtcdPrefix+client.RomanaVIPPrefix, ctx.Done())
 
 	for {
 		if storeError != nil {
-			log.Errorf("romanaIP watcher store error: %s", storeError)
+			log.Errorf("romana VIP watcher store error: %s", storeError)
 			// if we can't connect to the kvstore, wait for
 			// few seconds and try reconnecting.
 			time.Sleep(defaultWatcherReconnectTime)
 			events, _ = store.WatchTreeExt(
-				client.DefaultEtcdPrefix+client.RomanaIPPrefix,
+				client.DefaultEtcdPrefix+client.RomanaVIPPrefix,
 				ctx.Done())
 		}
 
 		select {
 		case pair, ok := <-events:
 			if !ok || pair == nil {
-				storeError = errors.New("kvstore romana IP events channel closed")
+				storeError = errors.New("kvstore romana VIP events channel closed")
 				continue
 			}
 
 			switch pair.Action {
 			case "create", "set", "update", "compareAndSwap":
-				log.Debugf("creating/updating romanaIP: %#v\n", pair)
+				log.Debugf("creating/updating romana VIP: %#v\n", pair)
 				err := linkAddDeleteIP(pair, true, defaultLink, defaultLinkAddressList)
 				if err != nil {
-					log.Errorf("error adding romanaIP to the link: %s", err)
+					log.Errorf("error adding romana VIP to the link: %s", err)
 					continue
 				}
 			case "delete":
 				if pair.Dir {
-					// TODO: currently if the whole "/romana/romanaip" kvstore
-					// directory is deleted, then we need to delete all romanaIPs,
+					// TODO: currently if the whole "/romana/romanavip" kvstore
+					// directory is deleted, then we need to delete all romana VIPs,
 					// but currently we do nothing here and handle only single
-					// romanaIP deletion event below.
-					log.Infof("should be deleting ALL romanaIPs(%#v) here, ignoring currently",
+					// romana VIP deletion event below.
+					log.Infof("should be deleting ALL romana VIPs(%#v) here, ignoring currently",
 						pair)
 				} else {
-					log.Debugf("deleting romanaIP: %#v\n", pair)
+					log.Debugf("deleting romana VIP: %#v\n", pair)
 					err := linkAddDeleteIP(pair, false, defaultLink, defaultLinkAddressList)
 					if err != nil {
-						log.Errorf("error deleting romanaIP from the link: %s", err)
+						log.Errorf("error deleting romana VIP from the link: %s", err)
 						continue
 					}
 				}
 			default:
-				log.Infof("missed romanaIP event type: %s", pair.Action)
+				log.Infof("missed romana VIP event type: %s", pair.Action)
 			}
 
 		case <-ctx.Done():
-			log.Printf("Stopping romanaIP watcher module.")
+			log.Printf("Stopping romana VIP watcher module.")
 			return
 		}
 	}

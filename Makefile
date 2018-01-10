@@ -10,6 +10,7 @@ services = $$GOPATH/bin/romanad\
 		   $$GOPATH/bin/romana_cni\
 		   $$GOPATH/bin/romana_aws\
 		   $$GOPATH/bin/romana_listener\
+		   $$GOPATH/bin/romana_route_publisher\
 		   $$GOPATH/bin/romana_doc
 
 UPX_VERSION := $(shell upx --version 2>/dev/null)

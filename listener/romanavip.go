@@ -44,7 +44,7 @@ var (
 	serviceSyncTimer = 60 * time.Second
 )
 
-func (l *KubeListener) startRomanaIPSync(stop <-chan struct{}) {
+func (l *KubeListener) startRomanaVIPSync(stop <-chan struct{}) {
 	// serviceWatcher is a new ListWatch object created from the specified
 	// CoreClientSet above for watching service events.
 	serviceWatcher := cache.NewListWatchFromClient(
@@ -83,7 +83,7 @@ func (l *KubeListener) startRomanaIPSync(stop <-chan struct{}) {
 			os.Exit(1)
 		case <-ticker.C:
 			if serviceInformer.HasSynced() {
-				go l.startRomanaIPPeriodicSync(stop, serviceStore)
+				go l.startRomanaVIPPeriodicSync(stop, serviceStore)
 				return
 			}
 		case <-stop:
@@ -93,27 +93,27 @@ func (l *KubeListener) startRomanaIPSync(stop <-chan struct{}) {
 	}
 }
 
-func (l *KubeListener) startRomanaIPPeriodicSync(stop <-chan struct{}, serviceStore cache.Store) {
+func (l *KubeListener) startRomanaVIPPeriodicSync(stop <-chan struct{}, serviceStore cache.Store) {
 	serviceSyncTicker := time.NewTicker(serviceSyncTimer)
 	defer serviceSyncTicker.Stop()
-	var romanaIPPeriodicSyncMutex sync.Mutex
+	var romanaVIPPeriodicSyncMutex sync.Mutex
 
-	// run syncRomanaIPs and syncExposedIPs once before running
+	// run syncRomanaVIPs and syncExposedIPs once before running
 	// them at the interval of serviceSyncTimer, since ticker
 	// skips the 0th interval and starts from the first
 	// serviceSyncTimer interval.
-	romanaIPPeriodicSyncMutex.Lock()
-	l.syncRomanaIPs(serviceStore)
+	romanaVIPPeriodicSyncMutex.Lock()
+	l.syncRomanaVIPs(serviceStore)
 	l.syncExposedIPs()
-	romanaIPPeriodicSyncMutex.Unlock()
+	romanaVIPPeriodicSyncMutex.Unlock()
 
 	for {
 		select {
 		case <-serviceSyncTicker.C:
-			romanaIPPeriodicSyncMutex.Lock()
-			l.syncRomanaIPs(serviceStore)
+			romanaVIPPeriodicSyncMutex.Lock()
+			l.syncRomanaVIPs(serviceStore)
 			l.syncExposedIPs()
-			romanaIPPeriodicSyncMutex.Unlock()
+			romanaVIPPeriodicSyncMutex.Unlock()
 		case <-stop:
 			log.Info("received stop request from listener")
 			return
@@ -121,9 +121,9 @@ func (l *KubeListener) startRomanaIPPeriodicSync(stop <-chan struct{}, serviceSt
 	}
 }
 
-func (l *KubeListener) syncRomanaIPs(serviceStore cache.Store) {
+func (l *KubeListener) syncRomanaVIPs(serviceStore cache.Store) {
 	serviceListAll := serviceStore.List()
-	romanaIPMap := make(map[string]api.ExposedIPSpec)
+	romanaVIPMap := make(map[string]api.ExposedIPSpec)
 	serviceMap := make(map[string]v1.Service)
 
 	for i := range serviceListAll {
@@ -133,32 +133,32 @@ func (l *KubeListener) syncRomanaIPs(serviceStore cache.Store) {
 			continue
 		}
 
-		romanaIPMap[key] = *exposedIPSpec
+		romanaVIPMap[key] = *exposedIPSpec
 		serviceMap[key] = *service
 	}
 
-	// if no service with romanaIP annotation is found, skip
+	// if no service with romana VIP annotation is found, skip
 	// syncing, since there is nothing to be done here.
-	if len(romanaIPMap) == 0 && len(l.romanaExposedIPSpecMap.IPForService) == 0 {
+	if len(romanaVIPMap) == 0 && len(l.romanaExposedIPSpecMap.IPForService) == 0 {
 		return
 	}
 
 	l.romanaExposedIPSpecMap.Lock()
 
 	// update/add new services which we see
-	for key, rip := range romanaIPMap {
+	for key, rip := range romanaVIPMap {
 		eip, ok := l.romanaExposedIPSpecMap.IPForService[key]
 
-		if ok && eip.RomanaIP.IP == rip.RomanaIP.IP &&
+		if ok && eip.RomanaVIP.IP == rip.RomanaVIP.IP &&
 			eip.NodeIPAddress == rip.NodeIPAddress {
-			// romanaIP is present, and match the current romanaIP
-			// configuration, so nothing to be done here.
+			// romana VIP is present, and match the current romana
+			// VIP configuration, so nothing to be done here.
 			continue
 		}
 
 		// update service locally for external IP
 		updatedService := serviceMap[key]
-		updatedService.Spec.ExternalIPs = []string{rip.RomanaIP.IP}
+		updatedService.Spec.ExternalIPs = []string{rip.RomanaVIP.IP}
 		_, err := l.kubeClientSet.CoreV1Client.Services(rip.Namespace).Update(&updatedService)
 		if err != nil {
 			log.Errorf("externalIP couldn't be updated for service (%s): %s",
@@ -166,14 +166,14 @@ func (l *KubeListener) syncRomanaIPs(serviceStore cache.Store) {
 			continue
 		}
 
-		// everything seems fine and addition/updating romanaIP was
-		// a success and thus add the romanaIP to the exposedIP map here.
+		// everything seems fine and addition/updating romana VIP was
+		// a success and thus add the romana VIP to the exposedIP map here.
 		l.romanaExposedIPSpecMap.IPForService[key] = rip
 	}
 
 	// remove old services not seen anymore in service list.
 	for key := range l.romanaExposedIPSpecMap.IPForService {
-		_, ok := romanaIPMap[key]
+		_, ok := romanaVIPMap[key]
 		if ok {
 			// service is present, so nothing to be done here.
 			continue
@@ -190,7 +190,7 @@ func (l *KubeListener) syncExposedIPs() {
 	l.romanaExposedIPSpecMap.Lock()
 	defer l.romanaExposedIPSpecMap.Unlock()
 
-	exposedIPMap, err := l.client.ListRomanaIPs()
+	exposedIPMap, err := l.client.ListRomanaVIPs()
 	if err != nil {
 		return
 	}
@@ -198,33 +198,33 @@ func (l *KubeListener) syncExposedIPs() {
 	for key, rip := range l.romanaExposedIPSpecMap.IPForService {
 		eip, ok := exposedIPMap[key]
 
-		if ok && eip.RomanaIP.IP == rip.RomanaIP.IP &&
+		if ok && eip.RomanaVIP.IP == rip.RomanaVIP.IP &&
 			eip.NodeIPAddress == rip.NodeIPAddress {
-			// romanaIP is present, and match the current romanaIP
-			// configuration, so nothing to be done here.
+			// romana VIP is present, and match the current romana
+			// VIP configuration, so nothing to be done here.
 			continue
 		}
 
-		// if this is romanaIP update, then lets remove it first
-		if ok && (eip.RomanaIP.IP != rip.RomanaIP.IP ||
+		// if this is romana VIP update, then lets remove it first
+		if ok && (eip.RomanaVIP.IP != rip.RomanaVIP.IP ||
 			eip.NodeIPAddress != rip.NodeIPAddress) {
-			if err := l.client.DeleteRomanaIP(key); err != nil {
+			if err := l.client.DeleteRomanaVIP(key); err != nil {
 				// log the error and then do nothing here since
 				// even if deleting fails, it could be that the
 				// service didn't exists,  the addition happens
 				// below. so it should be ok to continue below
 				// here.
-				log.Debugf("error updating romanaIP (%s:%s) for service (%s) on node (%s:%s)",
-					eip.RomanaIP.IP, rip.RomanaIP.IP, key,
+				log.Debugf("error updating romana VIP (%s:%s) for service (%s) on node (%s:%s)",
+					eip.RomanaVIP.IP, rip.RomanaVIP.IP, key,
 					eip.NodeIPAddress, rip.NodeIPAddress)
 			}
 		}
 
 		// add to kvstore so that agent adds
 		// appropriate external IP on node
-		if err := l.client.AddRomanaIP(key, rip); err != nil {
-			log.Errorf("error adding romanaIP (%s) to romana kvstore",
-				rip.RomanaIP.IP)
+		if err := l.client.AddRomanaVIP(key, rip); err != nil {
+			log.Errorf("error adding romana VIP (%s) to romana kvstore",
+				rip.RomanaVIP.IP)
 			continue
 		}
 	}
@@ -238,9 +238,9 @@ func (l *KubeListener) syncExposedIPs() {
 		}
 
 		// service was removed, so lets remove the details about it in store
-		if err := l.client.DeleteRomanaIP(key); err != nil {
-			log.Errorf("error deleting romanaIP (%s) from romana kvstore",
-				eip.RomanaIP.IP)
+		if err := l.client.DeleteRomanaVIP(key); err != nil {
+			log.Errorf("error deleting romana VIP (%s) from romana kvstore",
+				eip.RomanaVIP.IP)
 			continue
 		}
 	}
@@ -267,29 +267,29 @@ func (l *KubeListener) extractServiceDetails(svc interface{}) (
 	}
 
 	annotation := service.GetAnnotations()
-	romanaAnnotation, ok := annotation["romanaip"]
+	romanaAnnotation, ok := annotation["romanavip"]
 	if !ok {
-		// no romanaip annotation for service, so ignore it
-		return nil, "", nil, fmt.Errorf("error, no romanaip annotation found for the service: %s",
+		// no romana VIP annotation for service, so ignore it
+		return nil, "", nil, fmt.Errorf("error, no romana VIP annotation found for the service: %s",
 			serviceName)
 	}
 
-	var romanaIP api.RomanaIP
-	err := json.Unmarshal([]byte(romanaAnnotation), &romanaIP)
+	var romanaVIP api.RomanaVIP
+	err := json.Unmarshal([]byte(romanaAnnotation), &romanaVIP)
 	if err != nil {
-		// romanaip annotation is there, but not a
+		// romana VIP annotation is there, but not a
 		// valid one thus return an error.
-		return nil, "", nil, fmt.Errorf("error while accessing romanaIP annotation: %s", err)
+		return nil, "", nil, fmt.Errorf("error while accessing romana VIP annotation: %s", err)
 	}
 
-	// TODO: implement auto cidr mode for romanaIPs
-	if romanaIP.Auto {
-		return nil, "", nil, fmt.Errorf("romanaIP auto cidr mode not supported in this release")
+	// TODO: implement auto cidr mode for romana VIPs
+	if romanaVIP.Auto {
+		return nil, "", nil, fmt.Errorf("romana VIP auto cidr mode not supported in this release")
 	}
 
-	if net.ParseIP(romanaIP.IP) == nil {
-		return nil, "", nil, fmt.Errorf("romanaIP (%s) is not valid for service (%s)",
-			romanaIP.IP, serviceName)
+	if net.ParseIP(romanaVIP.IP) == nil {
+		return nil, "", nil, fmt.Errorf("romana VIP (%s) is not valid for service (%s)",
+			romanaVIP.IP, serviceName)
 	}
 
 	namespace := service.GetNamespace()
@@ -317,7 +317,7 @@ func (l *KubeListener) extractServiceDetails(svc interface{}) (
 	}
 
 	// use first pod to get node address for now until we support ipam
-	// for romanaIP allocations.
+	// for romana VIP allocations.
 	node, err := l.kubeClientSet.CoreV1Client.Nodes().Get(*pods.Items[0].Subsets[0].Addresses[0].NodeName)
 	if err != nil {
 		return nil, "", nil, fmt.Errorf("node not found for pod for service (%s): %s",
@@ -330,7 +330,7 @@ func (l *KubeListener) extractServiceDetails(svc interface{}) (
 	}
 
 	exposedIPSpec := api.ExposedIPSpec{
-		RomanaIP:      romanaIP,
+		RomanaVIP:     romanaVIP,
 		NodeIPAddress: node.Status.Addresses[0].Address,
 		Activated:     true,
 		Namespace:     namespace,
@@ -341,7 +341,7 @@ func (l *KubeListener) extractServiceDetails(svc interface{}) (
 
 // kubernetesAddServiceEventHandler is called when Kubernetes reports an
 // add service event It connects to the Romana agent and adds the service
-// external IP as RomanaIP to the Romana cluster.
+// external IP as RomanaVIP to the Romana cluster.
 func (l *KubeListener) kubernetesAddServiceEventHandler(n interface{}) {
 	service, ok := n.(*v1.Service)
 	if !ok {
@@ -351,8 +351,8 @@ func (l *KubeListener) kubernetesAddServiceEventHandler(n interface{}) {
 
 	log.Infof("Add event received for service (%s) ", service.GetName())
 
-	if err := l.updateRomanaIP(service); err != nil {
-		log.Errorf("Error updating romanaIP for service (%s): %s",
+	if err := l.updateRomanaVIP(service); err != nil {
+		log.Errorf("Error updating romana VIP for service (%s): %s",
 			service.Name, err)
 		return
 	}
@@ -360,7 +360,7 @@ func (l *KubeListener) kubernetesAddServiceEventHandler(n interface{}) {
 
 // kubernetesUpdateServiceEventHandler is called when Kubernetes reports an
 // update service event. It connects to the Romana agent and updates the service
-// external IP as RomanaIP to the Romana cluster.
+// external IP as RomanaVIP to the Romana cluster.
 func (l *KubeListener) kubernetesUpdateServiceEventHandler(o, n interface{}) {
 	service, ok := n.(*v1.Service)
 	if !ok {
@@ -370,8 +370,8 @@ func (l *KubeListener) kubernetesUpdateServiceEventHandler(o, n interface{}) {
 
 	log.Debugf("Update Event received for service (%s) ", service.GetName())
 
-	if err := l.updateRomanaIP(service); err != nil {
-		log.Errorf("Error updating romanaIP for service (%s): %s",
+	if err := l.updateRomanaVIP(service); err != nil {
+		log.Errorf("Error updating romana VIP for service (%s): %s",
 			service.Name, err)
 		return
 	}
@@ -379,7 +379,7 @@ func (l *KubeListener) kubernetesUpdateServiceEventHandler(o, n interface{}) {
 
 // kubernetesDeleteServiceEventHandler is called when Kubernetes reports a
 // delete service event. It connects to the Romana agent and deletes the
-// RomanaIP from the Romana cluster.
+// RomanaVIP from the Romana cluster.
 func (l *KubeListener) kubernetesDeleteServiceEventHandler(n interface{}) {
 	service, ok := n.(*v1.Service)
 	if !ok {
@@ -389,10 +389,10 @@ func (l *KubeListener) kubernetesDeleteServiceEventHandler(n interface{}) {
 
 	log.Infof("Delete event received for service (%s) ", service.GetName())
 
-	l.deleteRomanaIP(service)
+	l.deleteRomanaVIP(service)
 }
 
-func (l *KubeListener) updateRomanaIP(service *v1.Service) error {
+func (l *KubeListener) updateRomanaVIP(service *v1.Service) error {
 	l.romanaExposedIPSpecMap.Lock()
 	defer l.romanaExposedIPSpecMap.Unlock()
 
@@ -404,22 +404,22 @@ func (l *KubeListener) updateRomanaIP(service *v1.Service) error {
 
 	_, foundService := l.romanaExposedIPSpecMap.IPForService[key]
 	if foundService {
-		log.Debugf("Service (%s) already has romanaIP associated with it.",
+		log.Debugf("Service (%s) already has romana VIP associated with it.",
 			key)
 		return nil
 	}
 
 	updatedService := *service
-	updatedService.Spec.ExternalIPs = []string{exposedIPSpec.RomanaIP.IP}
+	updatedService.Spec.ExternalIPs = []string{exposedIPSpec.RomanaVIP.IP}
 	_, err = l.kubeClientSet.CoreV1Client.Services(exposedIPSpec.Namespace).Update(&updatedService)
 	if err != nil {
 		return fmt.Errorf("externalIP couldn't be updated for service (%s): %s",
 			service.GetName(), err)
 	}
 
-	if err := l.client.AddRomanaIP(key, *exposedIPSpec); err != nil {
-		return fmt.Errorf("error adding romanaIP (%s) to romana kvstore",
-			exposedIPSpec.RomanaIP.IP)
+	if err := l.client.AddRomanaVIP(key, *exposedIPSpec); err != nil {
+		return fmt.Errorf("error adding romana VIP (%s) to romana kvstore",
+			exposedIPSpec.RomanaVIP.IP)
 	}
 
 	l.romanaExposedIPSpecMap.IPForService[key] = *exposedIPSpec
@@ -430,7 +430,7 @@ func (l *KubeListener) updateRomanaIP(service *v1.Service) error {
 	return nil
 }
 
-func (l *KubeListener) deleteRomanaIP(service *v1.Service) {
+func (l *KubeListener) deleteRomanaVIP(service *v1.Service) {
 	l.romanaExposedIPSpecMap.Lock()
 	defer l.romanaExposedIPSpecMap.Unlock()
 
@@ -446,13 +446,13 @@ func (l *KubeListener) deleteRomanaIP(service *v1.Service) {
 
 	exposedIPSpec, ok := l.romanaExposedIPSpecMap.IPForService[key]
 	if !ok {
-		log.Debugf("romanaIP for service (%s) not found in the list", serviceName)
+		log.Debugf("romana VIP for service (%s) not found in the list", serviceName)
 		return
 	}
 
-	if err := l.client.DeleteRomanaIP(key); err != nil {
-		log.Errorf("error deleting romanaIP (%s) for service (%s) from romana kvstore",
-			exposedIPSpec.RomanaIP.IP, serviceName)
+	if err := l.client.DeleteRomanaVIP(key); err != nil {
+		log.Errorf("error deleting romana VIP (%s) for service (%s) from romana kvstore",
+			exposedIPSpec.RomanaVIP.IP, serviceName)
 		return
 	}
 

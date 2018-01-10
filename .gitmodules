@@ -13,9 +13,6 @@
 [submodule "vendor/github.com/mitchellh/mapstructure"]
 	path = vendor/github.com/mitchellh/mapstructure
 	url = https://github.com/mitchellh/mapstructure.git
-[submodule "vendor/github.com/jinzhu/gorm"]
-	path = vendor/github.com/jinzhu/gorm
-	url = https://github.com/jinzhu/gorm
 [submodule "vendor/github.com/dgrijalva/jwt-go"]
 	path = vendor/github.com/dgrijalva/jwt-go
 	url = https://github.com/dgrijalva/jwt-go.git
@@ -169,7 +166,6 @@
 [submodule "vendor/github.com/elgs/gojq"]
 	path = vendor/github.com/elgs/gojq
 	url = https://github.com/elgs/gojq.git
-
 [submodule "vendor/github.com/elgs/gosplitargs"]
 	path = vendor/github.com/elgs/gosplitargs
 	url = https://github.com/elgs/gosplitargs
