@@ -19,10 +19,10 @@ import (
 	"fmt"
 	"net"
 	"strings"
-	"syscall"
 	"testing"
 
 	"github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
 )
 
 type mockNlRouteHandle struct {
@@ -77,12 +77,12 @@ func TestAddEndpointRoute(t *testing.T) {
 			func(err error) bool { return strings.Contains(err.Error(), "couldn't create route") },
 		},
 		{
-			"check switch to ReplaceRoute when syscall.EEXIST",
+			"check switch to ReplaceRoute when unix.EEXIST",
 			"dummy",
 			dummyIpnet,
 			"",
 			mockNlRouteHandle{
-				addRouteErr:     syscall.EEXIST,
+				addRouteErr:     unix.EEXIST,
 				replaceRouteErr: fmt.Errorf("bang"),
 			},
 			func(err error) bool { return strings.Contains(err.Error(), "couldn't replace route") },
@@ -101,7 +101,7 @@ func TestAddEndpointRoute(t *testing.T) {
 			dummyIpnet,
 			"",
 			mockNlRouteHandle{
-				addRouteErr: syscall.EEXIST,
+				addRouteErr: unix.EEXIST,
 			},
 			func(err error) bool { return err == nil },
 		},

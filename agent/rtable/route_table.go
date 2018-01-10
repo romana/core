@@ -20,11 +20,11 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
-	"syscall"
 
 	"github.com/pkg/errors"
 	"github.com/romana/rlog"
 	"github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -82,7 +82,7 @@ type nlRuleHandle interface {
 
 // EnsureRomanaRouteRule verifies that rule for romana routing table installed.
 func EnsureRomanaRouteRule(romanaRouteTableId int, nl nlRuleHandle) error {
-	rules, err := nl.RuleList(syscall.AF_INET)
+	rules, err := nl.RuleList(unix.AF_INET)
 	if err != nil {
 		return err
 	}

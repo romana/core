@@ -20,7 +20,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"syscall"
 	"time"
 
 	"github.com/romana/core/common/api"
@@ -29,6 +28,7 @@ import (
 	kvstore "github.com/docker/libkv/store"
 	log "github.com/romana/rlog"
 	"github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -38,7 +38,7 @@ const (
 func GetDefaultLink() (netlink.Link, error) {
 	defaultR := netlink.Route{}
 
-	routes, err := netlink.RouteList(nil, syscall.AF_INET)
+	routes, err := netlink.RouteList(nil, unix.AF_INET)
 	if err != nil {
 		return nil, fmt.Errorf("error finding default route: %s", err)
 	}
@@ -74,7 +74,7 @@ func GetDefaultLink() (netlink.Link, error) {
 func GetIPs(link netlink.Link) ([]string, error) {
 	var addresses []string
 
-	addrList, err := netlink.AddrList(link, syscall.AF_INET)
+	addrList, err := netlink.AddrList(link, unix.AF_INET)
 	if err != nil {
 		return nil, fmt.Errorf("error finding IP adrress for link (%s): %s",
 			link.Attrs().Name, err)

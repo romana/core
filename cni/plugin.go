@@ -33,6 +33,7 @@ import (
 	"github.com/containernetworking/cni/pkg/types/current"
 	log "github.com/romana/rlog"
 	"github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
 )
 
 func init() {
@@ -328,7 +329,7 @@ func AddEndpointRoute(ifaceName string, ip *net.IPNet, nl nlRouteHandle) error {
 				ip, ifaceName, err, err)
 		}
 
-		if errno != syscall.EEXIST {
+		if errno != unix.EEXIST {
 			return fmt.Errorf("couldn't create route to %s via interface %s, err=(%s)",
 				ip, ifaceName, err)
 		}

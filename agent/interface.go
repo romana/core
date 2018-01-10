@@ -18,16 +18,16 @@ package agent
 import (
 	"fmt"
 	"net"
-	"syscall"
 
 	log "github.com/romana/rlog"
 	"github.com/vishvananda/netlink"
+	"golang.org/x/sys/unix"
 )
 
 func CreateRomanaGW() error {
 	rgw := &netlink.Dummy{LinkAttrs: netlink.LinkAttrs{Name: "romana-lo", TxQLen: 1000}}
 	if err := netlink.LinkAdd(rgw); err != nil {
-		if err == syscall.EEXIST {
+		if err == unix.EEXIST {
 			log.Warn("Romana gateway already exists.")
 		} else {
 			log.Info("Error adding Romana gateway to node:", err)
@@ -58,7 +58,7 @@ func SetRomanaGwIP(romanaIp string) error {
 		return err
 	}
 
-	addrs, err := netlink.AddrList(link, syscall.AF_INET)
+	addrs, err := netlink.AddrList(link, unix.AF_INET)
 	if err != nil {
 		return err
 	}

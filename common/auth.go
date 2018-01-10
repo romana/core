@@ -22,7 +22,6 @@ import (
 	"flag"
 	"fmt"
 	"net/http"
-	"syscall"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gorilla/context"
@@ -30,6 +29,7 @@ import (
 	cli "github.com/spf13/cobra"
 	config "github.com/spf13/viper"
 	"golang.org/x/crypto/ssh/terminal"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -138,7 +138,7 @@ func NewCredential(flagSet *flag.FlagSet) *Credential {
 // GetPasswd gets password from stdin.
 func GetPasswd() (string, error) {
 	fmt.Print("Password: ")
-	bytePassword, err := terminal.ReadPassword(syscall.Stdin)
+	bytePassword, err := terminal.ReadPassword(unix.Stdin)
 	fmt.Println()
 	if err != nil {
 		return "", err
