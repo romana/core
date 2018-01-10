@@ -46,6 +46,7 @@ import (
 const (
 	msgNoAvailableIP = "No available IP."
 	DefaultAgentPort = 9604
+	DefaultBlockMask = 29
 )
 
 var (
@@ -1445,7 +1446,7 @@ func (ipam *IPAM) setTopology(req api.TopologyUpdateRequest) error {
 			return common.NewError("Network with name %s already defined", netDef.Name)
 		}
 		if netDef.BlockMask == 0 {
-			return common.NewError("Block mask %d (or unspecified) for %s is invalid, must be > 8", netDef.BlockMask, netDef.Name)
+			netDef.BlockMask = DefaultBlockMask
 		}
 		if netDef.BlockMask <= 8 {
 			return common.NewError("Block mask %d for %s is invalid, must be > 8", netDef.BlockMask, netDef.Name)
