@@ -1452,7 +1452,11 @@ func (ipam *IPAM) setTopology(req api.TopologyUpdateRequest) error {
 		blockMaskMin, blockMaskMax := netDefCIDR.Mask.Size()
 
 		if netDef.BlockMask == 0 {
-			netDef.BlockMask = DefaultBlockMask
+			if DefaultBlockMask < uint(blockMaskMin) {
+				netDef.BlockMask = uint(blockMaskMin)
+			} else {
+				netDef.BlockMask = DefaultBlockMask
+			}
 		}
 		if netDef.BlockMask < uint(blockMaskMin) || netDef.BlockMask > uint(blockMaskMax) {
 			return common.NewError(
