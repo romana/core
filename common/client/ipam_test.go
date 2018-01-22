@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net"
+	"strings"
 	"testing"
 
 	"github.com/romana/core/common/api"
@@ -687,7 +688,6 @@ func TestHostAllocation(t *testing.T) {
 
 func TestUpdateTopology(t *testing.T) {
 	ipam = initIpam(t, "")
-	// t.Log(testSaver.lastJson)
 
 	ip0, err := ipam.AllocateIP("x1", "h1", "tenant1", "")
 	if err != nil {
@@ -715,6 +715,49 @@ func TestUpdateTopology(t *testing.T) {
 
 	if ip1.String() != ip0.String() {
 		t.Fatalf("Expected new IP %s to be same as old IP %s", ip1, ip0)
+	}
+}
+
+func TestUpdateTopologyInvalidBlockMask(t *testing.T) {
+	config := string(loadTestData(t))
+
+	ipam, err := NewIPAM(testSaver.save, nil)
+	if err != nil {
+		t.Fatalf("error initializing ipam: %v", err)
+	}
+	ipam.load = testSaver.load
+
+	topologyRequest := api.TopologyUpdateRequest{}
+	err = json.Unmarshal([]byte(config), &topologyRequest)
+	if err != nil {
+		t.Fatalf("cannot parse %s: %v", config, err)
+	}
+
+	// negative test case for block mask smaller or
+	// equal to network mask.
+	err = ipam.UpdateTopology(topologyRequest, false)
+	if err == nil {
+		t.Fatal("test failed, expected an error")
+	}
+	if !strings.Contains(err.Error(), "invalid blockmask") {
+		t.Fatalf("test case failed, expected 'invalid blockmask...', received '%s'", err)
+	}
+
+	// negative test case for block mask greater then 32
+	topologyRequest.Networks[0].BlockMask = 33
+	err = ipam.UpdateTopology(topologyRequest, false)
+	if err == nil {
+		t.Fatal("test failed, expected an error")
+	}
+	if !strings.Contains(err.Error(), "invalid blockmask") {
+		t.Fatalf("test case failed, expected 'invalid blockmask...', received '%s'", err)
+	}
+
+	// test case for network mask < blockmask < 32
+	topologyRequest.Networks[0].BlockMask = 29
+	err = ipam.UpdateTopology(topologyRequest, false)
+	if err != nil {
+		t.Fatalf("test case failed, expected no error, received '%s'", err)
 	}
 }
 
