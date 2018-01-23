@@ -104,15 +104,22 @@ func hostList(cmd *cli.Command, args []string) error {
 		w.Init(os.Stdout, 0, 8, 0, '\t', 0)
 
 		if resp.StatusCode() == http.StatusOK {
-			hosts := []api.Host{}
-			fmt.Println("Host List")
-			fmt.Fprintln(w,
-				"Host IP\t",
-				"Agent Port\t",
-				"Romana CIDR\t")
-			for _, host := range hosts {
-				fmt.Fprintln(w, host.IP, "\t",
-					host.AgentPort, "\t")
+			var hosts api.HostList
+			err := json.Unmarshal(resp.Body(), &hosts)
+			if err == nil {
+				fmt.Println("Host List")
+				fmt.Fprintln(w,
+					"Host IP\t",
+					"Host Name\t",
+					"Agent Port\t")
+				for _, host := range hosts.Hosts {
+					fmt.Fprintln(w,
+						host.IP, "\t",
+						host.Name, "\t",
+						host.AgentPort, "\t")
+				}
+			} else {
+				fmt.Printf("Error: %s \n", err)
 			}
 		} else {
 			var e Error
