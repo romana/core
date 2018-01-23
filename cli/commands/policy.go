@@ -309,8 +309,13 @@ func policyListShow(listOnly bool, args []string) error {
 		return err
 	}
 
-	allPolicies := []api.Policy{}
-	policies := []api.Policy{}
+	var allPolicies []api.Policy
+	err = json.Unmarshal(resp.Body(), &allPolicies)
+	if err != nil {
+		return err
+	}
+
+	var policies []api.Policy
 	if listOnly {
 		policies = allPolicies
 	} else {
@@ -326,7 +331,8 @@ func policyListShow(listOnly bool, args []string) error {
 	}
 
 	if config.GetString("Format") == "json" {
-		JSONFormat(resp.Body(), os.Stdout)
+		body, _ := json.MarshalIndent(policies, "", "\t")
+		fmt.Println(string(body))
 	} else {
 		w := new(tabwriter.Writer)
 		w.Init(os.Stdout, 0, 8, 0, '\t', 0)
