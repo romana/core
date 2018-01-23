@@ -27,6 +27,7 @@ import (
 
 	"github.com/romana/core/common"
 
+	"github.com/go-resty/resty"
 	log "github.com/romana/rlog"
 	cli "github.com/spf13/cobra"
 	config "github.com/spf13/viper"
@@ -220,6 +221,8 @@ func setLogOutput() {
 			// If output is verbose send it to log file
 			// stdout simultaneously.
 			config.Set("Verbose", true)
+			resty.SetDebug(true)
+			resty.SetLogger(io.MultiWriter(logFile, os.Stdout))
 			log.SetOutput(io.MultiWriter(logFile, os.Stdout))
 		} else {
 			// Redirect log output to the log file.
@@ -229,6 +232,8 @@ func setLogOutput() {
 		if verbose || config.GetBool("Verbose") {
 			config.Set("Verbose", true)
 			log.SetOutput(os.Stdout)
+			resty.SetDebug(true)
+			resty.SetLogger(os.Stdout)
 		} else {
 			// Silently fail and discard log output
 			log.SetOutput(ioutil.Discard)
