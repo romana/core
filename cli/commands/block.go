@@ -104,25 +104,30 @@ func blockList(cmd *cli.Command, args []string) error {
 		w.Init(os.Stdout, 0, 8, 0, '\t', 0)
 
 		if resp.StatusCode() == http.StatusOK {
-			blocks := []api.IPAMBlockResponse{}
-			fmt.Println("Block List")
-			fmt.Fprintln(w,
-				"Block CIDR\t",
-				"Block Host\t",
-				"Revision\t",
-				"Block Tenant\t",
-				"Block Segment\t",
-				"Block Allocated IP Count\t",
-			)
-			for _, block := range blocks {
+			var blocks api.IPAMBlocksResponse
+			err := json.Unmarshal(resp.Body(), &blocks)
+			if err == nil {
+				fmt.Println("Block List")
 				fmt.Fprintln(w,
-					block.CIDR, "\t",
-					block.Host, "\t",
-					block.Revision, "\t",
-					block.Tenant, "\t",
-					block.Segment, "\t",
-					block.AllocatedIPCount, "\t",
+					"Block CIDR\t",
+					"Block Host\t",
+					"Revision\t",
+					"Block Tenant\t",
+					"Block Segment\t",
+					"Block Allocated IP Count\t",
 				)
+				for _, block := range blocks.Blocks {
+					fmt.Fprintln(w,
+						block.CIDR.String(), "\t",
+						block.Host, "\t",
+						block.Revision, "\t",
+						block.Tenant, "\t",
+						block.Segment, "\t",
+						block.AllocatedIPCount, "\t",
+					)
+				}
+			} else {
+				fmt.Printf("Error: %s \n", err)
 			}
 		} else {
 			var e Error
