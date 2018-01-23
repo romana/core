@@ -104,18 +104,23 @@ func networkList(cmd *cli.Command, args []string) error {
 		w.Init(os.Stdout, 0, 8, 0, '\t', 0)
 
 		if resp.StatusCode() == http.StatusOK {
-			networks := []api.IPAMNetworkResponse{}
-			fmt.Println("Network List")
-			fmt.Fprintln(w,
-				"Network Name\t",
-				"Network CIDR\t",
-				"Revision\t",
-			)
-			for _, net := range networks {
-				fmt.Fprintln(w, net.Name, "\t",
-					net.CIDR, "\t",
-					net.Revision, "\t",
+			var networks []api.IPAMNetworkResponse
+			err := json.Unmarshal(resp.Body(), &networks)
+			if err == nil {
+				fmt.Println("Network List")
+				fmt.Fprintln(w,
+					"Network Name\t",
+					"Network CIDR\t",
+					"Revision\t",
 				)
+				for _, net := range networks {
+					fmt.Fprintln(w, net.Name, "\t",
+						net.CIDR.String(), "\t",
+						net.Revision, "\t",
+					)
+				}
+			} else {
+				fmt.Printf("Error: %s \n", err)
 			}
 		} else {
 			var e Error
