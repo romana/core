@@ -85,6 +85,7 @@ func init() {
 	RootCmd.AddCommand(policyCmd)
 	RootCmd.AddCommand(networkCmd)
 	RootCmd.AddCommand(blockCmd)
+	RootCmd.AddCommand(topologyCmd)
 
 	RootCmd.Flags().BoolVarP(&version, "version", "",
 		false, "Build and Versioning Information.")
