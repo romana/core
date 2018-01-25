@@ -35,14 +35,13 @@ import (
 
 // Variables used for configuration and flags.
 var (
-	cfgFile    string
-	rootURL    string
-	rootPort   string
-	version    bool
-	verbose    bool
-	format     string
-	platform   string
-	credential *common.Credential
+	cfgFile  string
+	rootURL  string
+	rootPort string
+	version  bool
+	verbose  bool
+	format   string
+	platform string
 )
 
 type Error struct {
@@ -78,9 +77,8 @@ func Execute() {
 }
 
 func init() {
-	credential = common.NewCredentialCobra(RootCmd)
-
 	cli.OnInitialize(initConfig)
+
 	RootCmd.AddCommand(hostCmd)
 	RootCmd.AddCommand(policyCmd)
 	RootCmd.AddCommand(networkCmd)
@@ -160,13 +158,6 @@ func preConfig(cmd *cli.Command, args []string) {
 		platform = "kubernetes"
 	}
 	config.Set("Platform", platform)
-
-	fmt.Println(config.GetString("username"))
-	err := credential.Initialize()
-	if err != nil {
-		log.Printf("Error: %s", err)
-		os.Exit(1)
-	}
 }
 
 // versionInfo displays the build and versioning information.
@@ -251,8 +242,10 @@ func JSONFormat(b []byte, w io.Writer) {
 		out.Reset()
 		// indentation failed, so write the original string as is.
 		out.Write(b)
+		out.Write([]byte("\n"))
 		out.WriteTo(w)
 		return
 	}
+	out.Write([]byte("\n"))
 	out.WriteTo(w)
 }
