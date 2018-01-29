@@ -241,7 +241,12 @@ func policyRemove(cmd *cli.Command, args []string) error {
 	if config.GetString("Format") == "json" {
 		JSONFormat(resp.Body(), os.Stdout)
 	} else {
-		fmt.Printf("Policy (ID: %s) deleted successfully.\n", policyID)
+		if resp.StatusCode() == http.StatusOK {
+			fmt.Printf("Policy (ID: %s) deleted successfully.\n", policyID)
+		} else {
+			fmt.Printf("Error deleting policy (ID: %s): %s\n",
+				policyID, resp.Status())
+		}
 	}
 
 	return nil
