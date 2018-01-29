@@ -22,7 +22,6 @@ import (
 	"github.com/romana/core/common/api"
 	"github.com/romana/core/common/api/errors"
 	"github.com/romana/core/common/client"
-	"github.com/romana/core/pkg/policytools"
 )
 
 // deallocateIP deallocates IP specified by query parameter
@@ -95,18 +94,18 @@ func (r *Romanad) getPolicy(input interface{}, ctx common.RestContext) (interfac
 }
 
 func (r *Romanad) deletePolicy(input interface{}, ctx common.RestContext) (interface{}, error) {
-	policyID := strings.TrimSpace(ctx.PathVariables["policy"])
+	policyID := strings.TrimSpace(ctx.PathVariables["policyID"])
 	if policyID == "" {
 		// This means we need to find information about what to delete in the body
 		if input == nil {
-			return nil, common.NewError400("Request must either be to /policies/{policy} or have a body.")
+			return nil, common.NewError400("Request must either be to /policies/{policyID} or have a body.")
 		}
-		policy := input.(*api.Policy)
-		err := policytools.ValidatePolicy(*policy)
-		if err != nil {
-			return nil, common.NewUnprocessableEntityError(err.Error())
+		policy, ok := input.(*api.Policy)
+		// just checking policy ID is good here, no need
+		// to validate whole policy before deleting it.
+		if !ok || policy.ID == "" {
+			return nil, common.NewUnprocessableEntityError("Policy ID not found in input")
 		}
-
 		policyID = policy.ID
 	}
 	found, err := r.client.DeletePolicy(policyID)
