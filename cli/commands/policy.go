@@ -230,10 +230,13 @@ func policyRemove(cmd *cli.Command, args []string) error {
 		return fmt.Errorf("Policy remove takes exactly one argument i.e policy id.")
 	}
 
-	policyID := args[0]
+	var policy api.Policy
+	policy.ID = args[0]
 
 	rootURL := config.GetString("RootURL")
-	resp, err := resty.R().Delete(rootURL + "/policies/" + policyID)
+	resp, err := resty.R().
+		SetHeader("Content-Type", "application/json").
+		SetBody(policy).Delete(rootURL + "/policies")
 	if err != nil {
 		return err
 	}
@@ -242,10 +245,10 @@ func policyRemove(cmd *cli.Command, args []string) error {
 		JSONFormat(resp.Body(), os.Stdout)
 	} else {
 		if resp.StatusCode() == http.StatusOK {
-			fmt.Printf("Policy (ID: %s) deleted successfully.\n", policyID)
+			fmt.Printf("Policy (ID: %s) deleted successfully.\n", policy.ID)
 		} else {
 			fmt.Printf("Error deleting policy (ID: %s): %s\n",
-				policyID, resp.Status())
+				policy.ID, resp.Status())
 		}
 	}
 
