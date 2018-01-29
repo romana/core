@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"text/tabwriter"
 
@@ -167,9 +168,20 @@ func policyAdd(cmd *cli.Command, args []string) error {
 	reqPolicies.AppliedSuccessfully = make([]bool, len(reqPolicies.SecurityPolicies))
 	for i, pol := range reqPolicies.SecurityPolicies {
 		reqPolicies.AppliedSuccessfully[i] = false
-		_, err := resty.R().SetBody(pol).Post(rootURL + "/policies")
+		r, err := resty.R().SetHeader("Content-Type", "application/json").
+			SetBody(pol).Post(rootURL + "/policies")
+		m := make(map[string]interface{})
+		m["details"] = r.Status()
+		m["status_code"] = r.StatusCode()
+		result[i] = m
 		if err != nil {
-			log.Printf("Error in applying policy: %v\n", err)
+			log.Printf("Error applying policy (%s:%s): %v\n",
+				pol.ID, pol.Description, err)
+			continue
+		}
+		if r.StatusCode() != http.StatusOK {
+			log.Printf("Error applying policy (%s:%s): %s\n",
+				pol.ID, pol.Description, r.Status())
 			continue
 		}
 		reqPolicies.AppliedSuccessfully[i] = true
@@ -177,72 +189,30 @@ func policyAdd(cmd *cli.Command, args []string) error {
 
 	if isJSON {
 		for i := range reqPolicies.SecurityPolicies {
-			// check if any of policy markers are present in the map.
-			_, exOk := result[i]["external_id"]
-			_, idOk := result[i]["id"]
-			_, nmOk := result[i]["name"]
-			if exOk || idOk || nmOk {
-				var p api.Policy
-				dc := &ms.DecoderConfig{TagName: "json", Result: &p}
-				decoder, err := ms.NewDecoder(dc)
-				if err != nil {
-					continue
-				}
-				err = decoder.Decode(result[i])
-				if err != nil {
-					continue
-				}
-				body, err := json.MarshalIndent(p, "", "\t")
-				if err != nil {
-					continue
-				}
-				fmt.Println(string(body))
-			} else {
-				var h common.HttpError
-				dc := &ms.DecoderConfig{TagName: "json", Result: &h}
-				decoder, err := ms.NewDecoder(dc)
-				if err != nil {
-					continue
-				}
-				err = decoder.Decode(result[i])
-				if err != nil {
-					continue
-				}
-				status, _ := json.MarshalIndent(h, "", "\t")
-				fmt.Println(string(status))
+			var h common.HttpError
+			dc := &ms.DecoderConfig{TagName: "json", Result: &h}
+			decoder, err := ms.NewDecoder(dc)
+			if err != nil {
+				continue
 			}
+			err = decoder.Decode(result[i])
+			if err != nil {
+				continue
+			}
+			status, _ := json.MarshalIndent(h, "", "\t")
+			fmt.Println(string(status))
 		}
 	} else {
 		w := new(tabwriter.Writer)
 		w.Init(os.Stdout, 0, 8, 0, '\t', 0)
 		fmt.Println("New Policies Processed:")
 		fmt.Fprintln(w, "Id\t",
-			"Policy Name\t",
 			"Direction\t",
 			"Successful Applied?\t",
 		)
-		for i, pol := range reqPolicies.SecurityPolicies {
-			// check if any of policy markers are present in the map.
-			_, exOk := result[i]["external_id"]
-			_, idOk := result[i]["id"]
-			_, nmOk := result[i]["name"]
-			if exOk || idOk || nmOk {
-				var p api.Policy
-				dc := &ms.DecoderConfig{TagName: "json", Result: &p}
-				decoder, err := ms.NewDecoder(dc)
-				if err != nil {
-					continue
-				}
-				err = decoder.Decode(result[i])
-				if err != nil {
-					continue
-				}
-				fmt.Fprintf(w, "%s \t %s \t %t \n", p.ID,
-					p.Direction, reqPolicies.AppliedSuccessfully[i])
-			} else {
-				fmt.Fprintf(w, "%s \t %s \t %t \n", pol.ID,
-					pol.Direction, false)
-			}
+		for i, p := range reqPolicies.SecurityPolicies {
+			fmt.Fprintf(w, "%s \t %s \t %t \n", p.ID,
+				p.Direction, reqPolicies.AppliedSuccessfully[i])
 		}
 		w.Flush()
 	}
