@@ -1,4 +1,4 @@
-// Copyright (c) 2016 Pani Networks
+// Copyright (c) 2018 Pani Networks
 // All Rights Reserved.
 //
 // Licensed under the Apache License, Version 2.0 (the "License"); you may
@@ -13,7 +13,7 @@
 // License for the specific language governing permissions and limitations
 // under the License.
 
-// Package cmd contains various files for adding commands and subcommands
+// Package commands contains various files for adding commands and subcommands
 // to romana command line tools.
 //
 // Each file in the package directory contains exactly one command and

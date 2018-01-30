@@ -44,6 +44,8 @@ var (
 	platform string
 )
 
+// type Error contains information for
+// json formatted output in cli.
 type Error struct {
 	Code    int32
 	Message string

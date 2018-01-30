@@ -152,7 +152,7 @@ func topologyUpdate(cmd *cli.Command, args []string) error {
 		if err != nil {
 			util.UsageError(cmd,
 				"TOPOLOGY FILE name or piped input from 'STDIN' expected.")
-			return fmt.Errorf("Cannot read 'STDIN': %s\n", err)
+			return fmt.Errorf("cannot read 'STDIN': %s", err)
 		}
 	} else if len(args) != 1 {
 		return util.UsageError(cmd,
@@ -169,7 +169,7 @@ func topologyUpdate(cmd *cli.Command, args []string) error {
 	if isFile {
 		pBuf, err := ioutil.ReadFile(topologyFile)
 		if err != nil {
-			return fmt.Errorf("File error: %s\n", err)
+			return fmt.Errorf("file error: %s", err)
 		}
 		err = json.Unmarshal(pBuf, &topology)
 		if err != nil {

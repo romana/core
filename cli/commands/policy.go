@@ -126,7 +126,7 @@ func policyAdd(cmd *cli.Command, args []string) error {
 		if err != nil {
 			util.UsageError(cmd,
 				"POLICY FILE name or piped input from 'STDIN' expected.")
-			return fmt.Errorf("Cannot read 'STDIN': %s\n", err)
+			return fmt.Errorf("cannot read 'STDIN': %s", err)
 		}
 	} else if len(args) != 1 {
 		return util.UsageError(cmd,
@@ -143,7 +143,7 @@ func policyAdd(cmd *cli.Command, args []string) error {
 	if isFile {
 		pBuf, err := ioutil.ReadFile(policyFile)
 		if err != nil {
-			return fmt.Errorf("File error: %s\n", err)
+			return fmt.Errorf("file error: %s", err)
 		}
 		err = json.Unmarshal(pBuf, &reqPolicies.SecurityPolicies)
 		if err != nil || len(reqPolicies.SecurityPolicies) == 0 {
@@ -227,7 +227,7 @@ func policyAdd(cmd *cli.Command, args []string) error {
 func policyRemove(cmd *cli.Command, args []string) error {
 
 	if len(args) != 1 {
-		return fmt.Errorf("Policy remove takes exactly one argument i.e policy id.")
+		return fmt.Errorf("policy remove takes exactly one argument i.e policy id")
 	}
 
 	var policy api.Policy
@@ -296,7 +296,7 @@ func policyListShow(listOnly bool, args []string) error {
 	}
 
 	if !listOnly && !specificPolicies {
-		return fmt.Errorf("Policy show takes at-least one argument i.e policy id/s.")
+		return fmt.Errorf("policy show takes at-least one argument i.e policy id/s")
 	}
 
 	rootURL := config.GetString("RootURL")
