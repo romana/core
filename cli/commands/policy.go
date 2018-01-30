@@ -242,7 +242,25 @@ func policyRemove(cmd *cli.Command, args []string) error {
 	}
 
 	if config.GetString("Format") == "json" {
-		JSONFormat(resp.Body(), os.Stdout)
+		if string(resp.Body()) == "" || string(resp.Body()) == "null" {
+			var h common.HttpError
+			dc := &ms.DecoderConfig{TagName: "json", Result: &h}
+			decoder, err := ms.NewDecoder(dc)
+			if err != nil {
+				return err
+			}
+			m := make(map[string]interface{})
+			m["details"] = resp.Status()
+			m["status_code"] = resp.StatusCode()
+			err = decoder.Decode(m)
+			if err != nil {
+				return err
+			}
+			status, _ := json.MarshalIndent(h, "", "\t")
+			fmt.Println(string(status))
+		} else {
+			JSONFormat(resp.Body(), os.Stdout)
+		}
 	} else {
 		if resp.StatusCode() == http.StatusOK {
 			fmt.Printf("Policy (ID: %s) deleted successfully.\n", policy.ID)
