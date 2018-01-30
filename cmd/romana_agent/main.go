@@ -58,6 +58,7 @@ func main() {
 	etcdEndpoints := flag.String("endpoints", "", "csv list of etcd endpoints to romana storage")
 	etcdPrefix := flag.String("prefix", "", "string that prefixes all romana keys in etcd")
 	hostname := flag.String("hostname", "", "name of the host in romana database")
+	defaultLinkName := flag.String("link-name", "", "name of the host's primary network interface")
 	provisionIface := flag.Bool("provision-iface", false, "create romana-gw interface and ip")
 	provisionIfaceGwIp := flag.String("provision-iface-gw-ip", DefaultGwIP, "specifies ip address for gateway interface")
 	provisionSysctls := flag.Bool("provision-sysctls", false, "configure routing sysctls")
@@ -145,14 +146,26 @@ func main() {
 		os.Exit(2)
 	}
 
+	var defaultLink netlink.Link
+	if *defaultLinkName != "" {
+		l, err := nlHandle.LinkByName(*defaultLinkName)
+		if err != nil {
+			log.Errorf("failed to get default link %s: %v", *defaultLinkName, err)
+			os.Exit(2)
+		}
+		defaultLink = l
+	} else {
+		l, err := agent.GetDefaultLink()
+		if err != nil {
+			log.Errorf("failed to get default link: %s\n", err)
+			os.Exit(3)
+		}
+		defaultLink = l
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	defaultLink, err := agent.GetDefaultLink()
-	if err != nil {
-		log.Errorf("failed to get default link: %s\n", err)
-		os.Exit(3)
-	}
 	err = agent.StartRomanaVIPSync(ctx, romanaClient.Store, defaultLink)
 	if err != nil {
 		log.Errorf("failed to start romanaVIP syncing mechanism: %s\n", err)
