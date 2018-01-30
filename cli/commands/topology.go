@@ -18,13 +18,18 @@ package commands
 import (
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"log"
 	"net/http"
 	"os"
 	"text/tabwriter"
 
+	"github.com/romana/core/cli/util"
+	"github.com/romana/core/common"
 	"github.com/romana/core/common/api"
 
 	"github.com/go-resty/resty"
+	ms "github.com/mitchellh/mapstructure"
 	cli "github.com/spf13/cobra"
 	config "github.com/spf13/viper"
 )
@@ -130,7 +135,87 @@ func topologyList(cmd *cli.Command, args []string) error {
 	return nil
 }
 
+// topologyUpdate updates romana topology.
+// The features supported are:
+//  * Topology update through file
+//  * Topology update while taking input from standard
+//    input (STDIN) instead of a file
 func topologyUpdate(cmd *cli.Command, args []string) error {
-	fmt.Println("Unimplemented: Update romana topology.")
+	var buf []byte
+	var topologyFile string
+	var err error
+	isFile := true
+
+	if len(args) == 0 {
+		isFile = false
+		buf, err = ioutil.ReadAll(os.Stdin)
+		if err != nil {
+			util.UsageError(cmd,
+				"TOPOLOGY FILE name or piped input from 'STDIN' expected.")
+			return fmt.Errorf("Cannot read 'STDIN': %s\n", err)
+		}
+	} else if len(args) != 1 {
+		return util.UsageError(cmd,
+			"TOPOLOGY FILE name or piped input from 'STDIN' expected.")
+	}
+
+	if isFile {
+		topologyFile = args[0]
+	}
+
+	rootURL := config.GetString("RootURL")
+
+	var topology api.TopologyUpdateRequest
+	if isFile {
+		pBuf, err := ioutil.ReadFile(topologyFile)
+		if err != nil {
+			return fmt.Errorf("File error: %s\n", err)
+		}
+		err = json.Unmarshal(pBuf, &topology)
+		if err != nil {
+			return err
+		}
+	} else {
+		err = json.Unmarshal(buf, &topology)
+		if err != nil {
+			return err
+		}
+	}
+
+	resp, err := resty.R().SetHeader("Content-Type", "application/json").
+		SetBody(topology).Post(rootURL + "/topology")
+	if err != nil {
+		log.Printf("Error updating topology: %v\n", err)
+		return err
+	}
+
+	if config.GetString("Format") == "json" {
+		if string(resp.Body()) == "" || string(resp.Body()) == "null" {
+			var h common.HttpError
+			dc := &ms.DecoderConfig{TagName: "json", Result: &h}
+			decoder, err := ms.NewDecoder(dc)
+			if err != nil {
+				return err
+			}
+			m := make(map[string]interface{})
+			m["details"] = resp.Status()
+			m["status_code"] = resp.StatusCode()
+			err = decoder.Decode(m)
+			if err != nil {
+				return err
+			}
+			status, _ := json.MarshalIndent(h, "", "\t")
+			fmt.Println(string(status))
+		} else {
+			JSONFormat(resp.Body(), os.Stdout)
+		}
+	} else {
+		if resp.StatusCode() == http.StatusOK {
+			fmt.Println("Topology updated successfully.")
+		} else {
+			fmt.Printf("Error upadting topology: %s\n", resp.Status())
+		}
+	}
+
 	return nil
 }
