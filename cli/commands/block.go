@@ -108,22 +108,18 @@ func blockList(cmd *cli.Command, args []string) error {
 			err := json.Unmarshal(resp.Body(), &blocks)
 			if err == nil {
 				fmt.Println("Block List")
-				fmt.Fprintln(w,
-					"Block CIDR\t",
-					"Block Host\t",
-					"Revision\t",
-					"Block Tenant\t",
-					"Block Segment\t",
-					"Block Allocated IP Count\t",
+				fmt.Fprintf(w,
+					"Block CIDR\tBlock Host\tRevision\t"+
+						"Block Tenant\tBlock Segment\tBlock Allocated IP Count\n",
 				)
 				for _, block := range blocks.Blocks {
-					fmt.Fprintln(w,
-						block.CIDR.String(), "\t",
-						block.Host, "\t",
-						block.Revision, "\t",
-						block.Tenant, "\t",
-						block.Segment, "\t",
-						block.AllocatedIPCount, "\t",
+					fmt.Fprintf(w, "%s\t%s\t%d\t%s\t%s\t%d\n",
+						block.CIDR.String(),
+						block.Host,
+						block.Revision,
+						block.Tenant,
+						block.Segment,
+						block.AllocatedIPCount,
 					)
 				}
 			} else {
@@ -134,9 +130,9 @@ func blockList(cmd *cli.Command, args []string) error {
 			json.Unmarshal(resp.Body(), &e)
 
 			fmt.Println("Host Error")
-			fmt.Fprintln(w, "Fields\t", e.Fields)
-			fmt.Fprintln(w, "Message\t", e.Message)
-			fmt.Fprintln(w, "Status\t", resp.StatusCode())
+			fmt.Fprintf(w, "Fields\t%s\n", e.Fields)
+			fmt.Fprintf(w, "Message\t%s\n", e.Message)
+			fmt.Fprintf(w, "Status\t%d\n", resp.StatusCode())
 		}
 		w.Flush()
 	}

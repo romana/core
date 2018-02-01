@@ -108,15 +108,12 @@ func hostList(cmd *cli.Command, args []string) error {
 			err := json.Unmarshal(resp.Body(), &hosts)
 			if err == nil {
 				fmt.Println("Host List")
-				fmt.Fprintln(w,
-					"Host IP\t",
-					"Host Name\t",
-					"Agent Port\t")
+				fmt.Fprintf(w, "Host IP\tHost Name\n")
 				for _, host := range hosts.Hosts {
-					fmt.Fprintln(w,
-						host.IP, "\t",
-						host.Name, "\t",
-						host.AgentPort, "\t")
+					fmt.Fprintf(w, "%s\t%s\n",
+						host.IP.String(),
+						host.Name,
+					)
 				}
 			} else {
 				fmt.Printf("Error: %s \n", err)
@@ -126,9 +123,9 @@ func hostList(cmd *cli.Command, args []string) error {
 			json.Unmarshal(resp.Body(), &e)
 
 			fmt.Println("Host Error")
-			fmt.Fprintln(w, "Fields\t", e.Fields)
-			fmt.Fprintln(w, "Message\t", e.Message)
-			fmt.Fprintln(w, "Status\t", resp.StatusCode())
+			fmt.Fprintf(w, "Fields\t%s\n", e.Fields)
+			fmt.Fprintf(w, "Message\t%s\n", e.Message)
+			fmt.Fprintf(w, "Status\t%d\n", resp.StatusCode())
 		}
 		w.Flush()
 	}

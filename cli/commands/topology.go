@@ -42,7 +42,7 @@ var topologyCmd = &cli.Command{
 
 topology requires a subcommand, e.g. ` + "`romana topology list`." + `
 
-For more information, please check http://romana.io
+For more information, please check http://docs.romana.io
 `,
 }
 
@@ -85,37 +85,26 @@ func topologyList(cmd *cli.Command, args []string) error {
 			err := json.Unmarshal(resp.Body(), &topology)
 			if err == nil {
 				fmt.Println("Networks")
-				fmt.Fprintln(w,
-					"Name\t",
-					"CIDR\t",
-					"Tenants\t")
+				fmt.Fprint(w, "Name\tCIDR\tTenants\n")
 				for _, n := range topology.Networks {
-					fmt.Fprintln(w,
-						n.Name, "\t",
-						n.CIDR, "\t",
-						n.Tenants, "\t")
+					fmt.Fprintf(w, "%s\t%s\t%v\n",
+						n.Name,
+						n.CIDR,
+						n.Tenants,
+					)
 				}
-				fmt.Fprintln(w, "")
+				fmt.Fprint(w, "\n")
 				for _, t := range topology.Topologies {
 					fmt.Printf("Topology for Network/s: %s\n", t.Networks)
-					fmt.Fprintln(w,
-						"Name\t",
-						"CIDR\t",
-						"Nodes\t")
+					fmt.Fprint(w, "Name\tCIDR\tNodes\n")
 					for _, m := range t.Map {
-						fmt.Fprintf(w,
-							"%s\t%s\t",
-							m.Name,
-							m.CIDR)
+						fmt.Fprintf(w, "%s\t%s\t", m.Name, m.CIDR)
 						for _, n := range m.Groups {
-							fmt.Fprintf(w,
-								"%s(%s), ",
-								n.Name,
-								n.IP)
+							fmt.Fprintf(w, "%s(%s), ", n.Name, n.IP)
 						}
-						fmt.Fprintln(w, "")
+						fmt.Fprint(w, "\n")
 					}
-					fmt.Fprintln(w, "")
+					fmt.Fprint(w, "\n")
 				}
 			} else {
 				fmt.Printf("Error: %s \n", err)
@@ -125,9 +114,9 @@ func topologyList(cmd *cli.Command, args []string) error {
 			json.Unmarshal(resp.Body(), &e)
 
 			fmt.Println("Host Error")
-			fmt.Fprintln(w, "Fields\t", e.Fields)
-			fmt.Fprintln(w, "Message\t", e.Message)
-			fmt.Fprintln(w, "Status\t", resp.StatusCode())
+			fmt.Fprintf(w, "Fields\t%s\n", e.Fields)
+			fmt.Fprintf(w, "Message\t%s\n", e.Message)
+			fmt.Fprintf(w, "Status\t%d\n", resp.StatusCode())
 		}
 		w.Flush()
 	}

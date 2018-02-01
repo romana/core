@@ -108,15 +108,12 @@ func networkList(cmd *cli.Command, args []string) error {
 			err := json.Unmarshal(resp.Body(), &networks)
 			if err == nil {
 				fmt.Println("Network List")
-				fmt.Fprintln(w,
-					"Network Name\t",
-					"Network CIDR\t",
-					"Revision\t",
-				)
+				fmt.Fprintf(w, "Network Name\tNetwork CIDR\tRevision\n")
 				for _, net := range networks {
-					fmt.Fprintln(w, net.Name, "\t",
-						net.CIDR.String(), "\t",
-						net.Revision, "\t",
+					fmt.Fprintf(w, "%s\t%s\t%d\n",
+						net.Name,
+						net.CIDR.String(),
+						net.Revision,
 					)
 				}
 			} else {
@@ -127,9 +124,9 @@ func networkList(cmd *cli.Command, args []string) error {
 			json.Unmarshal(resp.Body(), &e)
 
 			fmt.Println("Host Error")
-			fmt.Fprintln(w, "Fields\t", e.Fields)
-			fmt.Fprintln(w, "Message\t", e.Message)
-			fmt.Fprintln(w, "Status\t", resp.StatusCode())
+			fmt.Fprintf(w, "Fields\t%s\n", e.Fields)
+			fmt.Fprintf(w, "Message\t%s\n", e.Message)
+			fmt.Fprintf(w, "Status\t%d\n", resp.StatusCode())
 		}
 		w.Flush()
 	}
