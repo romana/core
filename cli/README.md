@@ -15,11 +15,10 @@ $ cat ~/.romana.yaml
 # Default romana configuration file.
 # please move it to ~/.romana.yaml
 #
-RootURL: "http://192.168.99.10"
-RootPort: 9600
+RootURL: "http://192.168.99.10:9600"
 LogFile: "/var/tmp/romana.log"
 Format: "table" # options are table/json 
-Platform: "openstack"
+Platform: "kubernetes"
 Verbose: false
 ```
 
@@ -46,8 +45,7 @@ Flags:
   -f, --format string     enable formatting options like [json|table], etc.
   -h, --help              help for romana
   -P, --platform string   Use platforms like [openstack|kubernetes], etc.
-  -p, --rootPort string   root service port, e.g. 9600
-  -r, --rootURL string    root service url, e.g. http://192.168.0.1
+  -r, --rootURL string    root service url, e.g. http://192.168.0.1:9600
   -v, --verbose           Verbose output.
       --version           Build and Versioning Information.
 ```
