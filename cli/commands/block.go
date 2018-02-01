@@ -100,8 +100,7 @@ func blockList(cmd *cli.Command, args []string) error {
 	if config.GetString("Format") == "json" {
 		JSONFormat(resp.Body(), os.Stdout)
 	} else {
-		w := new(tabwriter.Writer)
-		w.Init(os.Stdout, 0, 8, 0, '\t', 0)
+		w := tabwriter.NewWriter(os.Stdout, 0, 8, 0, '\t', 0)
 
 		if resp.StatusCode() == http.StatusOK {
 			var blocks api.IPAMBlocksResponse

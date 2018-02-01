@@ -203,8 +203,7 @@ func policyAdd(cmd *cli.Command, args []string) error {
 			fmt.Println(string(status))
 		}
 	} else {
-		w := new(tabwriter.Writer)
-		w.Init(os.Stdout, 0, 8, 0, '\t', 0)
+		w := tabwriter.NewWriter(os.Stdout, 0, 8, 0, '\t', 0)
 		fmt.Println("New Policies Processed:")
 		fmt.Fprintf(w, "Id\tDirection\tSuccessful Applied?\n")
 		for i, p := range reqPolicies.SecurityPolicies {
@@ -327,8 +326,7 @@ func policyListShow(listOnly bool, args []string) error {
 		body, _ := json.MarshalIndent(policies, "", "\t")
 		fmt.Println(string(body))
 	} else {
-		w := new(tabwriter.Writer)
-		w.Init(os.Stdout, 0, 8, 0, '\t', 0)
+		w := tabwriter.NewWriter(os.Stdout, 0, 8, 0, '\t', 0)
 		if listOnly {
 			fmt.Println("Policy List")
 			fmt.Fprintf(w,
