@@ -22,7 +22,7 @@ import (
 
 var (
 	ErrTenantNotFound        = errors.New("tenant not found")
-	ErrUnimplementedFeature  = errors.New("unimplemented Feature")
-	ErrInvalidPlatform       = errors.New("invalid Platform")
-	ErrUnimplementedPlatform = errors.New("unimplemented Platform")
+	ErrUnimplementedFeature  = errors.New("unimplemented feature")
+	ErrInvalidPlatform       = errors.New("invalid platform")
+	ErrUnimplementedPlatform = errors.New("unimplemented platform")
 )
