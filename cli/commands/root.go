@@ -91,7 +91,7 @@ func init() {
 		false, "Build and Versioning Information.")
 
 	RootCmd.PersistentFlags().StringVarP(&cfgFile, "config",
-		"c", "", "config file (default $HOME/.romana.yaml | /etc/romana/cli.yml)")
+		"c", "", "config file (default $HOME/.romana.yaml | /etc/romana/cli.yaml)")
 	RootCmd.PersistentFlags().StringVarP(&rootURL, "rootURL",
 		"r", "", "root service url, e.g. http://192.168.0.1")
 	RootCmd.PersistentFlags().StringVarP(&rootPort, "rootPort",
@@ -190,7 +190,7 @@ func initConfig() {
 	if err != nil {
 		// retry other location if error is received for first
 		// default location for config file.
-		config.SetConfigFile("/etc/romana/cli.yml")
+		config.SetConfigFile("/etc/romana/cli.yaml")
 		err = config.ReadInConfig()
 	}
 	setLogOutput()
