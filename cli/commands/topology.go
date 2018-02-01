@@ -137,8 +137,6 @@ func topologyUpdate(cmd *cli.Command, args []string) error {
 		isFile = false
 		buf, err = ioutil.ReadAll(os.Stdin)
 		if err != nil {
-			util.UsageError(cmd,
-				"TOPOLOGY FILE name or piped input from 'STDIN' expected.")
 			return fmt.Errorf("cannot read 'STDIN': %s", err)
 		}
 	} else if len(args) != 1 {
