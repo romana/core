@@ -130,7 +130,6 @@ func topologyList(cmd *cli.Command, args []string) error {
 //    input (STDIN) instead of a file
 func topologyUpdate(cmd *cli.Command, args []string) error {
 	var buf []byte
-	var topologyFile string
 	var err error
 	isFile := true
 
@@ -147,15 +146,11 @@ func topologyUpdate(cmd *cli.Command, args []string) error {
 			"TOPOLOGY FILE name or piped input from 'STDIN' expected.")
 	}
 
-	if isFile {
-		topologyFile = args[0]
-	}
-
 	rootURL := config.GetString("RootURL")
 
 	var topology api.TopologyUpdateRequest
 	if isFile {
-		pBuf, err := ioutil.ReadFile(topologyFile)
+		pBuf, err := ioutil.ReadFile(args[0])
 		if err != nil {
 			return fmt.Errorf("file error: %s", err)
 		}
