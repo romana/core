@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"net/http"
 	"os"
 	"text/tabwriter"
 
@@ -125,7 +126,7 @@ func policyAdd(cmd *cli.Command, args []string) error {
 		if err != nil {
 			util.UsageError(cmd,
 				"POLICY FILE name or piped input from 'STDIN' expected.")
-			return fmt.Errorf("Cannot read 'STDIN': %s\n", err)
+			return fmt.Errorf("cannot read 'STDIN': %s", err)
 		}
 	} else if len(args) != 1 {
 		return util.UsageError(cmd,
@@ -142,7 +143,7 @@ func policyAdd(cmd *cli.Command, args []string) error {
 	if isFile {
 		pBuf, err := ioutil.ReadFile(policyFile)
 		if err != nil {
-			return fmt.Errorf("File error: %s\n", err)
+			return fmt.Errorf("file error: %s", err)
 		}
 		err = json.Unmarshal(pBuf, &reqPolicies.SecurityPolicies)
 		if err != nil || len(reqPolicies.SecurityPolicies) == 0 {
@@ -167,9 +168,20 @@ func policyAdd(cmd *cli.Command, args []string) error {
 	reqPolicies.AppliedSuccessfully = make([]bool, len(reqPolicies.SecurityPolicies))
 	for i, pol := range reqPolicies.SecurityPolicies {
 		reqPolicies.AppliedSuccessfully[i] = false
-		_, err := resty.R().SetBody(pol).Post(rootURL + "/policies")
+		r, err := resty.R().SetHeader("Content-Type", "application/json").
+			SetBody(pol).Post(rootURL + "/policies")
+		m := make(map[string]interface{})
+		m["details"] = r.Status()
+		m["status_code"] = r.StatusCode()
+		result[i] = m
 		if err != nil {
-			log.Printf("Error in applying policy: %v\n", err)
+			log.Printf("Error applying policy (%s:%s): %v\n",
+				pol.ID, pol.Description, err)
+			continue
+		}
+		if r.StatusCode() != http.StatusOK {
+			log.Printf("Error applying policy (%s:%s): %s\n",
+				pol.ID, pol.Description, r.Status())
 			continue
 		}
 		reqPolicies.AppliedSuccessfully[i] = true
@@ -177,72 +189,26 @@ func policyAdd(cmd *cli.Command, args []string) error {
 
 	if isJSON {
 		for i := range reqPolicies.SecurityPolicies {
-			// check if any of policy markers are present in the map.
-			_, exOk := result[i]["external_id"]
-			_, idOk := result[i]["id"]
-			_, nmOk := result[i]["name"]
-			if exOk || idOk || nmOk {
-				var p api.Policy
-				dc := &ms.DecoderConfig{TagName: "json", Result: &p}
-				decoder, err := ms.NewDecoder(dc)
-				if err != nil {
-					continue
-				}
-				err = decoder.Decode(result[i])
-				if err != nil {
-					continue
-				}
-				body, err := json.MarshalIndent(p, "", "\t")
-				if err != nil {
-					continue
-				}
-				fmt.Println(string(body))
-			} else {
-				var h common.HttpError
-				dc := &ms.DecoderConfig{TagName: "json", Result: &h}
-				decoder, err := ms.NewDecoder(dc)
-				if err != nil {
-					continue
-				}
-				err = decoder.Decode(result[i])
-				if err != nil {
-					continue
-				}
-				status, _ := json.MarshalIndent(h, "", "\t")
-				fmt.Println(string(status))
+			var h common.HttpError
+			dc := &ms.DecoderConfig{TagName: "json", Result: &h}
+			decoder, err := ms.NewDecoder(dc)
+			if err != nil {
+				continue
 			}
+			err = decoder.Decode(result[i])
+			if err != nil {
+				continue
+			}
+			status, _ := json.MarshalIndent(h, "", "\t")
+			fmt.Println(string(status))
 		}
 	} else {
-		w := new(tabwriter.Writer)
-		w.Init(os.Stdout, 0, 8, 0, '\t', 0)
+		w := tabwriter.NewWriter(os.Stdout, 0, 8, 0, '\t', 0)
 		fmt.Println("New Policies Processed:")
-		fmt.Fprintln(w, "Id\t",
-			"Policy Name\t",
-			"Direction\t",
-			"Successful Applied?\t",
-		)
-		for i, pol := range reqPolicies.SecurityPolicies {
-			// check if any of policy markers are present in the map.
-			_, exOk := result[i]["external_id"]
-			_, idOk := result[i]["id"]
-			_, nmOk := result[i]["name"]
-			if exOk || idOk || nmOk {
-				var p api.Policy
-				dc := &ms.DecoderConfig{TagName: "json", Result: &p}
-				decoder, err := ms.NewDecoder(dc)
-				if err != nil {
-					continue
-				}
-				err = decoder.Decode(result[i])
-				if err != nil {
-					continue
-				}
-				fmt.Fprintf(w, "%s \t %s \t %t \n", p.ID,
-					p.Direction, reqPolicies.AppliedSuccessfully[i])
-			} else {
-				fmt.Fprintf(w, "%s \t %s \t %t \n", pol.ID,
-					pol.Direction, false)
-			}
+		fmt.Fprintf(w, "Id\tDirection\tSuccessful Applied?\n")
+		for i, p := range reqPolicies.SecurityPolicies {
+			fmt.Fprintf(w, "%s \t %s \t %t \n", p.ID,
+				p.Direction, reqPolicies.AppliedSuccessfully[i])
 		}
 		w.Flush()
 	}
@@ -257,21 +223,47 @@ func policyAdd(cmd *cli.Command, args []string) error {
 func policyRemove(cmd *cli.Command, args []string) error {
 
 	if len(args) != 1 {
-		return fmt.Errorf("Policy remove takes exactly one argument i.e policy id.")
+		return fmt.Errorf("policy remove takes exactly one argument i.e policy id")
 	}
 
-	policyID := args[0]
+	var policy api.Policy
+	policy.ID = args[0]
 
 	rootURL := config.GetString("RootURL")
-	resp, err := resty.R().Delete(rootURL + "/policies/" + policyID)
+	resp, err := resty.R().
+		SetHeader("Content-Type", "application/json").
+		SetBody(policy).Delete(rootURL + "/policies")
 	if err != nil {
 		return err
 	}
 
 	if config.GetString("Format") == "json" {
-		JSONFormat(resp.Body(), os.Stdout)
+		if string(resp.Body()) == "" || string(resp.Body()) == "null" {
+			var h common.HttpError
+			dc := &ms.DecoderConfig{TagName: "json", Result: &h}
+			decoder, err := ms.NewDecoder(dc)
+			if err != nil {
+				return err
+			}
+			m := make(map[string]interface{})
+			m["details"] = resp.Status()
+			m["status_code"] = resp.StatusCode()
+			err = decoder.Decode(m)
+			if err != nil {
+				return err
+			}
+			status, _ := json.MarshalIndent(h, "", "\t")
+			fmt.Println(string(status))
+		} else {
+			JSONFormat(resp.Body(), os.Stdout)
+		}
 	} else {
-		fmt.Printf("Policy (ID: %s) deleted successfully.\n", policyID)
+		if resp.StatusCode() == http.StatusOK {
+			fmt.Printf("Policy (ID: %s) deleted successfully.\n", policy.ID)
+		} else {
+			fmt.Printf("Error deleting policy (ID: %s): %s\n",
+				policy.ID, resp.Status())
+		}
 	}
 
 	return nil
@@ -300,7 +292,7 @@ func policyListShow(listOnly bool, args []string) error {
 	}
 
 	if !listOnly && !specificPolicies {
-		return fmt.Errorf("Policy show takes at-least one argument i.e policy id/s.")
+		return fmt.Errorf("policy show takes at-least one argument i.e policy id/s")
 	}
 
 	rootURL := config.GetString("RootURL")
@@ -309,8 +301,13 @@ func policyListShow(listOnly bool, args []string) error {
 		return err
 	}
 
-	allPolicies := []api.Policy{}
-	policies := []api.Policy{}
+	var allPolicies []api.Policy
+	err = json.Unmarshal(resp.Body(), &allPolicies)
+	if err != nil {
+		return err
+	}
+
+	var policies []api.Policy
 	if listOnly {
 		policies = allPolicies
 	} else {
@@ -326,18 +323,14 @@ func policyListShow(listOnly bool, args []string) error {
 	}
 
 	if config.GetString("Format") == "json" {
-		JSONFormat(resp.Body(), os.Stdout)
+		body, _ := json.MarshalIndent(policies, "", "\t")
+		fmt.Println(string(body))
 	} else {
-		w := new(tabwriter.Writer)
-		w.Init(os.Stdout, 0, 8, 0, '\t', 0)
+		w := tabwriter.NewWriter(os.Stdout, 0, 8, 0, '\t', 0)
 		if listOnly {
 			fmt.Println("Policy List")
-			fmt.Fprintln(w, "Policy Id\t",
-				"Direction\t",
-				"Applied to\t",
-				"No of Peers\t",
-				"No of Rules\t",
-				"Description\t",
+			fmt.Fprintf(w,
+				"Policy Id\tDirection\tApplied to\tNo of Peers\tNo of Rules\tDescription\n",
 			)
 		} else {
 			fmt.Println("Policy Details")
@@ -351,29 +344,27 @@ func policyListShow(listOnly bool, args []string) error {
 					noOfRules += len(p.Ingress[i].Rules)
 				}
 
-				fmt.Fprintln(w, p.ID, "\t",
-					p.Direction, "\t",
-					len(p.AppliedTo), "\t",
-					noOfPeers, "\t",
-					noOfRules, "\t",
-					p.Description, "\t",
+				fmt.Fprintf(w, "%s\t%s\t%d\t%d\t%d\t%s\n",
+					p.ID,
+					p.Direction,
+					len(p.AppliedTo),
+					noOfPeers,
+					noOfRules,
+					p.Description,
 				)
 			} else {
-				fmt.Fprint(w,
-					"Policy Id:\t", p.ID, "\n",
-					"Direction:\t", p.Direction, "\n",
-					"Description:\t", p.Description, "\n",
-				)
+				fmt.Fprintf(w, "Policy Id:\t%s\n", p.ID)
+				fmt.Fprintf(w, "Direction:\t%s\n", p.Direction)
+				fmt.Fprintf(w, "Description:\t%s\n", p.Description)
+
 				if len(p.AppliedTo) > 0 {
 					fmt.Fprintln(w, "Applied To:")
 					for _, ato := range p.AppliedTo {
-						fmt.Fprintln(w,
-							"\tPeer:\t", ato.Peer, "\n",
-							"\tCidr:\t", ato.Cidr, "\n",
-							"\tDestination:\t", ato.Dest, "\n",
-							"\tTenantID:\t", ato.TenantID, "\n",
-							"\tSegmentID:\t", ato.SegmentID,
-						)
+						fmt.Fprintf(w, "\tPeer:\t%s\n", ato.Peer)
+						fmt.Fprintf(w, "\tCidr:\t%s\n", ato.Cidr)
+						fmt.Fprintf(w, "\tDestination:\t%s\n", ato.Dest)
+						fmt.Fprintf(w, "\tTenantID:\t%s\n", ato.TenantID)
+						fmt.Fprintf(w, "\tSegmentID:\t%s\n", ato.SegmentID)
 					}
 				}
 				if len(p.Ingress) > 0 {
@@ -381,31 +372,27 @@ func policyListShow(listOnly bool, args []string) error {
 						if len(ingress.Peers) > 0 {
 							fmt.Fprintln(w, "Peers:")
 							for _, peer := range ingress.Peers {
-								fmt.Fprintln(w,
-									"\tPeer:\t", peer.Peer, "\n",
-									"\tCidr:\t", peer.Cidr, "\n",
-									"\tDestination:\t", peer.Dest, "\n",
-									"\tTenantID:\t", peer.TenantID, "\n",
-									"\tSegmentID:\t", peer.SegmentID,
-								)
+								fmt.Fprintf(w, "\tPeer:\t%s\n", peer.Peer)
+								fmt.Fprintf(w, "\tCidr:\t%s\n", peer.Cidr)
+								fmt.Fprintf(w, "\tDestination:\t%s\n", peer.Dest)
+								fmt.Fprintf(w, "\tTenantID:\t%s\n", peer.TenantID)
+								fmt.Fprintf(w, "\tSegmentID:\t%s\n", peer.SegmentID)
 							}
 						}
 						if len(ingress.Rules) > 0 {
 							fmt.Fprintln(w, "Rules:")
 							for _, rule := range ingress.Rules {
-								fmt.Fprintln(w,
-									"\tProtocol:\t", rule.Protocol, "\n",
-									"\tIsStateful:\t", rule.IsStateful, "\n",
-									"\tPorts:\t", rule.Ports, "\n",
-									"\tPortRanges:\t", rule.PortRanges, "\n",
-									"\tIcmpType:\t", rule.IcmpType, "\n",
-									"\tIcmpCode:\t", rule.IcmpCode,
-								)
+								fmt.Fprintf(w, "\tProtocol:\t%s\n", rule.Protocol)
+								fmt.Fprintf(w, "\tIsStateful:\t%t\n", rule.IsStateful)
+								fmt.Fprintf(w, "\tPorts:\t%v\n", rule.Ports)
+								fmt.Fprintf(w, "\tPortRanges:\t%v\n", rule.PortRanges)
+								fmt.Fprintf(w, "\tIcmpType:\t%d\n", rule.IcmpType)
+								fmt.Fprintf(w, "\tIcmpCode:\t%d\n", rule.IcmpCode)
 							}
 						}
 					}
 				}
-				fmt.Fprintln(w, "")
+				fmt.Fprint(w, "\n")
 			}
 		}
 		w.Flush()

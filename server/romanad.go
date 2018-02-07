@@ -62,9 +62,9 @@ func (r *Romanad) Routes() common.Routes {
 		},
 		common.Route{
 			Method:          "DELETE",
-			Pattern:         "policies/{policyID}",
+			Pattern:         "/policies/{policyID}",
 			Handler:         r.deletePolicy,
-			MakeMessage:     func() interface{} { return &api.Policy{} },
+			MakeMessage:     nil,
 			UseRequestToken: false,
 		},
 		common.Route{

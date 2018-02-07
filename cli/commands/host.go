@@ -100,28 +100,31 @@ func hostList(cmd *cli.Command, args []string) error {
 	if config.GetString("Format") == "json" {
 		JSONFormat(resp.Body(), os.Stdout)
 	} else {
-		w := new(tabwriter.Writer)
-		w.Init(os.Stdout, 0, 8, 0, '\t', 0)
+		w := tabwriter.NewWriter(os.Stdout, 0, 8, 0, '\t', 0)
 
 		if resp.StatusCode() == http.StatusOK {
-			hosts := []api.Host{}
-			fmt.Println("Host List")
-			fmt.Fprintln(w,
-				"Host IP\t",
-				"Agent Port\t",
-				"Romana CIDR\t")
-			for _, host := range hosts {
-				fmt.Fprintln(w, host.IP, "\t",
-					host.AgentPort, "\t")
+			var hosts api.HostList
+			err := json.Unmarshal(resp.Body(), &hosts)
+			if err == nil {
+				fmt.Println("Host List")
+				fmt.Fprintf(w, "Host IP\tHost Name\n")
+				for _, host := range hosts.Hosts {
+					fmt.Fprintf(w, "%s\t%s\n",
+						host.IP.String(),
+						host.Name,
+					)
+				}
+			} else {
+				fmt.Printf("Error: %s \n", err)
 			}
 		} else {
 			var e Error
 			json.Unmarshal(resp.Body(), &e)
 
 			fmt.Println("Host Error")
-			fmt.Fprintln(w, "Fields\t", e.Fields)
-			fmt.Fprintln(w, "Message\t", e.Message)
-			fmt.Fprintln(w, "Status\t", resp.StatusCode())
+			fmt.Fprintf(w, "Fields\t%s\n", e.Fields)
+			fmt.Fprintf(w, "Message\t%s\n", e.Message)
+			fmt.Fprintf(w, "Status\t%d\n", resp.StatusCode())
 		}
 		w.Flush()
 	}

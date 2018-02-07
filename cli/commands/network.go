@@ -100,31 +100,32 @@ func networkList(cmd *cli.Command, args []string) error {
 	if config.GetString("Format") == "json" {
 		JSONFormat(resp.Body(), os.Stdout)
 	} else {
-		w := new(tabwriter.Writer)
-		w.Init(os.Stdout, 0, 8, 0, '\t', 0)
+		w := tabwriter.NewWriter(os.Stdout, 0, 8, 0, '\t', 0)
 
 		if resp.StatusCode() == http.StatusOK {
-			networks := []api.IPAMNetworkResponse{}
-			fmt.Println("Network List")
-			fmt.Fprintln(w,
-				"Network Name\t",
-				"Network CIDR\t",
-				"Revision\t",
-			)
-			for _, net := range networks {
-				fmt.Fprintln(w, net.Name, "\t",
-					net.CIDR, "\t",
-					net.Revision, "\t",
-				)
+			var networks []api.IPAMNetworkResponse
+			err := json.Unmarshal(resp.Body(), &networks)
+			if err == nil {
+				fmt.Println("Network List")
+				fmt.Fprintf(w, "Network Name\tNetwork CIDR\tRevision\n")
+				for _, net := range networks {
+					fmt.Fprintf(w, "%s\t%s\t%d\n",
+						net.Name,
+						net.CIDR.String(),
+						net.Revision,
+					)
+				}
+			} else {
+				fmt.Printf("Error: %s \n", err)
 			}
 		} else {
 			var e Error
 			json.Unmarshal(resp.Body(), &e)
 
 			fmt.Println("Host Error")
-			fmt.Fprintln(w, "Fields\t", e.Fields)
-			fmt.Fprintln(w, "Message\t", e.Message)
-			fmt.Fprintln(w, "Status\t", resp.StatusCode())
+			fmt.Fprintf(w, "Fields\t%s\n", e.Fields)
+			fmt.Fprintf(w, "Message\t%s\n", e.Message)
+			fmt.Fprintf(w, "Status\t%d\n", resp.StatusCode())
 		}
 		w.Flush()
 	}

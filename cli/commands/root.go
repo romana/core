@@ -22,11 +22,10 @@ import (
 	"io"
 	"io/ioutil"
 	"os"
-	"regexp"
-	"strings"
 
 	"github.com/romana/core/common"
 
+	"github.com/go-resty/resty"
 	log "github.com/romana/rlog"
 	cli "github.com/spf13/cobra"
 	config "github.com/spf13/viper"
@@ -34,16 +33,16 @@ import (
 
 // Variables used for configuration and flags.
 var (
-	cfgFile    string
-	rootURL    string
-	rootPort   string
-	version    bool
-	verbose    bool
-	format     string
-	platform   string
-	credential *common.Credential
+	cfgFile  string
+	rootURL  string
+	version  bool
+	verbose  bool
+	format   string
+	platform string
 )
 
+// type Error contains information for
+// json formatted output in cli.
 type Error struct {
 	Code    int32
 	Message string
@@ -77,23 +76,21 @@ func Execute() {
 }
 
 func init() {
-	credential = common.NewCredentialCobra(RootCmd)
-
 	cli.OnInitialize(initConfig)
+
 	RootCmd.AddCommand(hostCmd)
 	RootCmd.AddCommand(policyCmd)
 	RootCmd.AddCommand(networkCmd)
 	RootCmd.AddCommand(blockCmd)
+	RootCmd.AddCommand(topologyCmd)
 
 	RootCmd.Flags().BoolVarP(&version, "version", "",
 		false, "Build and Versioning Information.")
 
 	RootCmd.PersistentFlags().StringVarP(&cfgFile, "config",
-		"c", "", "config file (default is $HOME/.romana.yaml)")
+		"c", "", "config file (default $HOME/.romana.yaml | /etc/romana/cli.yaml)")
 	RootCmd.PersistentFlags().StringVarP(&rootURL, "rootURL",
-		"r", "", "root service url, e.g. http://192.168.0.1")
-	RootCmd.PersistentFlags().StringVarP(&rootPort, "rootPort",
-		"p", "", "root service port, e.g. 9600")
+		"r", "", "root service url, e.g. http://192.168.0.1:9600")
 	RootCmd.PersistentFlags().StringVarP(&format, "format",
 		"f", "", "enable formatting options like [json|table], etc.")
 	RootCmd.PersistentFlags().StringVarP(&platform, "platform",
@@ -107,37 +104,16 @@ func init() {
 
 // preConfig sanitizes URLs and sets up config with URLs.
 func preConfig(cmd *cli.Command, args []string) {
-	var baseURL string
-
-	// Add port details to rootURL else try localhost
-	// if nothing is given on command line or config.
+	// if nothing is given on command line try
+	// fetching it from config
 	if rootURL == "" {
 		rootURL = config.GetString("RootURL")
 	}
-	if rootPort == "" {
-		rootPort = config.GetString("RootPort")
+	// if nothing is given on command line or config
+	// then try to use default below
+	if rootURL == "" {
+		rootURL = "http://127.0.0.1:9600"
 	}
-	if rootPort == "" {
-		re, _ := regexp.Compile(`:\d+/?`)
-		port := re.FindString(rootURL)
-		port = strings.TrimPrefix(port, ":")
-		port = strings.TrimSuffix(port, "/")
-		if port != "" {
-			rootPort = port
-		} else {
-			rootPort = "9600"
-		}
-	}
-	config.Set("RootPort", rootPort)
-	if rootURL != "" {
-		baseURL = strings.TrimSuffix(rootURL, "/")
-		baseURL = strings.TrimSuffix(baseURL, ":9600")
-		baseURL = strings.TrimSuffix(baseURL, ":"+rootPort)
-	} else {
-		baseURL = "http://localhost"
-	}
-	config.Set("BaseURL", baseURL)
-	rootURL = baseURL + ":" + rootPort
 	config.Set("RootURL", rootURL)
 
 	// Give command line options higher priority then
@@ -158,13 +134,6 @@ func preConfig(cmd *cli.Command, args []string) {
 		platform = "kubernetes"
 	}
 	config.Set("Platform", platform)
-
-	fmt.Println(config.GetString("username"))
-	err := credential.Initialize()
-	if err != nil {
-		log.Printf("Error: %s", err)
-		os.Exit(1)
-	}
 }
 
 // versionInfo displays the build and versioning information.
@@ -192,9 +161,15 @@ func initConfig() {
 
 	// If a config file is found, read it in.
 	err := config.ReadInConfig()
+	if err != nil {
+		// retry other location if error is received for first
+		// default location for config file.
+		config.SetConfigFile("/etc/romana/cli.yaml")
+		err = config.ReadInConfig()
+	}
 	setLogOutput()
 	if err != nil {
-		log.Println("Error using config file:", config.ConfigFileUsed())
+		log.Printf("Error using config file(%s): %s", config.ConfigFileUsed(), err)
 	} else {
 		log.Println("Using config file:", config.ConfigFileUsed())
 	}
@@ -214,6 +189,8 @@ func setLogOutput() {
 			// If output is verbose send it to log file
 			// stdout simultaneously.
 			config.Set("Verbose", true)
+			resty.SetDebug(true)
+			resty.SetLogger(io.MultiWriter(logFile, os.Stdout))
 			log.SetOutput(io.MultiWriter(logFile, os.Stdout))
 		} else {
 			// Redirect log output to the log file.
@@ -223,6 +200,8 @@ func setLogOutput() {
 		if verbose || config.GetBool("Verbose") {
 			config.Set("Verbose", true)
 			log.SetOutput(os.Stdout)
+			resty.SetDebug(true)
+			resty.SetLogger(os.Stdout)
 		} else {
 			// Silently fail and discard log output
 			log.SetOutput(ioutil.Discard)
@@ -239,8 +218,10 @@ func JSONFormat(b []byte, w io.Writer) {
 		out.Reset()
 		// indentation failed, so write the original string as is.
 		out.Write(b)
+		out.Write([]byte("\n"))
 		out.WriteTo(w)
 		return
 	}
+	out.Write([]byte("\n"))
 	out.WriteTo(w)
 }
