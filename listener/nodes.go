@@ -139,52 +139,50 @@ func (l *KubeListener) syncNodes() {
 	l.syncNodesMutex.Unlock()
 
 	k8sNodesList := l.nodeStore.List()
-
 	romanaHostList := l.client.IPAM.ListHosts()
+
 	log.Debugf("Comparing Romana host list %d vs K8S node list %d", len(k8sNodesList), len(romanaHostList.Hosts))
 
-	var nodeInRomana bool
-	var romanaHost romanaApi.Host
-	var hostToAdd romanaApi.Host
-
+	// Check for nodes that exist in kubernetes but not registered as romana hosts.
+	// Add hosts that are missing
 	for _, n := range k8sNodesList {
-		if hostToAdd, err = l.nodeToHost(n); err != nil {
+		host, err := l.nodeToHost(n)
+		if err != nil {
 			log.Error(err)
 			continue
 		}
 
-		log.Tracef(trace.Inside, "Checking if node %s is in Romana", hostToAdd)
+		log.Tracef(trace.Inside, "Checking if node %s is in Romana", host)
 
-		nodeInRomana = false
+		nodeInRomana := false
 		// This is not super-efficient but as we don't have that many hosts for now
 		// to deal with, it can do.
-		for _, romanaHost = range romanaHostList.Hosts {
-			if romanaHost.IP.String() == hostToAdd.IP.String() {
+		for _, romanaHost := range romanaHostList.Hosts {
+			if romanaHost.IP.String() == host.IP.String() {
 				nodeInRomana = true
 				break
 			}
 		}
 		if !nodeInRomana {
-			log.Tracef(trace.Inside, "Trying to add host %s to Romana", hostToAdd)
-			if err = l.romanaHostAdd(hostToAdd); err != nil {
+			log.Tracef(trace.Inside, "Trying to add host %s to Romana", host)
+			if err = l.romanaHostAdd(host); err != nil {
 				log.Error(err)
 			}
 		}
 	}
 
-	var hostToRemove romanaApi.Host
-	var hostInK8S bool
-
-	var node *v1.Node
-	for _, romanaHost = range romanaHostList.Hosts {
-		hostInK8S = false
+	// Check for hosts that are registered with romana but don't exist as kubernetes nodes.
+	// Remove hosts that are missing in kubernetes
+	for _, romanaHost := range romanaHostList.Hosts {
+		hostInK8S := false
 		for _, n := range k8sNodesList {
-			node = n.(*v1.Node)
-			if hostToRemove, err = l.nodeToHost(node); err != nil {
+			node := n.(*v1.Node)
+			host, err := l.nodeToHost(node)
+			if err != nil {
 				log.Error(err)
 				continue
 			}
-			if hostToRemove.IP.String() == romanaHost.IP.String() {
+			if host.IP.String() == romanaHost.IP.String() {
 				hostInK8S = true
 				break
 			}
@@ -192,7 +190,7 @@ func (l *KubeListener) syncNodes() {
 		log.Tracef(trace.Inside, "Checking if host %s is in K8S: %t", romanaHost, hostInK8S)
 
 		if !hostInK8S {
-			if err = l.romanaHostRemove(hostToRemove); err != nil {
+			if err = l.romanaHostRemove(romanaHost); err != nil {
 				log.Error(err)
 			}
 		}
