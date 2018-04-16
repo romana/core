@@ -197,6 +197,12 @@ func CmdAdd(args *skel.CmdArgs) error {
 		return fmt.Errorf("Failed to create veth interfaces in namespace %v, err=(%s)", netns, err)
 	}
 
+	// enable proxy_arp
+	err = ioutil.WriteFile(fmt.Sprintf("/proc/sys/net/ipv4/conf/%s/proxy_arp", hostIface.Name), []byte("1"), 0)
+	if err != nil {
+		return fmt.Errorf("Failed to set proxy_arp for %s, err=(%s)", hostIface.Name, err)
+	}
+
 	// set proxy_delay to zero
 	err = ioutil.WriteFile(fmt.Sprintf("/proc/sys/net/ipv4/neigh/%s/proxy_delay", hostIface.Name), []byte("0"), 0)
 	if err != nil {

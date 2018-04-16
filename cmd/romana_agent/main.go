@@ -46,8 +46,6 @@ const (
 
 var (
 	kernelParameter = []string{
-		"/proc/sys/net/ipv4/conf/default/proxy_arp",
-		"/proc/sys/net/ipv4/conf/all/proxy_arp",
 		"/proc/sys/net/ipv4/ip_forward",
 	}
 )
