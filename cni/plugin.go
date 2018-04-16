@@ -200,8 +200,7 @@ func CmdAdd(args *skel.CmdArgs) error {
 	// enable proxy_arp
 	err = ioutil.WriteFile(fmt.Sprintf("/proc/sys/net/ipv4/conf/%s/proxy_arp", hostIface.Name), []byte("1"), 0)
 	if err != nil {
-		// this is an optimization, so errors are logged, but don't result in failure
-		log.Infof("Failed to set proxy_arp for %s, err=(%s)", hostIface.Name, err)
+		return fmt.Errorf("Failed to set proxy_arp for %s, err=(%s)", hostIface.Name, err)
 	}
 
 	// set proxy_delay to zero
